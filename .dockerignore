@@ -1,0 +1,11 @@
+node_modules
+.next
+.git
+.pgdata
+storage
+*.log
+.env
+.env.local
+src/generated
+.claude
+README-original.md

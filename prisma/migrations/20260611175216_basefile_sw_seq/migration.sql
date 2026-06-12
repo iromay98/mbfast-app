@@ -1,0 +1,2 @@
+-- AlterTable
+ALTER TABLE "BaseFile" ADD COLUMN     "swSeq" INTEGER NOT NULL DEFAULT 0;

@@ -1,0 +1,423 @@
+// mbFAST 本店⇄代理店 連携アプリ — Prisma schema
+// DB: PostgreSQL（開発はポータブル版 / 本番は VPS の PostgreSQL）
+//
+// 認証は Auth.js(credentials) + JWT セッションのため、Auth.js のアダプタ用
+// テーブル(Account/Session 等)は不要。アプリ独自の User を passwordHash で管理する。
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  // Prisma 7: 接続 URL は schema ではなく prisma.config.ts(CLI/Migrate 用) と
+  // PrismaClient のドライバアダプタ(実行時) で指定する。
+}
+
+// ─────────────────────────────────────────────
+// Enums
+// ─────────────────────────────────────────────
+enum Role {
+  HQ_ADMIN // 本店管理者
+  DEALER   // 代理店
+}
+
+enum DealerStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum WorkType {
+  TUNING         // チューニング
+  POPS_AND_BANGS // バブリング (Pops & Bangs)
+  TCU            // TCU
+  OTHER          // その他
+}
+
+enum RequestStatus {
+  RECEIVED    // 受付
+  IN_PROGRESS // 作業中
+  DELIVERED   // 納品
+  CANCELLED   // キャンセル
+}
+
+enum AnnouncementCategory {
+  NOTICE  // お知らせ
+  TECH    // 技術情報
+  PRICING // 価格改定
+}
+
+// 施工記録の取り込み状態（スレーブアップロード起点の自動生成パイプライン）
+enum RecordStatus {
+  UPLOADED   // スレーブ受領・解析待ち（一覧では「解析中」プレースホルダ表示）
+  DECRYPTING // AutoTuner decrypt 実行中
+  DECODED    // 復号成功・メタ充足済み（手動作成レコードもこの状態を流用）
+  FAILED     // 復号失敗
+}
+
+// 施工記録の由来
+enum RecordSource {
+  MANUAL       // 手動起票
+  SLAVE_UPLOAD // スレーブアップロードによる自動生成
+}
+
+// チューニング済みファイル(カタログ)の公開状態
+enum VariantStatus {
+  DRAFT     // 下書き（代理店に出さない）
+  AVAILABLE // 配布可（照合で代理店に提示・DL可）
+  DISABLED  // 無効化（照合対象外・非表示）
+}
+
+// ダウンロードの文脈（監査ログ用）
+enum DownloadContext {
+  MATCH_AUTO // 照合一致による代理店の自動DL
+  HQ_MANUAL  // 本店による手動DL
+}
+
+// BaseFile(純正/ストック)の由来
+enum BaseFileSource {
+  AUTO_CAPTURE // 復号パイプラインから自動取込（未整備ストック）
+  MANUAL       // 本店が手動登録
+}
+
+// ─────────────────────────────────────────────
+// Models
+// ─────────────────────────────────────────────
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  role         Role
+  name         String
+  dealerId     String?
+  dealer       Dealer?  @relation(fields: [dealerId], references: [id])
+  createdAt    DateTime @default(now())
+
+  serviceRecords     ServiceRecord[] @relation("RecordCreatedBy")
+  publishedAnnounces Announcement[]  @relation("AnnouncePublishedBy")
+  requestEvents      RequestEvent[]  @relation("EventActor")
+
+  // カタログ（本店専用）
+  createdBaseFiles  BaseFile[]             @relation("BaseFileCreatedBy")
+  createdVariants   TunedVariant[]         @relation("VariantCreatedBy")
+  replacedVersions  TunedVariantVersion[]  @relation("VersionReplacedBy")
+  catalogDownloads  CatalogDownloadLog[]   @relation("DownloadByUser")
+
+  @@index([dealerId])
+}
+
+model Dealer {
+  id              String       @id @default(cuid())
+  name            String // 店名
+  address         String?
+  lat             Float? // 地図用座標
+  lng             Float?
+  phone           String?
+  email           String?
+  status          DealerStatus @default(ACTIVE)
+  autotunerToolId String? // スレーブツールID等のメモ
+  note            String?
+  createdAt       DateTime     @default(now())
+
+  users          User[]
+  serviceRecords ServiceRecord[]
+  fileRequests   FileRequest[]
+  reads          AnnouncementRead[]
+  catalogDownloads CatalogDownloadLog[]
+}
+
+// 施工記録 / 愛車カルテ
+model ServiceRecord {
+  id             String   @id @default(cuid())
+  dealerId       String // 施工した代理店
+  dealer         Dealer   @relation(fields: [dealerId], references: [id])
+  // アップロード起点では未確定のため必須項目を nullable 化（後から自動/手動で充足）
+  vin            String? // 車台番号（手動で後入力）
+  carMaker       String? // ← decrypt: manufacturer
+  carModel       String? // ← decrypt: model
+  carYear        Int?
+  ecuType        String? // ← decrypt: ecu（ECU 型式）
+  tcuType        String?
+  softwareNumber String? // SW番号（decrypt レスポンスに該当無し・手動入力のみ）
+  workType       WorkType? // 施工種別（手動で後選択）
+  appliedMap     String? // 適用マップ名/識別子
+  workedAt       DateTime @default(now()) // 施工日（スレーブ経路は受領日を初期値に）
+  photoPaths     String[] @default([]) // 写真(ストレージ参照キー配列)
+  customerName   String? // 顧客名（代理店が入力・自店と本店が閲覧）
+  note           String? // 代理店と共有のメモ
+  hqNote         String? // 本店専用メモ（代理店には一切見せない）
+
+  // ── 取り込み制御 ──
+  status            RecordStatus @default(DECODED) // 手動作成は DECODED、スレーブ経路は UPLOADED→…
+  source            RecordSource @default(MANUAL)
+  slaveFilePath     String? // アップされたスレーブ（ストレージ参照キー）
+  decryptedFilePath String? // 復号後バイナリ（ストレージ参照キー）
+  decryptError      String? // 失敗理由
+  slaveHash         String? // アップ slave の SHA-256（呼び出し前の重複検出キー）
+  decryptedHash     String? // decrypt レスポンスの hash（整合検証・内容重複）
+
+  // ── AutoTuner decrypt メタ（自動充足） ──
+  mcu             String? // ← decrypt: mcu
+  method          String? // ← decrypt: method（読み方式）
+  ecuManufacturer String? // ← decrypt: ecu_manufacturer
+  slaveName       String? // ← decrypt: slave_name
+  engineInfo      Json? // ← decrypt: engine オブジェクト全体
+
+  // ── encrypt（再暗号化）用に保存（今回 encrypt は未実装） ──
+  autotunerSlaveId String? // ← decrypt: slave_id
+  autotunerEcuId   Int? // ← decrypt: ecu_id
+  autotunerModelId Int? // ← decrypt: model_id
+  autotunerMcuId   String? // ← decrypt: mcu_id
+
+  // ── 車検証（電子車検証 二次元コード）から取得した車両情報 ──
+  registrationNumber    String? // 自動車登録番号・車両番号（ナンバー）
+  vehicleModelCode      String? // 型式（例 DBA-GRS214）
+  engineModelCode       String? // 原動機型式
+  modelDesignationNumber String? // 型式指定番号・類別区分番号
+  firstRegistration     String? // 初度登録年月（YYYY-MM）
+  inspectionExpiry      String? // 有効期間満了日（YYYY-MM-DD・電子車検証券面からは取得不可）
+  shakenScanRaw         Json? // 読み取り生データ {code2, code3}（監査・再解析用）
+
+  // ── ECU 識別子（復号後バイナリから自動抽出・手修正可。Cal が管理の主キー） ──
+  hwNumber  String? // HW 部品番号（例 07K907309C）
+  swNumber  String? // SW 番号（例 8V0907404）
+  calNumber String? // Cal（既定は SW+バージョン。最重要・検索/整理の主キー）
+  ecuIdRaw  Json? // 抽出した全項目＋生の識別ブロック（監査・再解釈用）
+
+  // ── カタログ照合（復号hashが BaseFile.stockHash と一致したら設定） ──
+  matchedBaseFileId String?
+  matchedBaseFile   BaseFile? @relation("RecordMatchedBase", fields: [matchedBaseFileId], references: [id])
+
+  createdById String
+  createdBy   User     @relation("RecordCreatedBy", fields: [createdById], references: [id])
+  createdAt   DateTime @default(now())
+
+  fileRequests FileRequest[] // この記録に紐づく依頼
+  apiLogs      AutotunerApiLog[] // AutoTuner API 呼び出しログ
+  catalogDownloads CatalogDownloadLog[] // この記録起点のカタログDL監査
+
+  @@index([dealerId])
+  @@index([vin])
+  @@index([softwareNumber])
+  @@index([workType])
+  @@index([workedAt])
+  @@index([status])
+  @@index([slaveHash])
+  @@index([decryptedHash])
+  @@index([matchedBaseFileId])
+  @@index([swNumber])
+  @@index([calNumber])
+}
+
+// AutoTuner API 呼び出しログ（監査）
+model AutotunerApiLog {
+  id         String         @id @default(cuid())
+  recordId   String?
+  record     ServiceRecord? @relation(fields: [recordId], references: [id])
+  mode       String // "maps"
+  httpStatus Int? // HTTP ステータス（ネットワークエラー時は null）
+  success    Boolean
+  error      String?
+  createdAt  DateTime       @default(now())
+
+  @@index([recordId])
+  @@index([createdAt])
+}
+
+// 本店への作業依頼
+model FileRequest {
+  id              String         @id @default(cuid())
+  dealerId        String // 依頼元代理店
+  dealer          Dealer         @relation(fields: [dealerId], references: [id])
+  title           String
+  carInfo         String? // 車両情報の自由記述
+  vin             String?
+  ecuType         String?
+  requestNote     String? // 依頼内容
+  inputFilePath   String? // 代理店がアップしたスレーブ/読み出しファイル(ストレージ参照キー)
+  status          RequestStatus  @default(RECEIVED)
+  resultFilePath  String? // 本店が返す成果ファイル(ストレージ参照キー)
+  hqNote          String? // 本店からのコメント
+  serviceRecordId String? // 完了時に紐づける施工記録
+  serviceRecord   ServiceRecord? @relation(fields: [serviceRecordId], references: [id])
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  events RequestEvent[] // 監査用 状態変更履歴
+
+  @@index([dealerId])
+  @@index([status])
+}
+
+// 監査: 依頼の主要な状態変更を残す（誰が・いつ・どの状態へ）
+model RequestEvent {
+  id        String        @id @default(cuid())
+  requestId String
+  request   FileRequest   @relation(fields: [requestId], references: [id])
+  status    RequestStatus
+  comment   String?
+  actorId   String // 操作した User.id
+  actor     User          @relation("EventActor", fields: [actorId], references: [id])
+  createdAt DateTime      @default(now())
+
+  @@index([requestId])
+}
+
+model Announcement {
+  id            String               @id @default(cuid())
+  title         String
+  body          String // Markdown 可
+  category      AnnouncementCategory
+  publishedById String
+  publishedBy   User                 @relation("AnnouncePublishedBy", fields: [publishedById], references: [id])
+  publishedAt   DateTime             @default(now())
+
+  reads AnnouncementRead[]
+
+  @@index([category])
+  @@index([publishedAt])
+}
+
+// 既読管理（代理店単位）
+model AnnouncementRead {
+  announcementId String
+  announcement   Announcement @relation(fields: [announcementId], references: [id])
+  dealerId       String
+  dealer         Dealer       @relation(fields: [dealerId], references: [id])
+  readAt         DateTime     @default(now())
+
+  @@id([announcementId, dealerId])
+}
+
+// ─────────────────────────────────────────────
+// カタログ（チューニング済みファイル）— 本店専用
+// ─────────────────────────────────────────────
+
+// ストック(原本)識別＝照合アンカー。stockHash の完全一致で代理店の復号結果と突合する。
+model BaseFile {
+  id           String  @id @default(cuid())
+  stockHash    String? @unique // 復号後(ストック)内容の SHA-256。照合キー。
+  manufacturer String
+  model        String
+  ecu          String
+  mcu          String?
+  note         String?
+
+  // ECU 識別子（原本バイトから自動抽出。Cal は管理の主キー）
+  hwNumber   String?
+  swNumber   String?
+  swSeq      Int     @default(0) // 同一SW・別内容(hash)の通し番号。0=無印, 1=-A, 2=-B…
+  calNumber  String?
+  generation String? // 世代（例 8V）＝復号 engine.version 由来
+  method     String? // 読み方式（例 OBD）
+  fuel       String? // 燃料（petrol/diesel 等）＝復号 engine.fuel 由来。OP/バブの出し分けに使用
+
+  // 原本(チューニング前)ファイルの実体（任意）。公開ディレクトリ外・認可配信のみ。
+  stockFileRef     String?
+  stockFileName    String?
+  stockFileSize    Int?
+  stockContentType String?
+
+  // 由来・整備状態
+  source              BaseFileSource @default(MANUAL)
+  archived            Boolean        @default(false) // 候補の却下/非表示
+  capturedFromRecordId String? // 自動取込元の施工記録（監査・FKなし）
+
+  createdById String?
+  createdBy   User?    @relation("BaseFileCreatedBy", fields: [createdById], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  variants       TunedVariant[]
+  matchedRecords ServiceRecord[] @relation("RecordMatchedBase")
+
+  @@index([manufacturer])
+  @@index([model])
+  @@index([ecu])
+  @@index([source])
+  @@index([archived])
+  @@index([calNumber])
+}
+
+// チューニング済み納品物（グリッドの1行）。1つの BaseFile に複数(stage1/stage1+pops/…)。
+model TunedVariant {
+  id           String        @id @default(cuid())
+  baseFileId   String
+  baseFile     BaseFile      @relation(fields: [baseFileId], references: [id])
+  stage        String        @default("") // 例: Stage1
+  popsAndBangs Boolean       @default(false)
+  optionTags   String[]      @default([]) // 構造化オプション（Adblue/DTC/EGR/DPF 等）
+  options      String? // 自由記述（カンマ区切り等）
+  status       VariantStatus @default(DRAFT)
+  note         String?
+
+  // 現行版のキャッシュ（グリッド表示・照合の高速化用）。実体は Version 群に保持。
+  currentVersionId String?              @unique
+  currentVersion   TunedVariantVersion? @relation("CurrentVersion", fields: [currentVersionId], references: [id])
+  fileRef          String?
+  fileHash         String? // 現行ファイルの SHA-256
+  fileName         String?
+  fileSize         Int?
+  contentType      String?
+
+  createdById String?
+  createdBy   User?    @relation("VariantCreatedBy", fields: [createdById], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  versions  TunedVariantVersion[] @relation("VariantVersions")
+  downloads CatalogDownloadLog[]
+
+  @@index([baseFileId])
+  @@index([status])
+  @@index([stage])
+  @@index([fileHash])
+}
+
+// 差し替え履歴。現行版がどれかは TunedVariant.currentVersionId で常に明示。
+model TunedVariantVersion {
+  id          String       @id @default(cuid())
+  variantId   String
+  variant     TunedVariant @relation("VariantVersions", fields: [variantId], references: [id], onDelete: Cascade)
+  version     Int
+  fileRef     String
+  fileHash    String
+  fileName    String?
+  fileSize    Int?
+  contentType String?
+  replacedAt  DateTime     @default(now())
+  replacedById String?
+  replacedBy   User?       @relation("VersionReplacedBy", fields: [replacedById], references: [id])
+
+  currentOf TunedVariant? @relation("CurrentVersion")
+  downloads CatalogDownloadLog[]
+
+  @@unique([variantId, version])
+  @@index([variantId])
+}
+
+// ダウンロード監査（いつ・誰が・どのファイルを）。本店手動DL/代理店自動DLの両方を記録。
+model CatalogDownloadLog {
+  id        String          @id @default(cuid())
+  variantId String? // 版が削除されたら null（監査ログ自体は残す）
+  variant   TunedVariant?   @relation(fields: [variantId], references: [id], onDelete: SetNull)
+  versionId String?
+  version   TunedVariantVersion? @relation(fields: [versionId], references: [id], onDelete: SetNull)
+  fileHash  String?
+
+  userId    String?
+  user      User?    @relation("DownloadByUser", fields: [userId], references: [id])
+  dealerId  String?
+  dealer    Dealer?  @relation(fields: [dealerId], references: [id])
+  serviceRecordId String?
+  serviceRecord   ServiceRecord? @relation(fields: [serviceRecordId], references: [id])
+
+  context   DownloadContext
+  ip        String?
+  createdAt DateTime        @default(now())
+
+  @@index([variantId])
+  @@index([dealerId])
+  @@index([createdAt])
+}

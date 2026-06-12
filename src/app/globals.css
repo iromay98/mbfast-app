@@ -1,0 +1,39 @@
+@import "tailwindcss";
+
+/*
+  mbFAST ブランド配色: 白 / グレー / ゴールド を基調にした清潔で業務的なUI。
+  Tailwind v4 の @theme でトークンを定義 → bg-gold-500 等が利用可能。
+*/
+@theme {
+  --color-ink: #1a1a1a; /* 本文 */
+  --color-ink-soft: #5b5b5f; /* 補助テキスト */
+
+  --color-gold-50: #fbf7ec;
+  --color-gold-100: #f4e9c8;
+  --color-gold-200: #e7d18d;
+  --color-gold-300: #d9b85a;
+  --color-gold-400: #cba43c;
+  --color-gold-500: #b8862b; /* プライマリ */
+  --color-gold-600: #9a6f22;
+  --color-gold-700: #7c581c;
+
+  --color-surface: #ffffff;
+  --color-surface-2: #f7f7f8; /* ページ背景 */
+  --color-line: #e6e6e8; /* 罫線 */
+
+  --font-sans:
+    system-ui, -apple-system, "Hiragino Kaku Gothic ProN", "Hiragino Sans",
+    "Noto Sans JP", Meiryo, sans-serif;
+}
+
+html {
+  height: 100%;
+}
+
+body {
+  min-height: 100%;
+  background: var(--color-surface-2);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}

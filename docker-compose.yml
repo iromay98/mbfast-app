@@ -1,0 +1,51 @@
+# 本番/検証用。Docker がある環境ではこちらで app + postgres を起動できる。
+# （ローカル開発で Docker が無い場合は scripts/pg.sh のポータブル PostgreSQL を使用）
+#
+#   起動:   docker compose up -d --build
+#   初回シード: SEED_ON_START=1 docker compose up -d --build   または
+#               docker compose exec app npx prisma db seed
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: mbfast
+      POSTGRES_PASSWORD: mbfast
+      POSTGRES_DB: mbfast
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mbfast -d mbfast"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    ports:
+      - "5432:5432"
+
+  app:
+    build: .
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: "postgresql://mbfast:mbfast@postgres:5432/mbfast?schema=public"
+      # 本番では必ず差し替えること: node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
+      AUTH_SECRET: "${AUTH_SECRET:-please-change-this-32byte-secret-in-prod}"
+      AUTH_URL: "${AUTH_URL:-http://localhost:3000}"
+      NEXTAUTH_URL: "${AUTH_URL:-http://localhost:3000}"
+      STORAGE_DRIVER: "local"
+      STORAGE_LOCAL_DIR: "/data/storage"
+      MAX_UPLOAD_BYTES: "52428800"
+      NOTIFICATION_DRIVER: "console"
+      SEED_ON_START: "${SEED_ON_START:-0}"
+      NODE_ENV: "production"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      # アップロードファイルを永続化（Web 公開ディレクトリの外）
+      - storage:/data/storage
+    ports:
+      - "3000:3000"
+
+volumes:
+  pgdata:
+  storage:

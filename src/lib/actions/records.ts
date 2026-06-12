@@ -1,0 +1,332 @@
+"use server";
+
+import { after } from "next/server";
+import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
+import type { Prisma } from "@/generated/prisma/client";
+import { prisma } from "@/lib/db";
+import { requireDealer, getSessionUser, assertOwnsDealer, requireHQ } from "@/lib/authz";
+import { serviceRecordSchema, recordSupplementSchema } from "@/lib/validation/record";
+import { type FormState, zodToFieldErrors } from "@/lib/actions/form-state";
+import { saveUpload, storage } from "@/server/storage";
+import { runDecryptJob } from "@/server/autotuner/job";
+
+// 施工記録の登録（代理店が自店分を登録）
+export async function createServiceRecord(
+  _prev: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  const user = await requireDealer();
+
+  const parsed = serviceRecordSchema.safeParse({
+    vin: formData.get("vin"),
+    carMaker: formData.get("carMaker"),
+    carModel: formData.get("carModel"),
+    carYear: formData.get("carYear"),
+    ecuType: formData.get("ecuType"),
+    tcuType: formData.get("tcuType"),
+    softwareNumber: formData.get("softwareNumber"),
+    workType: formData.get("workType"),
+    appliedMap: formData.get("appliedMap"),
+    customerName: formData.get("customerName"),
+    registrationNumber: formData.get("registrationNumber"),
+    vehicleModelCode: formData.get("vehicleModelCode"),
+    engineModelCode: formData.get("engineModelCode"),
+    modelDesignationNumber: formData.get("modelDesignationNumber"),
+    firstRegistration: formData.get("firstRegistration"),
+    inspectionExpiry: formData.get("inspectionExpiry"),
+    shakenScanRaw: formData.get("shakenScanRaw"),
+    workedAt: formData.get("workedAt"),
+    note: formData.get("note"),
+  });
+  if (!parsed.success) {
+    return {
+      error: "入力内容を確認してください",
+      fieldErrors: zodToFieldErrors(parsed.error),
+    };
+  }
+
+  // 写真（複数可）を保存
+  const photoPaths: string[] = [];
+  const photos = formData.getAll("photos").filter((f): f is File => f instanceof File);
+  for (const photo of photos) {
+    if (photo.size === 0) continue;
+    const res = await saveUpload(photo, "records");
+    if (!res.ok) {
+      return { error: res.error, fieldErrors: { photos: res.error } };
+    }
+    photoPaths.push(res.key);
+  }
+
+  const record = await prisma.serviceRecord.create({
+    data: {
+      dealerId: user.dealerId,
+      vin: parsed.data.vin,
+      carMaker: parsed.data.carMaker,
+      carModel: parsed.data.carModel,
+      carYear: parsed.data.carYear,
+      ecuType: parsed.data.ecuType,
+      tcuType: parsed.data.tcuType,
+      softwareNumber: parsed.data.softwareNumber,
+      workType: parsed.data.workType,
+      appliedMap: parsed.data.appliedMap,
+      customerName: parsed.data.customerName,
+      registrationNumber: parsed.data.registrationNumber,
+      vehicleModelCode: parsed.data.vehicleModelCode,
+      engineModelCode: parsed.data.engineModelCode,
+      modelDesignationNumber: parsed.data.modelDesignationNumber,
+      firstRegistration: parsed.data.firstRegistration,
+      inspectionExpiry: parsed.data.inspectionExpiry,
+      shakenScanRaw: (parsed.data.shakenScanRaw as Prisma.InputJsonValue) ?? undefined,
+      workedAt: parsed.data.workedAt,
+      note: parsed.data.note,
+      photoPaths,
+      createdById: user.id,
+    },
+  });
+
+  revalidatePath("/dealer/records");
+  redirect(`/dealer/records/${record.id}`);
+}
+
+// ── スレーブアップロード＝施工記録の自動生成 ──────────────
+// アップロード即時に ServiceRecord(UPLOADED) を作成して一覧に出現させ、
+// 復号は after() でバックグラウンド実行する。
+export async function uploadSlaveRecord(
+  _prev: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  const user = await requireDealer();
+
+  const file = formData.get("slaveFile");
+  if (!(file instanceof File) || file.size === 0) {
+    return { error: "スレーブファイルを選択してください", fieldErrors: { slaveFile: "未選択" } };
+  }
+  // 顧客名（任意・代理店が入力）
+  const customerNameRaw = formData.get("customerName");
+  const customerName =
+    typeof customerNameRaw === "string" && customerNameRaw.trim()
+      ? customerNameRaw.trim()
+      : null;
+  const saved = await saveUpload(file, "slaves");
+  if (!saved.ok) {
+    return { error: saved.error, fieldErrors: { slaveFile: saved.error } };
+  }
+
+  // 方針: 重複再利用(①)は廃止し、常に decrypt → 復号後の内容ハッシュでカタログ照合(②)で
+  // 自動DL可否を判定する。記録ごとに復号binを持つため共有参照のバグが起きない。
+
+  // UPLOADED で即作成 → その場で復号完了まで待つ（依頼内容をすぐ選べるように）
+  const record = await prisma.serviceRecord.create({
+    data: {
+      dealerId: user.dealerId,
+      createdById: user.id,
+      source: "SLAVE_UPLOAD",
+      status: "UPLOADED",
+      slaveFilePath: saved.key,
+      slaveHash: saved.sha256,
+      customerName,
+    },
+  });
+
+  // バックグラウンドではなく同期実行。完了後の状態(DECODED/FAILED)を返す。
+  await runDecryptJob(record.id);
+  const done = await prisma.serviceRecord.findUnique({
+    where: { id: record.id },
+    select: { status: true },
+  });
+  revalidatePath("/dealer/records");
+
+  return { ok: true, data: { recordId: record.id, status: done?.status ?? "DECODED" } };
+}
+
+// ── 代理店が後から補う項目を保存（VIN・施工種別・SW番号・写真など） ──
+export async function updateRecordSupplement(
+  recordId: string,
+  _prev: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  const user = await requireDealer();
+  const record = await prisma.serviceRecord.findUnique({
+    where: { id: recordId },
+    select: { dealerId: true, photoPaths: true },
+  });
+  if (!record || record.dealerId !== user.dealerId) {
+    return { error: "対象の施工記録が見つかりません" };
+  }
+
+  const parsed = recordSupplementSchema.safeParse({
+    vin: formData.get("vin"),
+    workType: formData.get("workType"),
+    softwareNumber: formData.get("softwareNumber"),
+    appliedMap: formData.get("appliedMap"),
+    tcuType: formData.get("tcuType"),
+    hwNumber: formData.get("hwNumber"),
+    swNumber: formData.get("swNumber"),
+    calNumber: formData.get("calNumber"),
+    customerName: formData.get("customerName"),
+    carYear: formData.get("carYear"),
+    registrationNumber: formData.get("registrationNumber"),
+    vehicleModelCode: formData.get("vehicleModelCode"),
+    engineModelCode: formData.get("engineModelCode"),
+    modelDesignationNumber: formData.get("modelDesignationNumber"),
+    firstRegistration: formData.get("firstRegistration"),
+    inspectionExpiry: formData.get("inspectionExpiry"),
+    shakenScanRaw: formData.get("shakenScanRaw"),
+    note: formData.get("note"),
+  });
+  if (!parsed.success) {
+    return { error: "入力内容を確認してください", fieldErrors: zodToFieldErrors(parsed.error) };
+  }
+
+  // 追加写真（任意・既存に追記）
+  const photoPaths = [...record.photoPaths];
+  const photos = formData.getAll("photos").filter((f): f is File => f instanceof File);
+  for (const photo of photos) {
+    if (photo.size === 0) continue;
+    const res = await saveUpload(photo, "records");
+    if (!res.ok) return { error: res.error, fieldErrors: { photos: res.error } };
+    photoPaths.push(res.key);
+  }
+
+  await prisma.serviceRecord.update({
+    where: { id: recordId },
+    data: {
+      vin: parsed.data.vin,
+      workType: parsed.data.workType ?? null,
+      softwareNumber: parsed.data.softwareNumber,
+      appliedMap: parsed.data.appliedMap,
+      tcuType: parsed.data.tcuType,
+      hwNumber: parsed.data.hwNumber,
+      swNumber: parsed.data.swNumber,
+      calNumber: parsed.data.calNumber,
+      customerName: parsed.data.customerName,
+      carYear: parsed.data.carYear,
+      registrationNumber: parsed.data.registrationNumber,
+      vehicleModelCode: parsed.data.vehicleModelCode,
+      engineModelCode: parsed.data.engineModelCode,
+      modelDesignationNumber: parsed.data.modelDesignationNumber,
+      firstRegistration: parsed.data.firstRegistration,
+      inspectionExpiry: parsed.data.inspectionExpiry,
+      shakenScanRaw: (parsed.data.shakenScanRaw as Prisma.InputJsonValue) ?? undefined,
+      note: parsed.data.note,
+      photoPaths,
+    },
+  });
+
+  revalidatePath(`/dealer/records/${recordId}`);
+  revalidatePath("/dealer/records");
+  return { ok: true };
+}
+
+// ── 本店専用メモの保存（代理店には一切見せない・本店のみ書込可） ──
+export async function updateHqNote(
+  recordId: string,
+  _prev: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  await requireHQ(); // 本店管理者のみ
+  const hqNote = String(formData.get("hqNote") ?? "").trim();
+  await prisma.serviceRecord.update({
+    where: { id: recordId },
+    data: { hqNote: hqNote || null },
+  });
+  revalidatePath(`/hq/records/${recordId}`);
+  return { ok: true };
+}
+
+// ── 本店: 施工記録の削除 ──────────
+// 参照(依頼・DLログ・APIログ)は監査として残すため null 解除してから本体削除。
+// 保管ファイル(slave/復号bin)も削除する。
+export async function deleteRecord(recordId: string): Promise<{ ok?: true; error?: string }> {
+  await requireHQ(); // 本店管理者のみ
+  const record = await prisma.serviceRecord.findUnique({
+    where: { id: recordId },
+    select: { id: true, slaveFilePath: true, decryptedFilePath: true, photoPaths: true },
+  });
+  if (!record) return { error: "施工記録が見つかりません" };
+
+  // 参照を外す（履歴は残す）
+  await prisma.fileRequest.updateMany({
+    where: { serviceRecordId: recordId },
+    data: { serviceRecordId: null },
+  });
+  await prisma.catalogDownloadLog.updateMany({
+    where: { serviceRecordId: recordId },
+    data: { serviceRecordId: null },
+  });
+  await prisma.autotunerApiLog.updateMany({
+    where: { recordId },
+    data: { recordId: null },
+  });
+
+  await prisma.serviceRecord.delete({ where: { id: recordId } });
+
+  // 保管ファイルを削除（失敗しても致命ではない）
+  const keys = [record.slaveFilePath, record.decryptedFilePath, ...record.photoPaths].filter(
+    (k): k is string => !!k,
+  );
+  for (const k of keys) {
+    try {
+      await storage.delete(k);
+    } catch {
+      /* 無視 */
+    }
+  }
+
+  revalidatePath("/hq/records");
+  return { ok: true };
+}
+
+// ── 本店: 顧客名の変更 ──────────
+export async function setRecordCustomerName(
+  recordId: string,
+  name: string,
+): Promise<{ ok?: true; error?: string }> {
+  await requireHQ(); // 本店管理者のみ
+  const v = name.trim();
+  await prisma.serviceRecord.update({
+    where: { id: recordId },
+    data: { customerName: v || null },
+  });
+  revalidatePath(`/hq/records/${recordId}`);
+  revalidatePath("/hq/records");
+  return { ok: true };
+}
+
+// ── 本店: 施工代理店の付け替え（プルダウン変更） ──────────
+export async function setRecordDealer(
+  recordId: string,
+  dealerId: string,
+): Promise<{ ok?: true; error?: string }> {
+  await requireHQ(); // 本店管理者のみ
+  const dealer = await prisma.dealer.findUnique({ where: { id: dealerId }, select: { id: true } });
+  if (!dealer) return { error: "代理店が見つかりません" };
+  await prisma.serviceRecord.update({ where: { id: recordId }, data: { dealerId } });
+  revalidatePath(`/hq/records/${recordId}`);
+  revalidatePath("/hq/records");
+  return { ok: true };
+}
+
+// ── 復号の再実行（FAILED や詰まった行のリカバリ） ──────────
+export async function retryDecrypt(recordId: string): Promise<void> {
+  const user = await getSessionUser();
+  if (!user) return;
+  const record = await prisma.serviceRecord.findUnique({
+    where: { id: recordId },
+    select: { dealerId: true, slaveFilePath: true },
+  });
+  if (!record || !record.slaveFilePath) return;
+  assertOwnsDealer(user, record.dealerId); // 代理店は自店のみ・本店は可
+
+  await prisma.serviceRecord.update({
+    where: { id: recordId },
+    data: { status: "UPLOADED", decryptError: null },
+  });
+  revalidatePath("/dealer/records");
+  revalidatePath("/hq/records");
+
+  after(async () => {
+    await runDecryptJob(recordId);
+  });
+}

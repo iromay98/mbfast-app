@@ -1,0 +1,7 @@
+# 本番リバースプロキシ（自動HTTPS / Let's Encrypt）。
+# DOMAIN 環境変数のドメインで待受け、内部の app:3000 へ転送する。
+# 事前に DOMAIN の A レコードを VPS の IP に向け、80/443 を開放しておくこと。
+{$DOMAIN} {
+	encode zstd gzip
+	reverse_proxy app:3000
+}
