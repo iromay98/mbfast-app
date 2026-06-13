@@ -24,6 +24,8 @@ export const baseFileSchema = z.object({
   ecu: z.string().trim().min(1, "ECUは必須です"),
   mcu: optionalStr,
   note: optionalStr,
+  driver: optionalStr,
+  driverBorrowed: optionalBool,
   stockHash: optionalStr,
 });
 
@@ -50,8 +52,6 @@ export const variantPatchSchema = z.object({
   optionTags: z.array(z.string().trim()).optional(),
   options: z.string().trim().optional(),
   note: z.string().trim().optional(),
-  driver: z.string().trim().optional(),
-  driverBorrowed: optionalBool,
   status: variantStatusEnum.optional(),
   manufacturer: z.string().trim().optional(),
   model: z.string().trim().optional(),

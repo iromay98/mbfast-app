@@ -40,14 +40,15 @@ export type CatalogRow = {
   fuel: string;
   stockHash: string;
   hasStock: boolean;
+  baseDriver: string;
+  baseDriverBorrowed: boolean;
+  baseNote: string;
   stage: string;
   popsAndBangs: boolean;
   popsSport: boolean;
   optionTags: string[];
   options: string;
   note: string;
-  driver: string;
-  driverBorrowed: boolean;
   status: "DRAFT" | "AVAILABLE" | "DISABLED";
   fileName: string;
   fileHash: string;
@@ -72,6 +73,9 @@ export type CalGroup = {
   swSeq: number;
   fuelKind: FuelKind;
   hasStock: boolean;
+  driver: string;
+  driverBorrowed: boolean;
+  note: string;
   count: number;
   stages: StageGroup[];
 };
@@ -291,6 +295,41 @@ function CalGroupCard({
             {adding ? "とじる" : "＋版を追加"}
           </button>
         </div>
+      </div>
+
+      {/* 純正(ECU)単位の Driver・備考メモ（本店のみ・代理店には一切出さない） */}
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-line px-3 py-2 text-xs">
+        <span className="font-semibold text-ink-soft" title="ECM Titanium 等の使用Driver（本店のみ）">
+          Driver
+        </span>
+        {g.driverBorrowed && g.driver && <span className="text-ink-soft">(</span>}
+        <EditCell
+          value={g.driver}
+          onSave={(v) => onPatchBase({ driver: v })}
+          placeholder="Driver名"
+          mono
+          className="w-32"
+        />
+        {g.driverBorrowed && g.driver && <span className="text-ink-soft">)</span>}
+        <label
+          className="flex items-center gap-0.5 text-ink-soft"
+          title="他のDriverを流用（名前を()で表示）"
+        >
+          <input
+            type="checkbox"
+            checked={g.driverBorrowed}
+            onChange={(e) => onPatchBase({ driverBorrowed: e.target.checked })}
+            className="h-3.5 w-3.5 accent-gold-500"
+          />
+          流用
+        </label>
+        <span className="ml-2 font-semibold text-ink-soft">備考</span>
+        <EditCell
+          value={g.note}
+          onSave={(v) => onPatchBase({ note: v })}
+          placeholder="メモ（例: テスト用・強すぎ）"
+          className="min-w-0 flex-1"
+        />
       </div>
 
       {/* 版の追加：ステージとバブ有無は登録時に決定（以後固定） */}
@@ -570,38 +609,9 @@ function LeafRow({
         <EditCell
           value={row.options}
           onSave={(v) => onPatch({ options: v })}
-          placeholder="備考メモ"
-          className="w-28"
-        />
-        {/* Driver（ECM Titanium 等・本店のみ）。流用なら名前を()表示。 */}
-        <span className="text-[11px] text-ink-soft" title="使用Driver（本店のみ・代理店非公開）">
-          Drv
-        </span>
-        <span className={row.driverBorrowed && row.driver ? "text-[11px] text-ink-soft" : "hidden"}>
-          (
-        </span>
-        <EditCell
-          value={row.driver}
-          onSave={(v) => onPatch({ driver: v })}
-          placeholder="Driver名"
-          mono
+          placeholder="メモ"
           className="w-24"
         />
-        <span className={row.driverBorrowed && row.driver ? "text-[11px] text-ink-soft" : "hidden"}>
-          )
-        </span>
-        <label
-          className="flex items-center gap-0.5 text-[11px] text-ink-soft"
-          title="他のDriverを流用（名前を()で表示）"
-        >
-          <input
-            type="checkbox"
-            checked={row.driverBorrowed}
-            onChange={(e) => onPatch({ driverBorrowed: e.target.checked })}
-            className="h-3 w-3 accent-gold-500"
-          />
-          流用
-        </label>
         <span className="ml-auto whitespace-nowrap text-[11px] text-ink-soft">
           {row.updatedAtLabel}
         </span>

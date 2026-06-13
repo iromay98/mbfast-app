@@ -107,8 +107,6 @@ export async function updateVariant(
   if ("optionTags" in patch) variantData.optionTags = d.optionTags ?? [];
   if ("options" in patch) variantData.options = d.options ? d.options : null;
   if ("note" in patch) variantData.note = d.note ? d.note : null;
-  if ("driver" in patch) variantData.driver = d.driver ? d.driver : null;
-  if ("driverBorrowed" in patch) variantData.driverBorrowed = d.driverBorrowed ?? false;
   if ("status" in patch && d.status) variantData.status = d.status;
 
   const baseData: Record<string, unknown> = {};
