@@ -50,6 +50,8 @@ export const variantPatchSchema = z.object({
   optionTags: z.array(z.string().trim()).optional(),
   options: z.string().trim().optional(),
   note: z.string().trim().optional(),
+  driver: z.string().trim().optional(),
+  driverBorrowed: optionalBool,
   status: variantStatusEnum.optional(),
   manufacturer: z.string().trim().optional(),
   model: z.string().trim().optional(),

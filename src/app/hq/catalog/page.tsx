@@ -167,6 +167,8 @@ export default async function HQCatalogPage({
     optionTags: v.optionTags ?? [],
     options: v.options ?? "",
     note: v.note ?? "",
+    driver: v.driver ?? "",
+    driverBorrowed: v.driverBorrowed,
     status: v.status,
     fileName: v.fileName ?? "",
     fileHash: v.fileHash ?? "",

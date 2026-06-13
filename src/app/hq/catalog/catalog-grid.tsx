@@ -46,6 +46,8 @@ export type CatalogRow = {
   optionTags: string[];
   options: string;
   note: string;
+  driver: string;
+  driverBorrowed: boolean;
   status: "DRAFT" | "AVAILABLE" | "DISABLED";
   fileName: string;
   fileHash: string;
@@ -568,9 +570,38 @@ function LeafRow({
         <EditCell
           value={row.options}
           onSave={(v) => onPatch({ options: v })}
-          placeholder="メモ"
+          placeholder="備考メモ"
+          className="w-28"
+        />
+        {/* Driver（ECM Titanium 等・本店のみ）。流用なら名前を()表示。 */}
+        <span className="text-[11px] text-ink-soft" title="使用Driver（本店のみ・代理店非公開）">
+          Drv
+        </span>
+        <span className={row.driverBorrowed && row.driver ? "text-[11px] text-ink-soft" : "hidden"}>
+          (
+        </span>
+        <EditCell
+          value={row.driver}
+          onSave={(v) => onPatch({ driver: v })}
+          placeholder="Driver名"
+          mono
           className="w-24"
         />
+        <span className={row.driverBorrowed && row.driver ? "text-[11px] text-ink-soft" : "hidden"}>
+          )
+        </span>
+        <label
+          className="flex items-center gap-0.5 text-[11px] text-ink-soft"
+          title="他のDriverを流用（名前を()で表示）"
+        >
+          <input
+            type="checkbox"
+            checked={row.driverBorrowed}
+            onChange={(e) => onPatch({ driverBorrowed: e.target.checked })}
+            className="h-3 w-3 accent-gold-500"
+          />
+          流用
+        </label>
         <span className="ml-auto whitespace-nowrap text-[11px] text-ink-soft">
           {row.updatedAtLabel}
         </span>

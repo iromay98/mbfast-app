@@ -353,9 +353,13 @@ model TunedVariant {
   popsAndBangs Boolean       @default(false) // バブリング有無
   popsSport    Boolean       @default(false) // true=スポーツモードのみ / false=全モード（既存は全モード）
   optionTags   String[]      @default([]) // 構造化オプション（Adblue/DTC/EGR/DPF 等）
-  options      String? // 自由記述（カンマ区切り等）
+  options      String? // 自由記述メモ・備考（本店のみ。例「テスト用・強すぎ」）
   status       VariantStatus @default(DRAFT)
   note         String?
+
+  // ECM Titanium 等の Driver 情報（本店のみ・代理店には一切出さない）
+  driver         String? // 使用 Driver 名（自動認識タイプ or 流用元の名前）
+  driverBorrowed Boolean @default(false) // true=他Driverの流用（表示時に名前を ()で囲う）
 
   // 現行版のキャッシュ（グリッド表示・照合の高速化用）。実体は Version 群に保持。
   currentVersionId String?              @unique
