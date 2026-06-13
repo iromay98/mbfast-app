@@ -57,6 +57,9 @@ export function StockUploadForm({
     displacement: "",
     ecu: "",
     mcu: "",
+    cal: "",
+    sw: "",
+    hw: "",
   });
   const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement>) =>
     setF((s) => ({ ...s, [k]: e.target.value }));
@@ -84,11 +87,14 @@ export function StockUploadForm({
         return;
       }
       setAnalyzed(r);
-      // 抽出値を既定として流し込む（編集可）
+      // 抽出値を既定として流し込む（編集可・自動認識しない項目は手入力できる）
       setF((s) => ({
         ...s,
         ecu: s.ecu || r.ecu || "",
         displacement: s.displacement || r.displacement || "",
+        cal: s.cal || r.cal || "",
+        sw: s.sw || r.sw || "",
+        hw: s.hw || r.hw || "",
       }));
     });
   };
@@ -108,13 +114,16 @@ export function StockUploadForm({
     if (f.displacement.trim()) fd.set("displacement", f.displacement.trim());
     if (f.ecu.trim()) fd.set("ecu", f.ecu.trim());
     if (f.mcu.trim()) fd.set("mcu", f.mcu.trim());
+    if (f.cal.trim()) fd.set("calNumber", f.cal.trim());
+    if (f.sw.trim()) fd.set("swNumber", f.sw.trim());
+    if (f.hw.trim()) fd.set("hwNumber", f.hw.trim());
     if (analyzed?.fuel) fd.set("fuel", analyzed.fuel);
     const ctx = {
       manufacturer: f.manufacturer.trim(),
       model: f.model.trim(),
       fuelKind: fuelKindOf(analyzed?.fuel ?? null),
-      cal: analyzed?.cal ?? "",
-      sw: analyzed?.sw ?? "",
+      cal: f.cal.trim() || analyzed?.cal || "",
+      sw: f.sw.trim() || analyzed?.sw || "",
     };
     startSubmit(async () => {
       const res = await createBaseFileFromBin(fd);
@@ -164,7 +173,7 @@ export function StockUploadForm({
   const finish = () => {
     setCreated(null);
     setAddedMods([]);
-    setF({ manufacturer: "", model: "", generation: "", engineCode: "", displacement: "", ecu: "", mcu: "" });
+    setF({ manufacturer: "", model: "", generation: "", engineCode: "", displacement: "", ecu: "", mcu: "", cal: "", sw: "", hw: "" });
     setMsg(null);
     setOpen(false);
     router.refresh();
@@ -274,6 +283,18 @@ export function StockUploadForm({
             <label className="block">
               <span className="mb-1 block text-xs font-semibold text-ink-soft">MCU（任意）</span>
               <input className={`${inp} w-full font-mono`} placeholder="例: TC1797" value={f.mcu} onChange={set("mcu")} />
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-xs font-semibold text-ink-soft">Cal（自動・手入力可）</span>
+              <input className={`${inp} w-full font-mono`} placeholder="自動検出／手入力" value={f.cal} onChange={set("cal")} />
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-xs font-semibold text-ink-soft">SW（自動・手入力可）</span>
+              <input className={`${inp} w-full font-mono`} placeholder="自動検出／手入力" value={f.sw} onChange={set("sw")} />
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-xs font-semibold text-ink-soft">HW（自動・手入力可）</span>
+              <input className={`${inp} w-full font-mono`} placeholder="自動検出／手入力" value={f.hw} onChange={set("hw")} />
             </label>
           </div>
 

@@ -823,7 +823,16 @@ export async function createBaseFileFromBin(formData: FormData): Promise<FormSta
   const displacement = String(formData.get("displacement") ?? "").trim() || null;
   const fuel = String(formData.get("fuel") ?? "").trim() || inferredFuel;
 
-  const swSeq = ecu.sw ? await prisma.baseFile.count({ where: { swNumber: ecu.sw } }) : 0;
+  // ECU識別子: 手入力があれば優先（自動認識しない時にアップ画面で補える）
+  const typedHw = String(formData.get("hwNumber") ?? "").trim();
+  const typedSw = String(formData.get("swNumber") ?? "").trim();
+  const typedCal = String(formData.get("calNumber") ?? "").trim();
+  const hwNumber = typedHw || ecu.hw;
+  const swNumber = typedSw || ecu.sw;
+  const calNumber = typedCal || ecu.cal;
+  const manualId = !!(typedHw || typedSw || typedCal);
+
+  const swSeq = swNumber ? await prisma.baseFile.count({ where: { swNumber } }) : 0;
 
   try {
     const base = await prisma.baseFile.create({
@@ -833,10 +842,10 @@ export async function createBaseFileFromBin(formData: FormData): Promise<FormSta
         model,
         ecu: ecuType,
         mcu,
-        hwNumber: ecu.hw,
-        swNumber: ecu.sw,
+        hwNumber,
+        swNumber,
         swSeq,
-        calNumber: ecu.cal,
+        calNumber,
         generation,
         engineCode,
         displacement,
@@ -850,6 +859,20 @@ export async function createBaseFileFromBin(formData: FormData): Promise<FormSta
         note: "純正binアップロードで登録",
       },
     });
+    // 手入力で識別子を補ったら学習（次回以降の自動認識用・外部API不要）
+    if (manualId) {
+      after(async () => {
+        await learnEcuRules({
+          buf,
+          hash: stockHash,
+          ecuType,
+          hw: hwNumber,
+          sw: swNumber,
+          cal: calNumber,
+          sourceBaseFileId: base.id,
+        });
+      });
+    }
     revalidatePath(CATALOG_PATH);
     revalidatePath(PENDING_PATH);
     return { ok: true, data: { id: base.id } };
