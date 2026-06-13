@@ -558,9 +558,9 @@ function LeafRow({
         <button
           type="button"
           onClick={() => {
-            if (window.confirm("この版を削除しますか？元に戻せません。")) onDelete();
+            if (window.confirm("この版をアーカイブします（メンテナンスから復元できます）。")) onDelete();
           }}
-          title="この版を削除（履歴ごと・元に戻せません）"
+          title="この版をアーカイブ（後で復元可）"
           className="rounded border border-red-200 px-1.5 py-0.5 text-[11px] text-red-600 hover:bg-red-50"
         >
           削除

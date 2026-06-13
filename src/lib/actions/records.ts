@@ -290,15 +290,57 @@ export async function updateHqNote(
 // ── 本店: 施工記録の削除 ──────────
 // 参照(依頼・DLログ・APIログ)は監査として残すため null 解除してから本体削除。
 // 保管ファイル(slave/復号bin)も削除する。
+// 施工記録の削除＝ソフト削除（アーカイブ）。ファイル・参照は保持し、一覧から隠すだけ。
+// うっかり消しても /hq/admin の「アーカイブ」から復元できる。完全削除は purgeRecord。
 export async function deleteRecord(recordId: string): Promise<{ ok?: true; error?: string }> {
   await requireHQ(); // 本店管理者のみ
   const record = await prisma.serviceRecord.findUnique({
     where: { id: recordId },
-    select: { id: true, slaveFilePath: true, decryptedFilePath: true, photoPaths: true },
+    select: { id: true },
   });
   if (!record) return { error: "施工記録が見つかりません" };
 
-  // 参照を外す（履歴は残す）
+  await prisma.serviceRecord.update({
+    where: { id: recordId },
+    data: { deletedAt: new Date() },
+  });
+
+  revalidatePath("/hq/records");
+  revalidatePath("/hq/admin");
+  return { ok: true };
+}
+
+// アーカイブから復元。
+export async function restoreRecord(recordId: string): Promise<{ ok?: true; error?: string }> {
+  await requireHQ();
+  await prisma.serviceRecord.update({
+    where: { id: recordId },
+    data: { deletedAt: null },
+  });
+  revalidatePath("/hq/records");
+  revalidatePath("/hq/admin");
+  return { ok: true };
+}
+
+// 完全削除（アーカイブ済みのみ）。参照を外し、行とファイルを物理削除。元に戻せない。
+export async function purgeRecord(recordId: string): Promise<{ ok?: true; error?: string }> {
+  await requireHQ();
+  const record = await prisma.serviceRecord.findUnique({
+    where: { id: recordId },
+    select: {
+      id: true,
+      deletedAt: true,
+      slaveFilePath: true,
+      decryptedFilePath: true,
+      photoPaths: true,
+    },
+  });
+  if (!record) return { error: "施工記録が見つかりません" };
+  if (!record.deletedAt) {
+    return { error: "先にアーカイブ（削除）してから完全削除してください" };
+  }
+
+  // 参照を外す（監査ログは残す）
   await prisma.fileRequest.updateMany({
     where: { serviceRecordId: recordId },
     data: { serviceRecordId: null },
@@ -327,6 +369,7 @@ export async function deleteRecord(recordId: string): Promise<{ ok?: true; error
   }
 
   revalidatePath("/hq/records");
+  revalidatePath("/hq/admin");
   return { ok: true };
 }
 

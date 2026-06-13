@@ -27,7 +27,7 @@ export default async function DealerRecordDetailPage({
   const { id } = await params;
 
   const record = await prisma.serviceRecord.findUnique({ where: { id } });
-  if (!record || record.dealerId !== user.dealerId) notFound();
+  if (!record || record.dealerId !== user.dealerId || record.deletedAt) notFound();
 
   const supplementAction = updateRecordSupplement.bind(null, record.id);
 

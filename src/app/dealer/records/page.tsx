@@ -15,7 +15,7 @@ import { SlaveUpload } from "./slave-upload";
 export default async function DealerRecordsPage() {
   const user = await requireDealer();
   const records = await prisma.serviceRecord.findMany({
-    where: { dealerId: user.dealerId },
+    where: { dealerId: user.dealerId, deletedAt: null },
     orderBy: { createdAt: "desc" },
   });
 

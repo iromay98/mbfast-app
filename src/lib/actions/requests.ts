@@ -159,7 +159,7 @@ export async function resolveTuning(
 
   // 配布可(AVAILABLE)＋実体ありの中から、選んだ構成に完全一致する版を探す
   const variants = await prisma.tunedVariant.findMany({
-    where: { baseFileId: ctx.baseFileId, status: "AVAILABLE" },
+    where: { baseFileId: ctx.baseFileId, status: "AVAILABLE", deletedAt: null },
     select: { id: true, stage: true, popsAndBangs: true, popsSport: true, optionTags: true, fileRef: true },
   });
   const hit = variants.find(

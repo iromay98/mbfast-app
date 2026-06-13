@@ -91,7 +91,7 @@ export default async function HQCatalogPage({
   const stage = one(sp.stage).trim();
   const status = one(sp.status).trim();
 
-  const where: Prisma.TunedVariantWhereInput = {};
+  const where: Prisma.TunedVariantWhereInput = { deletedAt: null };
   const baseWhere: Prisma.BaseFileWhereInput = {};
   if (manufacturer) baseWhere.manufacturer = { contains: manufacturer, mode: "insensitive" };
   if (ecu) baseWhere.ecu = { contains: ecu, mode: "insensitive" };

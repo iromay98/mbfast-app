@@ -195,18 +195,49 @@ export async function duplicateVariant(variantId: string): Promise<FormState> {
 }
 
 // 版の削除（履歴は Cascade で削除、DLログは SetNull で監査として残す）
+// 版の削除＝ソフト削除（アーカイブ）。版・履歴・ファイルは保持し、カタログ/照合から隠すだけ。
+// /hq/admin の「アーカイブ」から復元可。完全削除は purgeVariant。
 export async function deleteVariant(variantId: string): Promise<FormState> {
   await requireHQ();
-  // 現行版ポインタを外す（自己参照FK回避）
   await prisma.tunedVariant.update({
     where: { id: variantId },
-    data: { currentVersionId: null },
+    data: { deletedAt: new Date() },
   });
-  // 本体削除 → versions は Cascade 削除、download log は variantId/versionId が SetNull
-  await prisma.tunedVariant.delete({ where: { id: variantId } });
-
   revalidatePath(CATALOG_PATH);
   revalidatePath(PENDING_PATH);
+  revalidatePath("/hq/admin");
+  return { ok: true };
+}
+
+// アーカイブから復元。
+export async function restoreVariant(variantId: string): Promise<FormState> {
+  await requireHQ();
+  await prisma.tunedVariant.update({
+    where: { id: variantId },
+    data: { deletedAt: null },
+  });
+  revalidatePath(CATALOG_PATH);
+  revalidatePath(PENDING_PATH);
+  revalidatePath("/hq/admin");
+  return { ok: true };
+}
+
+// 完全削除（アーカイブ済みのみ）。版(Cascade)・現行版ポインタごと物理削除。元に戻せない。
+export async function purgeVariant(variantId: string): Promise<FormState> {
+  await requireHQ();
+  const v = await prisma.tunedVariant.findUnique({
+    where: { id: variantId },
+    select: { deletedAt: true },
+  });
+  if (!v) return { error: "対象が見つかりません" };
+  if (!v.deletedAt) return { error: "先にアーカイブ（削除）してから完全削除してください" };
+  // 現行版ポインタを外す（自己参照FK回避）
+  await prisma.tunedVariant.update({ where: { id: variantId }, data: { currentVersionId: null } });
+  // 本体削除 → versions は Cascade 削除、download log は variantId/versionId が SetNull
+  await prisma.tunedVariant.delete({ where: { id: variantId } });
+  revalidatePath(CATALOG_PATH);
+  revalidatePath(PENDING_PATH);
+  revalidatePath("/hq/admin");
   return { ok: true };
 }
 
@@ -448,7 +479,7 @@ export async function uploadVariation(
   // 既存 (stage, pops, optionTags 集合一致) を探して差し替え、無ければ新規作成。いずれも AVAILABLE。
   // 重複データに備え AVAILABLE を優先する。
   const candidates = await prisma.tunedVariant.findMany({
-    where: { baseFileId, stage: stageVal, popsAndBangs: pops, popsSport },
+    where: { baseFileId, stage: stageVal, popsAndBangs: pops, popsSport, deletedAt: null },
     select: {
       id: true,
       status: true,
@@ -561,17 +592,18 @@ export async function deleteVariation(
       stage: stage.trim(),
       popsAndBangs: pops,
       popsSport: pops ? popsSport : false,
+      deletedAt: null,
     },
     select: { id: true, optionTags: true },
   });
   const targets = candidates.filter((c) => sameTagSet(c.optionTags, want));
   if (targets.length === 0) return { error: "対象が見つかりません" };
 
-  for (const t of targets) {
-    // 現行版ポインタを外してから削除（versions は Cascade、DLログは SetNull）
-    await prisma.tunedVariant.update({ where: { id: t.id }, data: { currentVersionId: null } });
-    await prisma.tunedVariant.delete({ where: { id: t.id } });
-  }
+  // ソフト削除（アーカイブ）。版・ファイルは保持し、復元可。
+  await prisma.tunedVariant.updateMany({
+    where: { id: { in: targets.map((t) => t.id) } },
+    data: { deletedAt: new Date() },
+  });
 
   revalidatePath(CATALOG_PATH);
   revalidatePath(PENDING_PATH);

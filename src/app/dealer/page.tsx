@@ -19,7 +19,7 @@ export default async function DealerDashboard() {
   const [monthRecords, openRequests, activeRequests, recentAnnouncements] =
     await Promise.all([
       prisma.serviceRecord.count({
-        where: { dealerId: user.dealerId, workedAt: { gte: start, lt: end } },
+        where: { dealerId: user.dealerId, workedAt: { gte: start, lt: end }, deletedAt: null },
       }),
       prisma.fileRequest.count({
         where: {

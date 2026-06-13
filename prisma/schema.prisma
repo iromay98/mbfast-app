@@ -192,11 +192,13 @@ model ServiceRecord {
   createdById String
   createdBy   User     @relation("RecordCreatedBy", fields: [createdById], references: [id])
   createdAt   DateTime @default(now())
+  deletedAt   DateTime? // ソフト削除（アーカイブ）。非null=削除済み（一覧から除外・復元可）。
 
   fileRequests FileRequest[] // この記録に紐づく依頼
   apiLogs      AutotunerApiLog[] // AutoTuner API 呼び出しログ
   catalogDownloads CatalogDownloadLog[] // この記録起点のカタログDL監査
 
+  @@index([deletedAt])
   @@index([dealerId])
   @@index([vin])
   @@index([softwareNumber])
@@ -368,6 +370,7 @@ model TunedVariant {
   createdBy   User?    @relation("VariantCreatedBy", fields: [createdById], references: [id])
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+  deletedAt   DateTime? // ソフト削除（アーカイブ）。非null=削除済み（カタログ/照合から除外・復元可）。
 
   versions  TunedVariantVersion[] @relation("VariantVersions")
   downloads CatalogDownloadLog[]
@@ -376,6 +379,7 @@ model TunedVariant {
   @@index([status])
   @@index([stage])
   @@index([fileHash])
+  @@index([deletedAt])
 }
 
 // 差し替え履歴。現行版がどれかは TunedVariant.currentVersionId で常に明示。

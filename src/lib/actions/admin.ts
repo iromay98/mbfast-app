@@ -31,7 +31,7 @@ export type ReextractResult = {
 async function runReextract(apply: boolean): Promise<ReextractResult> {
   await requireHQ();
   const records = await prisma.serviceRecord.findMany({
-    where: { decryptedFilePath: { not: null } },
+    where: { decryptedFilePath: { not: null }, deletedAt: null },
     orderBy: { workedAt: "desc" },
     select: {
       id: true,

@@ -11,7 +11,7 @@ export function DeleteRecordButton({ recordId, label }: { recordId: string; labe
   const router = useRouter();
 
   const onDelete = () => {
-    if (!window.confirm(`「${label}」の施工記録を削除します。元に戻せません。よろしいですか？`)) return;
+    if (!window.confirm(`「${label}」の施工記録をアーカイブします（メンテナンスから復元できます）。よろしいですか？`)) return;
     start(async () => {
       setError(null);
       const r = await deleteRecord(recordId);

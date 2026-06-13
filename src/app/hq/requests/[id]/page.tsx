@@ -30,7 +30,7 @@ export default async function HQRequestDetailPage({
 
   // 紐付け候補: 同じ代理店の施工記録
   const records = await prisma.serviceRecord.findMany({
-    where: { dealerId: request.dealerId },
+    where: { dealerId: request.dealerId, deletedAt: null },
     orderBy: { workedAt: "desc" },
     take: 50,
     select: {

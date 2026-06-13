@@ -43,7 +43,7 @@ export async function matchAndLinkCatalog(opts: {
   });
   if (base) {
     const availableCount = await prisma.tunedVariant.count({
-      where: { baseFileId: base.id, status: "AVAILABLE" },
+      where: { baseFileId: base.id, status: "AVAILABLE", deletedAt: null },
     });
     await prisma.serviceRecord.update({
       where: { id: recordId },

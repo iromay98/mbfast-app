@@ -48,6 +48,7 @@ export async function GET(
     select: {
       baseFileId: true,
       status: true,
+      deletedAt: true,
       fileRef: true,
       fileName: true,
       fileHash: true,
@@ -64,6 +65,7 @@ export async function GET(
   // 一致した BaseFile 配下の AVAILABLE 現行ファイルに限る（それ以外は存在を秘匿して 404）
   if (
     !v ||
+    v.deletedAt ||
     v.baseFileId !== record.matchedBaseFileId ||
     v.status !== "AVAILABLE" ||
     !v.fileRef

@@ -31,7 +31,7 @@ export default async function HQRecordsPage({
   const from = one(sp.from);
   const to = one(sp.to);
 
-  const where: Prisma.ServiceRecordWhereInput = {};
+  const where: Prisma.ServiceRecordWhereInput = { deletedAt: null };
   if (q) {
     where.OR = [
       { vin: { contains: q, mode: "insensitive" } },

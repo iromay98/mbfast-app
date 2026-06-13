@@ -297,9 +297,10 @@ export default async function HQRecordDetailPage({
 
       {/* 削除（最下部・本店のみ） */}
       <Card className="border-red-200">
-        <h3 className="mb-1 text-sm font-bold text-red-700">施工記録の削除</h3>
+        <h3 className="mb-1 text-sm font-bold text-red-700">施工記録の削除（アーカイブ）</h3>
         <p className="mb-3 text-xs text-ink-soft">
-          この施工記録を削除します。紐づく依頼・ダウンロード履歴は監査として残ります（記録参照のみ解除）。元に戻せません。
+          一覧から消えますが<b>アーカイブとして保管</b>され、ファイル・履歴も保持します。
+          「メンテナンス」からいつでも復元できます（完全削除もそこから）。
         </p>
         <DeleteRecordButton
           recordId={record.id}

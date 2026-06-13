@@ -13,11 +13,14 @@ export default async function HQDashboard() {
   const [dealerCount, monthRecords, openRequests, recentRecords] =
     await Promise.all([
       prisma.dealer.count({ where: { status: "ACTIVE" } }),
-      prisma.serviceRecord.count({ where: { workedAt: { gte: start, lt: end } } }),
+      prisma.serviceRecord.count({
+        where: { workedAt: { gte: start, lt: end }, deletedAt: null },
+      }),
       prisma.fileRequest.count({
         where: { status: { in: ["RECEIVED", "IN_PROGRESS"] } },
       }),
       prisma.serviceRecord.findMany({
+        where: { deletedAt: null },
         orderBy: { createdAt: "desc" },
         take: 8,
         include: { dealer: { select: { name: true } } },
