@@ -45,6 +45,7 @@ export const variantCreateSchema = z.object({
   stockHash: optionalStr,
   stage: optionalStr,
   popsAndBangs: optionalBool,
+  popsSport: optionalBool,
   options: optionalStr,
   note: optionalStr,
 });

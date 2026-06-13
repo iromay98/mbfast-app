@@ -43,6 +43,7 @@ export async function createVariant(input: {
   stockHash?: string;
   stage?: string;
   popsAndBangs?: boolean;
+  popsSport?: boolean;
   options?: string;
   note?: string;
 }): Promise<FormState> {
@@ -81,6 +82,7 @@ export async function createVariant(input: {
       baseFileId,
       stage: d.stage ?? "",
       popsAndBangs: d.popsAndBangs ?? false,
+      popsSport: d.popsAndBangs ? (d.popsSport ?? false) : false,
       options: d.options,
       note: d.note,
       status: "DRAFT",

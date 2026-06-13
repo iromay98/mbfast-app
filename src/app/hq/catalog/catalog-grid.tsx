@@ -13,7 +13,7 @@ import {
   updateBaseFile,
   updateVariant,
 } from "@/lib/actions/catalog";
-import { type FuelKind, optionTagsFor, popsAllowed } from "@/lib/catalog/options";
+import { type FuelKind, optionTagsFor, popsAllowed, baselineStages } from "@/lib/catalog/options";
 import { swLabel } from "@/lib/catalog/sw";
 
 export type CatalogVersion = {
@@ -195,12 +195,13 @@ export function CatalogGrid({ groups }: { groups: CalGroup[] }) {
           open={expanded.has(g.baseFileId)}
           onToggleOpen={() => toggleCollapse(g.baseFileId)}
           onPatchBase={(p) => run(() => updateBaseFile(g.baseFileId, p))}
-          onAddVariant={(stage, pops) =>
+          onAddVariant={(stage, pops, popsSport) =>
             run(() =>
               createVariant({
                 baseFileId: g.baseFileId,
                 stage: stage || undefined,
                 popsAndBangs: pops,
+                popsSport,
               }),
             )
           }
@@ -237,7 +238,7 @@ function CalGroupCard({
   open: boolean;
   onToggleOpen: () => void;
   onPatchBase: (p: Record<string, unknown>) => void;
-  onAddVariant: (stage: string, pops: boolean) => void;
+  onAddVariant: (stage: string, pops: boolean, popsSport: boolean) => void;
   onPatchVariant: (id: string, p: Record<string, unknown>) => void;
   onDuplicate: (id: string) => void;
   onDelete: (id: string) => void;
@@ -249,8 +250,10 @@ function CalGroupCard({
   const tags = optionTagsFor(g.fuelKind);
   const showPops = popsAllowed(g.fuelKind); // ディーゼルは false（バブリングなし）
   const [adding, setAdding] = useState(false);
-  const [newStage, setNewStage] = useState("");
-  const [newPops, setNewPops] = useState(false);
+  const [newStage, setNewStage] = useState("Stage1");
+  const [newPopsMode, setNewPopsMode] = useState<"none" | "all" | "sport">("none");
+  // ステージ候補（ベンツのみ Stage1.5 を含む）。"" は「チューニングなし」。
+  const stageOptions = baselineStages(g.manufacturer);
   return (
     <Card className="p-0">
       {/* 大グループ見出し（Cal） */}
@@ -362,33 +365,54 @@ function CalGroupCard({
         />
       </div>
 
-      {/* 版の追加：ステージとバブ有無は登録時に決定（以後固定） */}
+      {/* 版の追加：ステージはプルダウン、バブリングは なし/全モード/スポーツ（登録後は固定） */}
       {adding && (
         <div className="flex flex-wrap items-center gap-2 border-b border-line bg-gold-50 p-3">
           <span className="text-xs text-ink-soft">ステージ</span>
-          <input
+          <select
             value={newStage}
             onChange={(e) => setNewStage(e.target.value)}
-            placeholder="空=チューニングなし / Stage1 …"
-            className="w-48 rounded border border-line bg-surface px-2 py-1 text-sm"
-          />
+            className="rounded border border-line bg-surface px-2 py-1 text-sm"
+          >
+            {stageOptions.map((s) => (
+              <option key={s} value={s}>
+                {s || "チューニングなし"}
+              </option>
+            ))}
+          </select>
           {showPops && (
-            <label className="flex items-center gap-1 text-xs text-ink-soft">
-              <input
-                type="checkbox"
-                checked={newPops}
-                onChange={(e) => setNewPops(e.target.checked)}
-                className="h-3.5 w-3.5 accent-gold-500"
-              />
-              バブリングあり
-            </label>
+            <>
+              <span className="ml-1 text-xs text-ink-soft">バブリング</span>
+              <div className="flex gap-1">
+                {([
+                  ["none", "なし"],
+                  ["all", "全モード"],
+                  ["sport", "スポーツ"],
+                ] as const).map(([v, label]) => (
+                  <button
+                    key={v}
+                    type="button"
+                    onClick={() => setNewPopsMode(v)}
+                    className={`rounded border px-2 py-1 text-xs font-semibold ${
+                      newPopsMode === v
+                        ? "border-gold-400 bg-gold-500 text-white"
+                        : "border-line bg-white text-ink-soft hover:bg-surface-2"
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </>
           )}
           <button
             type="button"
             onClick={() => {
-              onAddVariant(newStage.trim(), showPops ? newPops : false);
-              setNewStage("");
-              setNewPops(false);
+              const pops = showPops && newPopsMode !== "none";
+              const sport = showPops && newPopsMode === "sport";
+              onAddVariant(newStage.trim(), pops, sport);
+              setNewStage("Stage1");
+              setNewPopsMode("none");
               setAdding(false);
             }}
             className="rounded-lg bg-gold-500 px-3 py-1.5 text-xs font-semibold text-white"
@@ -396,7 +420,7 @@ function CalGroupCard({
             追加
           </button>
           <span className="text-[11px] text-ink-soft">
-            ※ ステージ・バブ有無は登録後は固定（変更不可）
+            ※ ステージ・バブリングは登録後は固定（変更不可）
           </span>
         </div>
       )}
@@ -423,7 +447,7 @@ function CalGroupCard({
                         </span>
                         <button
                           type="button"
-                          onClick={() => onAddVariant(sg.stage, pg.pops)}
+                          onClick={() => onAddVariant(sg.stage, pg.pops, false)}
                           title={`${sg.label}・${pg.pops ? "バブリングあり" : "バブリングなし"} に版を追加`}
                           className="rounded border border-line px-1.5 py-0.5 text-[11px] text-ink-soft hover:bg-surface-2"
                         >
@@ -457,7 +481,7 @@ function CalGroupCard({
                     <div className="mb-1">
                       <button
                         type="button"
-                        onClick={() => onAddVariant(sg.stage, false)}
+                        onClick={() => onAddVariant(sg.stage, false, false)}
                         title={`${sg.label} に版を追加`}
                         className="rounded border border-line px-1.5 py-0.5 text-[11px] text-ink-soft hover:bg-surface-2"
                       >
