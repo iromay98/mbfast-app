@@ -10,6 +10,7 @@ import { serviceRecordSchema, recordSupplementSchema } from "@/lib/validation/re
 import { type FormState, zodToFieldErrors } from "@/lib/actions/form-state";
 import { saveUpload, storage } from "@/server/storage";
 import { runDecryptJob } from "@/server/autotuner/job";
+import { learnEcuRules } from "@/server/ecu/learn";
 
 // 施工記録の登録（代理店が自店分を登録）
 export async function createServiceRecord(
@@ -428,6 +429,32 @@ export async function setRecordEcu(
       calNumber: norm(fields.cal),
     },
   });
+
+  // 手入力した HW/SW/Cal を学習（次回以降の自動認識用・外部API不要）
+  after(async () => {
+    const r = await prisma.serviceRecord.findUnique({
+      where: { id: recordId },
+      select: {
+        ecuType: true,
+        decryptedHash: true,
+        decryptedFilePath: true,
+        hwNumber: true,
+        swNumber: true,
+        calNumber: true,
+      },
+    });
+    if (!r) return;
+    const file = r.decryptedFilePath ? await storage.read(r.decryptedFilePath) : null;
+    await learnEcuRules({
+      buf: file?.buffer ?? null,
+      hash: r.decryptedHash,
+      ecuType: r.ecuType,
+      hw: r.hwNumber,
+      sw: r.swNumber,
+      cal: r.calNumber,
+    });
+  });
+
   revalidatePath(`/hq/records/${recordId}`);
   revalidatePath("/hq/records");
   return { ok: true };

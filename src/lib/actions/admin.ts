@@ -5,7 +5,7 @@ import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/db";
 import { requireHQ } from "@/lib/authz";
 import { storage } from "@/server/storage";
-import { extractEcuId } from "@/server/ecu/identify";
+import { smartExtractEcuId } from "@/server/ecu/learn";
 
 // 1件分の変更内容（before→after）。値が増える項目のみ載る。
 export type EcuChange = {
@@ -39,6 +39,8 @@ async function runReextract(apply: boolean): Promise<ReextractResult> {
       carModel: true,
       slaveName: true,
       decryptedFilePath: true,
+      decryptedHash: true,
+      ecuType: true,
       hwNumber: true,
       swNumber: true,
       calNumber: true,
@@ -55,7 +57,10 @@ async function runReextract(apply: boolean): Promise<ReextractResult> {
       skipped++;
       continue;
     }
-    const ecu = extractEcuId(file.buffer);
+    const ecu = await smartExtractEcuId(file.buffer, {
+      hash: r.decryptedHash,
+      ecuType: r.ecuType,
+    });
     const change: EcuChange = {
       id: r.id,
       label: `${r.carMaker ?? ""} ${r.carModel ?? ""}`.trim() || r.slaveName || r.id,
@@ -98,4 +103,12 @@ export async function previewReextractEcu(): Promise<ReextractResult> {
 
 export async function applyReextractEcu(): Promise<ReextractResult> {
   return runReextract(true);
+}
+
+// 学習ルール（EcuRule）を削除（誤学習の整理用）。
+export async function deleteEcuRule(id: string): Promise<{ ok?: true; error?: string }> {
+  await requireHQ();
+  await prisma.ecuRule.delete({ where: { id } });
+  revalidatePath("/hq/admin");
+  return { ok: true };
 }

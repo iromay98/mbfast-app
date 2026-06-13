@@ -1,10 +1,13 @@
 "use server";
 
+import { after } from "next/server";
+import { createHash } from "crypto";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
 import { requireHQ } from "@/lib/authz";
-import { saveUpload } from "@/server/storage";
+import { saveUpload, storage } from "@/server/storage";
 import { notify } from "@/server/notifications";
+import { smartExtractEcuId, learnEcuRules } from "@/server/ecu/learn";
 import {
   fuelKindOf,
   optionTagsFor,
@@ -18,7 +21,6 @@ import {
   variantPatchSchema,
   variantStatusEnum,
 } from "@/lib/validation/catalog";
-import { extractEcuId } from "@/server/ecu/identify";
 import { normalizeManufacturer } from "@/lib/catalog/manufacturers";
 
 const CATALOG_PATH = "/hq/catalog";
@@ -271,6 +273,35 @@ export async function updateBaseFile(
     if (isUniqueError(e)) return { error: "同じ stockHash の項目が既に存在します" };
     throw e;
   }
+
+  // HW/SW/Cal を手入力したら学習（次回以降の自動認識用・外部API不要）
+  if ("hwNumber" in patch || "swNumber" in patch || "calNumber" in patch) {
+    after(async () => {
+      const b = await prisma.baseFile.findUnique({
+        where: { id: baseFileId },
+        select: {
+          ecu: true,
+          stockHash: true,
+          stockFileRef: true,
+          hwNumber: true,
+          swNumber: true,
+          calNumber: true,
+        },
+      });
+      if (!b) return;
+      const file = b.stockFileRef ? await storage.read(b.stockFileRef) : null;
+      await learnEcuRules({
+        buf: file?.buffer ?? null,
+        hash: b.stockHash,
+        ecuType: b.ecu,
+        hw: b.hwNumber,
+        sw: b.swNumber,
+        cal: b.calNumber,
+        sourceBaseFileId: baseFileId,
+      });
+    });
+  }
+
   revalidatePath(CATALOG_PATH);
   return { ok: true };
 }
@@ -693,7 +724,8 @@ export async function analyzeStockBin(formData: FormData): Promise<{
     return { ...empty, error: "ファイルを選択してください" };
   }
   const buf = Buffer.from(await file.arrayBuffer());
-  const ecu = extractEcuId(buf);
+  const hash = createHash("sha256").update(buf).digest("hex");
+  const ecu = await smartExtractEcuId(buf, { hash, ecuType: null });
   const desc = ecu.engineDesc ?? "";
   const dm = desc.match(/(\d(?:\.\d)?)\s*l\b/i);
   const fuel = /TDI|diesel/i.test(desc)
@@ -732,12 +764,13 @@ export async function createBaseFileFromBin(formData: FormData): Promise<FormSta
   ).map((b) => b.manufacturer);
   const manufacturer = normalizeManufacturer(makerInput, existingMakers);
 
-  // bin から識別子抽出＋指紋確定
+  // bin から識別子抽出（組み込み＋学習）＋指紋確定
   const buf = Buffer.from(await file.arrayBuffer());
-  const ecu = extractEcuId(buf);
+  const stockHash = createHash("sha256").update(buf).digest("hex");
+  const typedEcu = String(formData.get("ecu") ?? "").trim();
+  const ecu = await smartExtractEcuId(buf, { hash: stockHash, ecuType: typedEcu || null });
   const saved = await saveUpload(file, "catalog/stock");
   if (!saved.ok) return { error: saved.error };
-  const stockHash = saved.sha256;
 
   const dup = await prisma.baseFile.findUnique({
     where: { stockHash },

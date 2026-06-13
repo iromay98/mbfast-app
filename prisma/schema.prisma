@@ -386,6 +386,25 @@ model TunedVariant {
   @@index([deletedAt])
 }
 
+// ECU識別子(HW/SW/Cal)の学習ルール（本店の手入力から学習・ローカル/外部API不要）。
+// EXACT: 内容hash一致のファイルに固定値を返す。MARKER: ECU型式ごとに「目印+トークン形」で抽出。
+model EcuRule {
+  id               String   @id @default(cuid())
+  field            String // "HW" | "SW" | "CAL"
+  kind             String // "EXACT" | "MARKER"
+  matchKey         String // EXACT=内容hash / MARKER=ECU型式（無ければ "*"）
+  value            String? // EXACT=採用値 / MARKER=学習元の例(sample)
+  beforeMarker     String? // MARKER: トークン直前のASCII目印
+  tokenRegex       String? // MARKER: トークンの形（正規表現）
+  sourceBaseFileId String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([kind])
+  @@index([field])
+  @@index([matchKey])
+}
+
 // 差し替え履歴。現行版がどれかは TunedVariant.currentVersionId で常に明示。
 model TunedVariantVersion {
   id          String       @id @default(cuid())

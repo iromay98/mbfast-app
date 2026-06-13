@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { PageTitle, Card } from "@/components/ui";
 import { ReextractPanel } from "./reextract-panel";
 import { ArchivePanel, type ArchivedRecord, type ArchivedVariant } from "./archive-panel";
+import { EcuRulesPanel, type RuleRow } from "./ecu-rules-panel";
 import { tuningContentLabel } from "@/lib/catalog/options";
 import { swLabel } from "@/lib/catalog/sw";
 
@@ -46,6 +47,30 @@ export default async function HQAdminPage() {
       },
     }),
   ]);
+
+  // 学習済みルール（EcuRule）
+  const ruleRows = await prisma.ecuRule.findMany({
+    orderBy: { updatedAt: "desc" },
+    take: 200,
+    select: {
+      id: true,
+      field: true,
+      kind: true,
+      matchKey: true,
+      value: true,
+      beforeMarker: true,
+      tokenRegex: true,
+    },
+  });
+  const rules: RuleRow[] = ruleRows.map((r) => ({
+    id: r.id,
+    field: r.field,
+    kind: r.kind,
+    summary:
+      r.kind === "EXACT"
+        ? `値「${r.value ?? ""}」（このファイル: ${r.matchKey.slice(0, 10)}…）`
+        : `ECU「${r.matchKey}」: 目印「${r.beforeMarker ?? ""}」→ 形 ${r.tokenRegex ?? ""}（例 ${r.value ?? ""}）`,
+  }));
 
   const records: ArchivedRecord[] = delRecords.map((r) => ({
     id: r.id,
@@ -92,6 +117,16 @@ export default async function HQAdminPage() {
           ※自動抽出で取れる項目は、手動入力した値も上書きされます。
         </p>
         <ReextractPanel />
+      </Card>
+
+      <Card>
+        <h3 className="mb-1 text-sm font-bold text-ink">ECU識別子の学習ルール</h3>
+        <p className="mb-3 text-xs text-ink-soft">
+          純正や施工記録で HW/SW/Cal を<b>手入力すると自動で学習</b>し、次回以降の認識に使います
+          （外部APIは使いません）。完全一致＝同じファイル用、マーカー＝同系ECUの新しいファイル用。
+          誤学習はここで削除できます。
+        </p>
+        <EcuRulesPanel rules={rules} />
       </Card>
     </div>
   );

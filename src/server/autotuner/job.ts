@@ -4,7 +4,7 @@ import { prisma } from "@/lib/db";
 import { storage } from "@/server/storage";
 import { notify } from "@/server/notifications";
 import { matchAndLinkCatalog } from "@/server/catalog/match";
-import { extractEcuId } from "@/server/ecu/identify";
+import { smartExtractEcuId } from "@/server/ecu/learn";
 import { decryptSlave } from "./client";
 import { AutotunerError, type DecryptResponse } from "./types";
 
@@ -50,7 +50,10 @@ export async function runDecryptJob(recordId: string): Promise<void> {
     await storage.save(decryptedKey, result.decryptedData, "application/octet-stream");
 
     // 復号後バイナリから ECU 識別子（HW/SW/Cal）を自動抽出
-    const ecu = extractEcuId(result.decryptedData);
+    const ecu = await smartExtractEcuId(result.decryptedData, {
+      hash: result.hash,
+      ecuType: result.meta.ecu,
+    });
     await prisma.serviceRecord.update({
       where: { id: recordId },
       data: {
