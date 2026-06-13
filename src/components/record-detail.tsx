@@ -170,8 +170,8 @@ export function RecordDetail({
           </dl>
           {!record.calNumber && !record.swNumber && !record.hwNumber && (
             <p className="mt-2 text-xs text-ink-soft">
-              識別子が見つかりませんでした（自動抽出は VAG・トヨタ系に対応、ベンツ系は暫定対応）。
-              下の「ECU識別子の手動入力」から本店が手で入力できます。
+              識別子が見つかりませんでした（自動抽出は VAG・トヨタ系に対応。ベンツ系は誤認識を避けるため自動抽出しません）。
+              下の「ECU識別子の手動入力」から本店が手で入力すると、次回以降は学習で自動認識されます。
             </p>
           )}
         </Card>

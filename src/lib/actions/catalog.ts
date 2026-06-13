@@ -269,8 +269,13 @@ export async function updateBaseFile(
   if (!parsed.success) {
     return { error: "入力内容を確認してください", fieldErrors: zodToFieldErrors(parsed.error) };
   }
+  // Cal/SW/HW は空入力で「クリア(null)」できるようにする（誤認識値の消去用）。
+  const data: Record<string, unknown> = { ...parsed.data };
+  for (const k of ["calNumber", "swNumber", "hwNumber"] as const) {
+    if (k in patch) data[k] = String(patch[k] ?? "").trim() || null;
+  }
   try {
-    await prisma.baseFile.update({ where: { id: baseFileId }, data: parsed.data });
+    await prisma.baseFile.update({ where: { id: baseFileId }, data });
   } catch (e) {
     if (isUniqueError(e)) return { error: "同じ stockHash の項目が既に存在します" };
     throw e;
