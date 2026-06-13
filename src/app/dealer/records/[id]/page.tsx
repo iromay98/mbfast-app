@@ -16,14 +16,7 @@ import { updateRecordSupplement } from "@/lib/actions/records";
 import { SupplementForm } from "./supplement-form";
 import { TuningConfigurator } from "./tuning-configurator";
 import { RecordTicketForm } from "./record-ticket-form";
-import { fuelKindOf, optionTagsFor, popsAllowed } from "@/lib/catalog/options";
-
-// ステージ並び順: チューニングなし(空)→Stage1→Stage2…→その他
-function stageRank(stage: string): number {
-  if (!stage.trim()) return -1;
-  const m = stage.match(/(\d+)/);
-  return m ? parseInt(m[1], 10) : 999;
-}
+import { fuelKindOf, optionTagsFor, popsAllowed, stageRank, baselineStages } from "@/lib/catalog/options";
 
 export default async function DealerRecordDetailPage({
   params,
@@ -46,6 +39,7 @@ export default async function DealerRecordDetailPage({
         where: { id: record.matchedBaseFileId },
         select: {
           fuel: true,
+          manufacturer: true,
           variants: {
             where: { status: { not: "DISABLED" } },
             select: { stage: true },
@@ -60,9 +54,8 @@ export default async function DealerRecordDetailPage({
   } | null = null;
   if (matched) {
     const fuelKind = fuelKindOf(matched.fuel);
-    // 基本ステージ（チューニングなし/Stage1/Stage2）は常に選択肢に。
-    // さらにカタログに存在するステージも加える（重複排除・並び順）。
-    const stageSet = new Set<string>(["", "Stage1", "Stage2"]);
+    // 基本ステージ（ベンツは Stage1.5 も）＋カタログに存在するステージ（重複排除・並び順）。
+    const stageSet = new Set<string>(baselineStages(matched.manufacturer));
     for (const v of matched.variants) stageSet.add((v.stage ?? "").trim());
     const stages = [...stageSet]
       .sort((a, b) => stageRank(a) - stageRank(b) || a.localeCompare(b))

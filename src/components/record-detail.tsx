@@ -140,15 +140,16 @@ export function RecordDetail({
         </dl>
       </Card>
 
-      {!hideTechnical && (record.calNumber || record.swNumber || record.hwNumber) && (
+      {/* 本店向けは常に表示（手動アップ時も HW/SW/Cal を確認できるように）。 */}
+      {!hideTechnical && (
         <Card>
           <h3 className="mb-1 text-sm font-bold text-ink">ECU識別子（自動抽出）</h3>
-          {record.calNumber && (
+          {record.calNumber ? (
             <div className="mb-2 rounded-lg bg-gold-50 px-3 py-2">
               <div className="text-xs text-ink-soft">Cal番号</div>
               <div className="font-mono text-base font-bold text-ink">{record.calNumber}</div>
             </div>
-          )}
+          ) : null}
           <dl className="divide-y divide-line">
             <Row
               label="SW番号"
@@ -162,7 +163,14 @@ export function RecordDetail({
               label="HW番号"
               value={record.hwNumber ? <span className="font-mono">{record.hwNumber}</span> : null}
             />
+            {!record.calNumber && <Row label="Cal番号" value={null} />}
           </dl>
+          {!record.calNumber && !record.swNumber && !record.hwNumber && (
+            <p className="mt-2 text-xs text-ink-soft">
+              この車種は自動抽出に未対応か、識別子が見つかりませんでした（現状 VAG・トヨタ系に対応）。
+              復号ファイルから手動で確認してください。
+            </p>
+          )}
         </Card>
       )}
 

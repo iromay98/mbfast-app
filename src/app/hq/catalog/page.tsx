@@ -4,14 +4,7 @@ import { prisma } from "@/lib/db";
 import { PageTitle, Card, Button, Input, Select, Field } from "@/components/ui";
 import type { Prisma } from "@/generated/prisma/client";
 import { CatalogGrid, type CatalogRow, type CalGroup } from "./catalog-grid";
-import { fuelKindOf } from "@/lib/catalog/options";
-
-// ステージ並び順: チューニングなし(空)→Stage1→Stage2…→その他
-function stageRank(stage: string): number {
-  if (!stage.trim()) return -1;
-  const m = stage.match(/(\d+)/);
-  return m ? parseInt(m[1], 10) : 999;
-}
+import { fuelKindOf, stageRank } from "@/lib/catalog/options";
 
 // Cal(BaseFile)→ステージ→バブリング に階層化
 function buildGroups(rows: CatalogRow[]): CalGroup[] {

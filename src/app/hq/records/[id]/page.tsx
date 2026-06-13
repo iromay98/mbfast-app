@@ -18,15 +18,15 @@ import { RecordDealerSelect } from "./record-dealer-select";
 import { DeleteRecordButton } from "./delete-record-button";
 import { RecordCustomerEdit } from "./record-customer-edit";
 import { VariationBuilder } from "./variation-matrix";
-import { fuelKindOf, popsAllowed, optionTagsFor, tuningContentLabel } from "@/lib/catalog/options";
+import {
+  fuelKindOf,
+  popsAllowed,
+  optionTagsFor,
+  tuningContentLabel,
+  stageRank,
+  baselineStages,
+} from "@/lib/catalog/options";
 import { swLabel } from "@/lib/catalog/sw";
-
-// ステージ並び順: チューニングなし(空)→Stage1→Stage2…→その他
-function stageRank(stage: string): number {
-  if (!stage.trim()) return -1;
-  const m = stage.match(/(\d+)/);
-  return m ? parseInt(m[1], 10) : 999;
-}
 
 export default async function HQRecordDetailPage({
   params,
@@ -66,6 +66,7 @@ export default async function HQRecordDetailPage({
         where: { id: record.matchedBaseFileId },
         select: {
           fuel: true,
+          manufacturer: true,
           swNumber: true,
           swSeq: true,
           variants: {
@@ -101,8 +102,8 @@ export default async function HQRecordDetailPage({
   } | null = null;
   if (matched) {
     const fuelKind = fuelKindOf(matched.fuel);
-    // 既定ステージ＋既存ステージ
-    const stageSet = new Set<string>(["", "Stage1", "Stage2"]);
+    // 既定ステージ（ベンツは Stage1.5 も）＋既存ステージ
+    const stageSet = new Set<string>(baselineStages(matched.manufacturer));
     for (const v of matched.variants) stageSet.add((v.stage ?? "").trim());
     const stages = [...stageSet]
       .sort((a, b) => stageRank(a) - stageRank(b) || a.localeCompare(b))

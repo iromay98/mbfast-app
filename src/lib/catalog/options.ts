@@ -29,6 +29,20 @@ export function popsAllowed(kind: FuelKind): boolean {
   return kind !== "diesel";
 }
 
+// ステージ並び順: チューニングなし(空)→Stage1→Stage1.5→Stage2…→その他。小数も解釈。
+export function stageRank(stage: string): number {
+  if (!stage.trim()) return -1;
+  const m = stage.match(/(\d+(?:\.\d+)?)/);
+  return m ? parseFloat(m[1]) : 999;
+}
+
+// 既定で選べるステージ（カタログに無くても選択/リクエスト可能）。
+// ベンツ(Mercedes/AMG)は Stage1.5 も用意する。
+export function baselineStages(manufacturer?: string | null): string[] {
+  const isMercedes = /mercedes|benz|メルセデス|ベンツ|\bamg\b/i.test(manufacturer ?? "");
+  return isMercedes ? ["", "Stage1", "Stage1.5", "Stage2"] : ["", "Stage1", "Stage2"];
+}
+
 // 施工内容の人間可読ラベル（専門情報なし）。
 // 例: ("Stage1", true, ["O2"]) → "Stage1・バブリング・O2" / ("", false, []) → "チューニングなし"
 export function tuningContentLabel(
