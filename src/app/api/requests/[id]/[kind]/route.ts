@@ -22,12 +22,17 @@ export async function GET(
 
   const req = await prisma.fileRequest.findUnique({
     where: { id },
-    select: { dealerId: true, inputFilePath: true, resultFilePath: true },
+    select: { dealerId: true, inputFilePath: true, resultFilePath: true, serviceRecordId: true },
   });
   if (!req) return new Response("Not Found", { status: 404 });
 
   // 代理店は自店の依頼のみ。本店は全件可。
   if (user.role === "DEALER" && user.dealerId !== req.dealerId) {
+    return new Response("Forbidden", { status: 403 });
+  }
+  // 記録に紐づくチケットの「成果(生bin)」は代理店に渡さない（必ず .slave 経由）。
+  // 専門情報の非表示ポリシー: チューニング済みの生binは御法度。
+  if (kind === "result" && req.serviceRecordId && user.role !== "HQ_ADMIN") {
     return new Response("Forbidden", { status: 403 });
   }
 

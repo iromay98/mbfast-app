@@ -6,7 +6,7 @@ import type { StoredFile } from "@/server/storage";
  * 記録失敗で本処理(配信)を止めないよう握りつぶす（AutotunerApiLog の logCall と同方針）。
  */
 export async function logCatalogDownload(input: {
-  variantId: string;
+  variantId?: string | null; // チケット(現車合わせ等)の配信は variant 無し
   versionId?: string | null;
   fileHash?: string | null;
   userId?: string | null;
@@ -18,7 +18,7 @@ export async function logCatalogDownload(input: {
   try {
     await prisma.catalogDownloadLog.create({
       data: {
-        variantId: input.variantId,
+        variantId: input.variantId ?? null,
         versionId: input.versionId ?? null,
         fileHash: input.fileHash ?? null,
         userId: input.userId ?? null,

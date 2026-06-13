@@ -222,6 +222,68 @@ export async function requestTuning(
   return { ok: true };
 }
 
+// ── 代理店: 記録から「調整/現車合わせ」チケットを起票（自由記述＋ログ添付） ──
+// 例:「もっと大きいバブリングが欲しい」「ログ取った結果◯◯なので濃いめに」。
+// FileRequest を流用し、記録に紐づける。本店はこの内容＋ログを見て専用ファイルを納品する。
+export async function createRecordTicket(
+  recordId: string,
+  _prev: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  const user = await requireDealer();
+  const record = await prisma.serviceRecord.findUnique({
+    where: { id: recordId },
+    select: { dealerId: true, carMaker: true, carModel: true, vin: true },
+  });
+  if (!record || record.dealerId !== user.dealerId) {
+    return { error: "対象の記録が見つかりません" };
+  }
+
+  const kind = String(formData.get("kind") ?? "adjust"); // adjust | custom
+  const kindLabel = kind === "custom" ? "現車合わせ(ログ反映)" : "調整リクエスト";
+  const content = String(formData.get("content") ?? "").trim();
+  if (!content) {
+    return { error: "内容を入力してください", fieldErrors: { content: "必須" } };
+  }
+
+  // ログ/参考ファイル（任意）
+  let inputFilePath: string | undefined;
+  const file = formData.get("logFile");
+  if (file instanceof File && file.size > 0) {
+    const res = await saveUpload(file, "requests");
+    if (!res.ok) return { error: res.error, fieldErrors: { logFile: res.error } };
+    inputFilePath = res.key;
+  }
+
+  const car = [record.carMaker, record.carModel].filter(Boolean).join(" ") || "車両";
+  const title = `${car} ${kindLabel}`;
+
+  const req = await prisma.fileRequest.create({
+    data: {
+      dealerId: user.dealerId,
+      title,
+      carInfo: car,
+      vin: record.vin,
+      requestNote: `【${kindLabel}】\n${content}`,
+      inputFilePath,
+      serviceRecordId: recordId,
+      status: "RECEIVED",
+      events: { create: { status: "RECEIVED", actorId: user.id, comment: kindLabel } },
+    },
+  });
+
+  await notify({
+    type: "REQUEST_CREATED",
+    title: `${kindLabel}があります`,
+    message: `${user.name ?? "代理店"} より「${title}」`,
+    dealerId: null, // 本店宛て
+    link: `/hq/requests/${req.id}`,
+  });
+
+  revalidatePath(`/dealer/records/${recordId}`);
+  return { ok: true };
+}
+
 // ── 本店: 依頼更新（ステータス/コメント/成果ファイル/紐付け） ──
 export async function updateRequestByHQ(
   requestId: string,

@@ -15,6 +15,7 @@ import { RetryDecryptButton } from "@/components/retry-decrypt-button";
 import { updateRecordSupplement } from "@/lib/actions/records";
 import { SupplementForm } from "./supplement-form";
 import { TuningConfigurator } from "./tuning-configurator";
+import { RecordTicketForm } from "./record-ticket-form";
 import { fuelKindOf, optionTagsFor, popsAllowed } from "@/lib/catalog/options";
 
 // ステージ並び順: チューニングなし(空)→Stage1→Stage2…→その他
@@ -78,6 +79,12 @@ export default async function DealerRecordDetailPage({
     orderBy: { createdAt: "desc" },
     select: { id: true, title: true, status: true, createdAt: true, resultFilePath: true },
   });
+  // 納品ファイル(.slave)を配信できるか（その車固有の再暗号化IDが揃っているか）
+  const canDeliver =
+    !!record.autotunerSlaveId &&
+    record.autotunerEcuId != null &&
+    record.autotunerModelId != null &&
+    !!record.autotunerMcuId;
 
   // 代理店クライアントへは専門情報(Cal/HW/SW/ecuIdRaw・TCU・適用マップ・本店メモ等)を一切渡さない。
   // フォームが実際に使う項目だけを明示的に渡す（プロップス経由の漏洩防止）。
@@ -128,33 +135,37 @@ export default async function DealerRecordDetailPage({
         </Card>
       )}
 
-      {requests.length > 0 && (
-        <Card>
-          <h3 className="mb-2 text-sm font-bold text-ink">この記録の依頼</h3>
-          <div className="divide-y divide-line">
+      <Card>
+        <h3 className="mb-2 text-sm font-bold text-ink">この記録の依頼・相談</h3>
+        {requests.length > 0 && (
+          <div className="mb-3 divide-y divide-line">
             {requests.map((req) => (
-              <Link
-                key={req.id}
-                href={`/dealer/requests/${req.id}`}
-                className="flex items-center justify-between gap-3 py-2 hover:bg-surface-2"
-              >
-                <div className="min-w-0">
+              <div key={req.id} className="flex items-center justify-between gap-3 py-2">
+                <Link href={`/dealer/requests/${req.id}`} className="min-w-0 flex-1 hover:underline">
                   <div className="truncate text-sm font-medium text-ink">{req.title}</div>
                   <div className="mt-0.5 text-xs text-ink-soft">{formatDate(req.createdAt)}</div>
-                </div>
+                </Link>
                 <div className="flex shrink-0 items-center gap-2">
-                  {req.status === "DELIVERED" && req.resultFilePath && (
-                    <span className="text-xs font-semibold text-gold-700">納品あり</span>
+                  {req.status === "DELIVERED" && req.resultFilePath && canDeliver && (
+                    <a
+                      href={`/api/requests/${req.id}/slave`}
+                      download
+                      className="rounded-lg bg-gold-500 px-3 py-1.5 text-xs font-semibold text-white"
+                    >
+                      .slave をダウンロード
+                    </a>
                   )}
                   <Badge color={requestStatusColors[req.status]}>
                     {requestStatusLabels[req.status]}
                   </Badge>
                 </div>
-              </Link>
+              </div>
             ))}
           </div>
-        </Card>
-      )}
+        )}
+        {/* 配信後の調整・現車合わせ（ログ反映）のリクエスト */}
+        <RecordTicketForm recordId={record.id} />
+      </Card>
 
       {record.status === "FAILED" && (
         <Card className="border-red-200 bg-red-50">
