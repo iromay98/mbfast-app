@@ -26,6 +26,10 @@ export const baseFileSchema = z.object({
   note: optionalStr,
   driver: optionalStr,
   driverBorrowed: optionalBool,
+  // 自動認識しなかった時に本店が手入力する ECU 識別子
+  hwNumber: optionalStr,
+  swNumber: optionalStr,
+  calNumber: optionalStr,
   stockHash: optionalStr,
 });
 

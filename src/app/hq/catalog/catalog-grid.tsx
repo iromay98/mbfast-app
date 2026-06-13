@@ -37,6 +37,7 @@ export type CatalogRow = {
   cal: string;
   sw: string;
   swSeq: number;
+  hw: string;
   fuel: string;
   stockHash: string;
   hasStock: boolean;
@@ -71,6 +72,7 @@ export type CalGroup = {
   cal: string;
   sw: string;
   swSeq: number;
+  hw: string;
   fuelKind: FuelKind;
   hasStock: boolean;
   driver: string;
@@ -297,8 +299,36 @@ function CalGroupCard({
         </div>
       </div>
 
-      {/* 純正(ECU)単位の Driver・備考メモ（本店のみ・代理店には一切出さない） */}
+      {/* 純正(ECU)単位の ECU識別子（手入力可）・Driver・備考メモ（本店のみ・代理店には一切出さない） */}
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-line px-3 py-2 text-xs">
+        <span className="font-semibold text-ink-soft" title="自動認識しない時は手入力できます">
+          識別子
+        </span>
+        <span className="text-ink-soft">Cal</span>
+        <EditCell
+          value={g.cal}
+          onSave={(v) => onPatchBase({ calNumber: v })}
+          placeholder="Cal番号"
+          mono
+          className="w-32"
+        />
+        <span className="text-ink-soft">SW</span>
+        <EditCell
+          value={g.sw}
+          onSave={(v) => onPatchBase({ swNumber: v })}
+          placeholder="SW番号"
+          mono
+          className="w-28"
+        />
+        <span className="text-ink-soft">HW</span>
+        <EditCell
+          value={g.hw}
+          onSave={(v) => onPatchBase({ hwNumber: v })}
+          placeholder="HW番号"
+          mono
+          className="w-28"
+        />
+        <span className="mx-1 text-line">|</span>
         <span className="font-semibold text-ink-soft" title="ECM Titanium 等の使用Driver（本店のみ）">
           Driver
         </span>
