@@ -18,6 +18,8 @@ import {
   variantPatchSchema,
   variantStatusEnum,
 } from "@/lib/validation/catalog";
+import { extractEcuId } from "@/server/ecu/identify";
+import { normalizeManufacturer } from "@/lib/catalog/manufacturers";
 
 const CATALOG_PATH = "/hq/catalog";
 
@@ -637,6 +639,125 @@ export async function createBaseFileManual(formData: FormData): Promise<FormStat
     return { ok: true, data: { id: base.id } };
   } catch (e) {
     if (isUniqueError(e)) return { error: "同じ stockHash の項目が既に存在します" };
+    throw e;
+  }
+}
+
+// 原本(純正)binを解析して ECU 識別子を先読み（フォーム自動入力用）。DBは触らない。
+export async function analyzeStockBin(formData: FormData): Promise<{
+  ok?: true;
+  ecu: string | null;
+  sw: string | null;
+  cal: string | null;
+  hw: string | null;
+  displacement: string | null;
+  fuel: string | null;
+  error?: string;
+}> {
+  await requireHQ();
+  const file = formData.get("file");
+  const empty = { ecu: null, sw: null, cal: null, hw: null, displacement: null, fuel: null };
+  if (!(file instanceof File) || file.size === 0) {
+    return { ...empty, error: "ファイルを選択してください" };
+  }
+  const buf = Buffer.from(await file.arrayBuffer());
+  const ecu = extractEcuId(buf);
+  const desc = ecu.engineDesc ?? "";
+  const dm = desc.match(/(\d(?:\.\d)?)\s*l\b/i);
+  const fuel = /TDI|diesel/i.test(desc)
+    ? "diesel"
+    : /TFSI|TSI|FSI|petrol|gasoline/i.test(desc)
+      ? "petrol"
+      : null;
+  return {
+    ok: true,
+    ecu: ecu.ecuType,
+    sw: ecu.sw,
+    cal: ecu.cal,
+    hw: ecu.hw,
+    displacement: dm ? `${dm[1]}L` : null,
+    fuel,
+  };
+}
+
+// 原本(純正)binをアップして BaseFile(カタログのベース)を新規作成。
+// ECU/SW/Cal/HW・stockHash は bin から自動抽出。メーカー/車種は手入力（表記揺れを正規化）。
+// エンジン型式・排気量・世代は任意。これに mod(TunedVariant) がぶら下がる。
+export async function createBaseFileFromBin(formData: FormData): Promise<FormState> {
+  const user = await requireHQ();
+  const file = formData.get("file");
+  if (!(file instanceof File) || file.size === 0) {
+    return { error: "原本(純正)ファイルを選択してください" };
+  }
+  const model = String(formData.get("model") ?? "").trim();
+  if (!model) return { error: "車種は必須です" };
+  const makerInput = String(formData.get("manufacturer") ?? "").trim();
+  if (!makerInput) return { error: "メーカーは必須です" };
+
+  // メーカー表記を正規化（同一メーカーの重複登録を防止）
+  const existingMakers = (
+    await prisma.baseFile.findMany({ distinct: ["manufacturer"], select: { manufacturer: true } })
+  ).map((b) => b.manufacturer);
+  const manufacturer = normalizeManufacturer(makerInput, existingMakers);
+
+  // bin から識別子抽出＋指紋確定
+  const buf = Buffer.from(await file.arrayBuffer());
+  const ecu = extractEcuId(buf);
+  const saved = await saveUpload(file, "catalog/stock");
+  if (!saved.ok) return { error: saved.error };
+  const stockHash = saved.sha256;
+
+  const dup = await prisma.baseFile.findUnique({
+    where: { stockHash },
+    select: { id: true },
+  });
+  if (dup) return { error: "この原本ファイルは既に登録済みです（同一hash）" };
+
+  const desc = ecu.engineDesc ?? "";
+  const inferredFuel = /TDI|diesel/i.test(desc)
+    ? "diesel"
+    : /TFSI|TSI|FSI|petrol|gasoline/i.test(desc)
+      ? "petrol"
+      : null;
+  const ecuType = String(formData.get("ecu") ?? "").trim() || ecu.ecuType || "(不明)";
+  const mcu = String(formData.get("mcu") ?? "").trim() || null;
+  const generation = String(formData.get("generation") ?? "").trim() || null;
+  const engineCode = String(formData.get("engineCode") ?? "").trim() || ecu.engineCode || null;
+  const displacement = String(formData.get("displacement") ?? "").trim() || null;
+  const fuel = String(formData.get("fuel") ?? "").trim() || inferredFuel;
+
+  const swSeq = ecu.sw ? await prisma.baseFile.count({ where: { swNumber: ecu.sw } }) : 0;
+
+  try {
+    const base = await prisma.baseFile.create({
+      data: {
+        stockHash,
+        manufacturer,
+        model,
+        ecu: ecuType,
+        mcu,
+        hwNumber: ecu.hw,
+        swNumber: ecu.sw,
+        swSeq,
+        calNumber: ecu.cal,
+        generation,
+        engineCode,
+        displacement,
+        fuel,
+        source: "MANUAL",
+        createdById: user.id,
+        stockFileRef: saved.key,
+        stockFileName: saved.filename,
+        stockFileSize: saved.size,
+        stockContentType: saved.contentType,
+        note: "純正binアップロードで登録",
+      },
+    });
+    revalidatePath(CATALOG_PATH);
+    revalidatePath(PENDING_PATH);
+    return { ok: true, data: { id: base.id } };
+  } catch (e) {
+    if (isUniqueError(e)) return { error: "同じ識別子の項目が既に存在します" };
     throw e;
   }
 }

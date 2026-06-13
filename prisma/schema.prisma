@@ -309,8 +309,10 @@ model BaseFile {
   swNumber   String?
   swSeq      Int     @default(0) // 同一SW・別内容(hash)の通し番号。0=無印, 1=-A, 2=-B…
   calNumber  String?
-  generation String? // 世代（例 8V）＝復号 engine.version 由来
-  method     String? // 読み方式（例 OBD）
+  generation   String? // 世代（例 8V）＝復号 engine.version 由来
+  engineCode   String? // エンジン型式（任意・手入力 例 CZGB）
+  displacement String? // 排気量（任意・手入力 例 2.5L）。原本binから推定して既定値にする
+  method       String? // 読み方式（例 OBD）
   fuel       String? // 燃料（petrol/diesel 等）＝復号 engine.fuel 由来。OP/バブの出し分けに使用
 
   // 原本(チューニング前)ファイルの実体（任意）。公開ディレクトリ外・認可配信のみ。

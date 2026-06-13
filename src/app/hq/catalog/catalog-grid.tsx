@@ -30,6 +30,8 @@ export type CatalogRow = {
   manufacturer: string;
   model: string;
   generation: string;
+  engineCode: string;
+  displacement: string;
   ecu: string;
   mcu: string;
   cal: string;
@@ -60,6 +62,8 @@ export type CalGroup = {
   manufacturer: string;
   model: string;
   generation: string;
+  engineCode: string;
+  displacement: string;
   ecu: string;
   cal: string;
   sw: string;
@@ -122,7 +126,8 @@ export function CatalogGrid({ groups }: { groups: CalGroup[] }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [msg, setMsg] = useState<string | null>(null);
-  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  // 既定は閉じる（行が長くなり管理しづらいため）。展開した baseFileId だけを保持。
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [showNew, setShowNew] = useState(false);
 
   function run(fn: () => Promise<{ ok?: boolean; error?: string }>) {
@@ -134,7 +139,7 @@ export function CatalogGrid({ groups }: { groups: CalGroup[] }) {
   }
 
   const toggleCollapse = (id: string) =>
-    setCollapsed((cur) => {
+    setExpanded((cur) => {
       const next = new Set(cur);
       if (next.has(id)) next.delete(id);
       else next.add(id);
@@ -179,7 +184,7 @@ export function CatalogGrid({ groups }: { groups: CalGroup[] }) {
         <CalGroupCard
           key={g.baseFileId}
           group={g}
-          open={!collapsed.has(g.baseFileId)}
+          open={expanded.has(g.baseFileId)}
           onToggleOpen={() => toggleCollapse(g.baseFileId)}
           onPatchBase={(p) => run(() => updateBaseFile(g.baseFileId, p))}
           onAddVariant={(stage, pops) =>
@@ -249,6 +254,11 @@ function CalGroupCard({
         <span className="text-sm font-semibold text-ink">{g.manufacturer}</span>
         <EditCell value={g.model} onSave={(v) => onPatchBase({ model: v })} className="w-24 font-semibold" />
         {g.generation && <span className="text-xs text-ink-soft">({g.generation})</span>}
+        {(g.displacement || g.engineCode) && (
+          <span className="text-xs text-ink-soft">
+            {[g.displacement, g.engineCode].filter(Boolean).join(" ")}
+          </span>
+        )}
         <span className="font-mono text-xs text-ink-soft">{g.ecu}</span>
         <span className="rounded bg-gold-50 px-2 py-0.5 font-mono text-sm font-bold text-ink">
           Cal {g.cal || "—"}

@@ -4,7 +4,9 @@ import { prisma } from "@/lib/db";
 import { PageTitle, Card, Button, Input, Select, Field } from "@/components/ui";
 import type { Prisma } from "@/generated/prisma/client";
 import { CatalogGrid, type CatalogRow, type CalGroup } from "./catalog-grid";
+import { StockUploadForm } from "./stock-upload-form";
 import { fuelKindOf, stageRank } from "@/lib/catalog/options";
+import { MANUFACTURERS } from "@/lib/catalog/manufacturers";
 
 // Cal(BaseFile)→ステージ→バブリング に階層化
 function buildGroups(rows: CatalogRow[]): CalGroup[] {
@@ -42,6 +44,8 @@ function buildGroups(rows: CatalogRow[]): CalGroup[] {
       manufacturer: first.manufacturer,
       model: first.model,
       generation: first.generation,
+      engineCode: first.engineCode,
+      displacement: first.displacement,
       ecu: first.ecu,
       cal: first.cal,
       sw: first.sw,
@@ -80,15 +84,19 @@ export default async function HQCatalogPage({
   await requireHQ();
   const sp = await searchParams;
   const q = one(sp.q).trim();
+  const manufacturer = one(sp.manufacturer).trim();
   const ecu = one(sp.ecu).trim();
   const model = one(sp.model).trim();
+  const generation = one(sp.generation).trim();
   const stage = one(sp.stage).trim();
   const status = one(sp.status).trim();
 
   const where: Prisma.TunedVariantWhereInput = {};
   const baseWhere: Prisma.BaseFileWhereInput = {};
+  if (manufacturer) baseWhere.manufacturer = { contains: manufacturer, mode: "insensitive" };
   if (ecu) baseWhere.ecu = { contains: ecu, mode: "insensitive" };
   if (model) baseWhere.model = { contains: model, mode: "insensitive" };
+  if (generation) baseWhere.generation = { contains: generation, mode: "insensitive" };
   if (Object.keys(baseWhere).length) where.baseFile = baseWhere;
   if (stage) where.stage = { contains: stage, mode: "insensitive" };
   if (status === "DRAFT" || status === "AVAILABLE" || status === "DISABLED") {
@@ -103,6 +111,21 @@ export default async function HQCatalogPage({
       { baseFile: { ecu: { contains: q, mode: "insensitive" } } },
     ];
   }
+
+  // 入力補助(datalist)用の既存メーカー/車種
+  const [makerRows, modelRows] = await Promise.all([
+    prisma.baseFile.findMany({ distinct: ["manufacturer"], select: { manufacturer: true } }),
+    prisma.baseFile.findMany({
+      distinct: ["model"],
+      select: { model: true },
+      orderBy: { model: "asc" },
+    }),
+  ]);
+  const makerOptions = makerRows.map((m) => m.manufacturer).filter(Boolean);
+  const modelOptions = modelRows.map((m) => m.model).filter(Boolean);
+  const makerSuggest = Array.from(new Set([...MANUFACTURERS, ...makerOptions])).sort((a, b) =>
+    a.localeCompare(b),
+  );
 
   const [variants, pendingCount] = await Promise.all([
     prisma.tunedVariant.findMany({
@@ -130,6 +153,8 @@ export default async function HQCatalogPage({
     ecu: v.baseFile.ecu,
     mcu: v.baseFile.mcu ?? "",
     generation: v.baseFile.generation ?? "",
+    engineCode: v.baseFile.engineCode ?? "",
+    displacement: v.baseFile.displacement ?? "",
     cal: v.baseFile.calNumber ?? "",
     sw: v.baseFile.swNumber ?? "",
     swSeq: v.baseFile.swSeq ?? 0,
@@ -173,17 +198,33 @@ export default async function HQCatalogPage({
         }
       />
 
+      {/* このページの主目的＝純正(原本)データのアップロード。これに mod がぶら下がる。 */}
+      <div className="mb-4">
+        <StockUploadForm makerOptions={makerOptions} modelOptions={modelOptions} />
+      </div>
+
       <Card className="mb-4">
         <form method="get" className="space-y-3">
           <Field label="キーワード（メーカー・車種・ECU・ステージ・オプション）">
             <Input name="q" defaultValue={q} placeholder="例: Audi / MED17 / Stage1" />
           </Field>
           <div className="grid gap-3 sm:grid-cols-4">
-            <Field label="ECU">
-              <Input name="ecu" defaultValue={ecu} placeholder="Bosch MED17.1.1" />
+            <Field label="メーカー">
+              <Input
+                name="manufacturer"
+                defaultValue={manufacturer}
+                list="search-maker"
+                placeholder="A… → Audi / Abarth / Alpine"
+              />
             </Field>
             <Field label="車種">
-              <Input name="model" defaultValue={model} placeholder="S3 8V" />
+              <Input name="model" defaultValue={model} list="search-model" placeholder="RS3 / S3" />
+            </Field>
+            <Field label="世代（補助）">
+              <Input name="generation" defaultValue={generation} placeholder="8V" />
+            </Field>
+            <Field label="ECU">
+              <Input name="ecu" defaultValue={ecu} placeholder="Bosch MED17.1.1" />
             </Field>
             <Field label="ステージ">
               <Input name="stage" defaultValue={stage} placeholder="Stage1" />
@@ -208,6 +249,17 @@ export default async function HQCatalogPage({
           </div>
         </form>
       </Card>
+
+      <datalist id="search-maker">
+        {makerSuggest.map((m) => (
+          <option key={m} value={m} />
+        ))}
+      </datalist>
+      <datalist id="search-model">
+        {modelOptions.map((m) => (
+          <option key={m} value={m} />
+        ))}
+      </datalist>
 
       <CatalogGrid groups={groups} />
     </div>
