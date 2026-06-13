@@ -108,7 +108,7 @@ export function extractEcuId(buf: Buffer): EcuId {
     const ev = s.indexOf("EV_");
     if (ev < 0) return extractToyota(s) ?? extractMercedes(s) ?? EMPTY;
 
-    const win = s.slice(Math.max(0, ev - 60), ev + 320);
+    const win = s.slice(Math.max(0, ev - 130), ev + 320);
     // 制御文字を空白化（バイナリ境界のノイズ除去）
     const clean = win.replace(/[^\x20-\x7E]/g, " ");
 
@@ -122,9 +122,20 @@ export function extractEcuId(buf: Buffer): EcuId {
       sw = parts[0];
     }
 
+    // ソフトバージョン(_xxxx)。ECU系統でブロックのレイアウトが異なり、
+    // 「SW直後の4桁」だけだと 6桁ビルド番号(例 001003)を拾ったり取りこぼす。
+    // 複数の手掛かりを優先順に試す（独立した4桁=\b で 6桁ビルドを除外）。
     let swVersion: string | null = null;
     if (sw) {
-      const m = clean.match(new RegExp(`${escapeRe(sw)}\\s+(\\d{4})\\b`));
+      // 1) EV_(ASW)ブロック直前の独立4桁（例 A7: "... TFSI 0002 ----EV_…"）
+      let m = clean.match(/\b(\d{4})\b[\s-]*EV_/);
+      // 2) ECU型式(MED/MEDC17)直前の独立4桁（例 RS3: "8V0907404 0004 MEDC17"）
+      if (!m) m = clean.match(/\b(\d{4})\b\s+MED[C]?\s?17/);
+      // 3) SW直後の独立4桁。6桁ビルドは \d{4}\b で弾く。複数あれば最後を採用。
+      if (!m) {
+        const all = [...clean.matchAll(new RegExp(`${escapeRe(sw)}\\s+(\\d{4})\\b`, "g"))];
+        if (all.length) m = all[all.length - 1];
+      }
       if (m) swVersion = m[1];
     }
 
