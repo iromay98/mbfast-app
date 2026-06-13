@@ -46,7 +46,8 @@ export function EcuRulesPanel({ rules }: { rules: RuleRow[] }) {
                   : "bg-gold-50 text-gold-700"
               }`}
             >
-              {r.field}・{r.kind === "EXACT" ? "完全一致" : "マーカー"}
+              {r.field === "CALVER" ? "Cal(版)" : r.field}・
+              {r.kind === "EXACT" ? "完全一致" : "マーカー"}
             </span>
             <span className="text-xs text-ink-soft">{r.summary}</span>
           </div>
