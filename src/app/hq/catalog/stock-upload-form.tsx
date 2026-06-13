@@ -44,6 +44,8 @@ export function StockUploadForm({
     manufacturer: string;
     model: string;
     fuelKind: FuelKind;
+    cal: string;
+    sw: string;
   } | null>(null);
   const [addedMods, setAddedMods] = useState<string[]>([]);
 
@@ -111,6 +113,8 @@ export function StockUploadForm({
       manufacturer: f.manufacturer.trim(),
       model: f.model.trim(),
       fuelKind: fuelKindOf(analyzed?.fuel ?? null),
+      cal: analyzed?.cal ?? "",
+      sw: analyzed?.sw ?? "",
     };
     startSubmit(async () => {
       const res = await createBaseFileFromBin(fd);
@@ -305,6 +309,8 @@ export function StockUploadForm({
           <ModUploadForm
             manufacturer={created.manufacturer}
             fuelKind={created.fuelKind}
+            baseCal={created.cal}
+            baseSw={created.sw}
             onAddFile={addMod}
           />
 

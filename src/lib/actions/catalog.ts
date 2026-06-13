@@ -390,6 +390,32 @@ export async function createVariantWithFile(
   if (!(file instanceof File) || file.size === 0) {
     return { error: "ファイルを選択してください" };
   }
+
+  // Cal 一致チェック（別の純正用ファイルの誤アップ防止）。force=true で上書き許可。
+  const force = formData.get("force") === "true";
+  if (!force) {
+    const base = await prisma.baseFile.findUnique({
+      where: { id: baseFileId },
+      select: { calNumber: true, swNumber: true, ecu: true },
+    });
+    if (base && (base.calNumber || base.swNumber)) {
+      const buf = Buffer.from(await file.arrayBuffer());
+      const ecu = await smartExtractEcuId(buf, { hash: null, ecuType: base.ecu });
+      const norm = (s?: string | null) => (s ?? "").trim().toUpperCase().replace(/\s+/g, "");
+      const fileCal = norm(ecu.cal);
+      const baseCal = norm(base.calNumber);
+      const fileSw = norm(ecu.sw);
+      const baseSw = norm(base.swNumber);
+      const calMismatch = !!baseCal && !!fileCal && fileCal !== baseCal;
+      const swMismatch = !baseCal && !!baseSw && !!fileSw && fileSw !== baseSw;
+      if (calMismatch || swMismatch) {
+        return {
+          error: `Cal が一致しません（ファイル: ${ecu.cal ?? ecu.sw ?? "不明"} ／ 純正: ${base.calNumber ?? base.swNumber}）。別の純正用ファイルの可能性があります。`,
+        };
+      }
+    }
+  }
+
   const saved = await saveUpload(file, "catalog/tuned");
   if (!saved.ok) return { error: saved.error };
 

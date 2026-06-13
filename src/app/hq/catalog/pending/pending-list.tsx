@@ -28,6 +28,7 @@ export type PendingRow = {
   ecu: string;
   mcu: string;
   cal: string;
+  sw: string;
   generation: string;
   method: string;
   fuel: string;
@@ -187,6 +188,8 @@ function PendingCard({
         <ModUploadForm
           manufacturer={row.manufacturer}
           fuelKind={fuelKind}
+          baseCal={row.cal}
+          baseSw={row.sw}
           onAddFile={onAddFile}
         />
       </div>
