@@ -21,8 +21,10 @@ export function TuningConfigurator({
   optionTags: string[];
 }) {
   const [stage, setStage] = useState(stages[0]?.value ?? "");
-  const [pops, setPops] = useState(false);
+  const [popsMode, setPopsMode] = useState<"none" | "all" | "sport">("none");
   const [selected, setSelected] = useState<string[]>([]);
+  const pops = popsMode !== "none";
+  const popsSport = popsMode === "sport";
   const [resolving, startResolve] = useTransition();
   const [result, setResult] = useState<Resolved | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -40,19 +42,23 @@ export function TuningConfigurator({
     setRequested(false);
     setAgreed(false); // 構成が変わったら同意もリセット
     startResolve(async () => {
-      const r = await resolveTuning(recordId, { stage, pops, optionTags: selected });
+      const r = await resolveTuning(recordId, { stage, pops, popsSport, optionTags: selected });
       if ("error" in r) setError(r.error);
       else setResult(r);
     });
     // selected は配列だが toggle で新規生成するため依存に含めて良い
-  }, [recordId, stage, pops, selected]);
+  }, [recordId, stage, popsMode, selected]);
 
   const toggleOpt = (t: string) =>
     setSelected((prev) => (prev.includes(t) ? prev.filter((x) => x !== t) : [...prev, t]));
 
   const onRequest = () =>
     startRequest(async () => {
-      const r = await requestTuning(recordId, { stage, pops, optionTags: selected }, agreed);
+      const r = await requestTuning(
+        recordId,
+        { stage, pops, popsSport, optionTags: selected },
+        agreed,
+      );
       if (r.error) setError(r.error);
       else setRequested(true);
     });
@@ -82,21 +88,37 @@ export function TuningConfigurator({
         </div>
       )}
 
-      {/* オプション（バブリング／O2 等） */}
+      {/* バブリング（なし/全モード/スポーツ） */}
+      {showPops && (
+        <div>
+          <div className="mb-1.5 text-xs font-semibold text-ink-soft">バブリング</div>
+          <div className="flex flex-wrap gap-2">
+            {([
+              ["none", "なし"],
+              ["all", "全モード"],
+              ["sport", "スポーツ"],
+            ] as const).map(([v, label]) => (
+              <button
+                key={v}
+                type="button"
+                onClick={() => setPopsMode(v)}
+                className={`rounded-lg border px-3 py-1.5 text-sm font-semibold ${
+                  popsMode === v
+                    ? "border-gold-400 bg-gold-500 text-white"
+                    : "border-line bg-white text-ink-soft hover:bg-surface-2"
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* オプション（O2 等） */}
       <div>
         <div className="mb-1.5 text-xs font-semibold text-ink-soft">オプション</div>
         <div className="flex flex-wrap gap-3">
-          {showPops && (
-            <label className="inline-flex items-center gap-1.5 text-sm text-ink">
-              <input
-                type="checkbox"
-                checked={pops}
-                onChange={(e) => setPops(e.target.checked)}
-                className="h-4 w-4 accent-gold-500"
-              />
-              バブリング
-            </label>
-          )}
           {optionTags.map((t) => (
             <label key={t} className="inline-flex items-center gap-1.5 text-sm text-ink">
               <input

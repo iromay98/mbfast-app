@@ -73,6 +73,7 @@ export default async function HQRecordDetailPage({
             select: {
               stage: true,
               popsAndBangs: true,
+              popsSport: true,
               optionTags: true,
               status: true,
               fileRef: true,
@@ -87,6 +88,7 @@ export default async function HQRecordDetailPage({
     label: string;
     stage: string;
     pops: boolean;
+    popsSport: boolean;
     optionTags: string[];
     status: "DRAFT" | "AVAILABLE" | "DISABLED";
     fileName: string | null;
@@ -114,7 +116,7 @@ export default async function HQRecordDetailPage({
     for (const v of matched.variants) {
       const stage = (v.stage ?? "").trim();
       const optionTags = v.optionTags ?? [];
-      const label = tuningContentLabel(stage, v.popsAndBangs, optionTags);
+      const label = tuningContentLabel(stage, v.popsAndBangs, optionTags, v.popsSport);
       const available = v.status === "AVAILABLE" && !!v.fileRef;
       const score = (available ? 4 : 0) + (v.status === "AVAILABLE" ? 2 : 0) + (v.fileRef ? 1 : 0);
       const prev = byLabel.get(label);
@@ -123,6 +125,7 @@ export default async function HQRecordDetailPage({
           label,
           stage,
           pops: v.popsAndBangs,
+          popsSport: v.popsSport,
           optionTags,
           status: v.status,
           fileName: v.fileName ?? null,

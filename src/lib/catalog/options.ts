@@ -43,16 +43,23 @@ export function baselineStages(manufacturer?: string | null): string[] {
   return isMercedes ? ["", "Stage1", "Stage1.5", "Stage2"] : ["", "Stage1", "Stage2"];
 }
 
-// 施工内容の人間可読ラベル（専門情報なし）。
-// 例: ("Stage1", true, ["O2"]) → "Stage1・バブリング・O2" / ("", false, []) → "チューニングなし"
+// バブリングの表示ラベル。なし→null / 全モード→"バブリング(全モード)" / スポーツ→"バブリング(スポーツ)"。
+export function popsModeLabel(pops: boolean, popsSport = false): string | null {
+  if (!pops) return null;
+  return popsSport ? "バブリング(スポーツ)" : "バブリング(全モード)";
+}
+
+// 施工内容の人間可読ラベル（専門情報なし）。popsSport: true=スポーツ / false=全モード。
+// 例: ("Stage1", true, ["O2"], false) → "Stage1・バブリング(全モード)・O2"
 export function tuningContentLabel(
   stage: string | null | undefined,
   pops: boolean,
   optionTags: string[] = [],
+  popsSport = false,
 ): string {
   // オプションは正規順（アルファベット）に揃えて、ラベル比較が一致するようにする
   const tags = [...optionTags].sort();
-  return [(stage ?? "").trim() || "チューニングなし", pops ? "バブリング" : null, ...tags]
+  return [(stage ?? "").trim() || "チューニングなし", popsModeLabel(pops, popsSport), ...tags]
     .filter(Boolean)
     .join("・");
 }

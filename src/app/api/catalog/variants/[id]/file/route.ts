@@ -25,6 +25,7 @@ export async function GET(
       currentVersionId: true,
       stage: true,
       popsAndBangs: true,
+      popsSport: true,
       optionTags: true,
       baseFile: {
         select: { model: true, generation: true, calNumber: true, method: true },
@@ -50,7 +51,7 @@ export async function GET(
     generation: v.baseFile.generation,
     cal: v.baseFile.calNumber,
     method: v.baseFile.method,
-    content: composeContent(v.stage, v.popsAndBangs, v.optionTags),
+    content: composeContent(v.stage, v.popsAndBangs, v.optionTags, v.popsSport),
     ext: extFromName(v.fileName, "bin"),
   });
   return fileResponse(file, name, v.contentType);

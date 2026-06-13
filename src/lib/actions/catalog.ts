@@ -423,6 +423,8 @@ export async function uploadVariation(
   const popsRaw = formData.get("pops");
   const pops =
     popsAllowed(fuelKind) && (popsRaw === "1" || popsRaw === "true" || popsRaw === "on");
+  const popsSportRaw = formData.get("popsSport");
+  const popsSport = pops && (popsSportRaw === "1" || popsSportRaw === "true" || popsSportRaw === "on");
   let optionTags: string[] = [];
   try {
     const raw = formData.get("optionTags");
@@ -444,7 +446,7 @@ export async function uploadVariation(
   // 既存 (stage, pops, optionTags 集合一致) を探して差し替え、無ければ新規作成。いずれも AVAILABLE。
   // 重複データに備え AVAILABLE を優先する。
   const candidates = await prisma.tunedVariant.findMany({
-    where: { baseFileId, stage: stageVal, popsAndBangs: pops },
+    where: { baseFileId, stage: stageVal, popsAndBangs: pops, popsSport },
     select: {
       id: true,
       status: true,
@@ -480,6 +482,7 @@ export async function uploadVariation(
         baseFileId,
         stage: stageVal,
         popsAndBangs: pops,
+        popsSport,
         optionTags,
         options: null,
         status: "AVAILABLE",
@@ -497,7 +500,7 @@ export async function uploadVariation(
   }
 
   // 同じ内容の未返却リクエストを納品扱いに（requestNote の「内容」で判定）
-  const label = tuningContentLabel(stageVal, pops, optionTags);
+  const label = tuningContentLabel(stageVal, pops, optionTags, popsSport);
   const open = await prisma.fileRequest.findMany({
     where: {
       serviceRecordId: recordId,
@@ -539,6 +542,7 @@ export async function deleteVariation(
   stage: string,
   pops: boolean,
   optionTags: string[],
+  popsSport = false,
 ): Promise<FormState> {
   await requireHQ();
 
@@ -550,7 +554,12 @@ export async function deleteVariation(
 
   const want = [...new Set(optionTags.map((x) => String(x)))].sort();
   const candidates = await prisma.tunedVariant.findMany({
-    where: { baseFileId: record.matchedBaseFileId, stage: stage.trim(), popsAndBangs: pops },
+    where: {
+      baseFileId: record.matchedBaseFileId,
+      stage: stage.trim(),
+      popsAndBangs: pops,
+      popsSport: pops ? popsSport : false,
+    },
     select: { id: true, optionTags: true },
   });
   const targets = candidates.filter((c) => sameTagSet(c.optionTags, want));

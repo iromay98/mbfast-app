@@ -80,7 +80,12 @@ export async function createFileRequest(
 // 「即DL可能(配布可＋実体＋再暗号化IDが揃う)」か「本店へリクエスト」かを返す。
 // 1行ずつ全通りは出さず、選んだ1構成だけを判定する。Cal/ECU 等の専門情報は出さない。
 
-export type TuningSelection = { stage: string; pops: boolean; optionTags: string[] };
+export type TuningSelection = {
+  stage: string;
+  pops: boolean;
+  popsSport?: boolean; // true=スポーツのみ / false(既定)=全モード
+  optionTags: string[];
+};
 
 // 同じ要素集合か（順不同）
 function sameSet(a: string[], b: string[]): boolean {
@@ -121,19 +126,24 @@ async function loadMatchContext(recordId: string, dealerId: string) {
 }
 
 // 選択を燃料に応じて正規化（許可されないタグ/バブリングは落とす）
-function normalizeSelection(sel: TuningSelection, fuelKind: FuelKind): TuningSelection {
+function normalizeSelection(
+  sel: TuningSelection,
+  fuelKind: FuelKind,
+): Required<TuningSelection> {
   const allowed = new Set(optionTagsFor(fuelKind));
   const optionTags = [...new Set(sel.optionTags)].filter((t) => allowed.has(t));
+  const pops = popsAllowed(fuelKind) ? !!sel.pops : false;
   return {
     stage: (sel.stage ?? "").trim(),
-    pops: popsAllowed(fuelKind) ? !!sel.pops : false,
+    pops,
+    popsSport: pops ? !!sel.popsSport : false, // バブリング無しなら mode は無効
     optionTags,
   };
 }
 
 // 施工内容の人間可読ラベル（専門情報なし）
-function contentLabel(sel: TuningSelection): string {
-  return tuningContentLabel(sel.stage, sel.pops, sel.optionTags);
+function contentLabel(sel: Required<TuningSelection>): string {
+  return tuningContentLabel(sel.stage, sel.pops, sel.optionTags, sel.popsSport);
 }
 
 // 選択構成 → 即DL or リクエスト判定
@@ -150,12 +160,13 @@ export async function resolveTuning(
   // 配布可(AVAILABLE)＋実体ありの中から、選んだ構成に完全一致する版を探す
   const variants = await prisma.tunedVariant.findMany({
     where: { baseFileId: ctx.baseFileId, status: "AVAILABLE" },
-    select: { id: true, stage: true, popsAndBangs: true, optionTags: true, fileRef: true },
+    select: { id: true, stage: true, popsAndBangs: true, popsSport: true, optionTags: true, fileRef: true },
   });
   const hit = variants.find(
     (v) =>
       (v.stage ?? "").trim() === sel.stage &&
       v.popsAndBangs === sel.pops &&
+      v.popsSport === sel.popsSport &&
       sameSet(v.optionTags, sel.optionTags),
   );
   if (hit && hit.fileRef && ctx.canDeliver) {

@@ -40,6 +40,7 @@ export type CatalogRow = {
   hasStock: boolean;
   stage: string;
   popsAndBangs: boolean;
+  popsSport: boolean;
   optionTags: string[];
   options: string;
   note: string;
@@ -478,7 +479,7 @@ function LeafRow({
               disabled
               className="h-3 w-3 cursor-not-allowed accent-gold-500"
             />
-            Pops
+            Pops{row.popsAndBangs ? (row.popsSport ? "(スポーツ)" : "(全)") : ""}
           </label>
         )}
         {tags.map((tag) => (

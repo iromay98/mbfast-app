@@ -61,10 +61,11 @@ export function composeContent(
   stage: string | null | undefined,
   popsAndBangs: boolean,
   optionTags: string[] = [],
+  popsSport = false,
 ): string {
   const parts = [
     clean(stage) || null,
-    popsAndBangs ? "Pops" : null,
+    popsAndBangs ? (popsSport ? "PopsSport" : "Pops") : null,
     ...optionTags.map((t) => clean(t)).filter(Boolean),
   ].filter(Boolean) as string[];
   return parts.length ? parts.join("_") : "tuned";

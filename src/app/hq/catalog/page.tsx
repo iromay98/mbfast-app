@@ -138,6 +138,7 @@ export default async function HQCatalogPage({
     hasStock: !!v.baseFile.stockFileRef,
     stage: v.stage,
     popsAndBangs: v.popsAndBangs,
+    popsSport: v.popsSport,
     optionTags: v.optionTags ?? [],
     options: v.options ?? "",
     note: v.note ?? "",

@@ -346,7 +346,8 @@ model TunedVariant {
   baseFileId   String
   baseFile     BaseFile      @relation(fields: [baseFileId], references: [id])
   stage        String        @default("") // 例: Stage1
-  popsAndBangs Boolean       @default(false)
+  popsAndBangs Boolean       @default(false) // バブリング有無
+  popsSport    Boolean       @default(false) // true=スポーツモードのみ / false=全モード（既存は全モード）
   optionTags   String[]      @default([]) // 構造化オプション（Adblue/DTC/EGR/DPF 等）
   options      String? // 自由記述（カンマ区切り等）
   status       VariantStatus @default(DRAFT)

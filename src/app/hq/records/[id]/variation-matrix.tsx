@@ -11,12 +11,15 @@ type VRow = {
   label: string;
   stage: string;
   pops: boolean;
+  popsSport: boolean;
   optionTags: string[];
   status: "DRAFT" | "AVAILABLE" | "DISABLED";
   fileName: string | null;
   available: boolean;
   requested: boolean;
 };
+
+const popsText = (pops: boolean, sport: boolean) => (pops ? (sport ? "スポーツ" : "全モード") : "—");
 
 const STATUS_LABEL: Record<VRow["status"], string> = {
   DRAFT: "下書き",
@@ -58,7 +61,7 @@ export function VariationBuilder({
               <thead className="bg-surface-2 text-xs text-ink-soft">
                 <tr>
                   <th className="px-3 py-2 text-left font-semibold">ステージ</th>
-                  {showPops && <th className="px-2 py-2 text-center font-semibold">Pops</th>}
+                  {showPops && <th className="px-2 py-2 text-center font-semibold">バブリング</th>}
                   {optionTags.map((t) => (
                     <th key={t} className="px-2 py-2 text-center font-semibold">
                       {t}
@@ -128,7 +131,7 @@ function VariationRow({
     if (!window.confirm(`「${row.label}」を削除します。よろしいですか？`)) return;
     startDelete(async () => {
       setDelError(null);
-      const r = await deleteVariation(recordId, row.stage, row.pops, row.optionTags);
+      const r = await deleteVariation(recordId, row.stage, row.pops, row.optionTags, row.popsSport);
       if (r.error) setDelError(r.error);
       else router.refresh();
     });
@@ -148,8 +151,8 @@ function VariationRow({
         </div>
       </td>
       {showPops && (
-        <td className="px-2 py-1.5 text-center">
-          <input type="checkbox" checked={row.pops} readOnly disabled className="h-4 w-4 accent-gold-500" />
+        <td className="whitespace-nowrap px-2 py-1.5 text-center text-xs text-ink">
+          {popsText(row.pops, row.popsSport)}
         </td>
       )}
       {optionTags.map((t) => (
@@ -176,6 +179,7 @@ function VariationRow({
         <form ref={formRef} action={formAction} className="flex items-center gap-1.5">
           <input type="hidden" name="stage" value={row.stage} />
           <input type="hidden" name="pops" value={row.pops ? "1" : "0"} />
+          <input type="hidden" name="popsSport" value={row.popsSport ? "1" : "0"} />
           <input type="hidden" name="optionTags" value={JSON.stringify(row.optionTags)} />
           <input
             ref={fileRef}
@@ -230,8 +234,10 @@ function AddVariation({
   openLabels: string[];
 }) {
   const [stage, setStage] = useState(stages[0]?.value ?? "");
-  const [pops, setPops] = useState(false);
+  const [popsMode, setPopsMode] = useState<"none" | "all" | "sport">("none");
   const [selected, setSelected] = useState<string[]>([]);
+  const pops = popsMode !== "none";
+  const popsSport = popsMode === "sport";
 
   const action = uploadVariation.bind(null, recordId);
   const [state, formAction, pending] = useActionState(action, emptyFormState);
@@ -242,7 +248,10 @@ function AddVariation({
     if (state.ok) router.refresh();
   }, [state, router]);
 
-  const label = useMemo(() => tuningContentLabel(stage, pops, selected), [stage, pops, selected]);
+  const label = useMemo(
+    () => tuningContentLabel(stage, pops, selected, popsSport),
+    [stage, pops, popsSport, selected],
+  );
   const exists = availableLabels.includes(label);
   const drafted = existingLabels.includes(label) && !exists;
   const requested = openLabels.includes(label);
@@ -274,20 +283,35 @@ function AddVariation({
         </div>
       </div>
 
+      {showPops && (
+        <div className="mb-3">
+          <div className="mb-1.5 text-xs text-ink-soft">バブリング</div>
+          <div className="flex flex-wrap gap-2">
+            {([
+              ["none", "なし"],
+              ["all", "全モード"],
+              ["sport", "スポーツ"],
+            ] as const).map(([v, lbl]) => (
+              <button
+                key={v}
+                type="button"
+                onClick={() => setPopsMode(v)}
+                className={`rounded-lg border px-3 py-1.5 text-sm font-semibold ${
+                  popsMode === v
+                    ? "border-gold-400 bg-gold-500 text-white"
+                    : "border-line bg-white text-ink-soft hover:bg-surface-2"
+                }`}
+              >
+                {lbl}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className="mb-3">
         <div className="mb-1.5 text-xs text-ink-soft">オプション</div>
         <div className="flex flex-wrap gap-3">
-          {showPops && (
-            <label className="inline-flex items-center gap-1.5 text-sm text-ink">
-              <input
-                type="checkbox"
-                checked={pops}
-                onChange={(e) => setPops(e.target.checked)}
-                className="h-4 w-4 accent-gold-500"
-              />
-              バブリング
-            </label>
-          )}
           {optionTags.map((t) => (
             <label key={t} className="inline-flex items-center gap-1.5 text-sm text-ink">
               <input
@@ -321,6 +345,7 @@ function AddVariation({
       <form ref={formRef} action={formAction} className="flex flex-wrap items-center gap-2">
         <input type="hidden" name="stage" value={stage} />
         <input type="hidden" name="pops" value={pops ? "1" : "0"} />
+        <input type="hidden" name="popsSport" value={popsSport ? "1" : "0"} />
         <input type="hidden" name="optionTags" value={JSON.stringify(selected)} />
         <input
           ref={fileRef}

@@ -54,6 +54,7 @@ export async function GET(
       currentVersionId: true,
       stage: true,
       popsAndBangs: true,
+      popsSport: true,
       optionTags: true,
       baseFile: {
         select: { model: true, generation: true, calNumber: true, method: true },
@@ -119,7 +120,7 @@ export async function GET(
     // Cal は本店のみ。代理店ファイル名には出さない（専門情報の非表示）。
     cal: user.role === "HQ_ADMIN" ? v.baseFile.calNumber : null,
     method: v.baseFile.method,
-    content: composeContent(v.stage, v.popsAndBangs, v.optionTags),
+    content: composeContent(v.stage, v.popsAndBangs, v.optionTags, v.popsSport),
     ext: "slave", // 再暗号化済み＝焼ける .slave
     // 車種名の後に「代理店名(顧客名+日付)」を付与
     dealerName: record.dealer?.name,
