@@ -430,6 +430,29 @@ export async function setRecordEcu(
     },
   });
 
+  // 手入力した HW/SW/Cal を、紐づくカタログ純正(BaseFile)の「空き項目」にも反映。
+  // → カタログでも手入力Calが表示される。既存値は上書きしない（自動抽出値を壊さない）。
+  const rec = await prisma.serviceRecord.findUnique({
+    where: { id: recordId },
+    select: { matchedBaseFileId: true },
+  });
+  if (rec?.matchedBaseFileId) {
+    const base = await prisma.baseFile.findUnique({
+      where: { id: rec.matchedBaseFileId },
+      select: { calNumber: true, swNumber: true, hwNumber: true },
+    });
+    if (base) {
+      const fill: { calNumber?: string; swNumber?: string; hwNumber?: string } = {};
+      if (!base.calNumber && norm(fields.cal)) fill.calNumber = norm(fields.cal)!;
+      if (!base.swNumber && norm(fields.sw)) fill.swNumber = norm(fields.sw)!;
+      if (!base.hwNumber && norm(fields.hw)) fill.hwNumber = norm(fields.hw)!;
+      if (Object.keys(fill).length > 0) {
+        await prisma.baseFile.update({ where: { id: rec.matchedBaseFileId }, data: fill });
+        revalidatePath("/hq/catalog");
+      }
+    }
+  }
+
   // 手入力した HW/SW/Cal を学習（次回以降の自動認識用・外部API不要）
   after(async () => {
     const r = await prisma.serviceRecord.findUnique({
