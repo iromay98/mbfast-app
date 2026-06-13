@@ -19,7 +19,9 @@ import { DeleteRecordButton } from "./delete-record-button";
 import { RecordCustomerEdit } from "./record-customer-edit";
 import { RecordWorkedAtEdit } from "./record-workedat-edit";
 import { EcuEditForm } from "./ecu-edit-form";
+import { HqEncryptForm } from "./hq-encrypt-form";
 import { VariationBuilder } from "./variation-matrix";
+import { dateLabel } from "@/server/catalog/filename";
 import {
   fuelKindOf,
   popsAllowed,
@@ -207,6 +209,28 @@ export default async function HQRecordDetailPage({
           hw={record.hwNumber}
           sw={record.swNumber}
           cal={record.calNumber}
+        />
+      </Card>
+
+      <Card>
+        <h3 className="mb-1 text-sm font-bold text-ink">本部で encrypt（.slave を焼く）</h3>
+        <p className="mb-3 text-xs text-ink-soft">
+          外部で作ったチューニング後bin を、この車固有のID で暗号化して焼ける .slave を取得します。
+          ファイル名の代理店名・顧客名・日付・車種・Cal は<b>この記録から自動</b>で入ります。
+        </p>
+        <HqEncryptForm
+          recordId={record.id}
+          canEncrypt={
+            !!record.autotunerSlaveId &&
+            record.autotunerEcuId != null &&
+            record.autotunerModelId != null &&
+            !!record.autotunerMcuId
+          }
+          showPops={builderProps?.showPops ?? true}
+          optionTags={builderProps?.optionTags ?? []}
+          namePreview={`${record.dealer?.name ?? ""}(${[record.customerName, dateLabel(record.workedAt)]
+            .filter(Boolean)
+            .join("+")})`}
         />
       </Card>
 
