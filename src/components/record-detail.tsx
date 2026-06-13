@@ -66,6 +66,7 @@ export function RecordDetail({
   hideTechnical = false,
   dealerControl,
   customerNameControl,
+  workedAtControl,
   swDisplay,
 }: {
   record: RecordForDetail;
@@ -75,6 +76,8 @@ export function RecordDetail({
   dealerControl?: React.ReactNode;
   // 本店向け: 顧客名をその場で変更するUI。指定時は顧客名の代わりに表示。
   customerNameControl?: React.ReactNode;
+  // 本店向け: 施工日をその場で変更するUI。指定時は日付の代わりに表示。
+  workedAtControl?: React.ReactNode;
   // 本店向け: SW番号の表示上書き（同一SW・別内容の枝番付きラベル等）。
   swDisplay?: string;
 }) {
@@ -110,7 +113,7 @@ export function RecordDetail({
             record.dealer && <Row label="施工代理店" value={record.dealer.name} />
           )}
           <Row label="顧客名" value={customerNameControl ?? record.customerName} />
-          <Row label="施工日" value={formatDate(record.workedAt)} />
+          <Row label="施工日" value={workedAtControl ?? formatDate(record.workedAt)} />
           <Row
             label="車台番号(VIN)"
             value={record.vin ? <span className="font-mono">{record.vin}</span> : null}
@@ -167,8 +170,8 @@ export function RecordDetail({
           </dl>
           {!record.calNumber && !record.swNumber && !record.hwNumber && (
             <p className="mt-2 text-xs text-ink-soft">
-              この車種は自動抽出に未対応か、識別子が見つかりませんでした（現状 VAG・トヨタ系に対応）。
-              復号ファイルから手動で確認してください。
+              識別子が見つかりませんでした（自動抽出は VAG・トヨタ系に対応、ベンツ系は暫定対応）。
+              下の「ECU識別子の手動入力」から本店が手で入力できます。
             </p>
           )}
         </Card>

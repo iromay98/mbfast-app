@@ -41,6 +41,33 @@ const VAG_PART = /\b\d[A-Z0-9]{2}\d{6}[A-Z]{0,2}\b/g;
 // トヨタ/レクサス(Denso)ECM 部番: 89xxx-xxxxx（例 89663-24690）。これを SW=Cal とみなす。
 const TOYOTA_PART = /\b89\d{3}-\d{5}\b/g;
 
+// メルセデス部品番号: A + 10桁（例 A2769005800）。ECUハード/ソフトの部番として現れる。
+const MB_PART = /\bA\d{10}\b/g;
+
+// メルセデス系 識別子の暫定抽出（VAG/トヨタが取れない場合のフォールバック）。
+// 実ファイルでの検証前のため best-effort。最終的には本店が手動修正できる。
+function extractMercedes(s: string): EcuId | null {
+  const clean = s.replace(/[^\x20-\x7E]/g, " ");
+  const parts = [...clean.matchAll(MB_PART)].map((m) => m[0]);
+  if (parts.length === 0) return null;
+  // 出現頻度の高い順に：最頻＝ハード部番、別番号があれば SW とみなす
+  const count = new Map<string, number>();
+  for (const p of parts) count.set(p, (count.get(p) ?? 0) + 1);
+  const sorted = [...count.entries()].sort((a, b) => b[1] - a[1]).map((e) => e[0]);
+  const hw = sorted[0] ?? null;
+  const sw = sorted.find((p) => p !== hw) ?? hw;
+  const ecuM = clean.match(/MED[C]?\s?17(?:[.\d]+)?|EDC\s?17(?:[.\d]+)?/);
+  const ecuType = ecuM ? ecuM[0].replace(/\s+/g, "") : null;
+  return {
+    ...EMPTY,
+    hw,
+    sw,
+    ecuType,
+    cal: sw,
+    rawBlock: sorted.slice(0, 6).join(" ").slice(0, 200) || null,
+  };
+}
+
 // トヨタ/Denso 系 SW 抽出（VAG ブロックが無い場合のフォールバック）
 function extractToyota(s: string): EcuId | null {
   const clean = s.replace(/[^\x20-\x7E]/g, " ");
@@ -79,7 +106,7 @@ export function extractEcuId(buf: Buffer): EcuId {
     const s = buf.toString("latin1");
     // VAG 識別ブロックは "EV_" を含む印字可能な連続領域。その周辺を窓として切り出す。
     const ev = s.indexOf("EV_");
-    if (ev < 0) return extractToyota(s) ?? EMPTY;
+    if (ev < 0) return extractToyota(s) ?? extractMercedes(s) ?? EMPTY;
 
     const win = s.slice(Math.max(0, ev - 60), ev + 320);
     // 制御文字を空白化（バイナリ境界のノイズ除去）
@@ -136,8 +163,8 @@ export function extractEcuId(buf: Buffer): EcuId {
     }
     const rawBlock = raw.slice(0, 200) || null;
 
-    // VAG ブロックはあったが SW を取れなかった場合はトヨタ系も試す
-    if (!sw) return extractToyota(s) ?? EMPTY;
+    // VAG ブロックはあったが SW を取れなかった場合はトヨタ・ベンツ系も試す
+    if (!sw) return extractToyota(s) ?? extractMercedes(s) ?? EMPTY;
 
     return { hw, sw, swVersion, asw, ecuType, engineCode, engineDesc, cal, rawBlock };
   } catch {

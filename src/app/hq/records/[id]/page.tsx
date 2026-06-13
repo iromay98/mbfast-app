@@ -17,6 +17,8 @@ import { HqNoteForm } from "./hq-note-form";
 import { RecordDealerSelect } from "./record-dealer-select";
 import { DeleteRecordButton } from "./delete-record-button";
 import { RecordCustomerEdit } from "./record-customer-edit";
+import { RecordWorkedAtEdit } from "./record-workedat-edit";
+import { EcuEditForm } from "./ecu-edit-form";
 import { VariationBuilder } from "./variation-matrix";
 import {
   fuelKindOf,
@@ -179,6 +181,12 @@ export default async function HQRecordDetailPage({
         customerNameControl={
           <RecordCustomerEdit recordId={record.id} current={record.customerName} />
         }
+        workedAtControl={
+          <RecordWorkedAtEdit
+            recordId={record.id}
+            current={record.workedAt.toISOString().slice(0, 10)}
+          />
+        }
         swDisplay={
           matched?.swNumber
             ? swLabel(matched.swNumber, matched.swSeq)
@@ -187,6 +195,20 @@ export default async function HQRecordDetailPage({
               : undefined
         }
       />
+
+      <Card>
+        <h3 className="mb-1 text-sm font-bold text-ink">ECU識別子の手動入力（本店）</h3>
+        <p className="mb-3 text-xs text-ink-soft">
+          自動抽出に未対応の車種（ベンツ系など）は、ここで Cal / SW / HW を手入力できます。
+          保存すると上の「ECU識別子」表示とカタログ照合に反映されます。
+        </p>
+        <EcuEditForm
+          recordId={record.id}
+          hw={record.hwNumber}
+          sw={record.swNumber}
+          cal={record.calNumber}
+        />
+      </Card>
 
       {requests.length > 0 && (
         <Card>

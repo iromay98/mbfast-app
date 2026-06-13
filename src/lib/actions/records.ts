@@ -346,6 +346,50 @@ export async function setRecordCustomerName(
   return { ok: true };
 }
 
+// 施工日をその場で変更（本店のみ）。入力は YYYY-MM-DD。
+export async function setRecordWorkedAt(
+  recordId: string,
+  dateStr: string,
+): Promise<{ ok?: true; error?: string }> {
+  await requireHQ();
+  const v = (dateStr ?? "").trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(v)) return { error: "日付の形式が不正です（YYYY-MM-DD）" };
+  // TZ によって日付がずれないよう正午(UTC)で保存
+  const d = new Date(`${v}T12:00:00Z`);
+  if (Number.isNaN(d.getTime())) return { error: "日付が不正です" };
+  await prisma.serviceRecord.update({
+    where: { id: recordId },
+    data: { workedAt: d },
+  });
+  revalidatePath(`/hq/records/${recordId}`);
+  revalidatePath("/hq/records");
+  return { ok: true };
+}
+
+// ECU識別子(HW/SW/Cal)を手動で入力・修正（本店のみ）。
+// 自動抽出に未対応の車種（ベンツ等）で本店が手動補完するために使う。
+export async function setRecordEcu(
+  recordId: string,
+  fields: { hw?: string; sw?: string; cal?: string },
+): Promise<{ ok?: true; error?: string }> {
+  await requireHQ();
+  const norm = (x?: string) => {
+    const t = (x ?? "").trim();
+    return t || null;
+  };
+  await prisma.serviceRecord.update({
+    where: { id: recordId },
+    data: {
+      hwNumber: norm(fields.hw),
+      swNumber: norm(fields.sw),
+      calNumber: norm(fields.cal),
+    },
+  });
+  revalidatePath(`/hq/records/${recordId}`);
+  revalidatePath("/hq/records");
+  return { ok: true };
+}
+
 // ── 本店: 施工代理店の付け替え（プルダウン変更） ──────────
 export async function setRecordDealer(
   recordId: string,
