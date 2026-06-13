@@ -11,6 +11,7 @@ import {
 } from "@/lib/labels";
 import { PageTitle, Card, Badge, EmptyState, Button, Input, Select, Field } from "@/components/ui";
 import type { Prisma } from "@/generated/prisma/client";
+import { HQSlaveUpload } from "./hq-slave-upload";
 
 type SP = Record<string, string | string[] | undefined>;
 function one(v: string | string[] | undefined): string {
@@ -83,6 +84,9 @@ export default async function HQRecordsPage({
   return (
     <div>
       <PageTitle title="施工記録・依頼（全店横断）" subtitle={`${records.length} 件`} />
+
+      {/* 本部代行アップロード（代理店を指定してスレーブを登録） */}
+      <HQSlaveUpload dealers={dealers} />
 
       {/* 未返却の依頼（記録に紐づくものは記録へ、それ以外は依頼詳細へ） */}
       {openRequests.length > 0 && (

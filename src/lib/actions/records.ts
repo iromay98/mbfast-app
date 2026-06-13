@@ -140,6 +140,58 @@ export async function uploadSlaveRecord(
   return { ok: true, data: { recordId: record.id, status: done?.status ?? "DECODED" } };
 }
 
+// ── 本部代行アップロード：本店が代理店を指定してスレーブを登録（過去案件の取込等） ──
+// 代理店アップと同じ復号・照合パイプラインに乗せる。記録は指定代理店のものとして作成。
+export async function uploadSlaveRecordByHQ(
+  _prev: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  const user = await requireHQ(); // 本店管理者のみ
+
+  const dealerId = String(formData.get("dealerId") ?? "");
+  const dealer = await prisma.dealer.findUnique({ where: { id: dealerId }, select: { id: true } });
+  if (!dealer) {
+    return { error: "対象の代理店を選択してください", fieldErrors: { dealerId: "未選択" } };
+  }
+
+  const file = formData.get("slaveFile");
+  if (!(file instanceof File) || file.size === 0) {
+    return { error: "スレーブファイルを選択してください", fieldErrors: { slaveFile: "未選択" } };
+  }
+  const customerNameRaw = formData.get("customerName");
+  const customerName =
+    typeof customerNameRaw === "string" && customerNameRaw.trim()
+      ? customerNameRaw.trim()
+      : null;
+
+  const saved = await saveUpload(file, "slaves");
+  if (!saved.ok) {
+    return { error: saved.error, fieldErrors: { slaveFile: saved.error } };
+  }
+
+  const record = await prisma.serviceRecord.create({
+    data: {
+      dealerId, // 指定代理店の記録として登録
+      createdById: user.id, // 起票は本店
+      source: "SLAVE_UPLOAD",
+      status: "UPLOADED",
+      slaveFilePath: saved.key,
+      slaveHash: saved.sha256,
+      customerName,
+    },
+  });
+
+  await runDecryptJob(record.id);
+  const done = await prisma.serviceRecord.findUnique({
+    where: { id: record.id },
+    select: { status: true },
+  });
+  revalidatePath("/hq/records");
+  revalidatePath("/dealer/records");
+
+  return { ok: true, data: { recordId: record.id, status: done?.status ?? "DECODED" } };
+}
+
 // ── 代理店が後から補う項目を保存（VIN・施工種別・SW番号・写真など） ──
 export async function updateRecordSupplement(
   recordId: string,
