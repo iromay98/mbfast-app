@@ -9,6 +9,7 @@ const hqNav: NavItem[] = [
   { href: "/hq/records", label: "施工記録・依頼" },
   { href: "/hq/catalog", label: "カタログ" },
   { href: "/hq/announcements", label: "お知らせ" },
+  { href: "/hq/admin", label: "メンテナンス" },
 ];
 
 export default async function HQLayout({ children }: { children: ReactNode }) {
