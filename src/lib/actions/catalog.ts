@@ -397,6 +397,9 @@ export async function createVariantWithFile(
   const options = (String(formData.get("options") ?? "")).trim();
   const popsRaw = formData.get("popsAndBangs");
   const popsAndBangs = popsRaw === "true" || popsRaw === "on" || popsRaw === "1";
+  const sportRaw = formData.get("popsSport");
+  const popsSport =
+    popsAndBangs && (sportRaw === "true" || sportRaw === "on" || sportRaw === "1");
   let optionTags: string[] = [];
   try {
     const raw = formData.get("optionTags");
@@ -414,6 +417,7 @@ export async function createVariantWithFile(
       stage,
       options: options || null,
       popsAndBangs,
+      popsSport,
       optionTags,
       status: "DRAFT",
       createdById: user.id,

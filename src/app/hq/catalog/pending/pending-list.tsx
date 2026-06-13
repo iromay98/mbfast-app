@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, useTransition } from "react";
+import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Badge, Button, Card } from "@/components/ui";
 import {
@@ -9,7 +9,8 @@ import {
   setVariantStatus,
   updateVariant,
 } from "@/lib/actions/catalog";
-import { type FuelKind, fuelKindOf, optionTagsFor, popsAllowed } from "@/lib/catalog/options";
+import { fuelKindOf, popsAllowed } from "@/lib/catalog/options";
+import { ModUploadForm } from "../mod-upload-form";
 
 export type PendingVariant = {
   id: string;
@@ -183,106 +184,13 @@ function PendingCard({
       )}
 
       <div className="mt-3 border-t border-line pt-3">
-        <ModDropZone onAddFile={onAddFile} fuelKind={fuelKind} />
+        <ModUploadForm
+          manufacturer={row.manufacturer}
+          fuelKind={fuelKind}
+          onAddFile={onAddFile}
+        />
       </div>
     </Card>
   );
 }
 
-function ModDropZone({
-  onAddFile,
-  fuelKind,
-}: {
-  onAddFile: (fd: FormData) => void;
-  fuelKind: FuelKind;
-}) {
-  const availableTags = optionTagsFor(fuelKind);
-  const showPops = popsAllowed(fuelKind);
-  const [drag, setDrag] = useState(false);
-  const [stage, setStage] = useState("");
-  const [options, setOptions] = useState("");
-  const [pops, setPops] = useState(false);
-  const [tags, setTags] = useState<string[]>([]);
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  const toggleTag = (tag: string) =>
-    setTags((cur) => (cur.includes(tag) ? cur.filter((t) => t !== tag) : [...cur, tag]));
-
-  const submit = (file: File) => {
-    const fd = new FormData();
-    fd.set("file", file);
-    if (stage.trim()) fd.set("stage", stage.trim());
-    if (options.trim()) fd.set("options", options.trim());
-    fd.set("popsAndBangs", showPops && pops ? "true" : "false");
-    fd.set("optionTags", JSON.stringify(tags.filter((t) => availableTags.includes(t))));
-    onAddFile(fd);
-    setStage("");
-    setOptions("");
-    setPops(false);
-    setTags([]);
-  };
-
-  return (
-    <div>
-      <div className="mb-2 flex flex-wrap items-center gap-2">
-        <input
-          value={stage}
-          onChange={(e) => setStage(e.target.value)}
-          placeholder="ステージ（例 Stage1）"
-          className="w-32 rounded border border-line px-2 py-1 text-xs"
-        />
-        {showPops && (
-          <label className="flex items-center gap-1 text-xs text-ink-soft">
-            <input type="checkbox" checked={pops} onChange={(e) => setPops(e.target.checked)} className="h-3.5 w-3.5 accent-gold-500" />
-            Pops
-          </label>
-        )}
-        {availableTags.map((tag) => (
-          <label key={tag} className="flex items-center gap-1 text-xs text-ink-soft">
-            <input
-              type="checkbox"
-              checked={tags.includes(tag)}
-              onChange={() => toggleTag(tag)}
-              className="h-3.5 w-3.5 accent-gold-500"
-            />
-            {tag}
-          </label>
-        ))}
-        <input
-          value={options}
-          onChange={(e) => setOptions(e.target.value)}
-          placeholder="自由記述（任意）"
-          className="w-40 rounded border border-line px-2 py-1 text-xs"
-        />
-      </div>
-      <div
-        onDragOver={(e) => {
-          e.preventDefault();
-          setDrag(true);
-        }}
-        onDragLeave={() => setDrag(false)}
-        onDrop={(e) => {
-          e.preventDefault();
-          setDrag(false);
-          const f = e.dataTransfer.files?.[0];
-          if (f) submit(f);
-        }}
-        onClick={() => inputRef.current?.click()}
-        className={`cursor-pointer rounded-lg border border-dashed p-4 text-center text-xs ${
-          drag ? "border-gold-400 bg-gold-50 text-ink" : "border-line text-ink-soft"
-        }`}
-      >
-        mod ファイルをドラッグ&ドロップ（またはクリックして選択）
-      </div>
-      <input
-        ref={inputRef}
-        type="file"
-        className="hidden"
-        onChange={(e) => {
-          const f = e.target.files?.[0];
-          if (f) submit(f);
-        }}
-      />
-    </div>
-  );
-}

@@ -3,8 +3,14 @@
 import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Button, Card } from "@/components/ui";
-import { analyzeStockBin, createBaseFileFromBin } from "@/lib/actions/catalog";
+import {
+  analyzeStockBin,
+  createBaseFileFromBin,
+  createVariantWithFile,
+} from "@/lib/actions/catalog";
 import { MANUFACTURERS } from "@/lib/catalog/manufacturers";
+import { fuelKindOf, type FuelKind } from "@/lib/catalog/options";
+import { ModUploadForm } from "./mod-upload-form";
 
 type Analyzed = {
   ecu: string | null;
@@ -32,6 +38,14 @@ export function StockUploadForm({
   const [analyzed, setAnalyzed] = useState<Analyzed | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  // 純正登録完了後の mod アップ画面用
+  const [created, setCreated] = useState<{
+    id: string;
+    manufacturer: string;
+    model: string;
+    fuelKind: FuelKind;
+  } | null>(null);
+  const [addedMods, setAddedMods] = useState<string[]>([]);
 
   const [f, setF] = useState({
     manufacturer: "",
@@ -93,29 +107,72 @@ export function StockUploadForm({
     if (f.ecu.trim()) fd.set("ecu", f.ecu.trim());
     if (f.mcu.trim()) fd.set("mcu", f.mcu.trim());
     if (analyzed?.fuel) fd.set("fuel", analyzed.fuel);
+    const ctx = {
+      manufacturer: f.manufacturer.trim(),
+      model: f.model.trim(),
+      fuelKind: fuelKindOf(analyzed?.fuel ?? null),
+    };
     startSubmit(async () => {
       const res = await createBaseFileFromBin(fd);
       if (res?.error) {
         setMsg(res.error);
       } else {
         setMsg(null);
-        setF({ manufacturer: "", model: "", generation: "", engineCode: "", displacement: "", ecu: "", mcu: "" });
+        // 純正登録完了 → そのまま mod アップ画面へ
+        const id = (res?.data as { id?: string } | undefined)?.id ?? "";
+        setCreated({ id, ...ctx });
+        setAddedMods([]);
         setFileName("");
         setAnalyzed(null);
         if (fileRef.current) fileRef.current.value = "";
-        setOpen(false);
         router.refresh();
       }
     });
   };
 
+  // mod を1件アップ（純正登録後の画面から）
+  const addMod = (modFd: FormData) => {
+    if (!created) return;
+    setMsg(null);
+    startSubmit(async () => {
+      const r = await createVariantWithFile(created.id, modFd);
+      if (r?.error) {
+        setMsg(r.error);
+        return;
+      }
+      const file = modFd.get("file");
+      const stage = String(modFd.get("stage") ?? "").trim() || "チューニングなし";
+      const pops =
+        modFd.get("popsAndBangs") === "true"
+          ? modFd.get("popsSport") === "true"
+            ? "・バブリング(スポーツ)"
+            : "・バブリング(全モード)"
+          : "";
+      setAddedMods((m) => [
+        ...m,
+        `${stage}${pops}（${file instanceof File ? file.name : "file"}）`,
+      ]);
+      router.refresh();
+    });
+  };
+
+  // 純正＋mod の登録を終えて閉じる
+  const finish = () => {
+    setCreated(null);
+    setAddedMods([]);
+    setF({ manufacturer: "", model: "", generation: "", engineCode: "", displacement: "", ecu: "", mcu: "" });
+    setMsg(null);
+    setOpen(false);
+    router.refresh();
+  };
+
   return (
     <div>
-      <Button type="button" onClick={() => setOpen((o) => !o)}>
+      <Button type="button" onClick={() => (open ? finish() : setOpen(true))}>
         {open ? "とじる" : "＋ 純正bin をアップして車両を追加"}
       </Button>
 
-      {open && (
+      {open && !created && (
         <Card className="mt-2 space-y-3">
           {/* 1) ファイル（ドロップ可・クリック可） */}
           <div
@@ -232,6 +289,48 @@ export function StockUploadForm({
           <Button type="button" disabled={!ready || analyzing || submitting} onClick={submit}>
             {submitting ? "登録中…" : "この純正データを登録"}
           </Button>
+        </Card>
+      )}
+
+      {/* 純正登録完了 → そのまま mod(ステージ/バブリング等)をアップ */}
+      {open && created && (
+        <Card className="mt-2 space-y-3">
+          <div className="rounded-lg bg-green-50 px-3 py-2 text-sm text-green-800">
+            ✅ 純正を登録しました：<b>{created.manufacturer} {created.model}</b>
+            <div className="mt-0.5 text-xs text-green-700">
+              続けて mod（チューニング済みファイル）をアップしてください。ステージ・バブリングを選んで何件でも追加できます。
+            </div>
+          </div>
+
+          <ModUploadForm
+            manufacturer={created.manufacturer}
+            fuelKind={created.fuelKind}
+            onAddFile={addMod}
+          />
+
+          {addedMods.length > 0 && (
+            <div className="rounded-lg border border-line">
+              <div className="border-b border-line px-3 py-1.5 text-xs font-semibold text-ink-soft">
+                追加した mod（{addedMods.length}）— 下書きで登録。配布可にするにはカタログで切替。
+              </div>
+              <ul className="divide-y divide-line">
+                {addedMods.map((m, i) => (
+                  <li key={i} className="px-3 py-1.5 text-xs text-ink">
+                    {m}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {msg && <p className="text-xs text-red-600">{msg}</p>}
+
+          <div className="flex items-center gap-2">
+            {submitting && <span className="text-xs text-ink-soft">アップ中…</span>}
+            <Button type="button" onClick={finish}>
+              完了
+            </Button>
+          </div>
         </Card>
       )}
     </div>
