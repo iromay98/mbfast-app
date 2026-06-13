@@ -15,7 +15,17 @@ export function AutoRefresh({
   const router = useRouter();
   useEffect(() => {
     if (!active) return;
-    const t = setInterval(() => router.refresh(), intervalMs);
+    let count = 0;
+    const maxTicks = Math.ceil((3 * 60 * 1000) / intervalMs); // 約3分で打ち切り（無限ポーリング防止）
+    const t = setInterval(() => {
+      // バックグラウンドのタブでは更新しない（操作・遷移との競合や無駄な再取得を避ける）
+      if (typeof document !== "undefined" && document.hidden) return;
+      if (++count > maxTicks) {
+        clearInterval(t);
+        return;
+      }
+      router.refresh();
+    }, intervalMs);
     return () => clearInterval(t);
   }, [active, intervalMs, router]);
   return null;
