@@ -7,6 +7,7 @@ import {
   archiveBaseFile,
   createVariantWithFile,
   setVariantStatus,
+  updateBaseFile,
   updateVariant,
 } from "@/lib/actions/catalog";
 import { fuelKindOf, popsAllowed } from "@/lib/catalog/options";
@@ -29,6 +30,7 @@ export type PendingRow = {
   mcu: string;
   cal: string;
   sw: string;
+  hw: string;
   generation: string;
   method: string;
   fuel: string;
@@ -68,6 +70,7 @@ export function PendingList({ rows }: { rows: PendingRow[] }) {
           onArchive={() => run(() => archiveBaseFile(r.baseFileId))}
           onPublish={(variantId) => run(() => setVariantStatus(variantId, "AVAILABLE"))}
           onPatch={(variantId, patch) => run(() => updateVariant(variantId, patch))}
+          onPatchBase={(patch) => run(() => updateBaseFile(r.baseFileId, patch))}
         />
       ))}
     </div>
@@ -80,12 +83,14 @@ function PendingCard({
   onArchive,
   onPublish,
   onPatch,
+  onPatchBase,
 }: {
   row: PendingRow;
   onAddFile: (fd: FormData) => void;
   onArchive: () => void;
   onPublish: (variantId: string) => void;
   onPatch: (variantId: string, patch: Record<string, unknown>) => void;
+  onPatchBase: (patch: Record<string, unknown>) => void;
 }) {
   const fuelKind = fuelKindOf(row.fuel);
   const showPops = popsAllowed(fuelKind);
@@ -106,13 +111,37 @@ function PendingCard({
               </Badge>
             )}
           </div>
-          {row.cal && (
-            <div className="mt-1">
-              <span className="rounded bg-gold-50 px-2 py-0.5 font-mono text-sm font-bold text-ink">
-                Cal {row.cal}
-              </span>
-            </div>
-          )}
+          {/* ECU識別子（自動認識しない時はここで手入力。保存すると学習にも連動）。 */}
+          <div className="mt-1 flex flex-wrap items-center gap-1.5">
+            <span className="text-xs font-semibold text-ink-soft">識別子</span>
+            <span className="text-xs text-ink-soft">Cal</span>
+            <input
+              defaultValue={row.cal}
+              placeholder="Cal番号"
+              onBlur={(e) => {
+                if (e.target.value.trim() !== row.cal) onPatchBase({ calNumber: e.target.value.trim() });
+              }}
+              className="w-32 rounded border border-line px-1.5 py-1 font-mono text-xs"
+            />
+            <span className="text-xs text-ink-soft">SW</span>
+            <input
+              defaultValue={row.sw}
+              placeholder="SW番号"
+              onBlur={(e) => {
+                if (e.target.value.trim() !== row.sw) onPatchBase({ swNumber: e.target.value.trim() });
+              }}
+              className="w-28 rounded border border-line px-1.5 py-1 font-mono text-xs"
+            />
+            <span className="text-xs text-ink-soft">HW</span>
+            <input
+              defaultValue={row.hw}
+              placeholder="HW番号"
+              onBlur={(e) => {
+                if (e.target.value.trim() !== row.hw) onPatchBase({ hwNumber: e.target.value.trim() });
+              }}
+              className="w-28 rounded border border-line px-1.5 py-1 font-mono text-xs"
+            />
+          </div>
           <div className="mt-0.5 text-xs text-ink-soft">
             <span className="font-mono">{row.ecu}</span>
             {row.generation ? `・世代 ${row.generation}` : ""}

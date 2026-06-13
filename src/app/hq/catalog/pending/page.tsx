@@ -41,6 +41,7 @@ export default async function PendingStockPage() {
     mcu: b.mcu ?? "",
     cal: b.calNumber ?? "",
     sw: b.swNumber ?? "",
+    hw: b.hwNumber ?? "",
     generation: b.generation ?? "",
     method: b.method ?? "",
     fuel: b.fuel ?? "",
