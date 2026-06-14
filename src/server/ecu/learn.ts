@@ -115,7 +115,10 @@ export async function learnEcuRules(opts: {
   sourceBaseFileId?: string | null;
 }): Promise<void> {
   const cleaned = opts.buf ? clean(opts.buf) : null;
-  const ecuKey = (opts.ecuType ?? "").trim() || "*";
+  const ecuKey = (opts.ecuType ?? "").trim();
+  // ECU型式が不明だと、学習した目印が全メーカーに当たって誤認識する（例 BMWに別車種の値）。
+  // よって MARKER は ECU型式が分かっている時だけ学習する（EXACT=hash一致は常に可）。
+  const realEcu = !!ecuKey && ecuKey !== "(不明)" && ecuKey !== "不明" && ecuKey !== "*";
   const src = opts.sourceBaseFileId ?? null;
   const entries: [Field, string | null | undefined][] = [
     ["HW", opts.hw],
@@ -142,7 +145,8 @@ export async function learnEcuRules(opts: {
       }
     }
 
-    if (!cleaned) continue;
+    // MARKER は ECU型式が分かっている時だけ（不明だと全メーカーに誤適用するため）
+    if (!cleaned || !realEcu) continue;
 
     // MARKER（ECU型式基準）
     if (field === "HW" || field === "SW") {
@@ -181,9 +185,11 @@ async function applyMarkers(
   cleaned: string,
   ecuType: string | null,
 ): Promise<Record<string, string>> {
-  const keys = ["*", ...(ecuType ? [ecuType.trim()] : [])];
+  // ECU型式が一致するルールのみ適用（グローバル"*"は誤認識源なので使わない）。
+  const key = (ecuType ?? "").trim();
+  if (!key || key === "(不明)" || key === "不明" || key === "*") return {};
   const rules = await prisma.ecuRule.findMany({
-    where: { kind: "MARKER", matchKey: { in: keys } },
+    where: { kind: "MARKER", matchKey: key },
     orderBy: { updatedAt: "desc" },
     select: { field: true, beforeMarker: true, tokenRegex: true },
   });
