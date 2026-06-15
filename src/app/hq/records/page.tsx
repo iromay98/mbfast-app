@@ -30,6 +30,7 @@ export default async function HQRecordsPage({
   const dealerId = one(sp.dealerId);
   const from = one(sp.from);
   const to = one(sp.to);
+  const view = one(sp.view); // "" = 一覧 / "customer" = 顧客別
 
   const where: Prisma.ServiceRecordWhereInput = { deletedAt: null };
   if (q) {
@@ -80,6 +81,56 @@ export default async function HQRecordsPage({
   const openByRecord = new Set(
     openRequests.map((r) => r.serviceRecordId).filter((x): x is string => !!x),
   );
+
+  // 重複ファイル検出：復号後の中身(decryptedHash)が同じ＝同一ファイル。全件横断で集計。
+  const dupGroups = await prisma.serviceRecord.groupBy({
+    by: ["decryptedHash"],
+    where: { deletedAt: null, decryptedHash: { not: null } },
+    _count: { _all: true },
+  });
+  const dupHashes = new Set(
+    dupGroups.filter((g) => g._count._all > 1).map((g) => g.decryptedHash as string),
+  );
+  const isDup = (r: { decryptedHash: string | null }) =>
+    !!r.decryptedHash && dupHashes.has(r.decryptedHash);
+
+  // 顧客別ビュー：顧客名でまとめる（本店を1店舗として顧客ごとに管理）。
+  const customerGroups =
+    view === "customer"
+      ? (() => {
+          const map = new Map<string, typeof records>();
+          for (const r of records) {
+            const key = r.customerName?.trim() || "（顧客名なし）";
+            const arr = map.get(key) ?? [];
+            arr.push(r);
+            map.set(key, arr);
+          }
+          return [...map.entries()]
+            .map(([name, recs]) => ({
+              name,
+              recs,
+              latest: recs.reduce(
+                (m, r) => (r.workedAt > m ? r.workedAt : m),
+                recs[0].workedAt,
+              ),
+              dupCount: recs.filter((r) => isDup(r)).length,
+            }))
+            .sort((a, b) => b.latest.getTime() - a.latest.getTime());
+        })()
+      : [];
+
+  // ビュー切替リンク（現在の絞り込みを維持して view だけ差し替え）
+  const baseParams = new URLSearchParams();
+  if (q) baseParams.set("q", q);
+  if (workType) baseParams.set("workType", workType);
+  if (dealerId) baseParams.set("dealerId", dealerId);
+  if (from) baseParams.set("from", from);
+  if (to) baseParams.set("to", to);
+  const listHref = `/hq/records${baseParams.toString() ? `?${baseParams}` : ""}`;
+  const custParams = new URLSearchParams(baseParams);
+  custParams.set("view", "customer");
+  const custHref = `/hq/records?${custParams}`;
+  const dupTotalRecords = records.filter((r) => isDup(r)).length;
 
   return (
     <div>
@@ -162,8 +213,94 @@ export default async function HQRecordsPage({
         </form>
       </Card>
 
+      {/* ビュー切替：一覧 ⇄ 顧客別 */}
+      <div className="mb-3 flex items-center gap-2">
+        <Link
+          href={listHref}
+          className={`rounded-full px-3 py-1 text-xs font-semibold ${
+            view !== "customer"
+              ? "bg-gold-500 text-white"
+              : "border border-line text-ink-soft hover:bg-surface-2"
+          }`}
+        >
+          一覧
+        </Link>
+        <Link
+          href={custHref}
+          className={`rounded-full px-3 py-1 text-xs font-semibold ${
+            view === "customer"
+              ? "bg-gold-500 text-white"
+              : "border border-line text-ink-soft hover:bg-surface-2"
+          }`}
+        >
+          顧客別
+        </Link>
+        {dupTotalRecords > 0 && (
+          <span className="ml-auto text-xs font-semibold text-rose-600">
+            重複ファイル {dupTotalRecords} 件
+          </span>
+        )}
+      </div>
+
       {records.length === 0 ? (
         <EmptyState message="該当する施工記録がありません。" />
+      ) : view === "customer" ? (
+        /* 顧客別ビュー：顧客ごとに案件をまとめる（本店を1店舗として顧客管理） */
+        <div className="space-y-2">
+          {customerGroups.map((g) => (
+            <details key={g.name} className="overflow-hidden rounded-xl border border-line">
+              <summary className="flex cursor-pointer list-none items-center justify-between gap-3 bg-surface-2 px-3 py-2">
+                <div className="min-w-0">
+                  <span className="text-sm font-bold text-ink">{g.name}</span>
+                  <span className="ml-2 text-xs text-ink-soft">{g.recs.length} 件</span>
+                  {g.dupCount > 0 && (
+                    <span className="ml-2 text-xs font-semibold text-rose-600">
+                      重複 {g.dupCount}
+                    </span>
+                  )}
+                </div>
+                <span className="shrink-0 text-xs text-ink-soft">
+                  最終 {formatDate(g.latest)}
+                </span>
+              </summary>
+              <div className="divide-y divide-line">
+                {g.recs.map((r) => {
+                  const title =
+                    r.carMaker || r.carModel
+                      ? `${r.carMaker ?? ""} ${r.carModel ?? ""}`.trim()
+                      : r.slaveName || "（解析中…）";
+                  return (
+                    <Link
+                      key={r.id}
+                      href={`/hq/records/${r.id}`}
+                      className="flex items-center justify-between gap-3 p-3 hover:bg-surface-2"
+                    >
+                      <div className="min-w-0">
+                        <div className="truncate text-sm font-medium text-ink">
+                          {title}
+                          {r.vin ? (
+                            <span className="ml-2 font-mono text-xs text-ink-soft">{r.vin}</span>
+                          ) : null}
+                        </div>
+                        <div className="mt-0.5 text-xs text-ink-soft">
+                          {r.dealer.name}・{formatDate(r.workedAt)}
+                          {r.calNumber ? `・Cal ${r.calNumber}` : ""}
+                        </div>
+                      </div>
+                      <div className="flex shrink-0 items-center gap-2">
+                        {isDup(r) && <Badge color="rose">重複</Badge>}
+                        {openByRecord.has(r.id) && <Badge color="amber">未返却</Badge>}
+                        <Badge color={recordStatusColors[r.status]}>
+                          {recordStatusLabels[r.status]}
+                        </Badge>
+                      </div>
+                    </Link>
+                  );
+                })}
+              </div>
+            </details>
+          ))}
+        </div>
       ) : (
         <Card className="divide-y divide-line p-0">
           {records.map((r) => {
@@ -192,6 +329,7 @@ export default async function HQRecordsPage({
                   </div>
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
+                  {isDup(r) && <Badge color="rose">重複</Badge>}
                   {openByRecord.has(r.id) && <Badge color="amber">未返却</Badge>}
                   {r.workType && <Badge color="gold">{workTypeLabels[r.workType]}</Badge>}
                   <Badge color={recordStatusColors[r.status]}>

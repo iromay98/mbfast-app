@@ -130,6 +130,7 @@ const badgeStyles: Record<string, string> = {
   blue: "bg-blue-100 text-blue-700",
   red: "bg-red-100 text-red-700",
   amber: "bg-amber-100 text-amber-800",
+  rose: "bg-rose-100 text-rose-700",
 };
 
 export function Badge({
