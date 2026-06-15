@@ -134,6 +134,22 @@ export default async function DealerRecordDetailPage({
         </Card>
       )}
 
+      {canDeliver && record.decryptedFilePath && (
+        <Card>
+          <h3 className="mb-1 text-sm font-bold text-ink">純正に戻す（ori）</h3>
+          <p className="mb-3 text-xs text-ink-soft">
+            アップ時の純正データを、この車用の .slave に暗号化してダウンロードできます。
+            チューニングを元に戻したいときにいつでも使えます（無料）。
+          </p>
+          <a
+            href={`/api/records/${record.id}/stock-slave`}
+            className="inline-flex items-center rounded-lg border border-gold-300 bg-white px-4 py-2 text-sm font-semibold text-gold-700 hover:bg-gold-50"
+          >
+            ⬇ 純正(ori) .slave をダウンロード
+          </a>
+        </Card>
+      )}
+
       <Card>
         <h3 className="mb-2 text-sm font-bold text-ink">この記録の依頼・相談</h3>
         {requests.length > 0 && (

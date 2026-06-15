@@ -240,6 +240,25 @@ export default async function HQRecordDetailPage({
         />
       </Card>
 
+      {record.decryptedFilePath &&
+        !!record.autotunerSlaveId &&
+        record.autotunerEcuId != null &&
+        record.autotunerModelId != null &&
+        !!record.autotunerMcuId && (
+          <Card>
+            <h3 className="mb-1 text-sm font-bold text-ink">純正に戻す（ori）</h3>
+            <p className="mb-3 text-xs text-ink-soft">
+              アップ時の純正データを、この車用の .slave に暗号化してダウンロードします（焼ける純正復元ファイル）。
+            </p>
+            <a
+              href={`/api/records/${record.id}/stock-slave`}
+              className="inline-flex items-center rounded-lg border border-gold-300 bg-white px-4 py-2 text-sm font-semibold text-gold-700 hover:bg-gold-50"
+            >
+              ⬇ 純正(ori) .slave をダウンロード
+            </a>
+          </Card>
+        )}
+
       <RecordThread
         recordId={record.id}
         messages={messages}
