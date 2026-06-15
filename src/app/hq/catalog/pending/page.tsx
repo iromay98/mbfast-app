@@ -15,11 +15,15 @@ export default async function PendingStockPage() {
 
   // 未整備 = archived=false かつ AVAILABLE な variant を持たない BaseFile
   const bases = await prisma.baseFile.findMany({
-    where: { archived: false, variants: { none: { status: "AVAILABLE" } } },
+    where: {
+      archived: false,
+      variants: { none: { status: "AVAILABLE", deletedAt: null } },
+    },
     orderBy: [{ source: "asc" }, { createdAt: "desc" }], // AUTO_CAPTURE を先頭に
     take: 200,
     include: {
       variants: {
+        where: { deletedAt: null },
         orderBy: { createdAt: "desc" },
         select: {
           id: true,

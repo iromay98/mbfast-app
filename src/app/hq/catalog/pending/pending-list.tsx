@@ -6,6 +6,8 @@ import { Badge, Button, Card } from "@/components/ui";
 import {
   archiveBaseFile,
   createVariantWithFile,
+  deleteVariant,
+  duplicateVariant,
   setVariantStatus,
   updateBaseFile,
   updateVariant,
@@ -71,6 +73,8 @@ export function PendingList({ rows }: { rows: PendingRow[] }) {
           onPublish={(variantId) => run(() => setVariantStatus(variantId, "AVAILABLE"))}
           onPatch={(variantId, patch) => run(() => updateVariant(variantId, patch))}
           onPatchBase={(patch) => run(() => updateBaseFile(r.baseFileId, patch))}
+          onDuplicate={(variantId) => run(() => duplicateVariant(variantId))}
+          onDelete={(variantId) => run(() => deleteVariant(variantId))}
         />
       ))}
     </div>
@@ -84,6 +88,8 @@ function PendingCard({
   onPublish,
   onPatch,
   onPatchBase,
+  onDuplicate,
+  onDelete,
 }: {
   row: PendingRow;
   onAddFile: (fd: FormData) => void;
@@ -91,6 +97,8 @@ function PendingCard({
   onPublish: (variantId: string) => void;
   onPatch: (variantId: string, patch: Record<string, unknown>) => void;
   onPatchBase: (patch: Record<string, unknown>) => void;
+  onDuplicate: (variantId: string) => void;
+  onDelete: (variantId: string) => void;
 }) {
   const fuelKind = fuelKindOf(row.fuel);
   const showPops = popsAllowed(fuelKind);
@@ -204,10 +212,33 @@ function PendingCard({
                   Pops
                 </label>
               )}
-              <Badge color="gray">下書き</Badge>
-              <Button type="button" onClick={() => onPublish(v.id)}>
-                配布可にする
-              </Button>
+              <Badge color={v.status === "AVAILABLE" ? "green" : v.status === "DISABLED" ? "gray" : "gray"}>
+                {v.status === "AVAILABLE" ? "配布可" : v.status === "DISABLED" ? "無効" : "下書き"}
+              </Badge>
+              {v.status !== "AVAILABLE" && (
+                <Button type="button" onClick={() => onPublish(v.id)}>
+                  配布可にする
+                </Button>
+              )}
+              <button
+                type="button"
+                onClick={() => onDuplicate(v.id)}
+                title="この版を複製（下書きで作成）"
+                className="rounded-lg border border-line px-2.5 py-1.5 text-xs font-semibold text-ink-soft hover:bg-surface-2"
+              >
+                複製
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (window.confirm(`「${v.fileName || v.stage || "この版"}」を削除します。よろしいですか？`)) {
+                    onDelete(v.id);
+                  }
+                }}
+                className="rounded-lg border border-red-200 px-2.5 py-1.5 text-xs font-semibold text-red-600 hover:bg-red-50"
+              >
+                削除
+              </button>
             </div>
           ))}
         </div>

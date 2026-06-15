@@ -809,12 +809,6 @@ export async function createBaseFileFromBin(formData: FormData): Promise<FormSta
   const saved = await saveUpload(file, "catalog/stock");
   if (!saved.ok) return { error: saved.error };
 
-  const dup = await prisma.baseFile.findUnique({
-    where: { stockHash },
-    select: { id: true },
-  });
-  if (dup) return { error: "この原本ファイルは既に登録済みです（同一hash）" };
-
   const desc = ecu.engineDesc ?? "";
   const inferredFuel = /TDI|diesel/i.test(desc)
     ? "diesel"
@@ -838,6 +832,58 @@ export async function createBaseFileFromBin(formData: FormData): Promise<FormSta
   const manualId = !!(typedHw || typedSw || typedCal);
 
   const swSeq = swNumber ? await prisma.baseFile.count({ where: { swNumber } }) : 0;
+
+  // 同一hashの既存純正があれば：却下(archived)済みなら復帰して上書き、現役ならエラー。
+  // （却下した純正はカタログ/未整備ストックから消えるが stockHash は残るため、
+  //   再アップ時に「見えないのに重複で弾かれる」状態を解消する）
+  const dup = await prisma.baseFile.findUnique({
+    where: { stockHash },
+    select: { id: true, archived: true },
+  });
+  if (dup) {
+    if (!dup.archived) {
+      return { error: "この原本ファイルは既に登録済みです（カタログ/未整備ストックに存在します）" };
+    }
+    const revived = await prisma.baseFile.update({
+      where: { id: dup.id },
+      data: {
+        archived: false,
+        manufacturer,
+        model,
+        ecu: ecuType,
+        mcu,
+        hwNumber,
+        swNumber,
+        swSeq,
+        calNumber,
+        generation,
+        engineCode,
+        displacement,
+        fuel,
+        stockFileRef: saved.key,
+        stockFileName: saved.filename,
+        stockFileSize: saved.size,
+        stockContentType: saved.contentType,
+        note: "純正binアップロードで再登録（却下から復帰）",
+      },
+    });
+    if (manualId) {
+      after(async () => {
+        await learnEcuRules({
+          buf,
+          hash: stockHash,
+          ecuType,
+          hw: hwNumber,
+          sw: swNumber,
+          cal: calNumber,
+          sourceBaseFileId: revived.id,
+        });
+      });
+    }
+    revalidatePath(CATALOG_PATH);
+    revalidatePath(PENDING_PATH);
+    return { ok: true, data: { id: revived.id } };
+  }
 
   try {
     const base = await prisma.baseFile.create({
