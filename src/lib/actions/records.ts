@@ -445,8 +445,9 @@ export async function setRecordEcu(
     },
   });
 
-  // 手入力した HW/SW/Cal を、紐づくカタログ純正(BaseFile)の「空き項目」にも反映。
-  // → カタログでも手入力Calが表示される。既存値は上書きしない（自動抽出値を壊さない）。
+  // 手入力した HW/SW/Cal を、紐づくカタログ純正(BaseFile)にも反映。
+  // 本店の手入力は確定値とみなし、空欄補完だけでなく自動抽出の誤値(例: ベンツの定数部番)も
+  // 上書きする。これで未整備ストック/カタログの Cal が空欄/誤値のまま残らない。
   const rec = await prisma.serviceRecord.findUnique({
     where: { id: recordId },
     select: { matchedBaseFileId: true },
@@ -458,12 +459,16 @@ export async function setRecordEcu(
     });
     if (base) {
       const fill: { calNumber?: string; swNumber?: string; hwNumber?: string } = {};
-      if (!base.calNumber && norm(fields.cal)) fill.calNumber = norm(fields.cal)!;
-      if (!base.swNumber && norm(fields.sw)) fill.swNumber = norm(fields.sw)!;
-      if (!base.hwNumber && norm(fields.hw)) fill.hwNumber = norm(fields.hw)!;
+      const cal = norm(fields.cal);
+      const sw = norm(fields.sw);
+      const hw = norm(fields.hw);
+      if (cal && cal !== base.calNumber) fill.calNumber = cal;
+      if (sw && sw !== base.swNumber) fill.swNumber = sw;
+      if (hw && hw !== base.hwNumber) fill.hwNumber = hw;
       if (Object.keys(fill).length > 0) {
         await prisma.baseFile.update({ where: { id: rec.matchedBaseFileId }, data: fill });
         revalidatePath("/hq/catalog");
+        revalidatePath("/hq/catalog/pending");
       }
     }
   }
