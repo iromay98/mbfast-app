@@ -211,6 +211,38 @@ export default async function HQCatalogPage({
         <StockUploadForm makerOptions={makerOptions} modelOptions={modelOptions} />
       </div>
 
+      {/* メーカーで表示を絞る（全車両ではなくメーカー単位で見やすく） */}
+      {makerOptions.length > 1 && (
+        <div className="mb-4 flex flex-wrap gap-2">
+          <Link
+            href="/hq/catalog"
+            className={`rounded-full px-3 py-1 text-xs font-semibold ${
+              manufacturer
+                ? "border border-line text-ink-soft hover:bg-surface-2"
+                : "bg-gold-500 text-white"
+            }`}
+          >
+            すべて
+          </Link>
+          {makerOptions
+            .slice()
+            .sort((a, b) => a.localeCompare(b))
+            .map((m) => (
+              <Link
+                key={m}
+                href={`/hq/catalog?manufacturer=${encodeURIComponent(m)}`}
+                className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                  manufacturer === m
+                    ? "bg-gold-500 text-white"
+                    : "border border-line text-ink-soft hover:bg-surface-2"
+                }`}
+              >
+                {m}
+              </Link>
+            ))}
+        </div>
+      )}
+
       <Card className="mb-4">
         <form method="get" className="space-y-3">
           <Field label="キーワード（メーカー・車種・ECU・ステージ・オプション）">

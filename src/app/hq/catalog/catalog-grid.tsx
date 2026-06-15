@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, useTransition } from "react";
+import { useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Badge, Button, Card } from "@/components/ui";
 import {
@@ -154,6 +154,64 @@ export function CatalogGrid({ groups }: { groups: CalGroup[] }) {
       return next;
     });
 
+  // メーカー×世代で「グレード(世代)」のセクションにまとめる（例: Audi A3/S3/RS3(8V)）。
+  const sections = useMemo(() => {
+    const map = new Map<
+      string,
+      { key: string; manufacturer: string; generation: string; models: string[]; items: CalGroup[] }
+    >();
+    for (const g of groups) {
+      const key = `${g.manufacturer}|||${g.generation}`;
+      let s = map.get(key);
+      if (!s) {
+        s = { key, manufacturer: g.manufacturer, generation: g.generation, models: [], items: [] };
+        map.set(key, s);
+      }
+      s.items.push(g);
+      if (g.model && !s.models.includes(g.model)) s.models.push(g.model);
+    }
+    return [...map.values()];
+  }, [groups]);
+
+  const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set());
+  const toggleSection = (k: string) =>
+    setCollapsedSections((cur) => {
+      const next = new Set(cur);
+      if (next.has(k)) next.delete(k);
+      else next.add(k);
+      return next;
+    });
+
+  const renderCard = (g: CalGroup) => (
+    <CalGroupCard
+      key={g.baseFileId}
+      group={g}
+      open={expanded.has(g.baseFileId)}
+      onToggleOpen={() => toggleCollapse(g.baseFileId)}
+      onPatchBase={(p) => run(() => updateBaseFile(g.baseFileId, p))}
+      onAddVariant={(stage, pops, popsSport) =>
+        run(() =>
+          createVariant({
+            baseFileId: g.baseFileId,
+            stage: stage || undefined,
+            popsAndBangs: pops,
+            popsSport,
+          }),
+        )
+      }
+      onPatchVariant={(id, p) => run(() => updateVariant(id, p))}
+      onDuplicate={(id) => run(() => duplicateVariant(id))}
+      onDelete={(id) => run(() => deleteVariant(id))}
+      onStatus={(id, s) => run(() => setVariantStatus(id, s))}
+      onUpload={(id, f) => {
+        const fd = new FormData();
+        fd.set("file", f);
+        run(() => replaceVariantFile(id, fd));
+      }}
+      onRestore={(id, versionId) => run(() => restoreVariantVersion(id, versionId))}
+    />
+  );
+
   return (
     <div className="space-y-3">
       <div className="flex items-center gap-3">
@@ -188,35 +246,26 @@ export function CatalogGrid({ groups }: { groups: CalGroup[] }) {
         </Card>
       )}
 
-      {groups.map((g) => (
-        <CalGroupCard
-          key={g.baseFileId}
-          group={g}
-          open={expanded.has(g.baseFileId)}
-          onToggleOpen={() => toggleCollapse(g.baseFileId)}
-          onPatchBase={(p) => run(() => updateBaseFile(g.baseFileId, p))}
-          onAddVariant={(stage, pops, popsSport) =>
-            run(() =>
-              createVariant({
-                baseFileId: g.baseFileId,
-                stage: stage || undefined,
-                popsAndBangs: pops,
-                popsSport,
-              }),
-            )
-          }
-          onPatchVariant={(id, p) => run(() => updateVariant(id, p))}
-          onDuplicate={(id) => run(() => duplicateVariant(id))}
-          onDelete={(id) => run(() => deleteVariant(id))}
-          onStatus={(id, s) => run(() => setVariantStatus(id, s))}
-          onUpload={(id, f) => {
-            const fd = new FormData();
-            fd.set("file", f);
-            run(() => replaceVariantFile(id, fd));
-          }}
-          onRestore={(id, versionId) => run(() => restoreVariantVersion(id, versionId))}
-        />
-      ))}
+      {sections.map((s) => {
+        const open = !collapsedSections.has(s.key);
+        const heading = `${s.manufacturer} ${s.models.join("/")}${
+          s.generation ? `(${s.generation})` : ""
+        }`;
+        return (
+          <div key={s.key}>
+            <button
+              type="button"
+              onClick={() => toggleSection(s.key)}
+              className="flex w-full items-center gap-2 rounded-lg bg-surface-2 px-3 py-2 text-left"
+            >
+              <span className="text-sm text-ink-soft">{open ? "▼" : "▶"}</span>
+              <span className="text-sm font-bold text-ink">{heading}</span>
+              <span className="ml-auto text-xs text-ink-soft">{s.items.length}件</span>
+            </button>
+            {open && <div className="mt-2 space-y-2 pl-1">{s.items.map(renderCard)}</div>}
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -436,7 +485,7 @@ function CalGroupCard({
                   {sg.pops.reduce((n, p) => n + p.rows.length, 0)}件
                 </span>
               </div>
-              <div className="space-y-2 pl-3">
+              <div className="space-y-1 pl-3">
                 {showPops ? (
                   // ガソリン/不明: バブリングあり/なし の小グループを表示
                   sg.pops.map((pg) => (
@@ -457,7 +506,7 @@ function CalGroupCard({
                           <span className="text-[11px] text-ink-soft">（未登録）</span>
                         )}
                       </div>
-                      <div className="space-y-2 pl-2">
+                      <div className="space-y-1 pl-2">
                         {pg.rows.map((r) => (
                           <LeafRow
                             key={r.id}
@@ -488,7 +537,7 @@ function CalGroupCard({
                         ＋追加
                       </button>
                     </div>
-                    <div className="space-y-2 pl-2">
+                    <div className="space-y-1 pl-2">
                       {sg.pops
                         .flatMap((pg) => pg.rows)
                         .map((r) => (
@@ -560,7 +609,7 @@ function LeafRow({
           setDrag(false);
           handle(e.dataTransfer.files);
         }}
-        className={`flex flex-wrap items-center gap-x-2 gap-y-0.5 rounded border px-2 py-1 ${
+        className={`flex flex-wrap items-center gap-x-1.5 gap-y-0 rounded border px-2 py-0.5 ${
           drag ? "border-gold-400 bg-gold-50" : "border-line"
         } ${dim}`}
       >
