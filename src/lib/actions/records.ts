@@ -183,8 +183,25 @@ export async function uploadSlaveRecordByHQ(
   await runDecryptJob(record.id);
   const done = await prisma.serviceRecord.findUnique({
     where: { id: record.id },
-    select: { status: true },
+    select: { status: true, matchedBaseFileId: true },
   });
+
+  // Driver 入力があれば、紐づいた純正(BaseFile)に反映（未設定の時のみ・本店のみ閲覧）
+  const driver = String(formData.get("driver") ?? "").trim();
+  if (driver && done?.matchedBaseFileId) {
+    const base = await prisma.baseFile.findUnique({
+      where: { id: done.matchedBaseFileId },
+      select: { driver: true },
+    });
+    if (base && !base.driver) {
+      await prisma.baseFile.update({
+        where: { id: done.matchedBaseFileId },
+        data: { driver, driverBorrowed: formData.get("driverBorrowed") === "true" },
+      });
+      revalidatePath("/hq/catalog");
+    }
+  }
+
   revalidatePath("/hq/records");
   revalidatePath("/dealer/records");
 

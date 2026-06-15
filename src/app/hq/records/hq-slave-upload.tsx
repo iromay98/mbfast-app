@@ -57,6 +57,19 @@ export function HQSlaveUpload({ dealers }: { dealers: { id: string; name: string
               className="block w-full rounded-lg border border-line px-3 py-2 text-sm text-ink"
             />
           </label>
+          <label className="block">
+            <span className="mb-1 block text-xs font-semibold text-ink-soft">Driver（任意・本店のみ）</span>
+            <input
+              type="text"
+              name="driver"
+              placeholder="ECM Titanium等のDriver名"
+              className="block w-full rounded-lg border border-line px-3 py-2 font-mono text-sm text-ink"
+            />
+            <label className="mt-1 inline-flex items-center gap-1.5 text-xs text-ink-soft">
+              <input type="checkbox" name="driverBorrowed" value="true" className="h-3.5 w-3.5 accent-gold-500" />
+              流用（他Driverを流用）
+            </label>
+          </label>
         </div>
         <input
           type="file"
