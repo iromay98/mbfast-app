@@ -16,7 +16,6 @@ import { RetryDecryptButton } from "@/components/retry-decrypt-button";
 import { updateRecordSupplement } from "@/lib/actions/records";
 import { SupplementForm } from "./supplement-form";
 import { TuningConfigurator } from "./tuning-configurator";
-import { RecordTicketForm } from "./record-ticket-form";
 import { fuelKindOf, optionTagsFor, popsAllowed, stageRank, baselineStages } from "@/lib/catalog/options";
 
 export default async function DealerRecordDetailPage({
@@ -150,10 +149,10 @@ export default async function DealerRecordDetailPage({
         </Card>
       )}
 
-      <Card>
-        <h3 className="mb-2 text-sm font-bold text-ink">この記録の依頼・相談</h3>
-        {requests.length > 0 && (
-          <div className="mb-3 divide-y divide-line">
+      {requests.length > 0 && (
+        <Card>
+          <h3 className="mb-2 text-sm font-bold text-ink">この記録のリクエスト</h3>
+          <div className="divide-y divide-line">
             {requests.map((req) => (
               <div key={req.id} className="flex items-center justify-between gap-3 py-2">
                 <Link href={`/dealer/requests/${req.id}`} className="min-w-0 flex-1 hover:underline">
@@ -177,10 +176,8 @@ export default async function DealerRecordDetailPage({
               </div>
             ))}
           </div>
-        )}
-        {/* 配信後の調整・現車合わせ（ログ反映）のリクエスト */}
-        <RecordTicketForm recordId={record.id} />
-      </Card>
+        </Card>
+      )}
 
       <RecordThread recordId={record.id} messages={messages} viewerRole="DEALER" />
 
