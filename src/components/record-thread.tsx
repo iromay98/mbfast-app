@@ -15,10 +15,12 @@ export function RecordThread({
   recordId,
   messages,
   viewerRole,
+  canEncrypt = false,
 }: {
   recordId: string;
   messages: ThreadMessage[];
   viewerRole: "HQ_ADMIN" | "DEALER";
+  canEncrypt?: boolean;
 }) {
   return (
     <Card>
@@ -60,7 +62,7 @@ export function RecordThread({
       </div>
 
       <div className="border-t border-line pt-3">
-        <MessageComposer recordId={recordId} />
+        <MessageComposer recordId={recordId} canEncrypt={canEncrypt} />
       </div>
     </Card>
   );

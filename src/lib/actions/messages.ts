@@ -3,7 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
 import { getSessionUser } from "@/lib/authz";
-import { saveUpload } from "@/server/storage";
+import { saveUpload, storage } from "@/server/storage";
+import { encryptSlave } from "@/server/autotuner/client";
 import { notify } from "@/server/notifications";
 import { type FormState } from "@/lib/actions/form-state";
 
@@ -43,14 +44,53 @@ export async function postRecordMessage(
     contentType?: string;
   } = {};
   if (hasFile) {
-    const saved = await saveUpload(file, "record-messages");
-    if (!saved.ok) return { error: saved.error };
-    fileFields = {
-      filePath: saved.key,
-      fileName: saved.filename,
-      fileSize: saved.size,
-      contentType: saved.contentType,
-    };
+    // 本店が「.slaveに暗号化して送る」を選んだ場合、この車固有のIDで encrypt して焼ける.slaveに。
+    const wantEncrypt = formData.get("encrypt") === "true" && ctx.user.role === "HQ_ADMIN";
+    if (wantEncrypt) {
+      const rec = await prisma.serviceRecord.findUnique({
+        where: { id: recordId },
+        select: {
+          autotunerSlaveId: true,
+          autotunerEcuId: true,
+          autotunerModelId: true,
+          autotunerMcuId: true,
+        },
+      });
+      const slaveId = rec?.autotunerSlaveId;
+      const ecuId = rec?.autotunerEcuId;
+      const modelId = rec?.autotunerModelId;
+      const mcuId = rec?.autotunerMcuId;
+      if (!slaveId || ecuId == null || modelId == null || !mcuId) {
+        return { error: "この記録は暗号化IDが無いため .slave 化できません。チェックを外して送ってください。" };
+      }
+      const tuned = Buffer.from(await file.arrayBuffer());
+      let slaveData: Buffer;
+      try {
+        const enc = await encryptSlave(tuned, { slaveId, ecuId, modelId, mcuId }, { recordId });
+        slaveData = enc.slaveData;
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        return { error: `暗号化に失敗しました（チューニング後binでない場合はチェックを外してください）: ${msg}` };
+      }
+      const stem = (file.name || "test").replace(/\.[^.]+$/, "");
+      const key = `record-messages/${recordId}/${Date.now()}_${stem}.slave`;
+      await storage.save(key, slaveData, "application/octet-stream");
+      fileFields = {
+        filePath: key,
+        fileName: `${stem}.slave`,
+        fileSize: slaveData.byteLength,
+        contentType: "application/octet-stream",
+      };
+    } else {
+      const saved = await saveUpload(file, "record-messages");
+      if (!saved.ok) return { error: saved.error };
+      fileFields = {
+        filePath: saved.key,
+        fileName: saved.filename,
+        fileSize: saved.size,
+        contentType: saved.contentType,
+      };
+    }
   }
 
   await prisma.recordMessage.create({

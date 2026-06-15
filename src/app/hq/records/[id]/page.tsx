@@ -240,7 +240,17 @@ export default async function HQRecordDetailPage({
         />
       </Card>
 
-      <RecordThread recordId={record.id} messages={messages} viewerRole="HQ_ADMIN" />
+      <RecordThread
+        recordId={record.id}
+        messages={messages}
+        viewerRole="HQ_ADMIN"
+        canEncrypt={
+          !!record.autotunerSlaveId &&
+          record.autotunerEcuId != null &&
+          record.autotunerModelId != null &&
+          !!record.autotunerMcuId
+        }
+      />
 
       {requests.length > 0 && (
         <Card>

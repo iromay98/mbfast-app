@@ -7,7 +7,14 @@ import { emptyFormState } from "@/lib/actions/form-state";
 import { Button, FormError } from "@/components/ui";
 
 // 案件メッセージの投稿（テキスト＋任意の添付ファイル）。
-export function MessageComposer({ recordId }: { recordId: string }) {
+// canEncrypt=true（本店＋暗号化IDあり）のとき、添付を .slave に暗号化して送る選択肢を出す。
+export function MessageComposer({
+  recordId,
+  canEncrypt = false,
+}: {
+  recordId: string;
+  canEncrypt?: boolean;
+}) {
   const [state, formAction, pending] = useActionState(
     postRecordMessage.bind(null, recordId),
     emptyFormState,
@@ -40,6 +47,21 @@ export function MessageComposer({ recordId }: { recordId: string }) {
           {pending ? "送信中…" : "送信"}
         </Button>
       </div>
+      {canEncrypt && (
+        <label className="flex items-start gap-1.5 text-xs text-ink-soft">
+          <input
+            type="checkbox"
+            name="encrypt"
+            value="true"
+            defaultChecked
+            className="mt-0.5 h-3.5 w-3.5 accent-gold-500"
+          />
+          <span>
+            添付を<b>この車用の .slave に暗号化</b>して送る（焼けるテストファイル）。
+            スクショ・メモ等の場合はチェックを外してください。
+          </span>
+        </label>
+      )}
       <FormError message={state.error} />
     </form>
   );
