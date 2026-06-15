@@ -23,7 +23,7 @@ export function ModUploadForm({
   onAddFile: (fd: FormData) => void;
 }) {
   const stageOptions = baselineStages(manufacturer);
-  const availableTags = optionTagsFor(fuelKind);
+  const availableTags = optionTagsFor(fuelKind, manufacturer);
   const showPops = popsAllowed(fuelKind);
 
   const [stage, setStage] = useState(stageOptions.includes("Stage1") ? "Stage1" : stageOptions[0] ?? "");

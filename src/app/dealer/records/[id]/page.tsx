@@ -64,7 +64,7 @@ export default async function DealerRecordDetailPage({
     configurator = {
       stages,
       showPops: popsAllowed(fuelKind),
-      optionTags: optionTagsFor(fuelKind),
+      optionTags: optionTagsFor(fuelKind, matched.manufacturer),
     };
   }
   // この記録に紐づく作業依頼（依頼は記録内に表示。専門情報は含めない）

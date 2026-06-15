@@ -507,7 +507,7 @@ export async function uploadVariation(
       id: true,
       matchedBaseFileId: true,
       dealerId: true,
-      matchedBaseFile: { select: { fuel: true } },
+      matchedBaseFile: { select: { fuel: true, manufacturer: true } },
     },
   });
   if (!record) return { error: "施工記録が見つかりません" };
@@ -536,7 +536,7 @@ export async function uploadVariation(
   } catch {
     /* 無視 */
   }
-  const allowed = new Set(optionTagsFor(fuelKind));
+  const allowed = new Set(optionTagsFor(fuelKind, record.matchedBaseFile?.manufacturer));
   optionTags = [...new Set(optionTags)].filter((t) => allowed.has(t)).sort();
 
   const saved = await saveUpload(file, "catalog/tuned");

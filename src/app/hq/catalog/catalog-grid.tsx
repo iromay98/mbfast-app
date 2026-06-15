@@ -296,7 +296,7 @@ function CalGroupCard({
   onRestore: (id: string, versionId: string) => void;
 }) {
   const g = group;
-  const tags = optionTagsFor(g.fuelKind);
+  const tags = optionTagsFor(g.fuelKind, g.manufacturer);
   const showPops = popsAllowed(g.fuelKind); // ディーゼルは false（バブリングなし）
   const [adding, setAdding] = useState(false);
   const [newStage, setNewStage] = useState("Stage1");

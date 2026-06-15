@@ -18,10 +18,16 @@ export function fuelKindOf(fuel?: string | null): FuelKind {
 const BASE_TAGS = ["NOx", "DTC", "O2"];
 const DIESEL_TAGS = ["Adblue", "DPF", "EGR"];
 
-// その燃料で選択肢として出すタグ
-export function optionTagsFor(kind: FuelKind): string[] {
+// メーカー固有オプション。トヨタ/レクサスはスピードリミッターカットを追加。
+const SPEED_CUT_MAKERS = /toyota|lexus|トヨタ|レクサス/i;
+export const SPEED_LIMITER_TAG = "スピードリミッターカット";
+
+// その燃料・メーカーで選択肢として出すタグ
+export function optionTagsFor(kind: FuelKind, manufacturer?: string | null): string[] {
   // ガソリンは Adblue/DPF/EGR を出さない。ディーゼル/不明は全部出す。
-  return kind === "gasoline" ? BASE_TAGS : [...BASE_TAGS, ...DIESEL_TAGS];
+  const base = kind === "gasoline" ? [...BASE_TAGS] : [...BASE_TAGS, ...DIESEL_TAGS];
+  if (manufacturer && SPEED_CUT_MAKERS.test(manufacturer)) base.push(SPEED_LIMITER_TAG);
+  return base;
 }
 
 // バブリング(Pops)を扱えるか（ディーゼルは不可）

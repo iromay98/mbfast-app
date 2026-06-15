@@ -109,7 +109,7 @@ async function loadMatchContext(recordId: string, dealerId: string) {
       autotunerEcuId: true,
       autotunerModelId: true,
       autotunerMcuId: true,
-      matchedBaseFile: { select: { fuel: true } },
+      matchedBaseFile: { select: { fuel: true, manufacturer: true } },
     },
   });
   if (!record || record.dealerId !== dealerId)
@@ -117,20 +117,29 @@ async function loadMatchContext(recordId: string, dealerId: string) {
   if (!record.matchedBaseFileId)
     return { ok: false as const, error: "照合が成立していません" };
   const fuelKind = fuelKindOf(record.matchedBaseFile?.fuel);
+  const manufacturer = record.matchedBaseFile?.manufacturer ?? record.carMaker ?? null;
   const canDeliver =
     !!record.autotunerSlaveId &&
     record.autotunerEcuId != null &&
     record.autotunerModelId != null &&
     !!record.autotunerMcuId;
-  return { ok: true as const, record, fuelKind, canDeliver, baseFileId: record.matchedBaseFileId };
+  return {
+    ok: true as const,
+    record,
+    fuelKind,
+    manufacturer,
+    canDeliver,
+    baseFileId: record.matchedBaseFileId,
+  };
 }
 
 // 選択を燃料に応じて正規化（許可されないタグ/バブリングは落とす）
 function normalizeSelection(
   sel: TuningSelection,
   fuelKind: FuelKind,
+  manufacturer?: string | null,
 ): Required<TuningSelection> {
-  const allowed = new Set(optionTagsFor(fuelKind));
+  const allowed = new Set(optionTagsFor(fuelKind, manufacturer));
   const optionTags = [...new Set(sel.optionTags)].filter((t) => allowed.has(t));
   const pops = popsAllowed(fuelKind) ? !!sel.pops : false;
   return {
@@ -155,7 +164,7 @@ export async function resolveTuning(
   const ctx = await loadMatchContext(recordId, user.dealerId);
   if (!ctx.ok) return { error: ctx.error };
 
-  const sel = normalizeSelection(selection, ctx.fuelKind);
+  const sel = normalizeSelection(selection, ctx.fuelKind, ctx.manufacturer);
 
   // 配布可(AVAILABLE)＋実体ありの中から、選んだ構成に完全一致する版を探す
   const variants = await prisma.tunedVariant.findMany({
@@ -250,7 +259,7 @@ export async function requestTuning(
   const ctx = await loadMatchContext(recordId, user.dealerId);
   if (!ctx.ok) return { error: ctx.error };
 
-  const sel = normalizeSelection(selection, ctx.fuelKind);
+  const sel = normalizeSelection(selection, ctx.fuelKind, ctx.manufacturer);
   // 正規化後の optionTags はすべて有料OP（バブリングは pops で別枠＝無料）。
   if (sel.optionTags.length > 0 && !agreed) {
     return { error: "有料オプションの同意が必要です" };

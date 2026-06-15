@@ -160,7 +160,7 @@ export default async function HQRecordDetailPage({
     builderProps = {
       stages,
       showPops: popsAllowed(fuelKind),
-      optionTags: optionTagsFor(fuelKind),
+      optionTags: optionTagsFor(fuelKind, matched.manufacturer),
       variants,
       openLabels,
     };
