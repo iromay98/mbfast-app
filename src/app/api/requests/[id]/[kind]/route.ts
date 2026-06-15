@@ -3,6 +3,7 @@ import { getSessionUser } from "@/lib/authz";
 import { prisma } from "@/lib/db";
 import { storage } from "@/server/storage";
 import { filenameFromKey } from "@/server/storage/filename";
+import { contentDisposition } from "@/server/catalog/filename";
 
 // 依頼ファイルの認可付きダウンロード。
 //   kind = "input"  : 代理店がアップした読み出しファイル
@@ -49,7 +50,7 @@ export async function GET(
       // 成果/入力ファイルはダウンロードさせる（添付）
       "Content-Type": "application/octet-stream",
       "Content-Length": String(file.size),
-      "Content-Disposition": `attachment; filename*=UTF-8''${encodeURIComponent(filename)}`,
+      "Content-Disposition": contentDisposition(filename),
       "Cache-Control": "private, no-store",
     },
   });

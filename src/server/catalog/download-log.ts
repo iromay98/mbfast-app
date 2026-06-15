@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db";
 import type { StoredFile } from "@/server/storage";
+import { contentDisposition } from "@/server/catalog/filename";
 
 /**
  * カタログDLの監査ログ（いつ・誰が・どのファイルを）。
@@ -44,7 +45,7 @@ export function fileResponse(
     headers: {
       "Content-Type": contentType || "application/octet-stream",
       "Content-Length": String(file.size),
-      "Content-Disposition": `attachment; filename*=UTF-8''${encodeURIComponent(filename)}`,
+      "Content-Disposition": contentDisposition(filename),
       "Cache-Control": "private, no-store",
     },
   });

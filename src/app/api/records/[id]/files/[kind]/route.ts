@@ -3,7 +3,7 @@ import { getSessionUser } from "@/lib/authz";
 import { prisma } from "@/lib/db";
 import { storage } from "@/server/storage";
 import { filenameFromKey } from "@/server/storage/filename";
-import { buildDownloadName, dateLabel } from "@/server/catalog/filename";
+import { buildDownloadName, dateLabel, contentDisposition } from "@/server/catalog/filename";
 
 // スレーブ/復号ファイルの認可付きダウンロード。
 //   kind = "slave"     : 代理店がアップしたスレーブ
@@ -87,7 +87,7 @@ export async function GET(
     headers: {
       "Content-Type": "application/octet-stream",
       "Content-Length": String(file.size),
-      "Content-Disposition": `attachment; filename*=UTF-8''${encodeURIComponent(filename)}`,
+      "Content-Disposition": contentDisposition(filename),
       "Cache-Control": "private, no-store",
     },
   });

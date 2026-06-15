@@ -71,6 +71,24 @@ export function composeContent(
   return parts.length ? parts.join("_") : "tuned";
 }
 
+// Content-Disposition ヘッダ値を組み立てる。
+// RFC 5987/6266 準拠: filename*（UTF-8厳密エンコード）に加え、ASCII の filename= も付与。
+// encodeURIComponent は ( ) * ' を素のまま残すが、これらは ext-value で不正なため、
+// 厳密ブラウザ(Safari等)が filename* を丸ごと破棄し、URL末尾(例 "decrypted")を
+// 拡張子なしで保存してしまう。両対応で確実に正しい名前・拡張子で保存させる。
+export function contentDisposition(filename: string): string {
+  const utf8 = encodeURIComponent(filename).replace(
+    /['()*]/g,
+    (c) => "%" + c.charCodeAt(0).toString(16).toUpperCase(),
+  );
+  // ASCII フォールバック（非ASCII→_、ダブルクオート/バックスラッシュ除去）。拡張子は保持される。
+  const ascii = filename
+    .replace(/[^\x20-\x7E]/g, "_")
+    .replace(/["\\]/g, "_")
+    .trim();
+  return `attachment; filename="${ascii}"; filename*=UTF-8''${utf8}`;
+}
+
 // 保存キー/ファイル名から拡張子を取り出す（先頭ドットなし。無ければ既定）
 export function extFromName(name: string | null | undefined, fallback = "bin"): string {
   if (!name) return fallback;

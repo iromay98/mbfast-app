@@ -59,8 +59,14 @@ export function HqEncryptForm({
       }
       const blob = await res.blob();
       const cd = res.headers.get("Content-Disposition") ?? "";
-      const m = cd.match(/filename\*?=(?:UTF-8'')?["']?([^"';]+)/i);
-      const name = m ? decodeURIComponent(m[1]) : "tuned.slave";
+      // filename*（UTF-8厳密）を優先し、無ければ素の filename= にフォールバック
+      const star = cd.match(/filename\*=UTF-8''([^;]+)/i);
+      const plain = cd.match(/filename="?([^"";]+)"?/i);
+      const name = star
+        ? decodeURIComponent(star[1])
+        : plain
+          ? plain[1]
+          : "tuned.slave";
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
