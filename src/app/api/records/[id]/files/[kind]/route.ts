@@ -34,6 +34,9 @@ export async function GET(
       customerName: true,
       workedAt: true,
       dealer: { select: { name: true } },
+      matchedBaseFile: {
+        select: { model: true, generation: true, calNumber: true, method: true },
+      },
     },
   });
   if (!record) return new Response("Not Found", { status: 404 });
@@ -57,12 +60,18 @@ export async function GET(
   // 復号ファイルは ori 命名規則（メーカー除外）。スレーブは従来の保存名。
   let filename: string;
   if (kind === "decrypted") {
-    const gen = (record.engineInfo as { version?: string } | null)?.version ?? null;
+    // 命名は stock-slave(ori) と統一。照合した純正(matchedBaseFile)の
+    // 車種/世代/Cal/施工方式を優先し、無ければ記録の値にフォールバック。
+    const gen =
+      record.matchedBaseFile?.generation ??
+      (record.engineInfo as { version?: string } | null)?.version ??
+      null;
     filename = buildDownloadName({
-      model: record.carModel,
+      model: record.matchedBaseFile?.model ?? record.carModel,
       generation: gen,
-      cal: record.calNumber,
-      method: record.method,
+      // bin は本店専用なので Cal は常に付与
+      cal: record.matchedBaseFile?.calNumber ?? record.calNumber,
+      method: record.matchedBaseFile?.method ?? record.method,
       content: "ori",
       ext: "bin",
       // 車種名の後に「代理店名(顧客名+日付)」を付与
