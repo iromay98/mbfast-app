@@ -11,6 +11,7 @@ import {
 import { PageTitle, Card, Badge, LinkButton } from "@/components/ui";
 import { RecordDetail } from "@/components/record-detail";
 import { RecordThread } from "@/components/record-thread";
+import { ActivityFeed, getRecordActivity } from "@/components/activity-feed";
 import { AutoRefresh } from "@/components/auto-refresh";
 import { RetryDecryptButton } from "@/components/retry-decrypt-button";
 import { updateHqNote } from "@/lib/actions/records";
@@ -64,6 +65,7 @@ export default async function HQRecordDetailPage({
     orderBy: { createdAt: "asc" },
     select: { id: true, authorRole: true, body: true, fileName: true, createdAt: true },
   });
+  const recordActivity = await getRecordActivity(id);
   // 未返却リクエストの「内容」ラベル（requestNote の 「…」 を抽出）
   const openLabels = requests
     .filter((r) => r.status !== "DELIVERED" && r.status !== "CANCELLED")
@@ -270,6 +272,11 @@ export default async function HQRecordDetailPage({
           !!record.autotunerMcuId
         }
       />
+
+      <div>
+        <h3 className="mb-1 px-1 text-sm font-bold text-ink">この案件のダウンロード・リクエスト履歴</h3>
+        <ActivityFeed items={recordActivity} showDealer />
+      </div>
 
       {requests.length > 0 && (
         <Card>

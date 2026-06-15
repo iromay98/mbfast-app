@@ -15,11 +15,13 @@ export type Activity = {
 
 // DL(CatalogDownloadLog)と リクエスト(FileRequest)を統合した活動ログ。
 // dealerId 指定で自店のみ（代理店用）、null で全件（本店用）。
-export async function getActivity(dealerId: string | null): Promise<Activity[]> {
-  const scope = dealerId ? { dealerId } : {};
+async function loadActivity(where: {
+  dealerId?: string;
+  serviceRecordId?: string;
+}): Promise<Activity[]> {
   const [dls, reqs] = await Promise.all([
     prisma.catalogDownloadLog.findMany({
-      where: scope,
+      where,
       orderBy: { createdAt: "desc" },
       take: 150,
       select: {
@@ -40,7 +42,7 @@ export async function getActivity(dealerId: string | null): Promise<Activity[]> 
       },
     }),
     prisma.fileRequest.findMany({
-      where: scope,
+      where,
       orderBy: { createdAt: "desc" },
       take: 150,
       select: {
@@ -86,6 +88,16 @@ export async function getActivity(dealerId: string | null): Promise<Activity[]> 
   }
   items.sort((a, b) => b.at.getTime() - a.at.getTime());
   return items.slice(0, 200);
+}
+
+// 全体（本店=全件 / 代理店=自店）
+export async function getActivity(dealerId: string | null): Promise<Activity[]> {
+  return loadActivity(dealerId ? { dealerId } : {});
+}
+
+// 施工案件ごと（その記録のDL・リクエスト）
+export async function getRecordActivity(recordId: string): Promise<Activity[]> {
+  return loadActivity({ serviceRecordId: recordId });
 }
 
 export function ActivityFeed({

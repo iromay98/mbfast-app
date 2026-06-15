@@ -73,3 +73,25 @@ export async function markAnnouncementRead(announcementId: string): Promise<void
   revalidatePath("/dealer/announcements");
   revalidatePath("/dealer");
 }
+
+// お知らせを1件削除（本店のみ）。既読レコードも併せて削除。
+export async function deleteAnnouncement(
+  id: string,
+): Promise<{ ok?: true; error?: string }> {
+  await requireHQ();
+  await prisma.announcementRead.deleteMany({ where: { announcementId: id } });
+  await prisma.announcement.delete({ where: { id } });
+  revalidatePath("/hq/announcements");
+  revalidatePath("/dealer/announcements");
+  return { ok: true };
+}
+
+// お知らせを全件削除（本店のみ）。
+export async function deleteAllAnnouncements(): Promise<{ ok?: true; count: number }> {
+  await requireHQ();
+  await prisma.announcementRead.deleteMany({});
+  const r = await prisma.announcement.deleteMany({});
+  revalidatePath("/hq/announcements");
+  revalidatePath("/dealer/announcements");
+  return { ok: true, count: r.count };
+}

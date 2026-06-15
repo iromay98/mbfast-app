@@ -11,6 +11,7 @@ import {
 import { PageTitle, Card, Badge, LinkButton } from "@/components/ui";
 import { RecordDetail } from "@/components/record-detail";
 import { RecordThread } from "@/components/record-thread";
+import { ActivityFeed, getRecordActivity } from "@/components/activity-feed";
 import { AutoRefresh } from "@/components/auto-refresh";
 import { RetryDecryptButton } from "@/components/retry-decrypt-button";
 import { updateRecordSupplement } from "@/lib/actions/records";
@@ -77,6 +78,7 @@ export default async function DealerRecordDetailPage({
     orderBy: { createdAt: "asc" },
     select: { id: true, authorRole: true, body: true, fileName: true, createdAt: true },
   });
+  const recordActivity = await getRecordActivity(id);
   // 納品ファイル(.slave)を配信できるか（その車固有の再暗号化IDが揃っているか）
   const canDeliver =
     !!record.autotunerSlaveId &&
@@ -180,6 +182,11 @@ export default async function DealerRecordDetailPage({
       )}
 
       <RecordThread recordId={record.id} messages={messages} viewerRole="DEALER" />
+
+      <div>
+        <h3 className="mb-1 px-1 text-sm font-bold text-ink">この案件のダウンロード・リクエスト履歴</h3>
+        <ActivityFeed items={recordActivity} showDealer={false} />
+      </div>
 
       {record.status === "FAILED" && (
         <Card className="border-red-200 bg-red-50">
