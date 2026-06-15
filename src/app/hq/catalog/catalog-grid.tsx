@@ -41,6 +41,7 @@ export type CatalogRow = {
   fuel: string;
   stockHash: string;
   hasStock: boolean;
+  canSlave: boolean; // 取込元の車両IDが揃い .slave 化できる
   baseDriver: string;
   baseDriverBorrowed: boolean;
   baseNote: string;
@@ -675,6 +676,35 @@ function LeafRow({
         ) : (
           <span className="text-[11px] text-ink-soft">未登録</span>
         )}
+        {/* DLボタン（.bin = 生チューニング, .slave = 取込元の車両で再暗号化）。本店専用。 */}
+        {row.fileName && (
+          <a
+            href={`/api/catalog/variants/${row.id}/file`}
+            download
+            title="チューニング済みの生bin"
+            className="rounded border border-line px-1.5 py-0.5 text-[11px] font-semibold text-ink-soft hover:bg-surface-2"
+          >
+            .bin
+          </a>
+        )}
+        {row.fileName &&
+          (row.canSlave ? (
+            <a
+              href={`/api/catalog/variants/${row.id}/slave`}
+              download
+              title="取込元の車両で再暗号化した焼ける .slave"
+              className="rounded border border-gold-300 px-1.5 py-0.5 text-[11px] font-semibold text-gold-700 hover:bg-gold-50"
+            >
+              .slave
+            </a>
+          ) : (
+            <span
+              title="自動取込元の車両情報が無いため .slave 化できません（手動登録の純正など）"
+              className="cursor-not-allowed rounded border border-line px-1.5 py-0.5 text-[11px] font-semibold text-ink-soft opacity-40"
+            >
+              .slave
+            </span>
+          ))}
         <button
           type="button"
           onClick={() => inputRef.current?.click()}

@@ -149,6 +149,38 @@ export default async function HQCatalogPage({
     }),
   ]);
 
+  // .slave 化可否: 自動取込元の施工記録に再暗号化用ID(復号時保存)が揃っている純正のみ可。
+  const capturedIds = Array.from(
+    new Set(
+      variants
+        .map((v) => v.baseFile.capturedFromRecordId)
+        .filter((x): x is string => !!x),
+    ),
+  );
+  const capturedRecs = capturedIds.length
+    ? await prisma.serviceRecord.findMany({
+        where: { id: { in: capturedIds } },
+        select: {
+          id: true,
+          autotunerSlaveId: true,
+          autotunerEcuId: true,
+          autotunerModelId: true,
+          autotunerMcuId: true,
+        },
+      })
+    : [];
+  const slaveReady = new Set(
+    capturedRecs
+      .filter(
+        (r) =>
+          !!r.autotunerSlaveId &&
+          r.autotunerEcuId != null &&
+          r.autotunerModelId != null &&
+          !!r.autotunerMcuId,
+      )
+      .map((r) => r.id),
+  );
+
   const rows: CatalogRow[] = variants.map((v) => ({
     id: v.id,
     baseFileId: v.baseFileId,
@@ -166,6 +198,8 @@ export default async function HQCatalogPage({
     fuel: v.baseFile.fuel ?? "",
     stockHash: v.baseFile.stockHash ?? "",
     hasStock: !!v.baseFile.stockFileRef,
+    canSlave:
+      !!v.baseFile.capturedFromRecordId && slaveReady.has(v.baseFile.capturedFromRecordId),
     stage: v.stage,
     popsAndBangs: v.popsAndBangs,
     popsSport: v.popsSport,
