@@ -4,24 +4,29 @@ import { AuthError } from "next-auth";
 import { redirect } from "next/navigation";
 import { signIn, signOut } from "@/auth";
 
-// ログイン（Credentials）。成功時は signIn が redirect を throw する。
+export type AuthState = { error?: string; ok?: boolean };
+
+// ログイン（Credentials）。
+// サーバーアクション内で redirect すると、設定直後のセッションCookieが
+// リダイレクト先に間に合わず /login に弾き返される（初回やり直し→2回目エラー→リロードで通る）。
+// そこで redirect:false で「Cookieを確定させて返す」だけにし、遷移はクライアントで全画面遷移する。
 export async function authenticate(
-  _prevState: string | undefined,
+  _prevState: AuthState | undefined,
   formData: FormData,
-): Promise<string | undefined> {
+): Promise<AuthState> {
   try {
     await signIn("credentials", {
       email: formData.get("email"),
       password: formData.get("password"),
-      redirectTo: "/", // proxy がロールに応じて /hq or /dealer へ振り分け
+      redirect: false,
     });
+    return { ok: true };
   } catch (error) {
     if (error instanceof AuthError) {
-      return "メールアドレスまたはパスワードが正しくありません";
+      return { error: "メールアドレスまたはパスワードが正しくありません" };
     }
-    throw error; // redirect 例外などはそのまま伝播させる
+    throw error;
   }
-  return undefined;
 }
 
 export async function logout(): Promise<void> {
