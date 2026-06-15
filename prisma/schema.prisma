@@ -99,6 +99,7 @@ model User {
   serviceRecords     ServiceRecord[] @relation("RecordCreatedBy")
   publishedAnnounces Announcement[]  @relation("AnnouncePublishedBy")
   requestEvents      RequestEvent[]  @relation("EventActor")
+  recordMessages     RecordMessage[] @relation("MessageAuthor")
 
   // カタログ（本店専用）
   createdBaseFiles  BaseFile[]             @relation("BaseFileCreatedBy")
@@ -199,6 +200,7 @@ model ServiceRecord {
   fileRequests FileRequest[] // この記録に紐づく依頼
   apiLogs      AutotunerApiLog[] // AutoTuner API 呼び出しログ
   catalogDownloads CatalogDownloadLog[] // この記録起点のカタログDL監査
+  messages     RecordMessage[] // 案件ごとの本部⇄代理店メッセージ
 
   @@index([deletedAt])
   @@index([dealerId])
@@ -255,6 +257,24 @@ model FileRequest {
 }
 
 // 監査: 依頼の主要な状態変更を残す（誰が・いつ・どの状態へ）
+// 案件(施工記録)ごとの本部⇄代理店メッセージ（本部はテストファイル送付、代理店は質問・別リクエスト）。
+model RecordMessage {
+  id              String        @id @default(cuid())
+  serviceRecordId String
+  serviceRecord   ServiceRecord @relation(fields: [serviceRecordId], references: [id], onDelete: Cascade)
+  authorId        String
+  author          User          @relation("MessageAuthor", fields: [authorId], references: [id])
+  authorRole      Role // 送信者のロール（本部/代理店）
+  body            String? // 本文
+  filePath        String? // 添付ファイル（ストレージ参照キー）
+  fileName        String?
+  fileSize        Int?
+  contentType     String?
+  createdAt       DateTime      @default(now())
+
+  @@index([serviceRecordId])
+}
+
 model RequestEvent {
   id        String        @id @default(cuid())
   requestId String

@@ -13,7 +13,8 @@ export type NotificationType =
   | "SLAVE_DECODED" // スレーブ復号成功（→本店）
   | "SLAVE_DECRYPT_FAILED" // スレーブ復号失敗（→本店）
   | "CATALOG_MATCH" // 照合一致・配布可ファイルあり（→代理店）
-  | "STOCK_CAPTURED"; // 未整備ストックを自動取込（→本店・要mod登録）
+  | "STOCK_CAPTURED" // 未整備ストックを自動取込（→本店・要mod登録）
+  | "RECORD_MESSAGE"; // 案件のメッセージ（本部⇄代理店）
 
 export type NotificationPayload = {
   type: NotificationType;

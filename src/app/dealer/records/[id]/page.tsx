@@ -10,6 +10,7 @@ import {
 } from "@/lib/labels";
 import { PageTitle, Card, Badge, LinkButton } from "@/components/ui";
 import { RecordDetail } from "@/components/record-detail";
+import { RecordThread } from "@/components/record-thread";
 import { AutoRefresh } from "@/components/auto-refresh";
 import { RetryDecryptButton } from "@/components/retry-decrypt-button";
 import { updateRecordSupplement } from "@/lib/actions/records";
@@ -71,6 +72,11 @@ export default async function DealerRecordDetailPage({
     where: { serviceRecordId: id, dealerId: user.dealerId },
     orderBy: { createdAt: "desc" },
     select: { id: true, title: true, status: true, createdAt: true, resultFilePath: true },
+  });
+  const messages = await prisma.recordMessage.findMany({
+    where: { serviceRecordId: id },
+    orderBy: { createdAt: "asc" },
+    select: { id: true, authorRole: true, body: true, fileName: true, createdAt: true },
   });
   // 納品ファイル(.slave)を配信できるか（その車固有の再暗号化IDが揃っているか）
   const canDeliver =
@@ -159,6 +165,8 @@ export default async function DealerRecordDetailPage({
         {/* 配信後の調整・現車合わせ（ログ反映）のリクエスト */}
         <RecordTicketForm recordId={record.id} />
       </Card>
+
+      <RecordThread recordId={record.id} messages={messages} viewerRole="DEALER" />
 
       {record.status === "FAILED" && (
         <Card className="border-red-200 bg-red-50">

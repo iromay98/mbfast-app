@@ -10,6 +10,7 @@ import {
 } from "@/lib/labels";
 import { PageTitle, Card, Badge, LinkButton } from "@/components/ui";
 import { RecordDetail } from "@/components/record-detail";
+import { RecordThread } from "@/components/record-thread";
 import { AutoRefresh } from "@/components/auto-refresh";
 import { RetryDecryptButton } from "@/components/retry-decrypt-button";
 import { updateHqNote } from "@/lib/actions/records";
@@ -57,6 +58,11 @@ export default async function HQRecordDetailPage({
     where: { serviceRecordId: id },
     orderBy: { createdAt: "desc" },
     select: { id: true, title: true, status: true, createdAt: true, requestNote: true },
+  });
+  const messages = await prisma.recordMessage.findMany({
+    where: { serviceRecordId: id },
+    orderBy: { createdAt: "asc" },
+    select: { id: true, authorRole: true, body: true, fileName: true, createdAt: true },
   });
   // 未返却リクエストの「内容」ラベル（requestNote の 「…」 を抽出）
   const openLabels = requests
@@ -233,6 +239,8 @@ export default async function HQRecordDetailPage({
             .join("+")})`}
         />
       </Card>
+
+      <RecordThread recordId={record.id} messages={messages} viewerRole="HQ_ADMIN" />
 
       {requests.length > 0 && (
         <Card>
