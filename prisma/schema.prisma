@@ -93,6 +93,8 @@ model User {
   dealerId     String?
   dealer       Dealer?  @relation(fields: [dealerId], references: [id])
   createdAt    DateTime @default(now())
+  // 本人がパスワードを変更した日時。null=初期PWのまま（本部把握可）/ 非null=本人変更済み（本部は不明）。
+  passwordChangedAt DateTime?
 
   serviceRecords     ServiceRecord[] @relation("RecordCreatedBy")
   publishedAnnounces Announcement[]  @relation("AnnouncePublishedBy")

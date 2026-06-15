@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import Link from "next/link";
 import { logout } from "@/lib/actions/auth";
 import { roleLabels } from "@/lib/labels";
 import { NavBar, type NavItem } from "@/components/nav-bar";
@@ -29,6 +30,12 @@ export function AppShell({
             <span className="hidden text-sm text-ink-soft sm:inline">
               {user.name}
             </span>
+            <Link
+              href="/account"
+              className="rounded-lg px-2 py-1 text-sm text-ink-soft transition hover:bg-surface-2"
+            >
+              パスワード変更
+            </Link>
             <form action={logout}>
               <button
                 type="submit"

@@ -103,12 +103,11 @@ export async function uploadSlaveRecord(
   if (!(file instanceof File) || file.size === 0) {
     return { error: "スレーブファイルを選択してください", fieldErrors: { slaveFile: "未選択" } };
   }
-  // 顧客名（任意・代理店が入力）
-  const customerNameRaw = formData.get("customerName");
-  const customerName =
-    typeof customerNameRaw === "string" && customerNameRaw.trim()
-      ? customerNameRaw.trim()
-      : null;
+  // 顧客名（必須・代理店が入力）
+  const customerName = String(formData.get("customerName") ?? "").trim();
+  if (!customerName) {
+    return { error: "顧客名を入力してください", fieldErrors: { customerName: "必須" } };
+  }
   const saved = await saveUpload(file, "slaves");
   if (!saved.ok) {
     return { error: saved.error, fieldErrors: { slaveFile: saved.error } };
@@ -159,11 +158,10 @@ export async function uploadSlaveRecordByHQ(
   if (!(file instanceof File) || file.size === 0) {
     return { error: "スレーブファイルを選択してください", fieldErrors: { slaveFile: "未選択" } };
   }
-  const customerNameRaw = formData.get("customerName");
-  const customerName =
-    typeof customerNameRaw === "string" && customerNameRaw.trim()
-      ? customerNameRaw.trim()
-      : null;
+  const customerName = String(formData.get("customerName") ?? "").trim();
+  if (!customerName) {
+    return { error: "顧客名を入力してください", fieldErrors: { customerName: "必須" } };
+  }
 
   const saved = await saveUpload(file, "slaves");
   if (!saved.ok) {

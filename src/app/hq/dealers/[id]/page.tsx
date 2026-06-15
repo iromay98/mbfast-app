@@ -87,6 +87,13 @@ export default async function DealerDetailPage({
                   <div className="min-w-0">
                     <div className="truncate text-sm font-medium text-ink">{u.name}</div>
                     <div className="truncate font-mono text-xs text-ink-soft">{u.email}</div>
+                    <div className="mt-1">
+                      {u.passwordChangedAt ? (
+                        <Badge color="green">本人がPW変更済み（本部は把握不可）</Badge>
+                      ) : (
+                        <Badge color="gray">初期PWのまま</Badge>
+                      )}
+                    </div>
                   </div>
                   <div className="text-right text-xs text-ink-soft">
                     <Badge color="gold">{roleLabels[u.role]}</Badge>
