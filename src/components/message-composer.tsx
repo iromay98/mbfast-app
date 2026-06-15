@@ -48,19 +48,30 @@ export function MessageComposer({
         </Button>
       </div>
       {canEncrypt && (
-        <label className="flex items-start gap-1.5 text-xs text-ink-soft">
-          <input
-            type="checkbox"
-            name="encrypt"
-            value="true"
-            defaultChecked
-            className="mt-0.5 h-3.5 w-3.5 accent-gold-500"
-          />
-          <span>
-            添付を<b>この車用の .slave に暗号化</b>して送る（焼けるテストファイル）。
-            スクショ・メモ等の場合はチェックを外してください。
-          </span>
-        </label>
+        <div className="space-y-1.5">
+          <label className="flex items-start gap-1.5 text-xs text-ink-soft">
+            <input
+              type="checkbox"
+              name="encrypt"
+              value="true"
+              defaultChecked
+              className="mt-0.5 h-3.5 w-3.5 accent-gold-500"
+            />
+            <span>
+              添付を<b>この車用の .slave に暗号化</b>して送る（焼けるテストファイル）。
+              スクショ・メモ等の場合はチェックを外してください。
+            </span>
+          </label>
+          <label className="flex items-center gap-2 text-xs text-ink-soft">
+            <span className="shrink-0">内容（任意）</span>
+            <input
+              type="text"
+              name="content"
+              placeholder="例: Stage1_Pops_AdBlue（ファイル名に入ります）"
+              className="min-w-0 flex-1 rounded-lg border border-line bg-surface px-2 py-1 font-mono text-xs"
+            />
+          </label>
+        </div>
       )}
       <FormError message={state.error} />
     </form>

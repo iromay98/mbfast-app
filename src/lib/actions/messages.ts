@@ -6,6 +6,7 @@ import { getSessionUser } from "@/lib/authz";
 import { saveUpload, storage } from "@/server/storage";
 import { encryptSlave } from "@/server/autotuner/client";
 import { notify } from "@/server/notifications";
+import { buildDownloadName, dateLabel } from "@/server/catalog/filename";
 import { type FormState } from "@/lib/actions/form-state";
 
 // 案件(施工記録)へのアクセス可否。本店は全件、代理店は自店のみ。
@@ -54,6 +55,13 @@ export async function postRecordMessage(
           autotunerEcuId: true,
           autotunerModelId: true,
           autotunerMcuId: true,
+          carModel: true,
+          customerName: true,
+          workedAt: true,
+          dealer: { select: { name: true } },
+          matchedBaseFile: {
+            select: { model: true, generation: true, calNumber: true, method: true },
+          },
         },
       });
       const slaveId = rec?.autotunerSlaveId;
@@ -72,12 +80,26 @@ export async function postRecordMessage(
         const msg = e instanceof Error ? e.message : String(e);
         return { error: `暗号化に失敗しました（チューニング後binでない場合はチェックを外してください）: ${msg}` };
       }
-      const stem = (file.name || "test").replace(/\.[^.]+$/, "");
-      const key = `record-messages/${recordId}/${Date.now()}_${stem}.slave`;
+      // 代理店DLと同じ構造化ファイル名（車種(世代) 代理店名(顧客名+日付) AT_method_内容.slave）。
+      // 内容は本店が入力（例 Stage1_Pops_AdBlue）。未入力は元ファイル名の語幹を流用。
+      const contentInput = String(formData.get("content") ?? "").trim();
+      const fallback = (file.name || "test").replace(/\.[^.]+$/, "");
+      const fileName = buildDownloadName({
+        model: rec?.matchedBaseFile?.model ?? rec?.carModel,
+        generation: rec?.matchedBaseFile?.generation,
+        cal: rec?.matchedBaseFile?.calNumber, // 本店なので Cal も付与
+        method: rec?.matchedBaseFile?.method,
+        content: contentInput || fallback,
+        ext: "slave",
+        dealerName: rec?.dealer?.name,
+        customerName: rec?.customerName,
+        dateLabel: dateLabel(rec?.workedAt),
+      });
+      const key = `record-messages/${recordId}/${Date.now()}_${fileName}`;
       await storage.save(key, slaveData, "application/octet-stream");
       fileFields = {
         filePath: key,
-        fileName: `${stem}.slave`,
+        fileName,
         fileSize: slaveData.byteLength,
         contentType: "application/octet-stream",
       };
