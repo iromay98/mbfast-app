@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useTransition } from "react";
 import { resolveTuning, requestTuning } from "@/lib/actions/requests";
+import { DownloadConsent } from "./download-consent";
 
 type Stage = { value: string; label: string };
 type Resolved = { kind: "download"; href: string } | { kind: "request" };
@@ -143,13 +144,11 @@ export function TuningConfigurator({
         ) : error ? (
           <p className="text-sm text-red-600">{error}</p>
         ) : result?.kind === "download" ? (
-          <a
+          <DownloadConsent
+            recordId={recordId}
+            selection={{ stage, pops, popsSport, optionTags: selected }}
             href={result.href}
-            download
-            className="inline-flex items-center rounded-lg bg-gold-500 px-4 py-2 text-sm font-semibold text-white"
-          >
-            DL可能 — .slave をダウンロード
-          </a>
+          />
         ) : result?.kind === "request" ? (
           requested ? (
             <span className="text-sm font-semibold text-ink-soft">リクエスト済み</span>

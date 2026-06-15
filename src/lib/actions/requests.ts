@@ -175,6 +175,69 @@ export async function resolveTuning(
   return { kind: "request" };
 }
 
+export type DownloadFee = {
+  kind: "service" | "free" | "additional";
+  label: string;
+  note: string;
+};
+
+// DL時の課金種別を施工記録ごとに判定。
+//  初回DL → 施工料金 / 同日の新規有料OPなし → 無料 / 新規有料OP or 別日 → 追加料金
+export async function getDownloadFee(
+  recordId: string,
+  selection: TuningSelection,
+): Promise<DownloadFee> {
+  const user = await requireDealer();
+  const rec = await prisma.serviceRecord.findUnique({
+    where: { id: recordId },
+    select: { dealerId: true },
+  });
+  if (!rec || rec.dealerId !== user.dealerId) {
+    return { kind: "service", label: "施工料金", note: "" };
+  }
+
+  const downloads = await prisma.catalogDownloadLog.findMany({
+    where: { serviceRecordId: recordId },
+    orderBy: { createdAt: "asc" },
+    select: { createdAt: true, variant: { select: { optionTags: true } } },
+  });
+  const selTags = (selection.optionTags ?? []).filter(Boolean);
+
+  if (downloads.length === 0) {
+    return {
+      kind: "service",
+      label: "施工料金",
+      note: "この車両への最初のダウンロードです。施工料金が発生します。",
+    };
+  }
+
+  const paidBefore = new Set(downloads.flatMap((d) => d.variant?.optionTags ?? []));
+  const newPaid = selTags.filter((t) => !paidBefore.has(t));
+  if (newPaid.length > 0) {
+    return {
+      kind: "additional",
+      label: "追加オプション料金",
+      note: `追加オプション（${newPaid.join("・")}）は別途料金が発生します。`,
+    };
+  }
+
+  // 新規有料OPなし（バブリング/同内容）。施工日と同日のみ無料。
+  const jst = (d: Date) => new Date(d.getTime() + 9 * 3600 * 1000).toISOString().slice(0, 10);
+  const sameDay = jst(downloads[0].createdAt) === jst(new Date());
+  if (sameDay) {
+    return {
+      kind: "free",
+      label: "無料",
+      note: "チューニング済み車への当日の追加（バブリング等）は無料です。",
+    };
+  }
+  return {
+    kind: "additional",
+    label: "追加料金",
+    note: "施工日と異なる日の追加ダウンロードのため、追加料金が発生します。",
+  };
+}
+
 // 選択構成を本店へリクエスト（任意の組合せ可。Cal/ECU は含めない）。
 // バブリング以外のオプション(NOx/DTC/O2/AdBlue/DPF/EGR)は有料のため、
 // 含まれる場合は同意(agreed)が必須。未同意ならリクエストを作成しない。
