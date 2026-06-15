@@ -41,6 +41,7 @@ export default async function DealerRecordDetailPage({
         select: {
           fuel: true,
           manufacturer: true,
+          limiterCutDisabled: true,
           variants: {
             where: { status: { not: "DISABLED" } },
             select: { stage: true },
@@ -52,6 +53,7 @@ export default async function DealerRecordDetailPage({
     stages: { value: string; label: string }[];
     showPops: boolean;
     optionTags: string[];
+    limiterDisabled: boolean;
   } | null = null;
   if (matched) {
     const fuelKind = fuelKindOf(matched.fuel);
@@ -65,6 +67,7 @@ export default async function DealerRecordDetailPage({
       stages,
       showPops: popsAllowed(fuelKind),
       optionTags: optionTagsFor(fuelKind, matched.manufacturer),
+      limiterDisabled: matched.limiterCutDisabled,
     };
   }
   // この記録に紐づく作業依頼（依頼は記録内に表示。専門情報は含めない）
@@ -131,6 +134,7 @@ export default async function DealerRecordDetailPage({
             stages={configurator.stages}
             showPops={configurator.showPops}
             optionTags={configurator.optionTags}
+            limiterDisabled={configurator.limiterDisabled}
           />
         </Card>
       )}

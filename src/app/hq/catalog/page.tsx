@@ -53,6 +53,7 @@ function buildGroups(rows: CatalogRow[]): CalGroup[] {
       hw: first.hw,
       fuelKind: fuelKindOf(first.fuel),
       hasStock: first.hasStock,
+      limiterCutDisabled: first.limiterCutDisabled,
       driver: first.baseDriver,
       driverBorrowed: first.baseDriverBorrowed,
       note: first.baseNote,
@@ -200,6 +201,7 @@ export default async function HQCatalogPage({
     hasStock: !!v.baseFile.stockFileRef,
     canSlave:
       !!v.baseFile.capturedFromRecordId && slaveReady.has(v.baseFile.capturedFromRecordId),
+    limiterCutDisabled: v.baseFile.limiterCutDisabled,
     stage: v.stage,
     popsAndBangs: v.popsAndBangs,
     popsSport: v.popsSport,

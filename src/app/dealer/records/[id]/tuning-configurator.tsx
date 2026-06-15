@@ -2,10 +2,15 @@
 
 import { useEffect, useState, useTransition } from "react";
 import { resolveTuning, requestTuning } from "@/lib/actions/requests";
+import { SPEED_LIMITER_TAG } from "@/lib/catalog/options";
 import { DownloadConsent } from "./download-consent";
 
 type Stage = { value: string; label: string };
-type Resolved = { kind: "download"; href: string } | { kind: "request" };
+type Selection = { stage: string; pops: boolean; popsSport: boolean; optionTags: string[] };
+type Resolved =
+  | { kind: "download"; href: string }
+  | { kind: "compat"; href: string; message: string; delivered: Selection }
+  | { kind: "request" };
 
 // 代理店向け施工内容コンフィギュレータ。
 // ステージ＋バブリング＋OP(O2 等)を選ぶと、判定中(loading)表示のあと
@@ -15,11 +20,13 @@ export function TuningConfigurator({
   stages,
   showPops,
   optionTags,
+  limiterDisabled = false,
 }: {
   recordId: string;
   stages: Stage[];
   showPops: boolean;
   optionTags: string[];
+  limiterDisabled?: boolean;
 }) {
   const [stage, setStage] = useState(stages[0]?.value ?? "");
   const [popsMode, setPopsMode] = useState<"none" | "all" | "sport">("none");
@@ -120,17 +127,23 @@ export function TuningConfigurator({
       <div>
         <div className="mb-1.5 text-xs font-semibold text-ink-soft">オプション</div>
         <div className="flex flex-wrap gap-3">
-          {optionTags.map((t) => (
-            <label key={t} className="inline-flex items-center gap-1.5 text-sm text-ink">
-              <input
-                type="checkbox"
-                checked={selected.includes(t)}
-                onChange={() => toggleOpt(t)}
-                className="h-4 w-4 accent-gold-500"
-              />
-              {t}
-            </label>
-          ))}
+          {optionTags.map((t) => {
+            const limOff = t === SPEED_LIMITER_TAG && limiterDisabled;
+            return (
+              <label key={t} className="inline-flex items-center gap-1.5 text-sm text-ink">
+                <input
+                  type="checkbox"
+                  checked={selected.includes(t)}
+                  onChange={() => toggleOpt(t)}
+                  className="h-4 w-4 accent-gold-500"
+                />
+                {t}
+                {limOff && (
+                  <span className="text-[11px] font-semibold text-rose-600">（この車種は不可）</span>
+                )}
+              </label>
+            );
+          })}
         </div>
       </div>
 
@@ -149,6 +162,19 @@ export function TuningConfigurator({
             selection={{ stage, pops, popsSport, optionTags: selected }}
             href={result.href}
           />
+        ) : result?.kind === "compat" ? (
+          <div className="space-y-2">
+            <div className="rounded-lg border border-sky-300 bg-sky-50 p-3">
+              <p className="text-xs font-semibold text-sky-800">互換ファイルがあります</p>
+              <p className="mt-1 text-xs text-sky-700">{result.message}</p>
+            </div>
+            {/* 課金は実際に渡す内容(delivered)で判定 */}
+            <DownloadConsent
+              recordId={recordId}
+              selection={result.delivered}
+              href={result.href}
+            />
+          </div>
         ) : result?.kind === "request" ? (
           requested ? (
             <span className="text-sm font-semibold text-ink-soft">リクエスト済み</span>

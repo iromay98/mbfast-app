@@ -30,6 +30,7 @@ export async function GET(
       carModel: true,
       customerName: true,
       workedAt: true,
+      backupSupported: true,
       dealer: { select: { name: true } },
       matchedBaseFile: {
         select: { model: true, generation: true, calNumber: true, method: true },
@@ -84,10 +85,10 @@ export async function GET(
   const name = buildDownloadName({
     model: record.matchedBaseFile?.model ?? record.carModel,
     generation: record.matchedBaseFile?.generation,
-    // Cal は本店のみ（代理店ファイル名には出さない）
-    cal: user.role === "HQ_ADMIN" ? record.matchedBaseFile?.calNumber : null,
+    // 施工記録ページからのDLは Cal を出さない（命名規則: 車種 店名(顧客名 日付) AT_方法_内容）
     method: record.matchedBaseFile?.method,
-    content: "ori",
+    // リアル読み(backup可)→backup / ヴァーチャル→ori
+    content: record.backupSupported ? "backup" : "ori",
     ext: "slave",
     dealerName: record.dealer?.name,
     customerName: record.customerName,

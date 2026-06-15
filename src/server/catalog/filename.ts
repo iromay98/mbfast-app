@@ -36,11 +36,11 @@ export function buildDownloadName(opts: {
   const dealerName = clean(opts.dealerName);
   let dealerSeg = "";
   if (dealerName) {
-    // ()内はスペースを入れない（顧客名のスペースも詰める）
-    const inner = [clean(opts.customerName), clean(opts.dateLabel)]
+    // 店名(顧客名 日付)。顧客名内のスペースは詰め、顧客名と日付は半角スペースで区切る。
+    // 例: 東京店(山田様 2026-06-15)
+    const inner = [clean(opts.customerName).replace(/\s+/g, ""), clean(opts.dateLabel)]
       .filter(Boolean)
-      .join("+")
-      .replace(/\s+/g, "");
+      .join(" ");
     dealerSeg = ` ${dealerName}${inner ? `(${inner})` : ""}`;
   }
 

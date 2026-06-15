@@ -166,6 +166,7 @@ model ServiceRecord {
   ecuManufacturer String? // ← decrypt: ecu_manufacturer
   slaveName       String? // ← decrypt: slave_name
   engineInfo      Json? // ← decrypt: engine オブジェクト全体
+  backupSupported Boolean? // ← decrypt: backup_supported（true=リアル読み→純正復元は backup / false=ヴァーチャル→ori）
 
   // ── encrypt（再暗号化）用に保存（今回 encrypt は未実装） ──
   autotunerSlaveId String? // ← decrypt: slave_id
@@ -342,6 +343,10 @@ model BaseFile {
   // ECM Titanium 等の Driver 情報（本店のみ・代理店には一切出さない）。純正(ECU)基準で管理。
   driver         String? // 使用 Driver 名（自動認識タイプ or 流用元の名前）
   driverBorrowed Boolean @default(false) // true=他Driverの流用（表示時に名前を ()で囲う）
+
+  // スピードリミッターカット不可（この純正＝Calでは作れない）。本店が設定。
+  // 代理店がリミッターカットを選んだら「不可」とし、リミッターカット無しの同一内容へ誘導する。
+  limiterCutDisabled Boolean @default(false)
 
   // 原本(チューニング前)ファイルの実体（任意）。公開ディレクトリ外・認可配信のみ。
   stockFileRef     String?

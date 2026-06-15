@@ -119,8 +119,7 @@ export async function GET(
   const name = buildDownloadName({
     model: v.baseFile.model,
     generation: v.baseFile.generation,
-    // Cal は本店のみ。代理店ファイル名には出さない（専門情報の非表示）。
-    cal: user.role === "HQ_ADMIN" ? v.baseFile.calNumber : null,
+    // 施工記録ページからのDLは Cal を出さない（命名規則: 車種 店名(顧客名 日付) AT_方法_内容）
     method: v.baseFile.method,
     content: composeContent(v.stage, v.popsAndBangs, v.optionTags, v.popsSport),
     ext: "slave", // 再暗号化済み＝焼ける .slave

@@ -31,6 +31,8 @@ export const baseFileSchema = z.object({
   swNumber: optionalStr,
   calNumber: optionalStr,
   stockHash: optionalStr,
+  // スピードリミッターカット不可（この純正＝Calでは作れない）
+  limiterCutDisabled: optionalBool,
 });
 
 export const baseFilePatchSchema = baseFileSchema.partial();

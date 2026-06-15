@@ -18,6 +18,7 @@ import {
   optionTagsFor,
   popsAllowed,
   tuningContentLabel,
+  SPEED_LIMITER_TAG,
 } from "@/lib/catalog/options";
 
 // ── 代理店: 依頼作成 ───────────────────────────
@@ -109,7 +110,9 @@ async function loadMatchContext(recordId: string, dealerId: string) {
       autotunerEcuId: true,
       autotunerModelId: true,
       autotunerMcuId: true,
-      matchedBaseFile: { select: { fuel: true, manufacturer: true } },
+      matchedBaseFile: {
+        select: { fuel: true, manufacturer: true, limiterCutDisabled: true },
+      },
     },
   });
   if (!record || record.dealerId !== dealerId)
@@ -118,6 +121,7 @@ async function loadMatchContext(recordId: string, dealerId: string) {
     return { ok: false as const, error: "照合が成立していません" };
   const fuelKind = fuelKindOf(record.matchedBaseFile?.fuel);
   const manufacturer = record.matchedBaseFile?.manufacturer ?? record.carMaker ?? null;
+  const limiterCutDisabled = !!record.matchedBaseFile?.limiterCutDisabled;
   const canDeliver =
     !!record.autotunerSlaveId &&
     record.autotunerEcuId != null &&
@@ -128,6 +132,7 @@ async function loadMatchContext(recordId: string, dealerId: string) {
     record,
     fuelKind,
     manufacturer,
+    limiterCutDisabled,
     canDeliver,
     baseFileId: record.matchedBaseFileId,
   };
@@ -155,32 +160,88 @@ function contentLabel(sel: Required<TuningSelection>): string {
   return tuningContentLabel(sel.stage, sel.pops, sel.optionTags, sel.popsSport);
 }
 
-// 選択構成 → 即DL or リクエスト判定
+export type ResolvedTuning =
+  | { kind: "download"; href: string }
+  // スピードリミッターカットの選び忘れ／不可時に、リミッターカット有無だけ違う互換版を案内
+  | {
+      kind: "compat";
+      href: string;
+      message: string;
+      delivered: Required<TuningSelection>;
+    }
+  | { kind: "request" }
+  | { error: string };
+
+// 選択構成 → 即DL or 互換版 or リクエスト判定
 export async function resolveTuning(
   recordId: string,
   selection: TuningSelection,
-): Promise<{ kind: "download"; href: string } | { kind: "request" } | { error: string }> {
+): Promise<ResolvedTuning> {
   const user = await requireDealer();
   const ctx = await loadMatchContext(recordId, user.dealerId);
   if (!ctx.ok) return { error: ctx.error };
 
   const sel = normalizeSelection(selection, ctx.fuelKind, ctx.manufacturer);
 
-  // 配布可(AVAILABLE)＋実体ありの中から、選んだ構成に完全一致する版を探す
+  // 配布可(AVAILABLE)＋実体ありの中から探す
   const variants = await prisma.tunedVariant.findMany({
     where: { baseFileId: ctx.baseFileId, status: "AVAILABLE", deletedAt: null },
     select: { id: true, stage: true, popsAndBangs: true, popsSport: true, optionTags: true, fileRef: true },
   });
-  const hit = variants.find(
-    (v) =>
-      (v.stage ?? "").trim() === sel.stage &&
-      v.popsAndBangs === sel.pops &&
-      v.popsSport === sel.popsSport &&
-      sameSet(v.optionTags, sel.optionTags),
-  );
+  const stageMatch = (v: (typeof variants)[number]) =>
+    (v.stage ?? "").trim() === sel.stage &&
+    v.popsAndBangs === sel.pops &&
+    v.popsSport === sel.popsSport;
+
+  // 1) 完全一致
+  const hit = variants.find((v) => stageMatch(v) && sameSet(v.optionTags, sel.optionTags));
   if (hit && hit.fileRef && ctx.canDeliver) {
     return { kind: "download", href: `/api/match/${recordId}/variant/${hit.id}` };
   }
+
+  // 2) スピードリミッターカットの有無だけが違う互換版を探す
+  //    （ステージ・バブリング・その他OPは同一。リミッターのみ差分）
+  const LIM = SPEED_LIMITER_TAG;
+  const selHasLim = sel.optionTags.includes(LIM);
+  const selOther = sel.optionTags.filter((t) => t !== LIM);
+  const flex = variants.find(
+    (v) =>
+      stageMatch(v) &&
+      sameSet(
+        v.optionTags.filter((t) => t !== LIM),
+        selOther,
+      ) &&
+      v.optionTags.includes(LIM) !== selHasLim,
+  );
+  if (flex && flex.fileRef && ctx.canDeliver) {
+    const flexHasLim = flex.optionTags.includes(LIM);
+    const delivered: Required<TuningSelection> = {
+      stage: sel.stage,
+      pops: sel.pops,
+      popsSport: sel.popsSport,
+      optionTags: flex.optionTags,
+    };
+    const href = `/api/match/${recordId}/variant/${flex.id}`;
+    if (!selHasLim && flexHasLim) {
+      // 選び忘れ：リミッターカット付きの互換版をそのまま渡す
+      return {
+        kind: "compat",
+        href,
+        delivered,
+        message: "スピードリミッターカット付きの互換版です。そのままご利用いただけます。",
+      };
+    }
+    // selHasLim && !flexHasLim：リミッターカット無しの同一内容へ誘導
+    return {
+      kind: "compat",
+      href,
+      delivered,
+      message: ctx.limiterCutDisabled
+        ? "この車種はスピードリミッターカット不可のため、リミッターカット無しの同一内容です。"
+        : "スピードリミッターカット版は未提供のため、リミッターカット無しの同一内容です。",
+    };
+  }
+
   return { kind: "request" };
 }
 

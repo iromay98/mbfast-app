@@ -33,6 +33,7 @@ export async function GET(
       engineInfo: true,
       customerName: true,
       workedAt: true,
+      backupSupported: true,
       dealer: { select: { name: true } },
       matchedBaseFile: {
         select: { model: true, generation: true, calNumber: true, method: true },
@@ -69,12 +70,11 @@ export async function GET(
     filename = buildDownloadName({
       model: record.matchedBaseFile?.model ?? record.carModel,
       generation: gen,
-      // bin は本店専用なので Cal は常に付与
-      cal: record.matchedBaseFile?.calNumber ?? record.calNumber,
+      // 施工記録ページからのDLは Cal を出さない（命名規則: 車種 店名(顧客名 日付) AT_方法_内容）
       method: record.matchedBaseFile?.method ?? record.method,
-      content: "ori",
+      // リアル読み(backup可)→backup / ヴァーチャル→ori
+      content: record.backupSupported ? "backup" : "ori",
       ext: "bin",
-      // 車種名の後に「代理店名(顧客名+日付)」を付与
       dealerName: record.dealer?.name,
       customerName: record.customerName,
       dateLabel: dateLabel(record.workedAt),

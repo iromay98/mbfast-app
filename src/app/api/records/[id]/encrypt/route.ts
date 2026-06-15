@@ -87,7 +87,7 @@ export async function POST(
   const name = buildDownloadName({
     model: record.matchedBaseFile?.model ?? record.carModel,
     generation: record.matchedBaseFile?.generation,
-    cal: record.matchedBaseFile?.calNumber, // 本店なので Cal も付与
+    // 施工記録ページからのDLは Cal を出さない（命名規則: 車種 店名(顧客名 日付) AT_方法_内容）
     method: record.matchedBaseFile?.method,
     content: composeContent(stage, pops, optionTags, popsSport),
     ext: "slave",

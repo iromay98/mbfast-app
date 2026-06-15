@@ -136,6 +136,7 @@ export function mapMetaToRecord(
     ecuManufacturer: meta.ecu_manufacturer,
     slaveName: meta.slave_name,
     engineInfo: meta.engine as unknown as Prisma.InputJsonValue,
+    backupSupported: meta.backup_supported,
     // encrypt 用識別子
     autotunerSlaveId: meta.slave_id,
     autotunerEcuId: meta.ecu_id,

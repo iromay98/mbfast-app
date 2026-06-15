@@ -25,6 +25,7 @@ export async function GET(
       generation: true,
       calNumber: true,
       method: true,
+      driver: true,
     },
   });
   if (!base || !base.stockFileRef) return new Response("Not Found", { status: 404 });
@@ -35,7 +36,8 @@ export async function GET(
   const name = buildDownloadName({
     model: base.model,
     generation: base.generation,
-    cal: base.calNumber,
+    // カタログ命名: 車種 Cal（無ければDriver） AT_方法_内容
+    cal: base.calNumber || base.driver,
     method: base.method,
     content: "ori",
     ext: extFromName(base.stockFileName, "bin"),

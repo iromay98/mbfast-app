@@ -42,6 +42,7 @@ export type CatalogRow = {
   stockHash: string;
   hasStock: boolean;
   canSlave: boolean; // 取込元の車両IDが揃い .slave 化できる
+  limiterCutDisabled: boolean; // スピードリミッターカット不可（本店設定）
   baseDriver: string;
   baseDriverBorrowed: boolean;
   baseNote: string;
@@ -76,6 +77,7 @@ export type CalGroup = {
   hw: string;
   fuelKind: FuelKind;
   hasStock: boolean;
+  limiterCutDisabled: boolean;
   driver: string;
   driverBorrowed: boolean;
   note: string;
@@ -405,6 +407,18 @@ function CalGroupCard({
             className="h-3.5 w-3.5 accent-gold-500"
           />
           流用
+        </label>
+        <label
+          className="flex items-center gap-0.5 font-semibold text-rose-600"
+          title="この車種(Cal)はスピードリミッターカット不可。代理店には不可表示＋リミッターカット無しの同一内容へ誘導されます。"
+        >
+          <input
+            type="checkbox"
+            checked={g.limiterCutDisabled}
+            onChange={(e) => onPatchBase({ limiterCutDisabled: e.target.checked })}
+            className="h-3.5 w-3.5 accent-rose-500"
+          />
+          リミッターカット不可
         </label>
         <span className="ml-2 font-semibold text-ink-soft">備考</span>
         <EditCell
