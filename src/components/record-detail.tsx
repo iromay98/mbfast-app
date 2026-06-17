@@ -35,6 +35,8 @@ type RecordForDetail = {
   hwNumber: string | null;
   swNumber: string | null;
   calNumber: string | null;
+  idSource: string | null;
+  idConfidence: number | null;
   registrationNumber: string | null;
   vehicleModelCode: string | null;
   engineModelCode: string | null;
@@ -154,7 +156,22 @@ export function RecordDetail({
           {record.calNumber ? (
             <div className="mb-2 rounded-lg bg-gold-50 px-3 py-2">
               <div className="text-xs text-ink-soft">Cal番号</div>
-              <div className="font-mono text-base font-bold text-ink">{record.calNumber}</div>
+              <div className="font-mono text-base font-bold text-ink">
+                {record.calNumber}
+                {record.idSource === "AI" && (
+                  <span className="ml-2 align-middle rounded bg-sky-100 px-1.5 py-0.5 font-sans text-[11px] font-bold text-sky-700">
+                    AI自動認識
+                    {record.idConfidence != null
+                      ? `（確信度${Math.round(record.idConfidence * 100)}%）`
+                      : ""}
+                  </span>
+                )}
+              </div>
+              {record.idSource === "AI" && (
+                <div className="mt-1 text-[11px] text-sky-700">
+                  AIによる候補です。下の「ECU識別子の手動入力」で確認・修正して保存すると確定します。
+                </div>
+              )}
             </div>
           ) : null}
           <dl className="divide-y divide-line">

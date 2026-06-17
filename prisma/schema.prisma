@@ -126,6 +126,17 @@ model ServiceLog {
   @@index([serviceRecordId])
 }
 
+// AI(Claude)による識別子抽出のキャッシュ。同一ファイル(内容hash)は再呼び出ししない。
+model EcuAiCache {
+  hash       String   @id // 復号後内容の SHA-256（大文字16進）
+  hw         String?
+  sw         String?
+  cal        String?
+  confidence Float? // 0-1
+  model      String? // 使用モデル（haiku/opus）
+  createdAt  DateTime @default(now())
+}
+
 // Web Push 購読（ブラウザごと）。アプリ終了時もチャット新着を通知するため。
 model PushSubscription {
   id        String   @id @default(cuid())
@@ -217,6 +228,9 @@ model ServiceRecord {
   swNumber  String? // SW 番号（例 8V0907404）
   calNumber String? // Cal（既定は SW+バージョン。最重要・検索/整理の主キー）
   ecuIdRaw  Json? // 抽出した全項目＋生の識別ブロック（監査・再解釈用）
+  // 識別子の由来: "AI"=AI自動認識(未確認) / "MANUAL"=本店確定 / "PATTERN"=パターン抽出。
+  idSource     String?
+  idConfidence Float? // AIの確信度(0-1)
 
   // ── カタログ照合（復号hashが BaseFile.stockHash と一致したら設定） ──
   matchedBaseFileId String?

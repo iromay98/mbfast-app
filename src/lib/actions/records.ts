@@ -493,6 +493,8 @@ export async function setRecordEcu(
       hwNumber: norm(fields.hw),
       swNumber: norm(fields.sw),
       calNumber: norm(fields.cal),
+      idSource: "MANUAL", // 本店が確認・確定（AI自動認識タグは外す）
+      idConfidence: null,
     },
   });
 

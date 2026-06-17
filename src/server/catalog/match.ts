@@ -30,6 +30,8 @@ export async function matchAndLinkCatalog(opts: {
   dealerId: string;
   dealerName?: string | null;
   meta?: CaptureMeta;
+  // 復号job側で確定した識別子（AI優先）。指定時は自動取込でこれを使う。
+  ecuIds?: { hw: string | null; sw: string | null; cal: string | null };
   stockBytes?: Buffer;
   stockKey?: string;
   contentType?: string | null;
@@ -80,11 +82,13 @@ export async function matchAndLinkCatalog(opts: {
   const stockKey = `catalog/stock/${hash.toLowerCase()}.bin`;
   await storage.save(stockKey, bytes, contentType);
 
-  // 原本バイトから ECU 識別子（HW/SW/Cal）を抽出。
-  // ベンツは自動認識が Cal を誤検出するため抽出しない（本店が手入力）。
-  const ecu = isMercedes(opts.meta.manufacturer)
-    ? { hw: null, sw: null, cal: null }
-    : extractEcuId(bytes);
+  // 識別子: job側で確定した値(AI優先)があればそれを使う。無ければ原本から抽出
+  // （ベンツは誤検出するため抽出しない）。
+  const ecu =
+    opts.ecuIds ??
+    (isMercedes(opts.meta.manufacturer)
+      ? { hw: null, sw: null, cal: null }
+      : extractEcuId(bytes));
 
   // 同一 SW・別内容(hash) の通し番号を採番（0=無印, 1=-A, …）。
   // hash は一意なので「同SWの既存件数」がそのまま新規の連番になる。

@@ -5,6 +5,7 @@ import { storage } from "@/server/storage";
 import { notify } from "@/server/notifications";
 import { matchAndLinkCatalog } from "@/server/catalog/match";
 import { smartExtractEcuId } from "@/server/ecu/learn";
+import { aiExtractIds } from "@/server/ecu/ai-extract";
 import { decryptSlave } from "./client";
 import { AutotunerError, type DecryptResponse } from "./types";
 
@@ -49,20 +50,39 @@ export async function runDecryptJob(recordId: string): Promise<void> {
     const decryptedKey = `decrypted/${recordId}.bin`;
     await storage.save(decryptedKey, result.decryptedData, "application/octet-stream");
 
-    // 復号後バイナリから ECU 識別子（HW/SW/Cal）を自動抽出
-    const ecu = await smartExtractEcuId(result.decryptedData, {
+    // 復号後バイナリから ECU 識別子（HW/SW/Cal）を識別。
+    // 全メーカーAI主体: パターン抽出を下読み(SWヒント/フォールバック)に使い、
+    // ANTHROPIC_API_KEY があれば Claude(Haiku→不確実ならOpus)で識別。AIがCalを出せばAI優先。
+    const pattern = await smartExtractEcuId(result.decryptedData, {
       hash: result.hash,
       ecuType: result.meta.ecu,
-      manufacturer: result.meta.manufacturer, // ベンツは自動Cal認識を無効化
+      manufacturer: result.meta.manufacturer, // ベンツはパターン無効
     });
+    const ai = await aiExtractIds(result.decryptedData, {
+      hash: result.hash,
+      manufacturer: result.meta.manufacturer,
+      ecuType: result.meta.ecu,
+      method: result.meta.method,
+      swHint: pattern.sw,
+      calHint: pattern.cal, // パターンが出したCal（VAG等）をAIに検証させる
+    });
+    const useAi = !!ai?.cal;
+    const hwNumber = ai?.hw ?? pattern.hw;
+    const swNumber = ai?.sw ?? pattern.sw;
+    const calNumber = ai?.cal ?? pattern.cal;
+    const idSource = useAi ? "AI" : pattern.cal || pattern.sw || pattern.hw ? "PATTERN" : null;
+    const idConfidence = useAi ? (ai?.confidence ?? null) : null;
+
     await prisma.serviceRecord.update({
       where: { id: recordId },
       data: {
         ...mapMetaToRecord(result.meta, result.hash, decryptedKey),
-        hwNumber: ecu.hw,
-        swNumber: ecu.sw,
-        calNumber: ecu.cal,
-        ecuIdRaw: ecu as unknown as Prisma.InputJsonValue,
+        hwNumber,
+        swNumber,
+        calNumber,
+        idSource,
+        idConfidence,
+        ecuIdRaw: { pattern, ai } as unknown as Prisma.InputJsonValue,
       },
     });
 
@@ -81,6 +101,8 @@ export async function runDecryptJob(recordId: string): Promise<void> {
         method: result.meta.method,
         fuel: result.meta.engine?.fuel ?? null,
       },
+      // 識別子は記録と同じ確定値（AI優先）を使う
+      ecuIds: { hw: hwNumber, sw: swNumber, cal: calNumber },
       stockBytes: result.decryptedData,
       contentType: "application/octet-stream",
     });
