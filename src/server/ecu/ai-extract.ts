@@ -249,3 +249,136 @@ export async function aiExtractIds(
   }
   return out;
 }
+
+// ── 純正binアップ用: 車両(メーカー/車種/世代/グレード)＋識別子(HW/SW/Cal)をAIで推定 ──
+
+export type AiStock = {
+  manufacturer: string | null;
+  model: string | null;
+  generation: string | null;
+  grade: string | null;
+  hw: string | null;
+  sw: string | null;
+  cal: string | null;
+  confidence: number;
+};
+
+const STOCK_TOOL: Anthropic.Tool = {
+  name: "report_stock",
+  description: "Report the vehicle and ECU identifiers inferred from an ECU firmware dump.",
+  input_schema: {
+    type: "object",
+    properties: {
+      manufacturer: { type: ["string", "null"], description: "Vehicle manufacturer, e.g. 'Audi', 'Mercedes', 'BMW'. null if unsure." },
+      model: { type: ["string", "null"], description: "Model / series, e.g. 'RS3', 'C-class'. null if unsure." },
+      generation: { type: ["string", "null"], description: "Generation/chassis code, e.g. '8V', 'W205'. null if unsure." },
+      grade: { type: ["string", "null"], description: "Grade/trim, e.g. 'S550', 'C43'. null if unsure." },
+      cal: { type: ["string", "null"], description: "Calibration number. null if not identifiable." },
+      sw: { type: ["string", "null"], description: "Software number. null if unknown." },
+      hw: { type: ["string", "null"], description: "Hardware part number. null if unknown." },
+      confidence: { type: "number", description: "Confidence 0..1 for the overall result." },
+      reasoning: { type: "string", description: "Brief reasoning." },
+    },
+    required: ["manufacturer", "model", "cal", "sw", "hw", "confidence"],
+  },
+};
+
+// 共通の候補準備（抽出＋共通定数フィルタ＋記録）。
+async function prepCandidates(buf: Buffer, hash: string | null | undefined): Promise<string[]> {
+  const candidates = extractIdCandidates(buf);
+  if (candidates.length === 0 || !hash) return candidates;
+  let usable = candidates;
+  try {
+    const common = await prisma.ecuTokenSeen.groupBy({
+      by: ["token"],
+      where: { token: { in: candidates }, hash: { not: hash } },
+      _count: { hash: true },
+      having: { hash: { _count: { gte: COMMON_THRESHOLD } } },
+    });
+    const commonSet = new Set(common.map((c) => c.token));
+    if (commonSet.size > 0) {
+      const f = candidates.filter((t) => !commonSet.has(t));
+      if (f.length >= 8) usable = f;
+    }
+    await prisma.ecuTokenSeen
+      .createMany({
+        data: candidates.slice(0, 80).map((t) => ({ token: t, hash })),
+        skipDuplicates: true,
+      })
+      .catch(() => {});
+  } catch {
+    /* フィルタ無しで続行 */
+  }
+  return usable;
+}
+
+export async function aiAnalyzeStock(
+  buf: Buffer,
+  ctx: { hash?: string | null; swHint?: string | null; calHint?: string | null; engineDesc?: string | null; throwOnError?: boolean },
+): Promise<AiStock | null> {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) {
+    if (ctx.throwOnError) throw new Error("AIキー(ANTHROPIC_API_KEY)が未設定です。");
+    return null;
+  }
+  const usable = await prepCandidates(buf, ctx.hash);
+  if (usable.length === 0) return null;
+
+  const prompt = [
+    "You are an expert at reading automotive ECU firmware dumps.",
+    "From the candidate strings, infer the VEHICLE and the ECU identifiers.",
+    "",
+    ctx.engineDesc ? `Engine description found in dump: ${ctx.engineDesc}` : "",
+    ctx.swHint ? `SW hint (pattern): ${ctx.swHint}` : "",
+    ctx.calHint ? `Cal hint (pattern): ${ctx.calHint}` : "",
+    "",
+    "Guidance:",
+    "- Infer manufacturer/model/generation/grade from part-number conventions and the engine description, even if the brand name is not literally present.",
+    "  Examples: VAG part '8V0907404' → Audi, RS3/S3, generation 8V. '07K907309C' is the hardware. Mercedes 10-digit parts starting with the engine family (e.g. 276…) → Mercedes, engine M276 (often C/E/GLC 43 AMG, 3.0 V6).",
+    "- Cal is usually the SW number plus a version suffix (the suffix may be a separate short token).",
+    "- Candidates already had cross-file common constants removed. Still, only report a value that identifies THIS vehicle; if unsure return null and lower confidence.",
+    "- Do NOT invent values not present among the candidates (the pattern hints are the only exception).",
+    "",
+    "Candidates (ranked):",
+    usable.join("  "),
+    "",
+    "Call report_stock.",
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+  const client = new Anthropic({ apiKey });
+  let msg: Anthropic.Message;
+  try {
+    msg = await client.messages.create({
+      model: PRIMARY,
+      max_tokens: 700,
+      tools: [STOCK_TOOL],
+      tool_choice: { type: "tool", name: "report_stock" },
+      messages: [{ role: "user", content: prompt }],
+    });
+  } catch (e) {
+    if (ctx.throwOnError) {
+      const status = (e as { status?: number })?.status;
+      throw new Error(`AI APIエラー${status ? `(${status})` : ""}: ${e instanceof Error ? e.message : String(e)}`);
+    }
+    return null;
+  }
+  const block = msg.content.find((b): b is Anthropic.ToolUseBlock => b.type === "tool_use");
+  if (!block) return null;
+  const inp = block.input as Record<string, unknown>;
+  const norm = (v: unknown) => {
+    const t = String(v ?? "").trim();
+    return t && t.toLowerCase() !== "null" ? t : null;
+  };
+  return {
+    manufacturer: norm(inp.manufacturer),
+    model: norm(inp.model),
+    generation: norm(inp.generation),
+    grade: norm(inp.grade),
+    hw: norm(inp.hw),
+    sw: norm(inp.sw),
+    cal: norm(inp.cal),
+    confidence: typeof inp.confidence === "number" ? Math.max(0, Math.min(1, inp.confidence)) : 0,
+  };
+}

@@ -8,7 +8,7 @@ import { requireHQ } from "@/lib/authz";
 import { saveUpload, storage } from "@/server/storage";
 import { notify } from "@/server/notifications";
 import { smartExtractEcuId, learnEcuRules } from "@/server/ecu/learn";
-import { aiExtractIds, aiEnabled, recordCandidateTokens } from "@/server/ecu/ai-extract";
+import { aiExtractIds, aiAnalyzeStock, aiEnabled, recordCandidateTokens } from "@/server/ecu/ai-extract";
 import {
   fuelKindOf,
   optionTagsFor,
@@ -878,6 +878,81 @@ export async function analyzeStockBin(formData: FormData): Promise<{
     hw: ecu.hw,
     displacement: dm ? `${dm[1]}L` : null,
     fuel,
+  };
+}
+
+// 純正binアップ用: Opusで メーカー・車種・世代・グレード・HW/SW/Cal をまとめて推定（本店のみ）。
+// フォームの自動入力に使う。パターンは ECU型番/エンジン記述/燃料のヒントに使う。
+export async function analyzeStockBinAi(formData: FormData): Promise<{
+  ok?: true;
+  error?: string;
+  manufacturer?: string | null;
+  model?: string | null;
+  generation?: string | null;
+  grade?: string | null;
+  hw?: string | null;
+  sw?: string | null;
+  cal?: string | null;
+  ecu?: string | null;
+  fuel?: string | null;
+  displacement?: string | null;
+  confidence?: number;
+}> {
+  await requireHQ();
+  if (!aiEnabled()) {
+    return { error: "AIキー(ANTHROPIC_API_KEY)が未設定です。サーバに設定してください。" };
+  }
+  const file = formData.get("file");
+  if (!(file instanceof File) || file.size === 0) {
+    return { error: "ファイルを選択してください" };
+  }
+  const buf = Buffer.from(await file.arrayBuffer());
+  const hash = createHash("sha256").update(buf).digest("hex");
+  const pattern = await smartExtractEcuId(buf, { hash, ecuType: null });
+  const desc = pattern.engineDesc ?? "";
+  const dm = desc.match(/(\d(?:\.\d)?)\s*l\b/i);
+  const fuel = /TDI|diesel/i.test(desc)
+    ? "diesel"
+    : /TFSI|TSI|FSI|petrol|gasoline/i.test(desc)
+      ? "petrol"
+      : null;
+  let ai;
+  try {
+    ai = await aiAnalyzeStock(buf, {
+      hash,
+      swHint: pattern.sw,
+      calHint: pattern.cal,
+      engineDesc: pattern.engineDesc,
+      throwOnError: true,
+    });
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "AI呼び出しに失敗しました" };
+  }
+  if (!ai) return { error: "AIで認識できませんでした。手入力してください。" };
+
+  // メーカー表記は正規化（Mercedes系→Mercedes 等）
+  const manufacturer = ai.manufacturer
+    ? normalizeManufacturer(
+        ai.manufacturer,
+        (await prisma.baseFile.findMany({ distinct: ["manufacturer"], select: { manufacturer: true } })).map(
+          (b) => b.manufacturer,
+        ),
+      )
+    : null;
+
+  return {
+    ok: true,
+    manufacturer,
+    model: ai.model,
+    generation: ai.generation,
+    grade: ai.grade,
+    hw: ai.hw,
+    sw: ai.sw,
+    cal: ai.cal,
+    ecu: pattern.ecuType, // ECU型番はパターンの方が確実
+    fuel,
+    displacement: dm ? `${dm[1]}L` : null,
+    confidence: ai.confidence,
   };
 }
 

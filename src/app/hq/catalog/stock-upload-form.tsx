@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Button, Card } from "@/components/ui";
 import {
   analyzeStockBin,
+  analyzeStockBinAi,
   createBaseFileFromBin,
   createVariantWithFile,
 } from "@/lib/actions/catalog";
@@ -34,6 +35,8 @@ export function StockUploadForm({
   const [fileName, setFileName] = useState("");
   const [drag, setDrag] = useState(false);
   const [analyzing, startAnalyze] = useTransition();
+  const [aiPending, startAi] = useTransition();
+  const [aiMsg, setAiMsg] = useState<string | null>(null);
   const [submitting, startSubmit] = useTransition();
   const [analyzed, setAnalyzed] = useState<Analyzed | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
@@ -101,6 +104,48 @@ export function StockUploadForm({
           hw: benz ? s.hw : s.hw || r.hw || "",
         };
       });
+    });
+  };
+
+  // Opusで メーカー・車種・世代・グレード・HW/SW/Cal をまとめて推定→フォームに自動入力
+  const aiAnalyze = () => {
+    const file = fileRef.current?.files?.[0];
+    if (!file) {
+      setAiMsg("先にファイルを選択してください");
+      return;
+    }
+    setAiMsg(null);
+    const fd = new FormData();
+    fd.set("file", file);
+    startAi(async () => {
+      const r = await analyzeStockBinAi(fd);
+      if (r.error) {
+        setAiMsg(r.error);
+        return;
+      }
+      setAnalyzed({
+        ecu: r.ecu ?? null,
+        sw: r.sw ?? null,
+        cal: r.cal ?? null,
+        hw: r.hw ?? null,
+        displacement: r.displacement ?? null,
+        fuel: r.fuel ?? null,
+      });
+      // AIの推定値で空欄を埋める（既存の入力は尊重）
+      setF((s) => ({
+        ...s,
+        manufacturer: s.manufacturer || r.manufacturer || "",
+        model: s.model || r.model || "",
+        generation: s.generation || r.generation || "",
+        grade: s.grade || r.grade || "",
+        ecu: s.ecu || r.ecu || "",
+        displacement: s.displacement || r.displacement || "",
+        cal: s.cal || r.cal || "",
+        sw: s.sw || r.sw || "",
+        hw: s.hw || r.hw || "",
+      }));
+      const conf = r.confidence != null ? `（確信度${Math.round(r.confidence * 100)}%）` : "";
+      setAiMsg(`AIが認識しました${conf}。内容を確認・修正してください。`);
     });
   };
 
@@ -233,17 +278,31 @@ export function StockUploadForm({
             />
           </div>
 
-          {/* 2) 自動解析の結果（先読み） */}
+          {/* 2) 自動解析の結果（先読み）＋ AIで自動認識 */}
           {analyzing && <p className="text-xs text-ink-soft">解析中… ECU識別子を読み取っています</p>}
+          {fileName && (
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={aiAnalyze}
+                disabled={aiPending}
+                title="Opusでメーカー・車種・世代・グレード・HW/SW/Cal を推定してフォームに入力します"
+                className="inline-flex items-center gap-1 rounded-lg border border-sky-300 bg-sky-50 px-3 py-1.5 text-xs font-semibold text-sky-700 hover:bg-sky-100 disabled:opacity-50"
+              >
+                {aiPending ? "AI認識中…" : "🤖 AIで自動認識（メーカー・車種・Cal等）"}
+              </button>
+              {aiMsg && <span className="text-xs font-semibold text-sky-700">{aiMsg}</span>}
+            </div>
+          )}
           {analyzed && (
             <div className="rounded-lg bg-surface-2 px-3 py-2 text-xs text-ink-soft">
-              <span className="font-semibold text-ink">自動検出:</span>{" "}
+              <span className="font-semibold text-ink">検出:</span>{" "}
               ECU <b className="font-mono text-ink">{analyzed.ecu || "—"}</b> ／ SW{" "}
               <b className="font-mono text-ink">{analyzed.sw || "—"}</b> ／ Cal{" "}
               <b className="font-mono text-ink">{analyzed.cal || "—"}</b>
               {analyzed.fuel ? <> ／ 燃料 {analyzed.fuel}</> : null}
               <div className="mt-0.5">
-                メーカー・車種はファイルから判別できないため入力してください。
+                自動入力後は内容を確認・修正してください（AIの推定を含みます）。
               </div>
             </div>
           )}
