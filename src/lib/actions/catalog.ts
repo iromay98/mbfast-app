@@ -410,14 +410,20 @@ export async function reidentifyBaseEcuAi(
     ecuType: base.ecu,
     manufacturer: base.manufacturer,
   });
-  const ai = await aiExtractIds(file.buffer, {
-    hash: base.stockHash,
-    manufacturer: base.manufacturer,
-    ecuType: base.ecu,
-    method: base.method,
-    swHint: pattern.sw,
-    calHint: pattern.cal,
-  });
+  let ai;
+  try {
+    ai = await aiExtractIds(file.buffer, {
+      hash: base.stockHash,
+      manufacturer: base.manufacturer,
+      ecuType: base.ecu,
+      method: base.method,
+      swHint: pattern.sw,
+      calHint: pattern.cal,
+      throwOnError: true,
+    });
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "AI呼び出しに失敗しました" };
+  }
   if (!ai || (!ai.cal && !ai.sw && !ai.hw)) {
     return { error: "AIで識別子を特定できませんでした。手入力してください。" };
   }

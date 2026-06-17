@@ -133,6 +133,7 @@ export async function aiExtractIds(
     method?: string | null;
     swHint?: string | null;
     calHint?: string | null;
+    throwOnError?: boolean; // 手動再判定では API エラーを表に出す
   },
 ): Promise<AiIds | null> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
@@ -171,6 +172,11 @@ export async function aiExtractIds(
     }
   } catch (e) {
     console.error("AI識別子抽出に失敗", e);
+    if (ctx.throwOnError) {
+      const status = (e as { status?: number })?.status;
+      const msg = e instanceof Error ? e.message : String(e);
+      throw new Error(`AI APIエラー${status ? `(${status})` : ""}: ${msg}`);
+    }
     return null;
   }
   if (!res) return null;
