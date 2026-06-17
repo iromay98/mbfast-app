@@ -8,7 +8,7 @@ import { requireHQ } from "@/lib/authz";
 import { saveUpload, storage } from "@/server/storage";
 import { notify } from "@/server/notifications";
 import { smartExtractEcuId, learnEcuRules } from "@/server/ecu/learn";
-import { aiExtractIds, aiEnabled } from "@/server/ecu/ai-extract";
+import { aiExtractIds, aiEnabled, recordCandidateTokens } from "@/server/ecu/ai-extract";
 import {
   fuelKindOf,
   optionTagsFor,
@@ -463,8 +463,14 @@ export async function reidentifyMissingCalAi(
     where: { archived: false, calNumber: null, stockFileRef: { not: null } },
     orderBy: { createdAt: "desc" },
     take: Math.min(Math.max(limit, 1), 50),
-    select: { id: true },
+    select: { id: true, stockFileRef: true, stockHash: true },
   });
+  // 事前パス: 全候補トークンを記録（API不要）。共通定数フィルタを先に効かせる。
+  for (const b of bases) {
+    if (!b.stockFileRef) continue;
+    const f = await storage.read(b.stockFileRef);
+    if (f) await recordCandidateTokens(f.buffer, b.stockHash);
+  }
   let updated = 0;
   for (const b of bases) {
     const r = await reidentifyBaseEcuAi(b.id);

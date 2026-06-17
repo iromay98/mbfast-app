@@ -17,9 +17,27 @@ export type AiIds = {
 
 // 精度優先: 既定は Opus 単発。コスト優先にしたい場合は ANTHROPIC_MODEL_STRONG を Haiku に。
 const PRIMARY = process.env.ANTHROPIC_MODEL_STRONG ?? "claude-opus-4-8";
+// このファイル以外に何件で「共通の定数」とみなして候補から外すか。
+const COMMON_THRESHOLD = Number(process.env.ECU_COMMON_THRESHOLD ?? "3");
 
 export function aiEnabled(): boolean {
   return !!process.env.ANTHROPIC_API_KEY;
+}
+
+// 候補トークンを記録だけする（API不要）。共通定数フィルタの学習を先に回すため。
+export async function recordCandidateTokens(
+  buf: Buffer,
+  hash: string | null | undefined,
+): Promise<void> {
+  if (!hash) return;
+  const candidates = extractIdCandidates(buf);
+  if (candidates.length === 0) return;
+  await prisma.ecuTokenSeen
+    .createMany({
+      data: candidates.slice(0, 80).map((t) => ({ token: t, hash })),
+      skipDuplicates: true,
+    })
+    .catch(() => {});
 }
 
 const TOOL: Anthropic.Tool = {
@@ -82,11 +100,11 @@ function buildPrompt(
     "- Cal is the most important. It is often the SW number followed by a version suffix (e.g. '8V0907404_0004' or '8V0907404 0004'). The version suffix may appear as a separate short token.",
     "- Prefer identifiers that appear together in the firmware identification block.",
     "",
-    "CRITICAL — avoid false positives:",
-    "- Many 10-digit numbers in the dump are NOT part numbers: Unix timestamps (10 digits starting with 1, e.g. 15xxxxxxxx / 16xxxxxxxx / 17xxxxxxxx ≈ years 2017-2024), checksums, addresses, dates. NEVER report these as Cal/SW/HW.",
-    "- For Mercedes-Benz: real part numbers are 10 digits usually starting with the engine/family number (e.g. M276 engine → '276xxxxxxx', often written 'A276...' or grouped like '276 901 02 04'). Strongly PREFER candidates that start with the engine family digits over generic 10-digit numbers.",
+    "CRITICAL — pick the value that identifies THIS vehicle, not a generic constant:",
+    "- The Cal/SW/HW must be specific to this ECU's identifier. Some 10-digit numbers recur across many unrelated dumps (shared library/firmware constants) — they are NOT this vehicle's Cal even though they look like a part number. Candidates already had cross-file common constants removed, but stay skeptical of any value that does not fit the vehicle.",
+    "- For Mercedes-Benz: real part numbers are 10 digits usually starting with the engine/family number (e.g. M276 engine → '276xxxxxxx', often written 'A276...' or grouped like '276 901 02 04'). Strongly PREFER candidates that start with the engine family digits.",
     "- For VAG: part numbers look like '8V0907404' (letters+digits), hardware like '07K907309C'.",
-    "- If the only plausible value looks like a timestamp/checksum, return null and lower confidence rather than reporting a wrong value.",
+    "- If no candidate clearly fits this vehicle's identifier, return null and a low confidence rather than guessing a generic-looking number.",
     "- Do NOT invent values that are not among the candidates (the pattern Cal hint is the only exception).",
     "",
     "Candidate strings (deduplicated, ranked):",
@@ -164,7 +182,36 @@ export async function aiExtractIds(
 
   const candidates = extractIdCandidates(buf);
   if (candidates.length === 0) return null;
-  const prompt = buildPrompt(candidates, ctx);
+
+  // 複数の無関係なファイルに共通して出るトークン（＝定数。或る車のCalが別車にも出る等）を
+  // AI候補から除外する。学習データはファイルを処理するほど溜まる。
+  let usable = candidates;
+  if (ctx.hash) {
+    try {
+      const common = await prisma.ecuTokenSeen.groupBy({
+        by: ["token"],
+        where: { token: { in: candidates }, hash: { not: ctx.hash } },
+        _count: { hash: true },
+        having: { hash: { _count: { gte: COMMON_THRESHOLD } } },
+      });
+      const commonSet = new Set(common.map((c) => c.token));
+      if (commonSet.size > 0) {
+        const f = candidates.filter((t) => !commonSet.has(t));
+        if (f.length >= 8) usable = f; // 消しすぎたら元に戻す
+      }
+      // このファイルの候補を記録（成長させる。肥大化防止に上位80のみ）
+      await prisma.ecuTokenSeen
+        .createMany({
+          data: candidates.slice(0, 80).map((t) => ({ token: t, hash: ctx.hash! })),
+          skipDuplicates: true,
+        })
+        .catch(() => {});
+    } catch {
+      /* 集計失敗時はフィルタなしで続行 */
+    }
+  }
+
+  const prompt = buildPrompt(usable, ctx);
   const client = new Anthropic({ apiKey });
 
   const usedModel = PRIMARY.includes("haiku") ? "haiku" : "opus";

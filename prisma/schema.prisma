@@ -126,6 +126,16 @@ model ServiceLog {
   @@index([serviceRecordId])
 }
 
+// 候補トークンがどのファイル(hash)に出たかの記録。複数の無関係なファイルに共通する値
+// （定数：ベンツの或るCalがアバルトにも出る等）を検出して、AI候補から除外するため。
+model EcuTokenSeen {
+  token String
+  hash  String
+
+  @@id([token, hash])
+  @@index([token])
+}
+
 // AI(Claude)による識別子抽出のキャッシュ。同一ファイル(内容hash)は再呼び出ししない。
 model EcuAiCache {
   hash       String   @id // 復号後内容の SHA-256（大文字16進）
