@@ -13,6 +13,7 @@ import { RecordDetail } from "@/components/record-detail";
 import { RecordThread } from "@/components/record-thread";
 import { ActivityFeed, getRecordActivity } from "@/components/activity-feed";
 import { AutoRefresh } from "@/components/auto-refresh";
+import { MessageNotifier } from "@/components/message-notifier";
 import { RetryDecryptButton } from "@/components/retry-decrypt-button";
 import { updateRecordSupplement } from "@/lib/actions/records";
 import { SupplementForm } from "./supplement-form";
@@ -118,6 +119,8 @@ export default async function DealerRecordDetailPage({
 
       {/* 解析中は自動更新 */}
       <AutoRefresh active={isPendingStatus(record.status)} />
+      {/* チャット新着のフォアグラウンド通知 */}
+      <MessageNotifier recordId={record.id} viewerRole="DEALER" />
 
       {/* 代理店には専門情報(ECU/Cal/HW/SW・復号ファイル等)を出さない */}
       <RecordDetail record={record} hideTechnical />
@@ -139,6 +142,16 @@ export default async function DealerRecordDetailPage({
         </Card>
       )}
 
+      {/* 3番目: この案件のやりとり（チャット） */}
+      <RecordThread recordId={record.id} messages={messages} viewerRole="DEALER" />
+
+      {/* 4番目: この案件のダウンロード・リクエスト履歴 */}
+      <div>
+        <h3 className="mb-1 px-1 text-sm font-bold text-ink">この案件のダウンロード・リクエスト履歴</h3>
+        <ActivityFeed items={recordActivity} showDealer={false} />
+      </div>
+
+      {/* ファイル＝純正に戻す（ori）のみ。slave は入れ直せないため非表示。 */}
       {canDeliver && record.decryptedFilePath && (
         <Card>
           <h3 className="mb-1 text-sm font-bold text-ink">純正に戻す（ori）</h3>
@@ -184,13 +197,6 @@ export default async function DealerRecordDetailPage({
           </div>
         </Card>
       )}
-
-      <RecordThread recordId={record.id} messages={messages} viewerRole="DEALER" />
-
-      <div>
-        <h3 className="mb-1 px-1 text-sm font-bold text-ink">この案件のダウンロード・リクエスト履歴</h3>
-        <ActivityFeed items={recordActivity} showDealer={false} />
-      </div>
 
       {record.status === "FAILED" && (
         <Card className="border-red-200 bg-red-50">

@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useTransition } from "react";
 import { resolveTuning, requestTuning } from "@/lib/actions/requests";
-import { SPEED_LIMITER_TAG } from "@/lib/catalog/options";
+import { SPEED_LIMITER_TAG, tuningContentLabel } from "@/lib/catalog/options";
 import { DownloadConsent } from "./download-consent";
 
 type Stage = { value: string; label: string };
@@ -126,29 +126,57 @@ export function TuningConfigurator({
       {/* オプション（O2 等） */}
       <div>
         <div className="mb-1.5 text-xs font-semibold text-ink-soft">オプション</div>
-        <div className="flex flex-wrap gap-3">
+        <div className="flex flex-wrap gap-2">
           {optionTags.map((t) => {
             const limOff = t === SPEED_LIMITER_TAG && limiterDisabled;
+            const on = selected.includes(t);
             return (
-              <label key={t} className="inline-flex items-center gap-1.5 text-sm text-ink">
-                <input
-                  type="checkbox"
-                  checked={selected.includes(t)}
-                  onChange={() => toggleOpt(t)}
-                  className="h-4 w-4 accent-gold-500"
+              <button
+                key={t}
+                type="button"
+                onClick={() => toggleOpt(t)}
+                className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-semibold transition ${
+                  on
+                    ? "border-gold-400 bg-gold-500 text-white"
+                    : "border-line bg-white text-ink-soft hover:bg-surface-2"
+                }`}
+              >
+                <span
+                  className={`inline-block h-3.5 w-3.5 rounded-full border ${
+                    on ? "border-white bg-white" : "border-line"
+                  }`}
                 />
                 {t}
                 {limOff && (
-                  <span className="text-[11px] font-semibold text-rose-600">（この車種は不可）</span>
+                  <span className={`text-[11px] font-semibold ${on ? "text-white/90" : "text-rose-600"}`}>
+                    （不可）
+                  </span>
                 )}
-              </label>
+              </button>
             );
           })}
         </div>
       </div>
 
       {/* 判定結果 */}
-      <div className="border-t border-line pt-3">
+      <div className="space-y-3 border-t border-line pt-3">
+        {/* 状態バッジ（即DL=Automatic 緑 / リクエスト=赤）＋選択内容のサマリ */}
+        {!resolving && !error && result && (
+          <div className="flex flex-wrap items-center gap-2">
+            {result.kind === "request" ? (
+              <span className="inline-flex items-center gap-1 rounded-lg bg-red-500 px-3 py-1 text-xs font-extrabold tracking-wide text-white">
+                リクエストが必要
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1 rounded-lg bg-green-500 px-3 py-1 text-xs font-extrabold tracking-wide text-white">
+                ⚡ AUTOMATIC{result.kind === "compat" ? "（互換版）" : ""}
+              </span>
+            )}
+            <span className="text-sm font-semibold text-ink">
+              {tuningContentLabel(stage, pops, selected, popsSport)}
+            </span>
+          </div>
+        )}
         {resolving ? (
           <div className="flex items-center gap-2 text-sm text-ink-soft">
             <span className="h-4 w-4 animate-spin rounded-full border-2 border-gold-300 border-t-gold-600" />

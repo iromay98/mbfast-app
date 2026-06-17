@@ -237,7 +237,8 @@ export function RecordDetail({
         </Card>
       )}
 
-      {(record.slaveFilePath || (!hideTechnical && record.decryptedFilePath)) && (
+      {/* ファイル(slave/bin)は本店のみ。代理店は slave を入れ直せないため非表示（純正に戻す ori は別カードで用意）。 */}
+      {!hideTechnical && (record.slaveFilePath || record.decryptedFilePath) && (
         <Card>
           <h3 className="mb-2 text-sm font-bold text-ink">ファイル</h3>
           <div className="flex flex-wrap gap-2">

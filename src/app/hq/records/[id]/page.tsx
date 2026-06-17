@@ -13,6 +13,7 @@ import { RecordDetail } from "@/components/record-detail";
 import { RecordThread } from "@/components/record-thread";
 import { ActivityFeed, getRecordActivity } from "@/components/activity-feed";
 import { AutoRefresh } from "@/components/auto-refresh";
+import { MessageNotifier } from "@/components/message-notifier";
 import { RetryDecryptButton } from "@/components/retry-decrypt-button";
 import { updateHqNote } from "@/lib/actions/records";
 import { HqNoteForm } from "./hq-note-form";
@@ -178,6 +179,7 @@ export default async function HQRecordDetailPage({
       />
 
       <AutoRefresh active={isPendingStatus(record.status)} />
+      <MessageNotifier recordId={record.id} viewerRole="HQ_ADMIN" />
 
       <RecordDetail
         record={record}

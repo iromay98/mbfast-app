@@ -32,8 +32,19 @@ export async function postRecordMessage(
   if (!ctx) return { error: "権限がありません" };
 
   const body = String(formData.get("body") ?? "").trim();
-  const file = formData.get("file");
-  const hasFile = file instanceof File && file.size > 0;
+  // 添付は3系統: slaveFile(本店・暗号化) / file・cameraFile(自由・撮影)。空(size0)は無視。
+  const pick = (...keys: string[]): File | null => {
+    for (const k of keys) {
+      const v = formData.get(k);
+      if (v instanceof File && v.size > 0) return v;
+    }
+    return null;
+  };
+  const slaveFile = ctx.user.role === "HQ_ADMIN" ? pick("slaveFile") : null;
+  const freeFile = pick("file", "cameraFile");
+  const file = slaveFile ?? freeFile;
+  const hasFile = !!file;
+  const wantEncrypt = !!slaveFile;
   if (!body && !hasFile) {
     return { error: "メッセージかファイルを入力してください" };
   }
@@ -44,9 +55,8 @@ export async function postRecordMessage(
     fileSize?: number;
     contentType?: string;
   } = {};
-  if (hasFile) {
-    // 本店が「.slaveに暗号化して送る」を選んだ場合、この車固有のIDで encrypt して焼ける.slaveに。
-    const wantEncrypt = formData.get("encrypt") === "true" && ctx.user.role === "HQ_ADMIN";
+  if (file) {
+    // slaveFile を選んだ場合、この車固有のIDで encrypt して焼ける .slave に。
     if (wantEncrypt) {
       const rec = await prisma.serviceRecord.findUnique({
         where: { id: recordId },
