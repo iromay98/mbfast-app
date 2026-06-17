@@ -5,6 +5,7 @@ import { PageTitle, Card, Button, Input, Select, Field } from "@/components/ui";
 import type { Prisma } from "@/generated/prisma/client";
 import { CatalogGrid, type CatalogRow, type CalGroup } from "./catalog-grid";
 import { StockUploadForm } from "./stock-upload-form";
+import { BulkReidentifyButton } from "./bulk-reidentify-button";
 import { fuelKindOf, stageRank } from "@/lib/catalog/options";
 import { MANUFACTURERS } from "@/lib/catalog/manufacturers";
 
@@ -245,8 +246,9 @@ export default async function HQCatalogPage({
       />
 
       {/* このページの主目的＝純正(原本)データのアップロード。これに mod がぶら下がる。 */}
-      <div className="mb-4">
+      <div className="mb-4 flex flex-wrap items-center gap-3">
         <StockUploadForm makerOptions={makerOptions} modelOptions={modelOptions} />
+        <BulkReidentifyButton />
       </div>
 
       {/* メーカーで表示を絞る（全車両ではなくメーカー単位で見やすく） */}

@@ -8,6 +8,7 @@ import { requireHQ } from "@/lib/authz";
 import { saveUpload, storage } from "@/server/storage";
 import { notify } from "@/server/notifications";
 import { smartExtractEcuId, learnEcuRules } from "@/server/ecu/learn";
+import { aiExtractIds, aiEnabled } from "@/server/ecu/ai-extract";
 import {
   fuelKindOf,
   optionTagsFor,
@@ -384,6 +385,78 @@ export async function restoreVariantVersion(
 }
 
 const PENDING_PATH = "/hq/catalog/pending";
+
+// 純正(BaseFile)の保存済み原本binをAIで読み直して Cal/SW/HW を更新（本店のみ）。
+// 案件を介さずカタログから直接 Cal を再判定するためのもの。
+export async function reidentifyBaseEcuAi(
+  baseFileId: string,
+): Promise<{ ok?: true; error?: string; cal?: string | null; confidence?: number | null }> {
+  await requireHQ();
+  if (!aiEnabled()) {
+    return { error: "AIキー(ANTHROPIC_API_KEY)が未設定です。サーバに設定してください。" };
+  }
+  const base = await prisma.baseFile.findUnique({
+    where: { id: baseFileId },
+    select: { stockFileRef: true, stockHash: true, manufacturer: true, ecu: true, method: true },
+  });
+  if (!base?.stockFileRef) {
+    return { error: "原本ファイルがありません（再判定できません）。" };
+  }
+  const file = await storage.read(base.stockFileRef);
+  if (!file) return { error: "原本ファイルが見つかりません。" };
+
+  const pattern = await smartExtractEcuId(file.buffer, {
+    hash: base.stockHash,
+    ecuType: base.ecu,
+    manufacturer: base.manufacturer,
+  });
+  const ai = await aiExtractIds(file.buffer, {
+    hash: base.stockHash,
+    manufacturer: base.manufacturer,
+    ecuType: base.ecu,
+    method: base.method,
+    swHint: pattern.sw,
+    calHint: pattern.cal,
+  });
+  if (!ai || (!ai.cal && !ai.sw && !ai.hw)) {
+    return { error: "AIで識別子を特定できませんでした。手入力してください。" };
+  }
+  await prisma.baseFile.update({
+    where: { id: baseFileId },
+    data: {
+      calNumber: ai.cal ?? pattern.cal,
+      swNumber: ai.sw ?? pattern.sw,
+      hwNumber: ai.hw ?? pattern.hw,
+    },
+  });
+  revalidatePath(CATALOG_PATH);
+  revalidatePath(PENDING_PATH);
+  return { ok: true, cal: ai.cal, confidence: ai.cal ? ai.confidence : null };
+}
+
+// Cal 未設定の純正をまとめてAI判定（本店のみ）。原本ありのみ。件数上限つき（コスト対策）。
+export async function reidentifyMissingCalAi(
+  limit = 20,
+): Promise<{ ok?: true; error?: string; updated?: number; scanned?: number }> {
+  await requireHQ();
+  if (!aiEnabled()) {
+    return { error: "AIキー(ANTHROPIC_API_KEY)が未設定です。サーバに設定してください。" };
+  }
+  const bases = await prisma.baseFile.findMany({
+    where: { archived: false, calNumber: null, stockFileRef: { not: null } },
+    orderBy: { createdAt: "desc" },
+    take: Math.min(Math.max(limit, 1), 50),
+    select: { id: true },
+  });
+  let updated = 0;
+  for (const b of bases) {
+    const r = await reidentifyBaseEcuAi(b.id);
+    if (r.ok && r.cal) updated++;
+  }
+  revalidatePath(CATALOG_PATH);
+  revalidatePath(PENDING_PATH);
+  return { ok: true, updated, scanned: bases.length };
+}
 
 // 未整備ストックに mod ファイルを登録（1操作で variant 作成＋ファイル添付）
 export async function createVariantWithFile(

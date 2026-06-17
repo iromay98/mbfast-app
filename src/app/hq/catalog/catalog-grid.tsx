@@ -12,6 +12,7 @@ import {
   setVariantStatus,
   updateBaseFile,
   updateVariant,
+  reidentifyBaseEcuAi,
 } from "@/lib/actions/catalog";
 import { type FuelKind, optionTagsFor, popsAllowed, baselineStages } from "@/lib/catalog/options";
 import { swLabel } from "@/lib/catalog/sw";
@@ -194,6 +195,7 @@ export function CatalogGrid({ groups }: { groups: CalGroup[] }) {
       open={expanded.has(g.baseFileId)}
       onToggleOpen={() => toggleCollapse(g.baseFileId)}
       onPatchBase={(p) => run(() => updateBaseFile(g.baseFileId, p))}
+      onReidentify={() => run(() => reidentifyBaseEcuAi(g.baseFileId))}
       onAddVariant={(stage, pops, popsSport) =>
         run(() =>
           createVariant({
@@ -280,6 +282,7 @@ function CalGroupCard({
   open,
   onToggleOpen,
   onPatchBase,
+  onReidentify,
   onAddVariant,
   onPatchVariant,
   onDuplicate,
@@ -292,6 +295,7 @@ function CalGroupCard({
   open: boolean;
   onToggleOpen: () => void;
   onPatchBase: (p: Record<string, unknown>) => void;
+  onReidentify: () => void;
   onAddVariant: (stage: string, pops: boolean, popsSport: boolean) => void;
   onPatchVariant: (id: string, p: Record<string, unknown>) => void;
   onDuplicate: (id: string) => void;
@@ -383,6 +387,16 @@ function CalGroupCard({
           mono
           className="w-32"
         />
+        {g.hasStock && (
+          <button
+            type="button"
+            onClick={onReidentify}
+            title="保存済みの原本binをAIで読み直してCal/SW/HWを更新（再復号なし）"
+            className="rounded border border-sky-300 bg-sky-50 px-1.5 py-0.5 text-[11px] font-semibold text-sky-700 hover:bg-sky-100"
+          >
+            🤖 AI再判定
+          </button>
+        )}
         <span className="text-ink-soft">SW</span>
         <EditCell
           value={g.sw}
