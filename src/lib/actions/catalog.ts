@@ -401,11 +401,15 @@ export async function createVariantWithFile(
   if (!force) {
     const base = await prisma.baseFile.findUnique({
       where: { id: baseFileId },
-      select: { calNumber: true, swNumber: true, ecu: true },
+      select: { calNumber: true, swNumber: true, ecu: true, manufacturer: true },
     });
     if (base && (base.calNumber || base.swNumber)) {
       const buf = Buffer.from(await file.arrayBuffer());
-      const ecu = await smartExtractEcuId(buf, { hash: null, ecuType: base.ecu });
+      const ecu = await smartExtractEcuId(buf, {
+        hash: null,
+        ecuType: base.ecu,
+        manufacturer: base.manufacturer,
+      });
       const norm = (s?: string | null) => (s ?? "").trim().toUpperCase().replace(/\s+/g, "");
       const fileCal = norm(ecu.cal);
       const baseCal = norm(base.calNumber);
@@ -805,7 +809,11 @@ export async function createBaseFileFromBin(formData: FormData): Promise<FormSta
   const buf = Buffer.from(await file.arrayBuffer());
   const stockHash = createHash("sha256").update(buf).digest("hex");
   const typedEcu = String(formData.get("ecu") ?? "").trim();
-  const ecu = await smartExtractEcuId(buf, { hash: stockHash, ecuType: typedEcu || null });
+  const ecu = await smartExtractEcuId(buf, {
+    hash: stockHash,
+    ecuType: typedEcu || null,
+    manufacturer, // ベンツは自動Cal認識を無効化（手入力のみ）
+  });
   const saved = await saveUpload(file, "catalog/stock");
   if (!saved.ok) return { error: saved.error };
 

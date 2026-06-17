@@ -2,7 +2,7 @@ import { prisma } from "@/lib/db";
 import { storage } from "@/server/storage";
 import { notify } from "@/server/notifications";
 import { extractEcuId } from "@/server/ecu/identify";
-import { normalizeManufacturer } from "@/lib/catalog/manufacturers";
+import { normalizeManufacturer, isMercedes } from "@/lib/catalog/manufacturers";
 
 type CaptureMeta = {
   manufacturer?: string | null;
@@ -80,8 +80,11 @@ export async function matchAndLinkCatalog(opts: {
   const stockKey = `catalog/stock/${hash.toLowerCase()}.bin`;
   await storage.save(stockKey, bytes, contentType);
 
-  // 原本バイトから ECU 識別子（HW/SW/Cal）を抽出
-  const ecu = extractEcuId(bytes);
+  // 原本バイトから ECU 識別子（HW/SW/Cal）を抽出。
+  // ベンツは自動認識が Cal を誤検出するため抽出しない（本店が手入力）。
+  const ecu = isMercedes(opts.meta.manufacturer)
+    ? { hw: null, sw: null, cal: null }
+    : extractEcuId(bytes);
 
   // 同一 SW・別内容(hash) の通し番号を採番（0=無印, 1=-A, …）。
   // hash は一意なので「同SWの既存件数」がそのまま新規の連番になる。

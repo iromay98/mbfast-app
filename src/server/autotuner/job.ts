@@ -53,6 +53,7 @@ export async function runDecryptJob(recordId: string): Promise<void> {
     const ecu = await smartExtractEcuId(result.decryptedData, {
       hash: result.hash,
       ecuType: result.meta.ecu,
+      manufacturer: result.meta.manufacturer, // ベンツは自動Cal認識を無効化
     });
     await prisma.serviceRecord.update({
       where: { id: recordId },

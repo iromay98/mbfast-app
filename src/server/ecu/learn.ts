@@ -13,6 +13,7 @@
 
 import { prisma } from "@/lib/db";
 import { extractEcuId, type EcuId } from "@/server/ecu/identify";
+import { isMercedes } from "@/lib/catalog/manufacturers";
 
 type Field = "HW" | "SW" | "CAL";
 
@@ -210,12 +211,19 @@ async function applyMarkers(
 // 組み込み抽出＋学習（MARKER）＋確定値（EXACT）をマージ。EXACT が最優先。
 export async function smartExtractEcuId(
   buf: Buffer,
-  ctx: { hash?: string | null; ecuType?: string | null },
+  ctx: { hash?: string | null; ecuType?: string | null; manufacturer?: string | null },
 ): Promise<EcuId> {
   const base = extractEcuId(buf);
 
-  // MARKER（組み込みで取れなかった項目だけ補う）
-  if (!base.hw || !base.sw || !base.cal) {
+  // ベンツは自動認識(組み込み抽出/MARKER)が Cal を誤検出するため一切使わない。
+  // 確定値(EXACT＝同一ファイルに本店が確定した値)と手入力のみを使う。
+  const benz = isMercedes(ctx.manufacturer);
+  if (benz) {
+    base.hw = null;
+    base.sw = null;
+    base.cal = null;
+  } else if (!base.hw || !base.sw || !base.cal) {
+    // MARKER（組み込みで取れなかった項目だけ補う）
     const cleaned = clean(buf);
     const m = await applyMarkers(cleaned, ctx.ecuType ?? null);
     if (!base.hw && m.HW) base.hw = m.HW;

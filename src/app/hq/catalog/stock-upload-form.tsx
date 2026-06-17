@@ -8,7 +8,7 @@ import {
   createBaseFileFromBin,
   createVariantWithFile,
 } from "@/lib/actions/catalog";
-import { MANUFACTURERS } from "@/lib/catalog/manufacturers";
+import { MANUFACTURERS, isMercedes } from "@/lib/catalog/manufacturers";
 import { fuelKindOf, type FuelKind } from "@/lib/catalog/options";
 import { ModUploadForm } from "./mod-upload-form";
 
@@ -88,15 +88,19 @@ export function StockUploadForm({
         return;
       }
       setAnalyzed(r);
-      // 抽出値を既定として流し込む（編集可・自動認識しない項目は手入力できる）
-      setF((s) => ({
-        ...s,
-        ecu: s.ecu || r.ecu || "",
-        displacement: s.displacement || r.displacement || "",
-        cal: s.cal || r.cal || "",
-        sw: s.sw || r.sw || "",
-        hw: s.hw || r.hw || "",
-      }));
+      // 抽出値を既定として流し込む（編集可）。
+      // ベンツは Cal/SW/HW の自動認識が誤検出するため流し込まない（手入力のみ）。
+      setF((s) => {
+        const benz = isMercedes(s.manufacturer);
+        return {
+          ...s,
+          ecu: s.ecu || r.ecu || "",
+          displacement: s.displacement || r.displacement || "",
+          cal: benz ? s.cal : s.cal || r.cal || "",
+          sw: benz ? s.sw : s.sw || r.sw || "",
+          hw: benz ? s.hw : s.hw || r.hw || "",
+        };
+      });
     });
   };
 
@@ -253,7 +257,15 @@ export function StockUploadForm({
                 list="maker-options"
                 placeholder="例: Audi"
                 value={f.manufacturer}
-                onChange={set("manufacturer")}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  // ベンツは自動Cal認識が誤検出するため、選択時に自動値をクリア（手入力のみ）
+                  setF((s) =>
+                    isMercedes(v)
+                      ? { ...s, manufacturer: v, cal: "", sw: "", hw: "" }
+                      : { ...s, manufacturer: v },
+                  );
+                }}
               />
             </label>
             <label className="block">

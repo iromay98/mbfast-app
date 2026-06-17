@@ -91,6 +91,11 @@ const ALIASES: Record<string, string> = {
  * 2) 既存DBメーカー一覧(existing)にキー一致すれば既存表記を返す（新規揺れ防止）。
  * 3) どれにも一致しなければトリムした入力をそのまま返す（新メーカーは追加可）。
  */
+// メルセデス系か（自動Cal認識を無効化する判定に使う）。
+export function isMercedes(manufacturer?: string | null): boolean {
+  return /mercedes|benz|メルセデス|ベンツ|\bamg\b/i.test((manufacturer ?? "").trim());
+}
+
 export function normalizeManufacturer(input: string, existing: string[] = []): string {
   const raw = input.trim();
   if (!raw) return raw;
