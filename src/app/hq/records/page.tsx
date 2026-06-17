@@ -11,7 +11,28 @@ import {
 } from "@/lib/labels";
 import { PageTitle, Card, Badge, EmptyState, Button, Input, Select, Field } from "@/components/ui";
 import type { Prisma } from "@/generated/prisma/client";
+import { vehicleLabel } from "@/lib/catalog/vehicle";
 import { HQSlaveUpload } from "./hq-slave-upload";
+
+// 一覧の車両名: 照合した純正(カタログ)の "メーカー 車種(世代) グレード" を優先。
+function recordTitle(r: {
+  carMaker: string | null;
+  carModel: string | null;
+  slaveName: string | null;
+  matchedBaseFile: {
+    manufacturer: string;
+    model: string;
+    generation: string | null;
+    grade: string | null;
+  } | null;
+}): string {
+  return (
+    (r.matchedBaseFile && vehicleLabel(r.matchedBaseFile)) ||
+    (r.carMaker || r.carModel
+      ? `${r.carMaker ?? ""} ${r.carModel ?? ""}`.trim()
+      : r.slaveName || "（解析中…）")
+  );
+}
 
 type SP = Record<string, string | string[] | undefined>;
 function one(v: string | string[] | undefined): string {
@@ -61,7 +82,12 @@ export default async function HQRecordsPage({
       where,
       orderBy: { workedAt: "desc" },
       take: 200,
-      include: { dealer: { select: { name: true } } },
+      include: {
+        dealer: { select: { name: true } },
+        matchedBaseFile: {
+          select: { manufacturer: true, model: true, generation: true, grade: true },
+        },
+      },
     }),
     // 未返却（納品/キャンセル以外）の依頼 — 一覧トップに出し、記録行にもバッジ表示
     prisma.fileRequest.findMany({
@@ -265,10 +291,7 @@ export default async function HQRecordsPage({
               </summary>
               <div className="divide-y divide-line">
                 {g.recs.map((r) => {
-                  const title =
-                    r.carMaker || r.carModel
-                      ? `${r.carMaker ?? ""} ${r.carModel ?? ""}`.trim()
-                      : r.slaveName || "（解析中…）";
+                  const title = recordTitle(r);
                   return (
                     <Link
                       key={r.id}
@@ -304,10 +327,7 @@ export default async function HQRecordsPage({
       ) : (
         <Card className="divide-y divide-line p-0">
           {records.map((r) => {
-            const title =
-              r.carMaker || r.carModel
-                ? `${r.carMaker ?? ""} ${r.carModel ?? ""}`.trim()
-                : r.slaveName || "（解析中…）";
+            const title = recordTitle(r);
             return (
               <Link
                 key={r.id}

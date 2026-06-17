@@ -53,6 +53,7 @@ export function StockUploadForm({
     manufacturer: "",
     model: "",
     generation: "",
+    grade: "",
     engineCode: "",
     displacement: "",
     ecu: "",
@@ -110,6 +111,7 @@ export function StockUploadForm({
     fd.set("manufacturer", f.manufacturer.trim());
     fd.set("model", f.model.trim());
     if (f.generation.trim()) fd.set("generation", f.generation.trim());
+    if (f.grade.trim()) fd.set("grade", f.grade.trim());
     if (f.engineCode.trim()) fd.set("engineCode", f.engineCode.trim());
     if (f.displacement.trim()) fd.set("displacement", f.displacement.trim());
     if (f.ecu.trim()) fd.set("ecu", f.ecu.trim());
@@ -173,7 +175,7 @@ export function StockUploadForm({
   const finish = () => {
     setCreated(null);
     setAddedMods([]);
-    setF({ manufacturer: "", model: "", generation: "", engineCode: "", displacement: "", ecu: "", mcu: "", cal: "", sw: "", hw: "" });
+    setF({ manufacturer: "", model: "", generation: "", grade: "", engineCode: "", displacement: "", ecu: "", mcu: "", cal: "", sw: "", hw: "" });
     setMsg(null);
     setOpen(false);
     router.refresh();
@@ -266,7 +268,11 @@ export function StockUploadForm({
             </label>
             <label className="block">
               <span className="mb-1 block text-xs font-semibold text-ink-soft">世代（任意）</span>
-              <input className={`${inp} w-full`} placeholder="例: 8V" value={f.generation} onChange={set("generation")} />
+              <input className={`${inp} w-full`} placeholder="例: 8V / W222" value={f.generation} onChange={set("generation")} />
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-xs font-semibold text-ink-soft">グレード（任意）</span>
+              <input className={`${inp} w-full`} placeholder="例: S550 / RS3" value={f.grade} onChange={set("grade")} />
             </label>
             <label className="block">
               <span className="mb-1 block text-xs font-semibold text-ink-soft">エンジン型式（任意）</span>

@@ -20,6 +20,7 @@ import { updateRecordSupplement } from "@/lib/actions/records";
 import { SupplementForm } from "./supplement-form";
 import { TuningConfigurator } from "./tuning-configurator";
 import { fuelKindOf, optionTagsFor, popsAllowed, stageRank, baselineStages } from "@/lib/catalog/options";
+import { vehicleLabel } from "@/lib/catalog/vehicle";
 
 export default async function DealerRecordDetailPage({
   params,
@@ -43,6 +44,9 @@ export default async function DealerRecordDetailPage({
         select: {
           fuel: true,
           manufacturer: true,
+          model: true,
+          generation: true,
+          grade: true,
           limiterCutDisabled: true,
           variants: {
             where: { status: { not: "DISABLED" } },
@@ -136,7 +140,20 @@ export default async function DealerRecordDetailPage({
       <MessageNotifier recordId={record.id} viewerRole="DEALER" />
 
       {/* 代理店には専門情報(ECU/Cal/HW/SW・復号ファイル等)を出さない */}
-      <RecordDetail record={record} hideTechnical />
+      <RecordDetail
+        record={record}
+        hideTechnical
+        vehicleName={
+          matched
+            ? vehicleLabel({
+                manufacturer: matched.manufacturer,
+                model: matched.model,
+                generation: matched.generation,
+                grade: matched.grade,
+              })
+            : undefined
+        }
+      />
 
       {configurator && (
         <Card className="border-gold-200 bg-gold-50">

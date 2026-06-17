@@ -271,7 +271,7 @@ export async function updateBaseFile(
   }
   // Cal/SW/HW は空入力で「クリア(null)」できるようにする（誤認識値の消去用）。
   const data: Record<string, unknown> = { ...parsed.data };
-  for (const k of ["calNumber", "swNumber", "hwNumber"] as const) {
+  for (const k of ["calNumber", "swNumber", "hwNumber", "generation", "grade"] as const) {
     if (k in patch) data[k] = String(patch[k] ?? "").trim() || null;
   }
   try {
@@ -818,6 +818,7 @@ export async function createBaseFileFromBin(formData: FormData): Promise<FormSta
   const ecuType = String(formData.get("ecu") ?? "").trim() || ecu.ecuType || "(不明)";
   const mcu = String(formData.get("mcu") ?? "").trim() || null;
   const generation = String(formData.get("generation") ?? "").trim() || null;
+  const grade = String(formData.get("grade") ?? "").trim() || null;
   const engineCode = String(formData.get("engineCode") ?? "").trim() || ecu.engineCode || null;
   const displacement = String(formData.get("displacement") ?? "").trim() || null;
   const fuel = String(formData.get("fuel") ?? "").trim() || inferredFuel;
@@ -857,6 +858,7 @@ export async function createBaseFileFromBin(formData: FormData): Promise<FormSta
         swSeq,
         calNumber,
         generation,
+        grade,
         engineCode,
         displacement,
         fuel,
@@ -898,6 +900,7 @@ export async function createBaseFileFromBin(formData: FormData): Promise<FormSta
         swSeq,
         calNumber,
         generation,
+        grade,
         engineCode,
         displacement,
         fuel,

@@ -30,6 +30,7 @@ export type CatalogRow = {
   manufacturer: string;
   model: string;
   generation: string;
+  grade: string;
   engineCode: string;
   displacement: string;
   ecu: string;
@@ -68,6 +69,7 @@ export type CalGroup = {
   manufacturer: string;
   model: string;
   generation: string;
+  grade: string;
   engineCode: string;
   displacement: string;
   ecu: string;
@@ -316,7 +318,21 @@ function CalGroupCard({
         {/* メーカー・ECU は slave 由来で固定（編集不可）。グレード(車種)のみ編集可。 */}
         <span className="text-sm font-semibold text-ink">{g.manufacturer}</span>
         <EditCell value={g.model} onSave={(v) => onPatchBase({ model: v })} className="w-24 font-semibold" />
-        {g.generation && <span className="text-xs text-ink-soft">({g.generation})</span>}
+        <span className="text-xs text-ink-soft">(</span>
+        <EditCell
+          value={g.generation}
+          onSave={(v) => onPatchBase({ generation: v })}
+          placeholder="世代"
+          className="w-16 text-xs"
+        />
+        <span className="text-xs text-ink-soft">)</span>
+        {/* グレード（例 S550）。空でも編集できるよう常時表示 */}
+        <EditCell
+          value={g.grade}
+          onSave={(v) => onPatchBase({ grade: v })}
+          placeholder="グレード"
+          className="w-20 text-sm font-semibold"
+        />
         {(g.displacement || g.engineCode) && (
           <span className="text-xs text-ink-soft">
             {[g.displacement, g.engineCode].filter(Boolean).join(" ")}

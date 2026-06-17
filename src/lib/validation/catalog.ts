@@ -25,6 +25,8 @@ export const baseFileSchema = z.object({
   mcu: optionalStr,
   note: optionalStr,
   driver: optionalStr,
+  generation: optionalStr,
+  grade: optionalStr,
   driverBorrowed: optionalBool,
   // 自動認識しなかった時に本店が手入力する ECU 識別子
   hwNumber: optionalStr,

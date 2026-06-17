@@ -10,6 +10,7 @@ import {
 } from "@/lib/labels";
 import { PageTitle, Card, Badge, EmptyState, LinkButton } from "@/components/ui";
 import { AutoRefresh } from "@/components/auto-refresh";
+import { vehicleLabel } from "@/lib/catalog/vehicle";
 import { SlaveUpload } from "./slave-upload";
 
 export default async function DealerRecordsPage() {
@@ -17,6 +18,11 @@ export default async function DealerRecordsPage() {
   const records = await prisma.serviceRecord.findMany({
     where: { dealerId: user.dealerId, deletedAt: null },
     orderBy: { createdAt: "desc" },
+    include: {
+      matchedBaseFile: {
+        select: { manufacturer: true, model: true, generation: true, grade: true },
+      },
+    },
   });
 
   const hasPending = records.some((r) => isPendingStatus(r.status));
@@ -47,9 +53,10 @@ export default async function DealerRecordsPage() {
           {records.map((r) => {
             const pending = isPendingStatus(r.status);
             const title =
-              r.carMaker || r.carModel
+              (r.matchedBaseFile && vehicleLabel(r.matchedBaseFile)) ||
+              (r.carMaker || r.carModel
                 ? `${r.carMaker ?? ""} ${r.carModel ?? ""}`.trim()
-                : r.slaveName || "（解析中…）";
+                : r.slaveName || "（解析中…）");
             return (
               <Link
                 key={r.id}

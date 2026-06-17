@@ -364,7 +364,8 @@ model BaseFile {
   swNumber   String?
   swSeq      Int     @default(0) // 同一SW・別内容(hash)の通し番号。0=無印, 1=-A, 2=-B…
   calNumber  String?
-  generation   String? // 世代（例 8V）＝復号 engine.version 由来
+  generation   String? // 世代（例 8V / W222）＝復号 engine.version 由来 or 手入力
+  grade        String? // グレード/車格（任意・手入力 例 S550, RS3, S-class）
   engineCode   String? // エンジン型式（任意・手入力 例 CZGB）
   displacement String? // 排気量（任意・手入力 例 2.5L）。原本binから推定して既定値にする
   method       String? // 読み方式（例 OBD）

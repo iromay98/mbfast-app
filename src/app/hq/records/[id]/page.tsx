@@ -35,6 +35,7 @@ import {
   baselineStages,
 } from "@/lib/catalog/options";
 import { swLabel } from "@/lib/catalog/sw";
+import { vehicleLabel } from "@/lib/catalog/vehicle";
 
 export default async function HQRecordDetailPage({
   params,
@@ -93,6 +94,9 @@ export default async function HQRecordDetailPage({
         select: {
           fuel: true,
           manufacturer: true,
+          model: true,
+          generation: true,
+          grade: true,
           swNumber: true,
           swSeq: true,
           variants: {
@@ -196,6 +200,16 @@ export default async function HQRecordDetailPage({
 
       <RecordDetail
         record={record}
+        vehicleName={
+          matched
+            ? vehicleLabel({
+                manufacturer: matched.manufacturer,
+                model: matched.model,
+                generation: matched.generation,
+                grade: matched.grade,
+              })
+            : undefined
+        }
         dealerControl={
           <RecordDealerSelect
             recordId={record.id}

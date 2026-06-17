@@ -68,6 +68,7 @@ export function RecordDetail({
   customerNameControl,
   workedAtControl,
   swDisplay,
+  vehicleName,
 }: {
   record: RecordForDetail;
   // 代理店向けは true。ECU/Cal/HW/SW・読み方式・TCU・エンジン情報・復号ファイル等を一切出さない。
@@ -80,12 +81,15 @@ export function RecordDetail({
   workedAtControl?: React.ReactNode;
   // 本店向け: SW番号の表示上書き（同一SW・別内容の枝番付きラベル等）。
   swDisplay?: string;
+  // 照合した純正(カタログ)由来の車両名（例 "Mercedes S-class(W222) S550"）。指定時はこれを優先表示。
+  vehicleName?: string;
 }) {
   const engine = (record.engineInfo as EngineInfo) ?? null;
   const title =
-    record.carMaker || record.carModel
+    (vehicleName && vehicleName.trim()) ||
+    (record.carMaker || record.carModel
       ? `${record.carMaker ?? ""} ${record.carModel ?? ""}`.trim()
-      : record.slaveName || "（解析中…）";
+      : record.slaveName || "（解析中…）");
 
   return (
     <div className="space-y-4">
