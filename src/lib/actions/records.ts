@@ -11,7 +11,8 @@ import { type FormState, zodToFieldErrors } from "@/lib/actions/form-state";
 import { saveUpload, storage } from "@/server/storage";
 import { runDecryptJob } from "@/server/autotuner/job";
 import { learnEcuRules, smartExtractEcuId } from "@/server/ecu/learn";
-import { aiExtractIds, aiEnabled } from "@/server/ecu/ai-extract";
+import { aiExtractIds, aiEnabled, recordCorrection } from "@/server/ecu/ai-extract";
+import { normalizeManufacturer } from "@/lib/catalog/manufacturers";
 
 // 施工記録の登録（代理店が自店分を登録）
 export async function createServiceRecord(
@@ -603,6 +604,7 @@ export async function setRecordEcu(
         ecuType: true,
         decryptedHash: true,
         decryptedFilePath: true,
+        carMaker: true,
         hwNumber: true,
         swNumber: true,
         calNumber: true,
@@ -617,6 +619,15 @@ export async function setRecordEcu(
       hw: r.hwNumber,
       sw: r.swNumber,
       cal: r.calNumber,
+    });
+    // 修正の自己学習: AIキャッシュの誤値を消し、メーカー別の正解例として記録。
+    await recordCorrection({
+      manufacturer: r.carMaker ? normalizeManufacturer(r.carMaker) : null,
+      ecu: r.ecuType,
+      hash: r.decryptedHash,
+      cal: r.calNumber,
+      sw: r.swNumber,
+      hw: r.hwNumber,
     });
   });
 

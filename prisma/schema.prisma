@@ -126,6 +126,20 @@ model ServiceLog {
   @@index([serviceRecordId])
 }
 
+// 本店が確定(修正)した識別子の実例。AI識別のfew-shot例として使い、メーカー別に
+// Cal/SW/HW の形式を学習させる（修正を次に活かす自己学習）。
+model EcuExample {
+  id           String   @id @default(cuid())
+  manufacturer String
+  ecu          String?
+  cal          String?
+  sw           String?
+  hw           String?
+  createdAt    DateTime @default(now())
+
+  @@index([manufacturer])
+}
+
 // 候補トークンがどのファイル(hash)に出たかの記録。複数の無関係なファイルに共通する値
 // （定数：ベンツの或るCalがアバルトにも出る等）を検出して、AI候補から除外するため。
 model EcuTokenSeen {

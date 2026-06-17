@@ -171,6 +171,15 @@ export async function learnEcuRules(opts: {
 }
 
 // 内容hash一致の EXACT 値を引く。
+// 内容hashに対して本店が確定した値（EXACT）。本店修正＝最優先（AIより上）。
+export async function getConfirmedIds(
+  hash: string | null | undefined,
+): Promise<{ hw: string | null; sw: string | null; cal: string | null }> {
+  if (!hash) return { hw: null, sw: null, cal: null };
+  const ex = await lookupExact(hash);
+  return { hw: ex.HW ?? null, sw: ex.SW ?? null, cal: ex.CAL ?? null };
+}
+
 async function lookupExact(hash: string): Promise<Partial<Record<Field, string>>> {
   const rules = await prisma.ecuRule.findMany({
     where: { kind: "EXACT", matchKey: hash },

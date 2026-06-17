@@ -8,7 +8,13 @@ import { requireHQ } from "@/lib/authz";
 import { saveUpload, storage } from "@/server/storage";
 import { notify } from "@/server/notifications";
 import { smartExtractEcuId, learnEcuRules } from "@/server/ecu/learn";
-import { aiExtractIds, aiAnalyzeStock, aiEnabled, recordCandidateTokens } from "@/server/ecu/ai-extract";
+import {
+  aiExtractIds,
+  aiAnalyzeStock,
+  aiEnabled,
+  recordCandidateTokens,
+  recordCorrection,
+} from "@/server/ecu/ai-extract";
 import {
   fuelKindOf,
   optionTagsFor,
@@ -291,6 +297,7 @@ export async function updateBaseFile(
           ecu: true,
           stockHash: true,
           stockFileRef: true,
+          manufacturer: true,
           hwNumber: true,
           swNumber: true,
           calNumber: true,
@@ -306,6 +313,15 @@ export async function updateBaseFile(
         sw: b.swNumber,
         cal: b.calNumber,
         sourceBaseFileId: baseFileId,
+      });
+      // 修正の自己学習: AIキャッシュの誤値を消し、メーカー別の正解例として記録。
+      await recordCorrection({
+        manufacturer: b.manufacturer,
+        ecu: b.ecu,
+        hash: b.stockHash,
+        cal: b.calNumber,
+        sw: b.swNumber,
+        hw: b.hwNumber,
       });
     });
   }

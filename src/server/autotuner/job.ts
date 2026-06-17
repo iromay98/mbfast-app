@@ -4,7 +4,7 @@ import { prisma } from "@/lib/db";
 import { storage } from "@/server/storage";
 import { notify } from "@/server/notifications";
 import { matchAndLinkCatalog } from "@/server/catalog/match";
-import { smartExtractEcuId } from "@/server/ecu/learn";
+import { smartExtractEcuId, getConfirmedIds } from "@/server/ecu/learn";
 import { aiExtractIds } from "@/server/ecu/ai-extract";
 import { decryptSlave } from "./client";
 import { AutotunerError, type DecryptResponse } from "./types";
@@ -68,11 +68,20 @@ export async function runDecryptJob(recordId: string): Promise<void> {
       engineCode: pattern.engineCode,
       engineDesc: pattern.engineDesc ?? result.meta.model,
     });
-    const useAi = !!ai?.cal;
-    const hwNumber = ai?.hw ?? pattern.hw;
-    const swNumber = ai?.sw ?? pattern.sw;
-    const calNumber = ai?.cal ?? pattern.cal;
-    const idSource = useAi ? "AI" : pattern.cal || pattern.sw || pattern.hw ? "PATTERN" : null;
+    // 本店が確定(EXACT)した値は最優先（AIより上）＝修正の自己学習。
+    const confirmed = await getConfirmedIds(result.hash);
+    const isConfirmed = !!(confirmed.cal || confirmed.sw || confirmed.hw);
+    const useAi = !isConfirmed && !!ai?.cal;
+    const hwNumber = confirmed.hw ?? ai?.hw ?? pattern.hw;
+    const swNumber = confirmed.sw ?? ai?.sw ?? pattern.sw;
+    const calNumber = confirmed.cal ?? ai?.cal ?? pattern.cal;
+    const idSource = isConfirmed
+      ? "MANUAL"
+      : useAi
+        ? "AI"
+        : pattern.cal || pattern.sw || pattern.hw
+          ? "PATTERN"
+          : null;
     const idConfidence = useAi ? (ai?.confidence ?? null) : null;
 
     await prisma.serviceRecord.update({

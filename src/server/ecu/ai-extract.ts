@@ -40,6 +40,59 @@ export async function recordCandidateTokens(
     .catch(() => {});
 }
 
+// 本店の修正を次に活かす: ①AIキャッシュの誤値を消す ②few-shot例として記録。
+export async function recordCorrection(opts: {
+  manufacturer?: string | null;
+  ecu?: string | null;
+  hash?: string | null;
+  cal?: string | null;
+  sw?: string | null;
+  hw?: string | null;
+}): Promise<void> {
+  if (opts.hash) {
+    await prisma.ecuAiCache.deleteMany({ where: { hash: opts.hash } }).catch(() => {});
+  }
+  if (opts.manufacturer && (opts.cal || opts.sw || opts.hw)) {
+    await prisma.ecuExample
+      .create({
+        data: {
+          manufacturer: opts.manufacturer,
+          ecu: opts.ecu ?? null,
+          cal: opts.cal ?? null,
+          sw: opts.sw ?? null,
+          hw: opts.hw ?? null,
+        },
+      })
+      .catch(() => {});
+  }
+}
+
+// AIに渡す「確定済みの正解例」（メーカー一致を優先、無ければ最近のもの）。
+async function loadExamples(manufacturer?: string | null, limit = 6): Promise<string> {
+  try {
+    let ex = manufacturer
+      ? await prisma.ecuExample.findMany({
+          where: { manufacturer },
+          orderBy: { createdAt: "desc" },
+          take: limit,
+        })
+      : [];
+    if (ex.length === 0) {
+      ex = await prisma.ecuExample.findMany({ orderBy: { createdAt: "desc" }, take: limit });
+    }
+    if (ex.length === 0) return "";
+    const lines = ex.map(
+      (e) => `- ${e.manufacturer}${e.ecu ? ` (${e.ecu})` : ""}: Cal=${e.cal ?? "-"} SW=${e.sw ?? "-"} HW=${e.hw ?? "-"}`,
+    );
+    return [
+      "Known-correct examples previously confirmed by the operator (learn the FORMAT/pattern of Cal/SW/HW for each manufacturer from these):",
+      ...lines,
+    ].join("\n");
+  } catch {
+    return "";
+  }
+}
+
 const TOOL: Anthropic.Tool = {
   name: "report_ecu_ids",
   description:
@@ -81,12 +134,15 @@ function buildPrompt(
     engineCode?: string | null;
     engineDesc?: string | null;
   },
+  examples = "",
 ): string {
   return [
     "You are an expert at reading automotive ECU firmware identifier blocks.",
     "From the candidate ASCII strings extracted from a decrypted ECU dump, identify the vehicle's",
     "Calibration number (Cal), Software number (SW) and Hardware part number (HW).",
     "",
+    examples,
+    examples ? "" : null,
     `Manufacturer: ${ctx.manufacturer ?? "(unknown)"}`,
     `ECU: ${ctx.ecuType ?? "(unknown)"}`,
     `Engine: ${ctx.engineDesc ?? ctx.engineCode ?? "(unknown)"}`,
@@ -211,7 +267,8 @@ export async function aiExtractIds(
     }
   }
 
-  const prompt = buildPrompt(usable, ctx);
+  const examples = await loadExamples(ctx.manufacturer);
+  const prompt = buildPrompt(usable, ctx, examples);
   const client = new Anthropic({ apiKey });
 
   const usedModel = PRIMARY.includes("haiku") ? "haiku" : "opus";
@@ -324,10 +381,12 @@ export async function aiAnalyzeStock(
   const usable = await prepCandidates(buf, ctx.hash);
   if (usable.length === 0) return null;
 
+  const examples = await loadExamples(null);
   const prompt = [
     "You are an expert at reading automotive ECU firmware dumps.",
     "From the candidate strings, infer the VEHICLE and the ECU identifiers.",
     "",
+    examples,
     ctx.engineDesc ? `Engine description found in dump: ${ctx.engineDesc}` : "",
     ctx.swHint ? `SW hint (pattern): ${ctx.swHint}` : "",
     ctx.calHint ? `Cal hint (pattern): ${ctx.calHint}` : "",
