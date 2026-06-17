@@ -12,6 +12,7 @@ import { PageTitle, Card, Badge, LinkButton } from "@/components/ui";
 import { RecordDetail } from "@/components/record-detail";
 import { RecordThread } from "@/components/record-thread";
 import { ActivityFeed, getRecordActivity } from "@/components/activity-feed";
+import { ServiceLog } from "@/components/service-log";
 import { AutoRefresh } from "@/components/auto-refresh";
 import { MessageNotifier } from "@/components/message-notifier";
 import { RetryDecryptButton } from "@/components/retry-decrypt-button";
@@ -67,6 +68,18 @@ export default async function HQRecordDetailPage({
     select: { id: true, authorRole: true, body: true, fileName: true, createdAt: true },
   });
   const recordActivity = await getRecordActivity(id);
+  const serviceLogs = (
+    await prisma.serviceLog.findMany({
+      where: { serviceRecordId: id },
+      orderBy: { performedAt: "desc" },
+      select: { id: true, performedAt: true, content: true, note: true },
+    })
+  ).map((l) => ({
+    id: l.id,
+    performedAtLabel: formatDate(l.performedAt),
+    content: l.content,
+    note: l.note,
+  }));
   // 未返却リクエストの「内容」ラベル（requestNote の 「…」 を抽出）
   const openLabels = requests
     .filter((r) => r.status !== "DELIVERED" && r.status !== "CANCELLED")
@@ -279,6 +292,8 @@ export default async function HQRecordDetailPage({
         <h3 className="mb-1 px-1 text-sm font-bold text-ink">この案件のダウンロード・リクエスト履歴</h3>
         <ActivityFeed items={recordActivity} showDealer />
       </div>
+
+      <ServiceLog recordId={record.id} logs={serviceLogs} canEdit />
 
       {requests.length > 0 && (
         <Card>

@@ -12,6 +12,7 @@ import { PageTitle, Card, Badge, LinkButton } from "@/components/ui";
 import { RecordDetail } from "@/components/record-detail";
 import { RecordThread } from "@/components/record-thread";
 import { ActivityFeed, getRecordActivity } from "@/components/activity-feed";
+import { ServiceLog } from "@/components/service-log";
 import { AutoRefresh } from "@/components/auto-refresh";
 import { MessageNotifier } from "@/components/message-notifier";
 import { RetryDecryptButton } from "@/components/retry-decrypt-button";
@@ -83,6 +84,18 @@ export default async function DealerRecordDetailPage({
     select: { id: true, authorRole: true, body: true, fileName: true, createdAt: true },
   });
   const recordActivity = await getRecordActivity(id);
+  const serviceLogs = (
+    await prisma.serviceLog.findMany({
+      where: { serviceRecordId: id },
+      orderBy: { performedAt: "desc" },
+      select: { id: true, performedAt: true, content: true, note: true },
+    })
+  ).map((l) => ({
+    id: l.id,
+    performedAtLabel: formatDate(l.performedAt),
+    content: l.content,
+    note: l.note,
+  }));
   // 納品ファイル(.slave)を配信できるか（その車固有の再暗号化IDが揃っているか）
   const canDeliver =
     !!record.autotunerSlaveId &&
@@ -150,6 +163,9 @@ export default async function DealerRecordDetailPage({
         <h3 className="mb-1 px-1 text-sm font-bold text-ink">この案件のダウンロード・リクエスト履歴</h3>
         <ActivityFeed items={recordActivity} showDealer={false} />
       </div>
+
+      {/* 施工ログ（本部が記録。代理店は閲覧のみ） */}
+      <ServiceLog recordId={record.id} logs={serviceLogs} canEdit={false} />
 
       {/* ファイル＝純正に戻す（ori）のみ。slave は入れ直せないため非表示。 */}
       {canDeliver && record.decryptedFilePath && (

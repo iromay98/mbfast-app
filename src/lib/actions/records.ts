@@ -433,6 +433,49 @@ export async function setRecordWorkedAt(
   return { ok: true };
 }
 
+// 施工ログ（手動）の追加（本店のみ）。過去客の遡り登録などに使う。
+export async function addServiceLog(
+  recordId: string,
+  _prev: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  await requireHQ();
+  const content = String(formData.get("content") ?? "").trim();
+  if (!content) return { error: "施工内容を入力してください", fieldErrors: { content: "必須" } };
+  const note = String(formData.get("note") ?? "").trim() || null;
+  const raw = String(formData.get("performedAt") ?? "").trim();
+  let performedAt = new Date();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+    const d = new Date(`${raw}T12:00:00+09:00`);
+    if (!Number.isNaN(d.getTime())) performedAt = d;
+  }
+  const rec = await prisma.serviceRecord.findUnique({
+    where: { id: recordId },
+    select: { id: true },
+  });
+  if (!rec) return { error: "対象の施工記録が見つかりません" };
+  await prisma.serviceLog.create({
+    data: { serviceRecordId: recordId, performedAt, content, note },
+  });
+  revalidatePath(`/hq/records/${recordId}`);
+  revalidatePath(`/dealer/records/${recordId}`);
+  return { ok: true };
+}
+
+// 施工ログの削除（本店のみ）。
+export async function deleteServiceLog(logId: string): Promise<{ ok?: true; error?: string }> {
+  await requireHQ();
+  const log = await prisma.serviceLog.findUnique({
+    where: { id: logId },
+    select: { serviceRecordId: true },
+  });
+  if (!log) return { ok: true };
+  await prisma.serviceLog.delete({ where: { id: logId } });
+  revalidatePath(`/hq/records/${log.serviceRecordId}`);
+  revalidatePath(`/dealer/records/${log.serviceRecordId}`);
+  return { ok: true };
+}
+
 // ECU識別子(HW/SW/Cal)を手動で入力・修正（本店のみ）。
 // 自動抽出に未対応の車種（ベンツ等）で本店が手動補完するために使う。
 export async function setRecordEcu(

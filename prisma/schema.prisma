@@ -111,6 +111,21 @@ model User {
   @@index([dealerId])
 }
 
+// 手動の施工ログ。自動の活動履歴(DL/依頼)とは別に、過去客の遡り登録など
+// 「いつ・何を施工したか」を本店が手で記録するためのもの。
+model ServiceLog {
+  id              String        @id @default(cuid())
+  serviceRecordId String
+  serviceRecord   ServiceRecord @relation(fields: [serviceRecordId], references: [id], onDelete: Cascade)
+  performedAt     DateTime // 施工日（過去日OK）
+  content         String // 施工内容（例 Stage1＋バブリング）
+  note            String? // 補足メモ
+  authorId        String? // 記録者（任意）
+  createdAt       DateTime      @default(now())
+
+  @@index([serviceRecordId])
+}
+
 // Web Push 購読（ブラウザごと）。アプリ終了時もチャット新着を通知するため。
 model PushSubscription {
   id        String   @id @default(cuid())
@@ -216,6 +231,7 @@ model ServiceRecord {
   apiLogs      AutotunerApiLog[] // AutoTuner API 呼び出しログ
   catalogDownloads CatalogDownloadLog[] // この記録起点のカタログDL監査
   messages     RecordMessage[] // 案件ごとの本部⇄代理店メッセージ
+  serviceLogs  ServiceLog[] // 手動の施工ログ（過去客の遡り登録等）
 
   @@index([deletedAt])
   @@index([dealerId])
