@@ -10,7 +10,8 @@ import { serviceRecordSchema, recordSupplementSchema } from "@/lib/validation/re
 import { type FormState, zodToFieldErrors } from "@/lib/actions/form-state";
 import { saveUpload, storage } from "@/server/storage";
 import { runDecryptJob } from "@/server/autotuner/job";
-import { learnEcuRules } from "@/server/ecu/learn";
+import { learnEcuRules, smartExtractEcuId } from "@/server/ecu/learn";
+import { aiExtractIds, aiEnabled } from "@/server/ecu/ai-extract";
 
 // 施工記録の登録（代理店が自店分を登録）
 export async function createServiceRecord(
@@ -431,6 +432,63 @@ export async function setRecordWorkedAt(
   revalidatePath(`/hq/records/${recordId}`);
   revalidatePath("/hq/records");
   return { ok: true };
+}
+
+// AIでCalを再判定（本店のみ）。既存案件の保存済み復号binを再復号せずにAIで読み直す。
+// 過去案件（AI導入前に復号済み）を遡ってCal識別するために使う。
+export async function reidentifyEcuAi(
+  recordId: string,
+): Promise<{ ok?: true; error?: string; cal?: string | null; confidence?: number | null }> {
+  await requireHQ();
+  if (!aiEnabled()) {
+    return { error: "AIキー(ANTHROPIC_API_KEY)が未設定です。サーバに設定してください。" };
+  }
+  const rec = await prisma.serviceRecord.findUnique({
+    where: { id: recordId },
+    select: {
+      decryptedFilePath: true,
+      decryptedHash: true,
+      carMaker: true,
+      ecuType: true,
+      method: true,
+    },
+  });
+  if (!rec?.decryptedFilePath) {
+    return { error: "復号ファイルがありません（再判定できません）。" };
+  }
+  const file = await storage.read(rec.decryptedFilePath);
+  if (!file) return { error: "復号ファイルが見つかりません。" };
+
+  // パターン（メーカー考慮・ベンツは無効）をヒントに、AIで識別
+  const pattern = await smartExtractEcuId(file.buffer, {
+    hash: rec.decryptedHash,
+    ecuType: rec.ecuType,
+    manufacturer: rec.carMaker,
+  });
+  const ai = await aiExtractIds(file.buffer, {
+    hash: rec.decryptedHash,
+    manufacturer: rec.carMaker,
+    ecuType: rec.ecuType,
+    method: rec.method,
+    swHint: pattern.sw,
+    calHint: pattern.cal,
+  });
+  if (!ai || (!ai.cal && !ai.sw && !ai.hw)) {
+    return { error: "AIで識別子を特定できませんでした。手入力してください。" };
+  }
+  await prisma.serviceRecord.update({
+    where: { id: recordId },
+    data: {
+      calNumber: ai.cal ?? pattern.cal,
+      swNumber: ai.sw ?? pattern.sw,
+      hwNumber: ai.hw ?? pattern.hw,
+      idSource: ai.cal ? "AI" : "PATTERN",
+      idConfidence: ai.cal ? ai.confidence : null,
+    },
+  });
+  revalidatePath(`/hq/records/${recordId}`);
+  revalidatePath(`/dealer/records/${recordId}`);
+  return { ok: true, cal: ai.cal, confidence: ai.cal ? ai.confidence : null };
 }
 
 // 施工ログ（手動）の追加（本店のみ）。過去客の遡り登録などに使う。

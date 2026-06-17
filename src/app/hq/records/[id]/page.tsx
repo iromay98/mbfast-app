@@ -23,6 +23,7 @@ import { DeleteRecordButton } from "./delete-record-button";
 import { RecordCustomerEdit } from "./record-customer-edit";
 import { RecordWorkedAtEdit } from "./record-workedat-edit";
 import { EcuEditForm } from "./ecu-edit-form";
+import { ReidentifyEcuButton } from "./reidentify-ecu-button";
 import { HqEncryptForm } from "./hq-encrypt-form";
 import { VariationBuilder } from "./variation-matrix";
 import { dateLabel } from "@/server/catalog/filename";
@@ -247,6 +248,15 @@ export default async function HQRecordDetailPage({
           sw={record.swNumber}
           cal={record.calNumber}
         />
+        {/* 過去案件も含め、保存済み復号binをAIで読み直す（再復号なし） */}
+        {record.decryptedFilePath && (
+          <div className="mt-3 border-t border-line pt-3">
+            <p className="mb-2 text-xs text-ink-soft">
+              AI導入前の過去案件などは、保存済みの復号データをAIで読み直せます（再復号なし）。
+            </p>
+            <ReidentifyEcuButton recordId={record.id} />
+          </div>
+        )}
       </Card>
 
       <Card>
