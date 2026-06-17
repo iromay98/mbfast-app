@@ -397,7 +397,15 @@ export async function reidentifyBaseEcuAi(
   }
   const base = await prisma.baseFile.findUnique({
     where: { id: baseFileId },
-    select: { stockFileRef: true, stockHash: true, manufacturer: true, ecu: true, method: true },
+    select: {
+      stockFileRef: true,
+      stockHash: true,
+      manufacturer: true,
+      ecu: true,
+      method: true,
+      engineCode: true,
+      model: true,
+    },
   });
   if (!base?.stockFileRef) {
     return { error: "原本ファイルがありません（再判定できません）。" };
@@ -419,7 +427,10 @@ export async function reidentifyBaseEcuAi(
       method: base.method,
       swHint: pattern.sw,
       calHint: pattern.cal,
+      engineCode: base.engineCode,
+      engineDesc: base.engineCode ?? base.model,
       throwOnError: true,
+      force: true, // 手動再判定はキャッシュ無視で読み直し＋上書き
     });
   } catch (e) {
     return { error: e instanceof Error ? e.message : "AI呼び出しに失敗しました" };

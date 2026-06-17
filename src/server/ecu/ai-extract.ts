@@ -15,9 +15,8 @@ export type AiIds = {
   model: string; // "haiku" | "opus"
 };
 
-const HAIKU = process.env.ANTHROPIC_MODEL_FAST ?? "claude-haiku-4-5-20251001";
-const OPUS = process.env.ANTHROPIC_MODEL_STRONG ?? "claude-opus-4-8";
-const ESCALATE_BELOW = 0.75;
+// 精度優先: 既定は Opus 単発。コスト優先にしたい場合は ANTHROPIC_MODEL_STRONG を Haiku に。
+const PRIMARY = process.env.ANTHROPIC_MODEL_STRONG ?? "claude-opus-4-8";
 
 export function aiEnabled(): boolean {
   return !!process.env.ANTHROPIC_API_KEY;
@@ -61,6 +60,8 @@ function buildPrompt(
     method?: string | null;
     swHint?: string | null;
     calHint?: string | null;
+    engineCode?: string | null;
+    engineDesc?: string | null;
   },
 ): string {
   return [
@@ -70,6 +71,7 @@ function buildPrompt(
     "",
     `Manufacturer: ${ctx.manufacturer ?? "(unknown)"}`,
     `ECU: ${ctx.ecuType ?? "(unknown)"}`,
+    `Engine: ${ctx.engineDesc ?? ctx.engineCode ?? "(unknown)"}`,
     `Read method: ${ctx.method ?? "(unknown)"}`,
     ctx.swHint ? `SW hint (from pattern matching): ${ctx.swHint}` : "",
     ctx.calHint
@@ -79,9 +81,13 @@ function buildPrompt(
     "Guidance:",
     "- Cal is the most important. It is often the SW number followed by a version suffix (e.g. '8V0907404_0004' or '8V0907404 0004'). The version suffix may appear as a separate short token.",
     "- Prefer identifiers that appear together in the firmware identification block.",
-    "- For Mercedes-Benz, part numbers look like 10 digits, optionally prefixed with 'A' (e.g. '2769033704' or 'A2769003200').",
-    "- If you cannot confidently identify a value, return null for it and lower the confidence.",
-    "- Do NOT invent values that are not present among the candidates (the pattern Cal hint is allowed even if its version suffix is not a separate candidate).",
+    "",
+    "CRITICAL — avoid false positives:",
+    "- Many 10-digit numbers in the dump are NOT part numbers: Unix timestamps (10 digits starting with 1, e.g. 15xxxxxxxx / 16xxxxxxxx / 17xxxxxxxx ≈ years 2017-2024), checksums, addresses, dates. NEVER report these as Cal/SW/HW.",
+    "- For Mercedes-Benz: real part numbers are 10 digits usually starting with the engine/family number (e.g. M276 engine → '276xxxxxxx', often written 'A276...' or grouped like '276 901 02 04'). Strongly PREFER candidates that start with the engine family digits over generic 10-digit numbers.",
+    "- For VAG: part numbers look like '8V0907404' (letters+digits), hardware like '07K907309C'.",
+    "- If the only plausible value looks like a timestamp/checksum, return null and lower confidence rather than reporting a wrong value.",
+    "- Do NOT invent values that are not among the candidates (the pattern Cal hint is the only exception).",
     "",
     "Candidate strings (deduplicated, ranked):",
     candidates.join("  "),
@@ -133,14 +139,17 @@ export async function aiExtractIds(
     method?: string | null;
     swHint?: string | null;
     calHint?: string | null;
+    engineCode?: string | null;
+    engineDesc?: string | null;
     throwOnError?: boolean; // 手動再判定では API エラーを表に出す
+    force?: boolean; // キャッシュを無視して再呼び出し＋上書き（手動再判定）
   },
 ): Promise<AiIds | null> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) return null;
 
-  // キャッシュ（同一ファイルは再呼び出ししない）
-  if (ctx.hash) {
+  // キャッシュ（同一ファイルは再呼び出ししない。force 指定時は無視して読み直す）
+  if (ctx.hash && !ctx.force) {
     const cached = await prisma.ecuAiCache.findUnique({ where: { hash: ctx.hash } });
     if (cached) {
       return {
@@ -158,18 +167,10 @@ export async function aiExtractIds(
   const prompt = buildPrompt(candidates, ctx);
   const client = new Anthropic({ apiKey });
 
-  let usedModel = "haiku";
+  const usedModel = PRIMARY.includes("haiku") ? "haiku" : "opus";
   let res: Omit<AiIds, "model"> | null = null;
   try {
-    res = await callModel(client, HAIKU, prompt);
-    // 確信度が低い / Cal 取れなかった → Opus にエスカレーション
-    if (!res || res.confidence < ESCALATE_BELOW || !res.cal) {
-      const strong = await callModel(client, OPUS, prompt);
-      if (strong) {
-        res = strong;
-        usedModel = "opus";
-      }
-    }
+    res = await callModel(client, PRIMARY, prompt);
   } catch (e) {
     console.error("AI識別子抽出に失敗", e);
     if (ctx.throwOnError) {
@@ -194,7 +195,8 @@ export async function aiExtractIds(
           confidence: out.confidence,
           model: usedModel,
         },
-        update: {},
+        // 新たに呼び出した結果で上書き（force 再判定で古い誤値を更新）
+        update: { hw: out.hw, sw: out.sw, cal: out.cal, confidence: out.confidence, model: usedModel },
       })
       .catch(() => {});
   }

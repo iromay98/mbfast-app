@@ -65,6 +65,8 @@ export async function runDecryptJob(recordId: string): Promise<void> {
       method: result.meta.method,
       swHint: pattern.sw,
       calHint: pattern.cal, // パターンが出したCal（VAG等）をAIに検証させる
+      engineCode: pattern.engineCode,
+      engineDesc: pattern.engineDesc ?? result.meta.model,
     });
     const useAi = !!ai?.cal;
     const hwNumber = ai?.hw ?? pattern.hw;

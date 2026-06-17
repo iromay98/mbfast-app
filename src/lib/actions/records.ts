@@ -449,8 +449,10 @@ export async function reidentifyEcuAi(
       decryptedFilePath: true,
       decryptedHash: true,
       carMaker: true,
+      carModel: true,
       ecuType: true,
       method: true,
+      engineModelCode: true,
     },
   });
   if (!rec?.decryptedFilePath) {
@@ -474,7 +476,10 @@ export async function reidentifyEcuAi(
       method: rec.method,
       swHint: pattern.sw,
       calHint: pattern.cal,
+      engineCode: rec.engineModelCode,
+      engineDesc: rec.engineModelCode ?? rec.carModel,
       throwOnError: true,
+      force: true, // 手動再判定はキャッシュ無視で読み直し＋上書き
     });
   } catch (e) {
     return { error: e instanceof Error ? e.message : "AI呼び出しに失敗しました" };
