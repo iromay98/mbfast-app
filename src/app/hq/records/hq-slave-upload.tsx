@@ -58,6 +58,14 @@ export function HQSlaveUpload({ dealers }: { dealers: { id: string; name: string
             />
           </label>
           <label className="block">
+            <span className="mb-1 block text-xs font-semibold text-ink-soft">施工日（任意・未入力は当日）</span>
+            <input
+              type="date"
+              name="workedAt"
+              className="block w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink"
+            />
+          </label>
+          <label className="block">
             <span className="mb-1 block text-xs font-semibold text-ink-soft">Driver（任意・本店のみ）</span>
             <input
               type="text"

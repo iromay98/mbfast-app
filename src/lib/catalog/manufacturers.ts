@@ -33,8 +33,7 @@ export const MANUFACTURERS: string[] = [
   "Maserati",
   "Mazda",
   "McLaren",
-  "Mercedes-Benz",
-  "Mercedes-AMG",
+  "Mercedes",
   "MINI",
   "Mitsubishi",
   "Nissan",
@@ -72,9 +71,12 @@ const CANON_BY_KEY = new Map(MANUFACTURERS.map((m) => [key(m), m]));
 // よくある別名・略称も正規名へ寄せる。
 const ALIASES: Record<string, string> = {
   vw: "Volkswagen",
-  benz: "Mercedes-Benz",
-  mercedes: "Mercedes-Benz",
-  amg: "Mercedes-AMG",
+  // Mercedes 系はすべて "Mercedes" に統合（Benz / AMG / Mercedes-Benz / Mercedes-AMG）
+  benz: "Mercedes",
+  mercedes: "Mercedes",
+  mercedesbenz: "Mercedes",
+  mercedesamg: "Mercedes",
+  amg: "Mercedes",
   chevy: "Chevrolet",
   landrover: "Land Rover",
   rangerover: "Land Rover",

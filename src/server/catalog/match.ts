@@ -2,6 +2,7 @@ import { prisma } from "@/lib/db";
 import { storage } from "@/server/storage";
 import { notify } from "@/server/notifications";
 import { extractEcuId } from "@/server/ecu/identify";
+import { normalizeManufacturer } from "@/lib/catalog/manufacturers";
 
 type CaptureMeta = {
   manufacturer?: string | null;
@@ -92,7 +93,10 @@ export async function matchAndLinkCatalog(opts: {
     const created = await prisma.baseFile.create({
       data: {
         stockHash: hash,
-        manufacturer: opts.meta.manufacturer || "(不明)",
+        // メーカー表記を正規化（Mercedes系は "Mercedes" に統合 等）
+        manufacturer: opts.meta.manufacturer
+          ? normalizeManufacturer(opts.meta.manufacturer)
+          : "(不明)",
         model: opts.meta.model || "(不明)",
         ecu: opts.meta.ecu || "(不明)",
         mcu: opts.meta.mcu || null,

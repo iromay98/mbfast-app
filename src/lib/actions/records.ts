@@ -162,6 +162,13 @@ export async function uploadSlaveRecordByHQ(
   if (!customerName) {
     return { error: "顧客名を入力してください", fieldErrors: { customerName: "必須" } };
   }
+  // 施工日（任意）。未入力は当日。YYYY-MM-DD を JST 正午で保存し日付ズレを防ぐ。
+  const workedAtRaw = String(formData.get("workedAt") ?? "").trim();
+  let workedAt: Date | undefined;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(workedAtRaw)) {
+    const d = new Date(`${workedAtRaw}T12:00:00+09:00`);
+    if (!Number.isNaN(d.getTime())) workedAt = d;
+  }
 
   const saved = await saveUpload(file, "slaves");
   if (!saved.ok) {
@@ -177,6 +184,7 @@ export async function uploadSlaveRecordByHQ(
       slaveFilePath: saved.key,
       slaveHash: saved.sha256,
       customerName,
+      ...(workedAt ? { workedAt } : {}),
     },
   });
 
