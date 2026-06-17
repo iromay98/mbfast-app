@@ -1,11 +1,13 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
 import { prisma } from "@/lib/db";
 import { getSessionUser } from "@/lib/authz";
 import { saveUpload, storage } from "@/server/storage";
 import { encryptSlave } from "@/server/autotuner/client";
 import { notify } from "@/server/notifications";
+import { sendPushToUsers, recipientUserIds } from "@/server/push";
 import { buildDownloadName, dateLabel } from "@/server/catalog/filename";
 import { type FormState } from "@/lib/actions/form-state";
 
@@ -136,12 +138,25 @@ export async function postRecordMessage(
   });
 
   const fromHQ = ctx.user.role === "HQ_ADMIN";
+  const link = fromHQ ? `/dealer/records/${recordId}` : `/hq/records/${recordId}`;
+  const previewBody = body ? body.slice(0, 80) : "ファイルが届きました";
   await notify({
     type: "RECORD_MESSAGE",
     title: fromHQ ? "本部からメッセージが届きました" : "代理店からメッセージが届きました",
-    message: body ? body.slice(0, 80) : "ファイルが届きました",
+    message: previewBody,
     dealerId: fromHQ ? ctx.dealerId : null, // 本部→代理店宛て / 代理店→本部宛て
-    link: fromHQ ? `/dealer/records/${recordId}` : `/hq/records/${recordId}`,
+    link,
+  });
+
+  // Web Push（相手側へ。アプリを閉じていても届く）。レスポンス後に送信。
+  after(async () => {
+    const recipients = await recipientUserIds({ toHQ: !fromHQ, dealerId: ctx.dealerId });
+    await sendPushToUsers(recipients, {
+      title: fromHQ ? "本部からメッセージ" : "代理店からメッセージ",
+      body: previewBody,
+      url: link,
+      tag: `record-${recordId}`,
+    });
   });
 
   revalidatePath(`/hq/records/${recordId}`);

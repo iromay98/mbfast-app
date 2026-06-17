@@ -3,6 +3,7 @@ import Link from "next/link";
 import { logout } from "@/lib/actions/auth";
 import { roleLabels } from "@/lib/labels";
 import { NavBar, type NavItem } from "@/components/nav-bar";
+import { PushManager } from "@/components/push-manager";
 import type { SessionUser } from "@/lib/authz";
 
 export function AppShell({
@@ -53,6 +54,9 @@ export function AppShell({
       <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-5">
         {children}
       </main>
+
+      {/* Web Push 購読管理（通知許可済みなら自動購読） */}
+      <PushManager />
     </div>
   );
 }

@@ -106,8 +106,22 @@ model User {
   createdVariants   TunedVariant[]         @relation("VariantCreatedBy")
   replacedVersions  TunedVariantVersion[]  @relation("VersionReplacedBy")
   catalogDownloads  CatalogDownloadLog[]   @relation("DownloadByUser")
+  pushSubscriptions PushSubscription[]     @relation("UserPushSubs")
 
   @@index([dealerId])
+}
+
+// Web Push 購読（ブラウザごと）。アプリ終了時もチャット新着を通知するため。
+model PushSubscription {
+  id        String   @id @default(cuid())
+  endpoint  String   @unique // ブラウザの push endpoint（一意）
+  p256dh    String // 公開鍵
+  auth      String // 認証シークレット
+  userId    String
+  user      User     @relation("UserPushSubs", fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@index([userId])
 }
 
 model Dealer {
