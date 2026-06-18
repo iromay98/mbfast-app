@@ -128,6 +128,7 @@ export async function uploadSlaveRecord(
       slaveFilePath: saved.key,
       slaveHash: saved.sha256,
       customerName,
+      isTuned: formData.get("isTuned") === "true", // チューニング済み＝ori扱いしない
     },
   });
 
@@ -186,6 +187,7 @@ export async function uploadSlaveRecordByHQ(
       slaveFilePath: saved.key,
       slaveHash: saved.sha256,
       customerName,
+      isTuned: formData.get("isTuned") === "true", // チューニング済み＝ori扱いしない
       ...(workedAt ? { workedAt } : {}),
     },
   });
@@ -501,6 +503,29 @@ export async function reidentifyEcuAi(
   revalidatePath(`/hq/records/${recordId}`);
   revalidatePath(`/dealer/records/${recordId}`);
   return { ok: true, cal: ai.cal, confidence: ai.cal ? ai.confidence : null };
+}
+
+// 純正/チューニング済みの切替（本店のみ）。チューニング済みにしたら、誤って自動取込した
+// 純正(AUTO_CAPTURE)はカタログから外す（ori扱いを取り消す）。
+export async function setRecordTuned(
+  recordId: string,
+  isTuned: boolean,
+): Promise<{ ok?: true; error?: string }> {
+  await requireHQ();
+  await prisma.serviceRecord.update({ where: { id: recordId }, data: { isTuned } });
+  if (isTuned) {
+    await prisma.baseFile
+      .updateMany({
+        where: { capturedFromRecordId: recordId, source: "AUTO_CAPTURE", archived: false },
+        data: { archived: true },
+      })
+      .catch(() => {});
+  }
+  revalidatePath(`/hq/records/${recordId}`);
+  revalidatePath(`/dealer/records/${recordId}`);
+  revalidatePath("/hq/catalog");
+  revalidatePath("/hq/catalog/pending");
+  return { ok: true };
 }
 
 // 施工ログ（手動）の追加（本店のみ）。過去客の遡り登録などに使う。

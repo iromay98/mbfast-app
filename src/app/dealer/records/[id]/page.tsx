@@ -184,8 +184,8 @@ export default async function DealerRecordDetailPage({
       {/* 施工ログ（本部が記録。代理店は閲覧のみ） */}
       <ServiceLog recordId={record.id} logs={serviceLogs} canEdit={false} />
 
-      {/* ファイル＝純正に戻す（ori）のみ。slave は入れ直せないため非表示。 */}
-      {canDeliver && record.decryptedFilePath && (
+      {/* ファイル＝純正に戻す（ori）のみ。slave は入れ直せないため非表示。チューニング済みは純正でないので非表示。 */}
+      {canDeliver && record.decryptedFilePath && !record.isTuned && (
         <Card>
           <h3 className="mb-1 text-sm font-bold text-ink">純正に戻す（ori）</h3>
           <p className="mb-3 text-xs text-ink-soft">

@@ -37,6 +37,7 @@ type RecordForDetail = {
   calNumber: string | null;
   idSource: string | null;
   idConfidence: number | null;
+  isTuned: boolean;
   registrationNumber: string | null;
   vehicleModelCode: string | null;
   engineModelCode: string | null;
@@ -101,9 +102,12 @@ export function RecordDetail({
             {title}
             {record.carYear ? `（${record.carYear}）` : ""}
           </h2>
-          <Badge color={recordStatusColors[record.status]}>
-            {recordStatusLabels[record.status]}
-          </Badge>
+          <div className="flex shrink-0 items-center gap-2">
+            {record.isTuned && <Badge color="rose">チューニング済み</Badge>}
+            <Badge color={recordStatusColors[record.status]}>
+              {recordStatusLabels[record.status]}
+            </Badge>
+          </div>
         </div>
 
         {!hideTechnical && record.status === "FAILED" && record.decryptError && (

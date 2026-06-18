@@ -24,6 +24,7 @@ import { RecordCustomerEdit } from "./record-customer-edit";
 import { RecordWorkedAtEdit } from "./record-workedat-edit";
 import { EcuEditForm } from "./ecu-edit-form";
 import { ReidentifyEcuButton } from "./reidentify-ecu-button";
+import { RecordTunedEdit } from "./record-tuned-edit";
 import { HqEncryptForm } from "./hq-encrypt-form";
 import { VariationBuilder } from "./variation-matrix";
 import { dateLabel } from "@/server/catalog/filename";
@@ -237,6 +238,14 @@ export default async function HQRecordDetailPage({
       />
 
       <Card>
+        <h3 className="mb-1 text-sm font-bold text-ink">純正 / チューニング済み</h3>
+        <p className="mb-2 text-xs text-ink-soft">
+          アップしたスレーブが既にチューニング済みの場合はチェック。純正(ori)扱いをしません。
+        </p>
+        <RecordTunedEdit recordId={record.id} isTuned={record.isTuned} />
+      </Card>
+
+      <Card>
         <h3 className="mb-1 text-sm font-bold text-ink">ECU識別子の手動入力（本店）</h3>
         <p className="mb-3 text-xs text-ink-soft">
           自動抽出に未対応の車種（ベンツ系など）は、ここで Cal / SW / HW を手入力できます。
@@ -282,6 +291,7 @@ export default async function HQRecordDetailPage({
       </Card>
 
       {record.decryptedFilePath &&
+        !record.isTuned &&
         !!record.autotunerSlaveId &&
         record.autotunerEcuId != null &&
         record.autotunerModelId != null &&

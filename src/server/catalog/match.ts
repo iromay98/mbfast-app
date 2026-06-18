@@ -32,6 +32,8 @@ export async function matchAndLinkCatalog(opts: {
   meta?: CaptureMeta;
   // 復号job側で確定した識別子（AI優先）。指定時は自動取込でこれを使う。
   ecuIds?: { hw: string | null; sw: string | null; cal: string | null };
+  // チューニング済みスレーブ＝純正ではないのでカタログ自動取込しない。
+  skipCapture?: boolean;
   stockBytes?: Buffer;
   stockKey?: string;
   contentType?: string | null;
@@ -66,6 +68,8 @@ export async function matchAndLinkCatalog(opts: {
   }
 
   // 2) 未一致 → 自動キャプチャ（材料が揃っている場合のみ）
+  // チューニング済みスレーブは純正ではないので台帳化しない。
+  if (opts.skipCapture) return NONE;
   if (!opts.meta) return NONE;
 
   let bytes = opts.stockBytes ?? null;

@@ -85,6 +85,12 @@ export function HQSlaveUpload({ dealers }: { dealers: { id: string; name: string
           required
           className="block w-full text-sm text-ink file:mr-3 file:min-h-11 file:rounded-lg file:border-0 file:bg-gold-500 file:px-4 file:text-sm file:font-semibold file:text-white"
         />
+        <label className="flex items-start gap-2 text-xs text-ink-soft">
+          <input type="checkbox" name="isTuned" value="true" className="mt-0.5 h-4 w-4 accent-gold-500" />
+          <span>
+            このファイルは<b>チューニング済み</b>（純正ではない）。純正(ori)扱い・カタログ自動取込をしません。
+          </span>
+        </label>
         <FormError message={state.error} />
         {state.ok && (
           <p className="rounded-lg bg-green-50 px-3 py-2 text-sm text-green-700">

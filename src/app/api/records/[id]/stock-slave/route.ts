@@ -31,6 +31,7 @@ export async function GET(
       customerName: true,
       workedAt: true,
       backupSupported: true,
+      isTuned: true,
       dealer: { select: { name: true } },
       matchedBaseFile: {
         select: { model: true, generation: true, calNumber: true, method: true },
@@ -87,8 +88,8 @@ export async function GET(
     generation: record.matchedBaseFile?.generation,
     // 施工記録ページからのDLは Cal を出さない（命名規則: 車種 店名(顧客名 日付) AT_方法_内容）
     method: record.matchedBaseFile?.method,
-    // リアル読み(backup可)→backup / ヴァーチャル→ori
-    content: record.backupSupported ? "backup" : "ori",
+    // チューニング済み→tuned / リアル読み(backup可)→backup / ヴァーチャル→ori
+    content: record.isTuned ? "tuned" : record.backupSupported ? "backup" : "ori",
     ext: "slave",
     dealerName: record.dealer?.name,
     customerName: record.customerName,
