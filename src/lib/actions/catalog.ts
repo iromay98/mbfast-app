@@ -561,6 +561,42 @@ export async function createVariantWithFile(
     /* 無視 */
   }
 
+  const fileFields = {
+    fileRef: saved.key,
+    fileHash: saved.sha256,
+    fileName: saved.filename,
+    fileSize: saved.size,
+    contentType: saved.contentType,
+  };
+
+  // 同じ構成（ステージ・バブリング・OPの集合一致）の既存版があれば新規作成せず差し替え。
+  // 旧ファイルは版履歴(TunedVariantVersion)に残る。「登録済み → 差し替え」の挙動。
+  const eqSet = (a: string[], b: string[]) =>
+    a.length === b.length && [...a].sort().join("\n") === [...b].sort().join("\n");
+  const sameConfig = (
+    await prisma.tunedVariant.findMany({
+      where: { baseFileId, deletedAt: null, stage, popsAndBangs, popsSport },
+      select: {
+        id: true,
+        optionTags: true,
+        versions: { select: { version: true }, orderBy: { version: "desc" }, take: 1 },
+      },
+    })
+  ).find((v) => eqSet(v.optionTags ?? [], optionTags));
+  if (sameConfig) {
+    const nextVer = (sameConfig.versions[0]?.version ?? 0) + 1;
+    const ver = await prisma.tunedVariantVersion.create({
+      data: { variantId: sameConfig.id, version: nextVer, ...fileFields, replacedById: user.id },
+    });
+    await prisma.tunedVariant.update({
+      where: { id: sameConfig.id },
+      data: { currentVersionId: ver.id, status: "AVAILABLE", ...fileFields },
+    });
+    revalidatePath(CATALOG_PATH);
+    revalidatePath(PENDING_PATH);
+    return { ok: true, data: { variantId: sameConfig.id, replaced: true } };
+  }
+
   const variant = await prisma.tunedVariant.create({
     data: {
       baseFileId,
@@ -894,6 +930,8 @@ export async function analyzeStockBin(formData: FormData): Promise<{
     fuel: string | null;
     cal: string | null;
     sw: string | null;
+    // 登録済みバリエーション（「Stage1・O2」等のラベル＋状態）
+    variants: { label: string; status: string }[];
   } | null;
   error?: string;
 }> {
@@ -929,17 +967,26 @@ export async function analyzeStockBin(formData: FormData): Promise<{
       swNumber: true,
     },
   });
-  const existing =
-    dup && !dup.archived
-      ? {
-          id: dup.id,
-          manufacturer: dup.manufacturer,
-          model: dup.model,
-          fuel: dup.fuel,
-          cal: dup.calNumber,
-          sw: dup.swNumber,
-        }
-      : null;
+  let existing = null;
+  if (dup && !dup.archived) {
+    // 既存のバリエーション一覧（登録済み表示＆差し替え判定用）
+    const vars = await prisma.tunedVariant.findMany({
+      where: { baseFileId: dup.id, deletedAt: null },
+      select: { stage: true, popsAndBangs: true, popsSport: true, optionTags: true, status: true },
+    });
+    existing = {
+      id: dup.id,
+      manufacturer: dup.manufacturer,
+      model: dup.model,
+      fuel: dup.fuel,
+      cal: dup.calNumber,
+      sw: dup.swNumber,
+      variants: vars.map((v) => ({
+        label: tuningContentLabel(v.stage, v.popsAndBangs, v.optionTags ?? [], v.popsSport),
+        status: v.status as string,
+      })),
+    };
+  }
 
   return {
     ok: true,
@@ -1162,6 +1209,10 @@ export async function createBaseFileFromBin(formData: FormData): Promise<FormSta
           customerName, workedAtRaw, userId: user.id, hw: hwNumber, sw: swNumber, cal: calNumber,
         });
       }
+      const vars = await prisma.tunedVariant.findMany({
+        where: { baseFileId: dup.id, deletedAt: null },
+        select: { stage: true, popsAndBangs: true, popsSport: true, optionTags: true, status: true },
+      });
       return {
         ok: true,
         data: {
@@ -1173,6 +1224,10 @@ export async function createBaseFileFromBin(formData: FormData): Promise<FormSta
           cal: dup.calNumber,
           sw: dup.swNumber,
           recordId: recId,
+          variants: vars.map((v) => ({
+            label: tuningContentLabel(v.stage, v.popsAndBangs, v.optionTags ?? [], v.popsSport),
+            status: v.status as string,
+          })),
         },
       };
     }

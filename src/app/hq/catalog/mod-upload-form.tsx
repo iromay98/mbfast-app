@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState, useTransition } from "react";
-import { type FuelKind, optionTagsFor, popsAllowed, baselineStages } from "@/lib/catalog/options";
+import { type FuelKind, optionTagsFor, popsAllowed, baselineStages, tuningContentLabel } from "@/lib/catalog/options";
 import { analyzeStockBin } from "@/lib/actions/catalog";
 
 const norm = (s?: string | null) => (s ?? "").trim().toUpperCase().replace(/\s+/g, "");
@@ -14,12 +14,15 @@ export function ModUploadForm({
   fuelKind,
   baseCal,
   baseSw,
+  registered,
   onAddFile,
 }: {
   manufacturer: string;
   fuelKind: FuelKind;
   baseCal?: string;
   baseSw?: string;
+  // 登録済みバリエーション（ラベル＋状態）。渡すと選択中の構成が登録済みか表示する
+  registered?: { label: string; status: string }[];
   onAddFile: (fd: FormData) => void;
 }) {
   const stageOptions = baselineStages(manufacturer);
@@ -40,6 +43,15 @@ export function ModUploadForm({
 
   const toggleTag = (t: string) =>
     setTags((c) => (c.includes(t) ? c.filter((x) => x !== t) : [...c, t]));
+
+  // 選択中の構成が登録済みかどうか（登録済み→アップで差し替え）
+  const curLabel = tuningContentLabel(
+    stage,
+    showPops && popsMode !== "none",
+    tags,
+    showPops && popsMode === "sport",
+  );
+  const regHit = registered?.find((r) => r.label === curLabel);
 
   const hasBaseId = !!(baseCal || baseSw);
   let verdict: "match" | "mismatch" | "unknown" = "unknown";
@@ -150,6 +162,26 @@ export function ModUploadForm({
           className="w-40 rounded border border-line px-2 py-1 text-xs"
         />
       </div>
+
+      {/* 選択中の構成の登録状況（登録済みなら差し替えになることを明示） */}
+      {registered && (
+        <div className="mb-2 text-xs">
+          <span className="font-semibold text-ink">{curLabel}</span>{" "}
+          {regHit ? (
+            regHit.status === "AVAILABLE" ? (
+              <span className="font-semibold text-green-700">
+                → 登録済み（配布可）。アップすると差し替えます（旧ファイルは履歴に残る）
+              </span>
+            ) : (
+              <span className="text-amber-700 font-semibold">
+                → {regHit.status === "DRAFT" ? "下書きあり" : "無効の版あり"}。アップで配布可に差し替え
+              </span>
+            )
+          ) : (
+            <span className="text-ink-soft">→ 未登録（新規アップ）</span>
+          )}
+        </div>
+      )}
 
       {/* ファイル未選択 → ドロップゾーン */}
       {!picked ? (

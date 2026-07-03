@@ -10,7 +10,7 @@ import {
   createVariantWithFile,
 } from "@/lib/actions/catalog";
 import { MANUFACTURERS, isMercedes } from "@/lib/catalog/manufacturers";
-import { fuelKindOf, type FuelKind } from "@/lib/catalog/options";
+import { fuelKindOf, tuningContentLabel, type FuelKind } from "@/lib/catalog/options";
 import { ModUploadForm } from "./mod-upload-form";
 
 type Analyzed = {
@@ -27,6 +27,7 @@ type Analyzed = {
     fuel: string | null;
     cal: string | null;
     sw: string | null;
+    variants: { label: string; status: string }[];
   } | null;
 };
 
@@ -54,6 +55,7 @@ export function StockUploadForm({
     id: string;
     recordId?: string;
     existing?: boolean; // 既にストック済みの純正へ mod 追加するモード
+    variants?: { label: string; status: string }[]; // 登録済みバリエーション
     manufacturer: string;
     model: string;
     fuelKind: FuelKind;
@@ -110,6 +112,7 @@ export function StockUploadForm({
         setCreated({
           id: r.existing.id,
           existing: true,
+          variants: r.existing.variants,
           manufacturer: r.existing.manufacturer,
           model: r.existing.model,
           fuelKind: fuelKindOf(r.existing.fuel),
@@ -224,6 +227,7 @@ export function StockUploadForm({
               fuel?: string | null;
               cal?: string | null;
               sw?: string | null;
+              variants?: { label: string; status: string }[];
             }
           | undefined;
         const id = data?.id ?? "";
@@ -233,6 +237,7 @@ export function StockUploadForm({
                 id,
                 recordId: data.recordId,
                 existing: true,
+                variants: data.variants,
                 manufacturer: data.manufacturer ?? ctx.manufacturer,
                 model: data.model ?? ctx.model,
                 fuelKind: fuelKindOf(data.fuel ?? null),
@@ -272,6 +277,26 @@ export function StockUploadForm({
         ...m,
         `${stage}${pops}（${file instanceof File ? file.name : "file"}）`,
       ]);
+      // 登録済みリストを即時更新（同ラベルは配布可へ、無ければ追加）
+      let tags: string[] = [];
+      try {
+        const raw = modFd.get("optionTags");
+        if (typeof raw === "string" && raw) tags = JSON.parse(raw);
+      } catch { /* 無視 */ }
+      const label = tuningContentLabel(
+        String(modFd.get("stage") ?? "").trim(),
+        modFd.get("popsAndBangs") === "true",
+        tags,
+        modFd.get("popsSport") === "true",
+      );
+      setCreated((c) => {
+        if (!c) return c;
+        const vs = [...(c.variants ?? [])];
+        const i = vs.findIndex((v) => v.label === label);
+        if (i >= 0) vs[i] = { label, status: "AVAILABLE" };
+        else vs.push({ label, status: "AVAILABLE" });
+        return { ...c, variants: vs };
+      });
       router.refresh();
     });
   };
@@ -503,11 +528,40 @@ export function StockUploadForm({
             )}
           </div>
 
+          {/* 登録済みバリエーション（既存ストックの場合） */}
+          {created.existing && (
+            <div className="rounded-lg border border-line">
+              <div className="border-b border-line px-3 py-1.5 text-xs font-semibold text-ink-soft">
+                登録済みバリエーション（{created.variants?.length ?? 0}）
+              </div>
+              {created.variants && created.variants.length > 0 ? (
+                <ul className="flex flex-wrap gap-1.5 p-2">
+                  {created.variants.map((v, i) => (
+                    <li
+                      key={i}
+                      className={`rounded-full border px-2 py-0.5 text-[11px] font-semibold ${
+                        v.status === "AVAILABLE"
+                          ? "border-green-300 bg-green-50 text-green-700"
+                          : "border-line text-ink-soft"
+                      }`}
+                    >
+                      {v.label}
+                      {v.status === "AVAILABLE" ? "" : v.status === "DRAFT" ? "（下書き）" : "（無効）"}
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="p-2 text-xs text-ink-soft">まだバリエーションはありません。</p>
+              )}
+            </div>
+          )}
+
           <ModUploadForm
             manufacturer={created.manufacturer}
             fuelKind={created.fuelKind}
             baseCal={created.cal}
             baseSw={created.sw}
+            registered={created.existing ? (created.variants ?? []) : undefined}
             onAddFile={addMod}
           />
 
