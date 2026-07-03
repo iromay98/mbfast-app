@@ -99,7 +99,11 @@ export default async function HQRecordsPage({
         status: true,
         createdAt: true,
         serviceRecordId: true,
+        requestNote: true,
         dealer: { select: { name: true } },
+        serviceRecord: {
+          select: { carMaker: true, carModel: true, customerName: true },
+        },
       },
     }),
   ]);
@@ -172,23 +176,42 @@ export default async function HQRecordsPage({
             未返却の依頼（{openRequests.length}）
           </h3>
           <div className="divide-y divide-amber-200/60">
-            {openRequests.map((r) => (
-              <Link
-                key={r.id}
-                href={r.serviceRecordId ? `/hq/records/${r.serviceRecordId}` : `/hq/requests/${r.id}`}
-                className="flex items-center justify-between gap-3 py-2 hover:bg-amber-100/40"
-              >
-                <div className="min-w-0">
-                  <div className="truncate text-sm font-medium text-ink">{r.title}</div>
-                  <div className="mt-0.5 text-xs text-ink-soft">
-                    {r.dealer.name}・{formatDate(r.createdAt)}
+            {openRequests.map((r) => {
+              // どんなリクエストか一目で: requestNote の「内容」を抽出してチップ表示
+              const label = r.requestNote?.match(/「(.+?)」/)?.[1];
+              const car = r.serviceRecord
+                ? `${r.serviceRecord.carMaker ?? ""} ${r.serviceRecord.carModel ?? ""}`.trim()
+                : "";
+              return (
+                <Link
+                  key={r.id}
+                  href={r.serviceRecordId ? `/hq/records/${r.serviceRecordId}` : `/hq/requests/${r.id}`}
+                  className="flex items-center justify-between gap-3 py-2 hover:bg-amber-100/40"
+                >
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      {label && (
+                        <span className="rounded bg-amber-600 px-1.5 py-0.5 text-[11px] font-bold text-white">
+                          {label}
+                        </span>
+                      )}
+                      <span className="truncate text-sm font-medium text-ink">
+                        {car || r.title}
+                      </span>
+                    </div>
+                    <div className="mt-0.5 text-xs text-ink-soft">
+                      {r.dealer.name}
+                      {r.serviceRecord?.customerName ? `・${r.serviceRecord.customerName}` : ""}
+                      ・{formatDate(r.createdAt)}
+                      {label && car ? `・${r.title}` : ""}
+                    </div>
                   </div>
-                </div>
-                <Badge color={requestStatusColors[r.status]}>
-                  {requestStatusLabels[r.status]}
-                </Badge>
-              </Link>
-            ))}
+                  <Badge color={requestStatusColors[r.status]}>
+                    {requestStatusLabels[r.status]}
+                  </Badge>
+                </Link>
+              );
+            })}
           </div>
         </Card>
       )}

@@ -460,7 +460,7 @@ export function StockUploadForm({
           {addedMods.length > 0 && (
             <div className="rounded-lg border border-line">
               <div className="border-b border-line px-3 py-1.5 text-xs font-semibold text-ink-soft">
-                追加した mod（{addedMods.length}）— 下書きで登録。配布可にするにはカタログで切替。
+                追加した mod（{addedMods.length}）— 即・配布可で登録済み（照合した代理店がその場でDLできます）。
               </div>
               <ul className="divide-y divide-line">
                 {addedMods.map((m, i) => (

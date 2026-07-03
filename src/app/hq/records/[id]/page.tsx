@@ -337,21 +337,31 @@ export default async function HQRecordDetailPage({
         <Card>
           <h3 className="mb-2 text-sm font-bold text-ink">この案件の依頼</h3>
           <div className="divide-y divide-line">
-            {requests.map((req) => (
-              <Link
-                key={req.id}
-                href={`/hq/requests/${req.id}`}
-                className="flex items-center justify-between gap-3 py-2 hover:bg-surface-2"
-              >
-                <div className="min-w-0">
-                  <div className="truncate text-sm font-medium text-ink">{req.title}</div>
-                  <div className="mt-0.5 text-xs text-ink-soft">{formatDate(req.createdAt)}</div>
-                </div>
-                <Badge color={requestStatusColors[req.status]}>
-                  {requestStatusLabels[req.status]}
-                </Badge>
-              </Link>
-            ))}
+            {requests.map((req) => {
+              const label = req.requestNote?.match(/「(.+?)」/)?.[1];
+              return (
+                <Link
+                  key={req.id}
+                  href={`/hq/requests/${req.id}`}
+                  className="flex items-center justify-between gap-3 py-2 hover:bg-surface-2"
+                >
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      {label && (
+                        <span className="rounded bg-gold-500 px-1.5 py-0.5 text-[11px] font-bold text-white">
+                          {label}
+                        </span>
+                      )}
+                      <span className="truncate text-sm font-medium text-ink">{req.title}</span>
+                    </div>
+                    <div className="mt-0.5 text-xs text-ink-soft">{formatDate(req.createdAt)}</div>
+                  </div>
+                  <Badge color={requestStatusColors[req.status]}>
+                    {requestStatusLabels[req.status]}
+                  </Badge>
+                </Link>
+              );
+            })}
           </div>
         </Card>
       )}

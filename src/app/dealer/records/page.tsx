@@ -27,6 +27,25 @@ export default async function DealerRecordsPage() {
 
   const hasPending = records.some((r) => isPendingStatus(r.status));
 
+  // 本部が用意してくれたファイル（納品済みリクエスト・直近30日）を目立つ場所に出す
+  const delivered = await prisma.fileRequest.findMany({
+    where: {
+      dealerId: user.dealerId,
+      status: "DELIVERED",
+      updatedAt: { gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) },
+    },
+    orderBy: { updatedAt: "desc" },
+    take: 10,
+    select: {
+      id: true,
+      title: true,
+      requestNote: true,
+      updatedAt: true,
+      serviceRecordId: true,
+      serviceRecord: { select: { carMaker: true, carModel: true, customerName: true } },
+    },
+  });
+
   return (
     <div>
       <PageTitle
@@ -41,6 +60,50 @@ export default async function DealerRecordsPage() {
 
       {/* 解析中の行がある間は自動更新 */}
       <AutoRefresh active={hasPending} />
+
+      {/* 本部からの納品（届いたファイル）— 通知を見逃してもここで気づける */}
+      {delivered.length > 0 && (
+        <Card className="mb-4 border-green-300 bg-green-50">
+          <h3 className="mb-2 text-sm font-bold text-green-900">
+            📦 本部からファイルが届いています（{delivered.length}）
+          </h3>
+          <div className="divide-y divide-green-200/70">
+            {delivered.map((d) => {
+              const label = d.requestNote?.match(/「(.+?)」/)?.[1];
+              const car = d.serviceRecord
+                ? `${d.serviceRecord.carMaker ?? ""} ${d.serviceRecord.carModel ?? ""}`.trim()
+                : "";
+              return (
+                <Link
+                  key={d.id}
+                  href={d.serviceRecordId ? `/dealer/records/${d.serviceRecordId}` : `/dealer/requests/${d.id}`}
+                  className="flex items-center justify-between gap-3 py-2 hover:bg-green-100/50"
+                >
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      {label && (
+                        <span className="rounded bg-green-600 px-1.5 py-0.5 text-[11px] font-bold text-white">
+                          {label}
+                        </span>
+                      )}
+                      <span className="truncate text-sm font-medium text-ink">
+                        {car || d.title}
+                        {d.serviceRecord?.customerName ? `（${d.serviceRecord.customerName}）` : ""}
+                      </span>
+                    </div>
+                    <div className="mt-0.5 text-xs text-green-800">
+                      {formatDate(d.updatedAt)}・開いてダウンロードできます
+                    </div>
+                  </div>
+                  <span className="shrink-0 rounded-lg bg-green-600 px-3 py-1.5 text-xs font-bold text-white">
+                    ⬇ 受け取る
+                  </span>
+                </Link>
+              );
+            })}
+          </div>
+        </Card>
+      )}
 
       <div className="mb-4">
         <SlaveUpload />

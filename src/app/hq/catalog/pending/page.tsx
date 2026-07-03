@@ -80,7 +80,7 @@ export default async function PendingStockPage() {
       />
       <p className="mb-4 text-sm text-ink-soft">
         復号で自動取込された純正（または手動登録）のうち、まだ配布可の mod
-        が無いものです。mod ファイルを登録して「配布可」にすると一覧から外れ、照合した代理店に提示されます。
+        が無いものです。mod ファイルを登録すると即・配布可になって一覧から外れ、照合した代理店に提示されます。
       </p>
 
       <ManualStockForm />

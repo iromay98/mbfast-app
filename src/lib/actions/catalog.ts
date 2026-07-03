@@ -15,6 +15,7 @@ import {
   recordCandidateTokens,
   recordCorrection,
 } from "@/server/ecu/ai-extract";
+import { sendPushToUsers, recipientUserIds } from "@/server/push";
 import {
   fuelKindOf,
   optionTagsFor,
@@ -568,7 +569,9 @@ export async function createVariantWithFile(
       popsAndBangs,
       popsSport,
       optionTags,
-      status: "DRAFT",
+      // ファイル実体を添付して登録するので即・配布可（slave経路の版登録と同じ挙動）。
+      // これで ori+mod をカタログからアップした純正が未整備ストックに残らない。
+      status: "AVAILABLE",
       createdById: user.id,
     },
   });
@@ -744,6 +747,18 @@ export async function uploadVariation(
       message: `「${label}」がダウンロード可能になりました。`,
       dealerId: record.dealerId,
       link: `/dealer/records/${recordId}`,
+    });
+  }
+  // 納品したら代理店へ Web Push（アプリを閉じていても届く）
+  if (open.length > 0) {
+    after(async () => {
+      const recipients = await recipientUserIds({ toHQ: false, dealerId: record.dealerId });
+      await sendPushToUsers(recipients, {
+        title: "依頼のファイルが届きました",
+        body: `「${label}」がダウンロード可能になりました`,
+        url: `/dealer/records/${recordId}`,
+        tag: `deliver-${recordId}`,
+      });
     });
   }
 

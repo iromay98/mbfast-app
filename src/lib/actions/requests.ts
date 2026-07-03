@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { requireDealer, requireHQ } from "@/lib/authz";
@@ -11,6 +12,7 @@ import {
 import { type FormState, zodToFieldErrors } from "@/lib/actions/form-state";
 import { saveUpload } from "@/server/storage";
 import { notify } from "@/server/notifications";
+import { sendPushToUsers, recipientUserIds } from "@/server/push";
 import { requestStatusLabels } from "@/lib/labels";
 import {
   type FuelKind,
@@ -485,6 +487,18 @@ export async function updateRequestByHQ(
       dealerId: current.dealerId,
       link: `/dealer/requests/${requestId}`,
     });
+    // 納品時は Web Push でも代理店へ（アプリを閉じていても届く）
+    if (status === "DELIVERED") {
+      after(async () => {
+        const recipients = await recipientUserIds({ toHQ: false, dealerId: current.dealerId });
+        await sendPushToUsers(recipients, {
+          title: "依頼のファイルが届きました",
+          body: "本部がファイルを用意しました。ポータルからダウンロードできます。",
+          url: `/dealer/requests/${requestId}`,
+          tag: `deliver-req-${requestId}`,
+        });
+      });
+    }
   }
 
   revalidatePath("/hq/requests");
