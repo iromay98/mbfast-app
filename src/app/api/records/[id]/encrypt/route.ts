@@ -28,6 +28,7 @@ export async function POST(
       customerName: true,
       workedAt: true,
       carModel: true,
+      unit: true,
       dealer: { select: { name: true } },
       matchedBaseFile: {
         select: { model: true, generation: true, calNumber: true, method: true },
@@ -90,6 +91,7 @@ export async function POST(
     // 施工記録ページからのDLは Cal を出さない（命名規則: 車種 店名(顧客名 日付) AT_方法_内容）
     method: record.matchedBaseFile?.method,
     content: composeContent(stage, pops, optionTags, popsSport),
+    unit: record.unit,
     ext: "slave",
     dealerName: record.dealer?.name,
     customerName: record.customerName,

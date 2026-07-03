@@ -45,6 +45,7 @@ export type CatalogRow = {
   hasStock: boolean;
   canSlave: boolean; // 取込元の車両IDが揃い .slave 化できる
   limiterCutDisabled: boolean; // スピードリミッターカット不可（本店設定）
+  unit: string; // "ECU" | "TCU"（同時施工の取り違え防止）
   baseDriver: string;
   baseDriverBorrowed: boolean;
   baseNote: string;
@@ -81,6 +82,7 @@ export type CalGroup = {
   fuelKind: FuelKind;
   hasStock: boolean;
   limiterCutDisabled: boolean;
+  unit: string;
   driver: string;
   driverBorrowed: boolean;
   note: string;
@@ -318,6 +320,17 @@ function CalGroupCard({
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-line bg-surface-2 p-3">
         <button type="button" onClick={onToggleOpen} className="text-sm text-ink-soft">
           {open ? "▼" : "▶"}
+        </button>
+        {/* 対象ユニット(ECU/TCU)。クリックで切替＝取り違え修正 */}
+        <button
+          type="button"
+          onClick={() => onPatchBase({ unit: g.unit === "TCU" ? "ECU" : "TCU" })}
+          title="クリックで ECU ⇄ TCU を切替（同時施工の取り違え修正）"
+          className={`rounded px-1.5 py-0.5 text-[10px] font-bold text-white ${
+            g.unit === "TCU" ? "bg-sky-500" : "bg-gold-500"
+          }`}
+        >
+          {g.unit === "TCU" ? "TCU" : "ECU"}
         </button>
         {/* メーカー・ECU は slave 由来で固定（編集不可）。グレード(車種)のみ編集可。 */}
         <span className="text-sm font-semibold text-ink">{g.manufacturer}</span>

@@ -50,6 +50,7 @@ export default async function PendingStockPage() {
     method: b.method ?? "",
     fuel: b.fuel ?? "",
     stockHashShort: b.stockHash ? `${b.stockHash.slice(0, 16)}…` : "(なし)",
+    unit: b.unit,
     source: b.source,
     hasStock: !!b.stockFileRef,
     capturedAtLabel: fmt(b.createdAt),

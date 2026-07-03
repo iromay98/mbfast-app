@@ -35,6 +35,7 @@ export async function GET(
           calNumber: true,
           method: true,
           driver: true,
+          unit: true,
           capturedFromRecordId: true,
         },
       },
@@ -101,6 +102,7 @@ export async function GET(
     cal: v.baseFile.calNumber || v.baseFile.driver,
     method: v.baseFile.method,
     content: composeContent(v.stage, v.popsAndBangs, v.optionTags, v.popsSport),
+    unit: v.baseFile.unit,
     ext: "slave",
   });
   const out: StoredFile = {

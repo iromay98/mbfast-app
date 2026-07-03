@@ -18,6 +18,7 @@ export function buildDownloadName(opts: {
   content: string; // "ori" や "Stage1_Pops_Adblue" 等
   ext: string; // "bin" / "slave" 等（先頭ドット不要）
   tool?: string; // 既定 "AT"
+  unit?: string | null; // "ECU" | "TCU"（同時施工の取り違え防止でファイル名に組み込む）
   // 記録紐づきDL用。車種名の後に「代理店名(顧客名+日付)」を入れる。
   dealerName?: string | null;
   customerName?: string | null;
@@ -44,7 +45,9 @@ export function buildDownloadName(opts: {
     dealerSeg = ` ${dealerName}${inner ? `(${inner})` : ""}`;
   }
 
-  return `${head}${dealerSeg}${cal ? ` ${cal}` : ""} ${tool}_${method}_${content}.${ext}`;
+  // ユニット(ECU/TCU)は method の直後に入れる（例 AT_OBD_ECU_Stage1.slave）
+  const unit = clean(opts.unit).toUpperCase();
+  return `${head}${dealerSeg}${cal ? ` ${cal}` : ""} ${tool}_${method}${unit ? `_${unit}` : ""}_${content}.${ext}`;
 }
 
 // 日付を YYYY-MM-DD（ファイル名安全）に整形

@@ -58,7 +58,7 @@ export async function GET(
       popsSport: true,
       optionTags: true,
       baseFile: {
-        select: { model: true, generation: true, calNumber: true, method: true },
+        select: { model: true, generation: true, calNumber: true, method: true, unit: true },
       },
     },
   });
@@ -122,6 +122,7 @@ export async function GET(
     // 施工記録ページからのDLは Cal を出さない（命名規則: 車種 店名(顧客名 日付) AT_方法_内容）
     method: v.baseFile.method,
     content: composeContent(v.stage, v.popsAndBangs, v.optionTags, v.popsSport),
+    unit: v.baseFile.unit,
     ext: "slave", // 再暗号化済み＝焼ける .slave
     // 車種名の後に「代理店名(顧客名+日付)」を付与
     dealerName: record.dealer?.name,

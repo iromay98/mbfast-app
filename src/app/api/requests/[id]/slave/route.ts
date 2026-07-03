@@ -33,6 +33,7 @@ export async function GET(
           autotunerMcuId: true,
           customerName: true,
           workedAt: true,
+          unit: true,
           dealer: { select: { name: true } },
         },
       },
@@ -91,6 +92,7 @@ export async function GET(
     model: rec.carModel,
     method: rec.method,
     content: "custom", // 現車合わせ/調整の1点もの
+    unit: rec.unit,
     ext: "slave",
     dealerName: rec.dealer?.name,
     customerName: rec.customerName,

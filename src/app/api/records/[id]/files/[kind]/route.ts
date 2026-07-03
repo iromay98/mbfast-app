@@ -35,6 +35,7 @@ export async function GET(
       workedAt: true,
       backupSupported: true,
       isTuned: true,
+      unit: true,
       dealer: { select: { name: true } },
       matchedBaseFile: {
         select: { model: true, generation: true, calNumber: true, method: true },
@@ -75,6 +76,7 @@ export async function GET(
       method: record.matchedBaseFile?.method ?? record.method,
       // チューニング済み→tuned / リアル読み(backup可)→backup / ヴァーチャル→ori
       content: record.isTuned ? "tuned" : record.backupSupported ? "backup" : "ori",
+      unit: record.unit,
       ext: "bin",
       dealerName: record.dealer?.name,
       customerName: record.customerName,

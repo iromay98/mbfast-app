@@ -34,6 +34,8 @@ export async function matchAndLinkCatalog(opts: {
   ecuIds?: { hw: string | null; sw: string | null; cal: string | null };
   // チューニング済みスレーブ＝純正ではないのでカタログ自動取込しない。
   skipCapture?: boolean;
+  // 対象ユニット "ECU" | "TCU"（取込先の純正へ引き継ぐ）
+  unit?: string | null;
   stockBytes?: Buffer;
   stockKey?: string;
   contentType?: string | null;
@@ -119,6 +121,7 @@ export async function matchAndLinkCatalog(opts: {
         method: opts.meta.method || null,
         fuel: opts.meta.fuel || null,
         source: "AUTO_CAPTURE",
+        unit: opts.unit === "TCU" ? "TCU" : "ECU",
         stockFileRef: stockKey,
         stockFileName: `stock_${hash.slice(0, 12)}.bin`,
         stockFileSize: bytes.byteLength,

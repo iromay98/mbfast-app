@@ -1,0 +1,3 @@
+-- 対象ユニット(ECU/TCU) — 同時施工での取り違え防止
+ALTER TABLE "ServiceRecord" ADD COLUMN "unit" TEXT NOT NULL DEFAULT 'ECU';
+ALTER TABLE "BaseFile" ADD COLUMN "unit" TEXT NOT NULL DEFAULT 'ECU';

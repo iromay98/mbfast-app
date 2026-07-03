@@ -44,6 +44,7 @@ export function StockUploadForm({
   // 純正登録完了後の mod アップ画面用
   const [created, setCreated] = useState<{
     id: string;
+    recordId?: string;
     manufacturer: string;
     model: string;
     fuelKind: FuelKind;
@@ -57,6 +58,9 @@ export function StockUploadForm({
     model: "",
     generation: "",
     grade: "",
+    unit: "ECU",
+    customerName: "",
+    workedAt: "",
     engineCode: "",
     displacement: "",
     ecu: "",
@@ -169,6 +173,9 @@ export function StockUploadForm({
     if (f.sw.trim()) fd.set("swNumber", f.sw.trim());
     if (f.hw.trim()) fd.set("hwNumber", f.hw.trim());
     if (analyzed?.fuel) fd.set("fuel", analyzed.fuel);
+    fd.set("unit", f.unit === "TCU" ? "TCU" : "ECU");
+    if (f.customerName.trim()) fd.set("customerName", f.customerName.trim());
+    if (f.workedAt.trim()) fd.set("workedAt", f.workedAt.trim());
     const ctx = {
       manufacturer: f.manufacturer.trim(),
       model: f.model.trim(),
@@ -183,8 +190,9 @@ export function StockUploadForm({
       } else {
         setMsg(null);
         // 純正登録完了 → そのまま mod アップ画面へ
-        const id = (res?.data as { id?: string } | undefined)?.id ?? "";
-        setCreated({ id, ...ctx });
+        const data = res?.data as { id?: string; recordId?: string } | undefined;
+        const id = data?.id ?? "";
+        setCreated({ id, recordId: data?.recordId, ...ctx });
         setAddedMods([]);
         setFileName("");
         setAnalyzed(null);
@@ -224,7 +232,7 @@ export function StockUploadForm({
   const finish = () => {
     setCreated(null);
     setAddedMods([]);
-    setF({ manufacturer: "", model: "", generation: "", grade: "", engineCode: "", displacement: "", ecu: "", mcu: "", cal: "", sw: "", hw: "" });
+    setF({ manufacturer: "", model: "", generation: "", grade: "", unit: "ECU", customerName: "", workedAt: "", engineCode: "", displacement: "", ecu: "", mcu: "", cal: "", sw: "", hw: "" });
     setMsg(null);
     setOpen(false);
     router.refresh();
@@ -375,6 +383,35 @@ export function StockUploadForm({
             </label>
           </div>
 
+          {/* 対象ユニット（ECU/TCU）＋ 本店施工の顧客別管理（任意） */}
+          <div className="rounded-lg border border-line bg-surface-2 p-3 space-y-2">
+            <div className="flex items-center gap-3 text-xs text-ink-soft">
+              <span className="font-semibold">対象ユニット</span>
+              {(["ECU", "TCU"] as const).map((u) => (
+                <label key={u} className="inline-flex items-center gap-1.5">
+                  <input
+                    type="radio"
+                    checked={f.unit === u}
+                    onChange={() => setF((s) => ({ ...s, unit: u }))}
+                    className={`h-4 w-4 ${u === "TCU" ? "accent-sky-500" : "accent-gold-500"}`}
+                  />
+                  {u === "ECU" ? "ECU（エンジン）" : "TCU（ミッション）"}
+                </label>
+              ))}
+              <span className="text-[11px] text-ink-soft">※ 表示・ファイル名に入ります（取り違え防止）</span>
+            </div>
+            <div className="grid gap-2 sm:grid-cols-2">
+              <label className="block">
+                <span className="mb-1 block text-xs font-semibold text-ink-soft">顧客名（任意・入力すると本店名義の施工案件を作成）</span>
+                <input className={`${inp} w-full`} placeholder="例: 柳田 太郎" value={f.customerName} onChange={set("customerName")} />
+              </label>
+              <label className="block">
+                <span className="mb-1 block text-xs font-semibold text-ink-soft">施工日（任意・未入力は当日）</span>
+                <input type="date" className={`${inp} w-full`} value={f.workedAt} onChange={set("workedAt")} />
+              </label>
+            </div>
+          </div>
+
           <datalist id="maker-options">
             {makerList.map((m) => (
               <option key={m} value={m} />
@@ -402,6 +439,14 @@ export function StockUploadForm({
             <div className="mt-0.5 text-xs text-green-700">
               続けて mod（チューニング済みファイル）をアップしてください。ステージ・バブリングを選んで何件でも追加できます。
             </div>
+            {created.recordId && (
+              <a
+                href={`/hq/records/${created.recordId}`}
+                className="mt-1 inline-block text-xs font-semibold text-green-800 underline"
+              >
+                → 本店名義の施工案件を作成しました（開く）
+              </a>
+            )}
           </div>
 
           <ModUploadForm

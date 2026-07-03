@@ -233,6 +233,8 @@ model ServiceRecord {
   backupSupported Boolean? // ← decrypt: backup_supported（true=リアル読み→純正復元は backup / false=ヴァーチャル→ori）
   // アップしたスレーブが既にチューニング済みか。true=純正ではない（ori扱いしない・カタログ自動取込しない）。
   isTuned         Boolean  @default(false)
+  // 対象ユニット "ECU" | "TCU"。同時施工での取り違え防止（表示・ファイル名に使用）。
+  unit            String   @default("ECU")
 
   // ── encrypt（再暗号化）用に保存（今回 encrypt は未実装） ──
   autotunerSlaveId String? // ← decrypt: slave_id
@@ -418,6 +420,9 @@ model BaseFile {
   // スピードリミッターカット不可（この純正＝Calでは作れない）。本店が設定。
   // 代理店がリミッターカットを選んだら「不可」とし、リミッターカット無しの同一内容へ誘導する。
   limiterCutDisabled Boolean @default(false)
+
+  // 対象ユニット "ECU" | "TCU"。同時施工での取り違え防止（表示・ファイル名に使用）。
+  unit String @default("ECU")
 
   // 原本(チューニング前)ファイルの実体（任意）。公開ディレクトリ外・認可配信のみ。
   stockFileRef     String?

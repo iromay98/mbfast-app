@@ -38,6 +38,7 @@ type RecordForDetail = {
   idSource: string | null;
   idConfidence: number | null;
   isTuned: boolean;
+  unit: string;
   registrationNumber: string | null;
   vehicleModelCode: string | null;
   engineModelCode: string | null;
@@ -103,6 +104,10 @@ export function RecordDetail({
             {record.carYear ? `（${record.carYear}）` : ""}
           </h2>
           <div className="flex shrink-0 items-center gap-2">
+            {/* 対象ユニット（ECU/TCU）— 同時施工の取り違え防止で常時表示 */}
+            <Badge color={record.unit === "TCU" ? "blue" : "gold"}>
+              {record.unit === "TCU" ? "TCU" : "ECU"}
+            </Badge>
             {record.isTuned && <Badge color="rose">チューニング済み</Badge>}
             <Badge color={recordStatusColors[record.status]}>
               {recordStatusLabels[record.status]}

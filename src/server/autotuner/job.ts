@@ -29,7 +29,7 @@ function safeRevalidate(...paths: string[]): void {
 export async function runDecryptJob(recordId: string): Promise<void> {
   const record = await prisma.serviceRecord.findUnique({
     where: { id: recordId },
-    select: { id: true, dealerId: true, slaveFilePath: true, status: true, isTuned: true, dealer: { select: { name: true } } },
+    select: { id: true, dealerId: true, slaveFilePath: true, status: true, isTuned: true, unit: true, dealer: { select: { name: true } } },
   });
   if (!record || !record.slaveFilePath) return;
 
@@ -116,6 +116,7 @@ export async function runDecryptJob(recordId: string): Promise<void> {
       ecuIds: { hw: hwNumber, sw: swNumber, cal: calNumber },
       // チューニング済みなら純正としてカタログ自動取込しない（ori扱いにしない）
       skipCapture: record.isTuned,
+      unit: record.unit, // ECU/TCU を取込先の純正にも引き継ぐ
       stockBytes: result.decryptedData,
       contentType: "application/octet-stream",
     });

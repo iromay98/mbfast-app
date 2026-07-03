@@ -56,6 +56,7 @@ function buildGroups(rows: CatalogRow[]): CalGroup[] {
       fuelKind: fuelKindOf(first.fuel),
       hasStock: first.hasStock,
       limiterCutDisabled: first.limiterCutDisabled,
+      unit: first.unit,
       driver: first.baseDriver,
       driverBorrowed: first.baseDriverBorrowed,
       note: first.baseNote,
@@ -92,6 +93,7 @@ export default async function HQCatalogPage({
   const sp = await searchParams;
   const q = one(sp.q).trim();
   const manufacturer = one(sp.manufacturer).trim();
+  const unit = one(sp.unit).trim(); // "" | "ECU" | "TCU"
   const ecu = one(sp.ecu).trim();
   const model = one(sp.model).trim();
   const generation = one(sp.generation).trim();
@@ -101,6 +103,7 @@ export default async function HQCatalogPage({
   const where: Prisma.TunedVariantWhereInput = { deletedAt: null };
   const baseWhere: Prisma.BaseFileWhereInput = {};
   if (manufacturer) baseWhere.manufacturer = { contains: manufacturer, mode: "insensitive" };
+  if (unit === "ECU" || unit === "TCU") baseWhere.unit = unit;
   if (ecu) baseWhere.ecu = { contains: ecu, mode: "insensitive" };
   if (model) baseWhere.model = { contains: model, mode: "insensitive" };
   if (generation) baseWhere.generation = { contains: generation, mode: "insensitive" };
@@ -205,6 +208,7 @@ export default async function HQCatalogPage({
     canSlave:
       !!v.baseFile.capturedFromRecordId && slaveReady.has(v.baseFile.capturedFromRecordId),
     limiterCutDisabled: v.baseFile.limiterCutDisabled,
+    unit: v.baseFile.unit,
     stage: v.stage,
     popsAndBangs: v.popsAndBangs,
     popsSport: v.popsSport,
@@ -251,11 +255,38 @@ export default async function HQCatalogPage({
         <BulkReidentifyButton />
       </div>
 
+      {/* ECU / TCU タブ（同時施工の取り違え防止・ファイル区分） */}
+      <div className="mb-3 flex flex-wrap gap-2">
+        {([["", "すべて"], ["ECU", "ECU（エンジン）"], ["TCU", "TCU（ミッション）"]] as const).map(
+          ([v, label]) => {
+            const qs = new URLSearchParams();
+            if (manufacturer) qs.set("manufacturer", manufacturer);
+            if (v) qs.set("unit", v);
+            const on = unit === v || (!unit && !v);
+            return (
+              <Link
+                key={v || "all"}
+                href={`/hq/catalog${qs.toString() ? `?${qs}` : ""}`}
+                className={`rounded-lg px-3 py-1 text-xs font-bold ${
+                  on
+                    ? v === "TCU"
+                      ? "bg-sky-500 text-white"
+                      : "bg-gold-500 text-white"
+                    : "border border-line text-ink-soft hover:bg-surface-2"
+                }`}
+              >
+                {label}
+              </Link>
+            );
+          },
+        )}
+      </div>
+
       {/* メーカーで表示を絞る（全車両ではなくメーカー単位で見やすく） */}
       {makerOptions.length > 1 && (
         <div className="mb-4 flex flex-wrap gap-2">
           <Link
-            href="/hq/catalog"
+            href={`/hq/catalog${unit ? `?unit=${unit}` : ""}`}
             className={`rounded-full px-3 py-1 text-xs font-semibold ${
               manufacturer
                 ? "border border-line text-ink-soft hover:bg-surface-2"
@@ -270,7 +301,7 @@ export default async function HQCatalogPage({
             .map((m) => (
               <Link
                 key={m}
-                href={`/hq/catalog?manufacturer=${encodeURIComponent(m)}`}
+                href={`/hq/catalog?manufacturer=${encodeURIComponent(m)}${unit ? `&unit=${unit}` : ""}`}
                 className={`rounded-full px-3 py-1 text-xs font-semibold ${
                   manufacturer === m
                     ? "bg-gold-500 text-white"

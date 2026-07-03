@@ -70,6 +70,7 @@ export async function postRecordMessage(
           carModel: true,
           customerName: true,
           workedAt: true,
+          unit: true,
           dealer: { select: { name: true } },
           matchedBaseFile: {
             select: { model: true, generation: true, calNumber: true, method: true },
@@ -102,6 +103,7 @@ export async function postRecordMessage(
         cal: rec?.matchedBaseFile?.calNumber, // 本店なので Cal も付与
         method: rec?.matchedBaseFile?.method,
         content: contentInput || fallback,
+        unit: rec?.unit,
         ext: "slave",
         dealerName: rec?.dealer?.name,
         customerName: rec?.customerName,

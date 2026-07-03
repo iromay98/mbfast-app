@@ -25,6 +25,7 @@ import { RecordWorkedAtEdit } from "./record-workedat-edit";
 import { EcuEditForm } from "./ecu-edit-form";
 import { ReidentifyEcuButton } from "./reidentify-ecu-button";
 import { RecordTunedEdit } from "./record-tuned-edit";
+import { RecordUnitEdit } from "./record-unit-edit";
 import { HqEncryptForm } from "./hq-encrypt-form";
 import { VariationBuilder } from "./variation-matrix";
 import { dateLabel } from "@/server/catalog/filename";
@@ -238,11 +239,14 @@ export default async function HQRecordDetailPage({
       />
 
       <Card>
-        <h3 className="mb-1 text-sm font-bold text-ink">純正 / チューニング済み</h3>
+        <h3 className="mb-1 text-sm font-bold text-ink">ファイル区分（ECU/TCU・純正/チューニング済み）</h3>
         <p className="mb-2 text-xs text-ink-soft">
-          アップしたスレーブが既にチューニング済みの場合はチェック。純正(ori)扱いをしません。
+          同時施工の取り違えに気づいたらここで直せます（表示・ファイル名・カタログに反映）。
         </p>
-        <RecordTunedEdit recordId={record.id} isTuned={record.isTuned} />
+        <RecordUnitEdit recordId={record.id} unit={record.unit} />
+        <div className="mt-3 border-t border-line pt-3">
+          <RecordTunedEdit recordId={record.id} isTuned={record.isTuned} />
+        </div>
       </Card>
 
       <Card>

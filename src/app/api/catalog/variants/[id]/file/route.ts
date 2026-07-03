@@ -28,7 +28,7 @@ export async function GET(
       popsSport: true,
       optionTags: true,
       baseFile: {
-        select: { model: true, generation: true, calNumber: true, method: true, driver: true },
+        select: { model: true, generation: true, calNumber: true, method: true, driver: true, unit: true },
       },
     },
   });
@@ -53,6 +53,7 @@ export async function GET(
     cal: v.baseFile.calNumber || v.baseFile.driver,
     method: v.baseFile.method,
     content: composeContent(v.stage, v.popsAndBangs, v.optionTags, v.popsSport),
+    unit: v.baseFile.unit,
     ext: extFromName(v.fileName, "bin"),
   });
   return fileResponse(file, name, v.contentType);

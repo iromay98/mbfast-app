@@ -311,7 +311,8 @@ export default async function HQRecordsPage({
                         </div>
                       </div>
                       <div className="flex shrink-0 items-center gap-2">
-                        {isDup(r) && <Badge color="rose">重複</Badge>}
+                        {r.unit === "TCU" && <Badge color="blue">TCU</Badge>}
+                  {isDup(r) && <Badge color="rose">重複</Badge>}
                         {openByRecord.has(r.id) && <Badge color="amber">未返却</Badge>}
                         <Badge color={recordStatusColors[r.status]}>
                           {recordStatusLabels[r.status]}
@@ -349,6 +350,7 @@ export default async function HQRecordsPage({
                   </div>
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
+                  {r.unit === "TCU" && <Badge color="blue">TCU</Badge>}
                   {isDup(r) && <Badge color="rose">重複</Badge>}
                   {openByRecord.has(r.id) && <Badge color="amber">未返却</Badge>}
                   {r.workType && <Badge color="gold">{workTypeLabels[r.workType]}</Badge>}

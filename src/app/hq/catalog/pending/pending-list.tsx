@@ -37,6 +37,7 @@ export type PendingRow = {
   method: string;
   fuel: string;
   stockHashShort: string;
+  unit: string; // "ECU" | "TCU"
   source: "AUTO_CAPTURE" | "MANUAL";
   hasStock: boolean;
   capturedAtLabel: string;
@@ -107,6 +108,16 @@ function PendingCard({
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => onPatchBase({ unit: row.unit === "TCU" ? "ECU" : "TCU" })}
+              title="クリックで ECU ⇄ TCU を切替（同時施工の取り違え修正）"
+              className={`rounded px-1.5 py-0.5 text-[10px] font-bold text-white ${
+                row.unit === "TCU" ? "bg-sky-500" : "bg-gold-500"
+              }`}
+            >
+              {row.unit === "TCU" ? "TCU" : "ECU"}
+            </button>
             <span className="text-sm font-bold text-ink">
               {row.manufacturer} {row.model}
             </span>

@@ -129,6 +129,7 @@ export async function uploadSlaveRecord(
       slaveHash: saved.sha256,
       customerName,
       isTuned: formData.get("isTuned") === "true", // チューニング済み＝ori扱いしない
+      unit: formData.get("unit") === "TCU" ? "TCU" : "ECU", // 対象ユニット（取り違え防止）
     },
   });
 
@@ -188,6 +189,7 @@ export async function uploadSlaveRecordByHQ(
       slaveHash: saved.sha256,
       customerName,
       isTuned: formData.get("isTuned") === "true", // チューニング済み＝ori扱いしない
+      unit: formData.get("unit") === "TCU" ? "TCU" : "ECU", // 対象ユニット（取り違え防止）
       ...(workedAt ? { workedAt } : {}),
     },
   });
@@ -503,6 +505,28 @@ export async function reidentifyEcuAi(
   revalidatePath(`/hq/records/${recordId}`);
   revalidatePath(`/dealer/records/${recordId}`);
   return { ok: true, cal: ai.cal, confidence: ai.cal ? ai.confidence : null };
+}
+
+// 対象ユニット(ECU/TCU)の切替（本店のみ）。取り違えに気づいたら後から直せる。
+// 自動取込された純正(BaseFile)にも反映して、カタログ側の表示・ファイル名も揃える。
+export async function setRecordUnit(
+  recordId: string,
+  unit: string,
+): Promise<{ ok?: true; error?: string }> {
+  await requireHQ();
+  const u = unit === "TCU" ? "TCU" : "ECU";
+  await prisma.serviceRecord.update({ where: { id: recordId }, data: { unit: u } });
+  await prisma.baseFile
+    .updateMany({
+      where: { capturedFromRecordId: recordId, source: "AUTO_CAPTURE" },
+      data: { unit: u },
+    })
+    .catch(() => {});
+  revalidatePath(`/hq/records/${recordId}`);
+  revalidatePath(`/dealer/records/${recordId}`);
+  revalidatePath("/hq/catalog");
+  revalidatePath("/hq/catalog/pending");
+  return { ok: true };
 }
 
 // 純正/チューニング済みの切替（本店のみ）。チューニング済みにしたら、誤って自動取込した

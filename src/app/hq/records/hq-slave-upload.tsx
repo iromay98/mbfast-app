@@ -85,6 +85,18 @@ export function HQSlaveUpload({ dealers }: { dealers: { id: string; name: string
           required
           className="block w-full text-sm text-ink file:mr-3 file:min-h-11 file:rounded-lg file:border-0 file:bg-gold-500 file:px-4 file:text-sm file:font-semibold file:text-white"
         />
+        {/* 対象ユニット（ECU/TCU）— 同時施工の取り違え防止。表示・ファイル名に入る */}
+        <div className="flex items-center gap-3 text-xs text-ink-soft">
+          <span className="font-semibold">対象ユニット</span>
+          <label className="inline-flex items-center gap-1.5">
+            <input type="radio" name="unit" value="ECU" defaultChecked className="h-4 w-4 accent-gold-500" />
+            ECU（エンジン）
+          </label>
+          <label className="inline-flex items-center gap-1.5">
+            <input type="radio" name="unit" value="TCU" className="h-4 w-4 accent-sky-500" />
+            TCU（ミッション）
+          </label>
+        </div>
         <label className="flex items-start gap-2 text-xs text-ink-soft">
           <input type="checkbox" name="isTuned" value="true" className="mt-0.5 h-4 w-4 accent-gold-500" />
           <span>

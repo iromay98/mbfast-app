@@ -281,6 +281,8 @@ export async function updateBaseFile(
   for (const k of ["calNumber", "swNumber", "hwNumber", "generation", "grade"] as const) {
     if (k in patch) data[k] = String(patch[k] ?? "").trim() || null;
   }
+  // 対象ユニットは "ECU"/"TCU" のみ（クリア不可・既定ECU）
+  if ("unit" in patch) data.unit = patch.unit === "TCU" ? "TCU" : "ECU";
   try {
     await prisma.baseFile.update({ where: { id: baseFileId }, data });
   } catch (e) {
@@ -972,6 +974,54 @@ export async function analyzeStockBinAi(formData: FormData): Promise<{
   };
 }
 
+// 本店施工の案件化: カタログの純正アップで顧客名が入力されたら、「本店」名義の
+// 施工記録(MANUAL)を作って顧客別管理に乗せる（slaveアップと同等の顧客名・施工日）。
+async function createHqServiceRecord(opts: {
+  baseFileId: string;
+  manufacturer: string;
+  model: string;
+  unit: string;
+  customerName: string;
+  workedAtRaw: string;
+  userId: string;
+  hw?: string | null;
+  sw?: string | null;
+  cal?: string | null;
+}): Promise<string> {
+  let hq = await prisma.dealer.findFirst({ where: { name: "本店" }, select: { id: true } });
+  if (!hq) {
+    hq = await prisma.dealer.create({
+      data: { name: "本店", note: "本店施工（カタログの純正アップ由来）" },
+      select: { id: true },
+    });
+  }
+  let workedAt: Date | undefined;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(opts.workedAtRaw)) {
+    const d = new Date(`${opts.workedAtRaw}T12:00:00+09:00`);
+    if (!Number.isNaN(d.getTime())) workedAt = d;
+  }
+  const rec = await prisma.serviceRecord.create({
+    data: {
+      dealerId: hq.id,
+      createdById: opts.userId,
+      source: "MANUAL",
+      status: "DECODED",
+      carMaker: opts.manufacturer,
+      carModel: opts.model,
+      customerName: opts.customerName,
+      unit: opts.unit,
+      matchedBaseFileId: opts.baseFileId,
+      hwNumber: opts.hw ?? null,
+      swNumber: opts.sw ?? null,
+      calNumber: opts.cal ?? null,
+      ...(workedAt ? { workedAt } : {}),
+    },
+    select: { id: true },
+  });
+  revalidatePath("/hq/records");
+  return rec.id;
+}
+
 // 原本(純正)binをアップして BaseFile(カタログのベース)を新規作成。
 // ECU/SW/Cal/HW・stockHash は bin から自動抽出。メーカー/車種は手入力（表記揺れを正規化）。
 // エンジン型式・排気量・世代は任意。これに mod(TunedVariant) がぶら下がる。
@@ -1026,6 +1076,10 @@ export async function createBaseFileFromBin(formData: FormData): Promise<FormSta
   const swNumber = typedSw || ecu.sw;
   const calNumber = typedCal || ecu.cal;
   const manualId = !!(typedHw || typedSw || typedCal);
+  // 対象ユニット(ECU/TCU) と、本店施工の案件化用の顧客名・施工日（任意）
+  const unit = formData.get("unit") === "TCU" ? "TCU" : "ECU";
+  const customerName = String(formData.get("customerName") ?? "").trim();
+  const workedAtRaw = String(formData.get("workedAt") ?? "").trim();
 
   const swSeq = swNumber ? await prisma.baseFile.count({ where: { swNumber } }) : 0;
 
@@ -1057,6 +1111,7 @@ export async function createBaseFileFromBin(formData: FormData): Promise<FormSta
         engineCode,
         displacement,
         fuel,
+        unit,
         stockFileRef: saved.key,
         stockFileName: saved.filename,
         stockFileSize: saved.size,
@@ -1077,9 +1132,17 @@ export async function createBaseFileFromBin(formData: FormData): Promise<FormSta
         });
       });
     }
+    // 顧客名があれば「本店」名義の施工記録を作る（本店施工の顧客別管理）
+    let revRecordId: string | undefined;
+    if (customerName) {
+      revRecordId = await createHqServiceRecord({
+        baseFileId: revived.id, manufacturer, model, unit, customerName, workedAtRaw,
+        userId: user.id, hw: hwNumber, sw: swNumber, cal: calNumber,
+      });
+    }
     revalidatePath(CATALOG_PATH);
     revalidatePath(PENDING_PATH);
-    return { ok: true, data: { id: revived.id } };
+    return { ok: true, data: { id: revived.id, recordId: revRecordId } };
   }
 
   try {
@@ -1099,6 +1162,7 @@ export async function createBaseFileFromBin(formData: FormData): Promise<FormSta
         engineCode,
         displacement,
         fuel,
+        unit,
         source: "MANUAL",
         createdById: user.id,
         stockFileRef: saved.key,
@@ -1122,9 +1186,17 @@ export async function createBaseFileFromBin(formData: FormData): Promise<FormSta
         });
       });
     }
+    // 顧客名があれば「本店」名義の施工記録を作る（本店施工の顧客別管理）
+    let recordId: string | undefined;
+    if (customerName) {
+      recordId = await createHqServiceRecord({
+        baseFileId: base.id, manufacturer, model, unit, customerName, workedAtRaw,
+        userId: user.id, hw: hwNumber, sw: swNumber, cal: calNumber,
+      });
+    }
     revalidatePath(CATALOG_PATH);
     revalidatePath(PENDING_PATH);
-    return { ok: true, data: { id: base.id } };
+    return { ok: true, data: { id: base.id, recordId } };
   } catch (e) {
     if (isUniqueError(e)) return { error: "同じ識別子の項目が既に存在します" };
     throw e;

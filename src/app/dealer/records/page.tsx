@@ -79,6 +79,7 @@ export default async function DealerRecordsPage() {
                   {r.workType && (
                     <Badge color="gold">{workTypeLabels[r.workType]}</Badge>
                   )}
+                  {r.unit === "TCU" && <Badge color="blue">TCU</Badge>}
                   <Badge color={recordStatusColors[r.status]}>
                     {recordStatusLabels[r.status]}
                   </Badge>

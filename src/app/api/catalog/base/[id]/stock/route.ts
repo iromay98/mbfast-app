@@ -26,6 +26,7 @@ export async function GET(
       calNumber: true,
       method: true,
       driver: true,
+      unit: true,
     },
   });
   if (!base || !base.stockFileRef) return new Response("Not Found", { status: 404 });
@@ -40,6 +41,7 @@ export async function GET(
     cal: base.calNumber || base.driver,
     method: base.method,
     content: "ori",
+    unit: base.unit,
     ext: extFromName(base.stockFileName, "bin"),
   });
   return fileResponse(file, name, base.stockContentType);

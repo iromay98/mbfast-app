@@ -35,6 +35,8 @@ export const baseFileSchema = z.object({
   stockHash: optionalStr,
   // スピードリミッターカット不可（この純正＝Calでは作れない）
   limiterCutDisabled: optionalBool,
+  // 対象ユニット "ECU" | "TCU"
+  unit: optionalStr,
 });
 
 export const baseFilePatchSchema = baseFileSchema.partial();
