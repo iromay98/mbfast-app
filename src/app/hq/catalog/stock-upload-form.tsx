@@ -8,10 +8,19 @@ import {
   analyzeStockBinAi,
   createBaseFileFromBin,
   createVariantWithFile,
+  deleteVariant,
+  replaceVariantFile,
+  listStockVariants,
 } from "@/lib/actions/catalog";
 import { MANUFACTURERS, isMercedes } from "@/lib/catalog/manufacturers";
-import { fuelKindOf, tuningContentLabel, type FuelKind } from "@/lib/catalog/options";
+import {
+  fuelKindOf,
+  optionTagsFor,
+  popsAllowed,
+  type FuelKind,
+} from "@/lib/catalog/options";
 import { ModUploadForm } from "./mod-upload-form";
+import { RegisteredVariants, type StockVariantRow } from "./registered-variants";
 
 type Analyzed = {
   ecu: string | null;
@@ -27,7 +36,7 @@ type Analyzed = {
     fuel: string | null;
     cal: string | null;
     sw: string | null;
-    variants: { label: string; status: string }[];
+    variants: StockVariantRow[];
   } | null;
 };
 
@@ -55,7 +64,7 @@ export function StockUploadForm({
     id: string;
     recordId?: string;
     existing?: boolean; // 既にストック済みの純正へ mod 追加するモード
-    variants?: { label: string; status: string }[]; // 登録済みバリエーション
+    variants?: StockVariantRow[]; // 登録済みバリエーション
     manufacturer: string;
     model: string;
     fuelKind: FuelKind;
@@ -227,7 +236,7 @@ export function StockUploadForm({
               fuel?: string | null;
               cal?: string | null;
               sw?: string | null;
-              variants?: { label: string; status: string }[];
+              variants?: StockVariantRow[];
             }
           | undefined;
         const id = data?.id ?? "";
@@ -277,26 +286,44 @@ export function StockUploadForm({
         ...m,
         `${stage}${pops}（${file instanceof File ? file.name : "file"}）`,
       ]);
-      // 登録済みリストを即時更新（同ラベルは配布可へ、無ければ追加）
-      let tags: string[] = [];
-      try {
-        const raw = modFd.get("optionTags");
-        if (typeof raw === "string" && raw) tags = JSON.parse(raw);
-      } catch { /* 無視 */ }
-      const label = tuningContentLabel(
-        String(modFd.get("stage") ?? "").trim(),
-        modFd.get("popsAndBangs") === "true",
-        tags,
-        modFd.get("popsSport") === "true",
-      );
-      setCreated((c) => {
-        if (!c) return c;
-        const vs = [...(c.variants ?? [])];
-        const i = vs.findIndex((v) => v.label === label);
-        if (i >= 0) vs[i] = { label, status: "AVAILABLE" };
-        else vs.push({ label, status: "AVAILABLE" });
-        return { ...c, variants: vs };
-      });
+      await refreshVariants();
+      router.refresh();
+    });
+  };
+
+  // 登録済みバリエーションを最新化（追加/差し替え/削除の後）
+  const refreshVariants = async () => {
+    if (!created) return;
+    const { variants } = await listStockVariants(created.id);
+    setCreated((c) => (c ? { ...c, variants } : c));
+  };
+
+  // 1件を差し替え（新しいbinをアップ→版を重ねる）
+  const replaceVariant = (variantId: string, file: File) => {
+    setMsg(null);
+    startSubmit(async () => {
+      const fd = new FormData();
+      fd.set("file", file);
+      const r = await replaceVariantFile(variantId, fd);
+      if (r?.error) {
+        setMsg(r.error);
+        return;
+      }
+      await refreshVariants();
+      router.refresh();
+    });
+  };
+
+  // 1件を削除（アーカイブ・後で復元可）
+  const removeVariant = (variantId: string) => {
+    setMsg(null);
+    startSubmit(async () => {
+      const r = await deleteVariant(variantId);
+      if (r?.error) {
+        setMsg(r.error);
+        return;
+      }
+      await refreshVariants();
       router.refresh();
     });
   };
@@ -528,40 +555,22 @@ export function StockUploadForm({
             )}
           </div>
 
-          {/* 登録済みバリエーション（既存ストックの場合） */}
-          {created.existing && (
-            <div className="rounded-lg border border-line">
-              <div className="border-b border-line px-3 py-1.5 text-xs font-semibold text-ink-soft">
-                登録済みバリエーション（{created.variants?.length ?? 0}）
-              </div>
-              {created.variants && created.variants.length > 0 ? (
-                <ul className="flex flex-wrap gap-1.5 p-2">
-                  {created.variants.map((v, i) => (
-                    <li
-                      key={i}
-                      className={`rounded-full border px-2 py-0.5 text-[11px] font-semibold ${
-                        v.status === "AVAILABLE"
-                          ? "border-green-300 bg-green-50 text-green-700"
-                          : "border-line text-ink-soft"
-                      }`}
-                    >
-                      {v.label}
-                      {v.status === "AVAILABLE" ? "" : v.status === "DRAFT" ? "（下書き）" : "（無効）"}
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <p className="p-2 text-xs text-ink-soft">まだバリエーションはありません。</p>
-              )}
-            </div>
-          )}
+          {/* 登録済みバリエーション（テーブル：オプション列＋状態＋差し替え/削除） */}
+          <RegisteredVariants
+            variants={created.variants ?? []}
+            optionCols={optionTagsFor(created.fuelKind, created.manufacturer)}
+            showPops={popsAllowed(created.fuelKind)}
+            busy={submitting}
+            onReplace={replaceVariant}
+            onDelete={removeVariant}
+          />
 
           <ModUploadForm
             manufacturer={created.manufacturer}
             fuelKind={created.fuelKind}
             baseCal={created.cal}
             baseSw={created.sw}
-            registered={created.existing ? (created.variants ?? []) : undefined}
+            registered={created.variants ?? []}
             onAddFile={addMod}
           />
 

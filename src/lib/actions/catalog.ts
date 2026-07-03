@@ -912,6 +912,52 @@ export async function createBaseFileManual(formData: FormData): Promise<FormStat
   }
 }
 
+// 未整備ストック画面の「登録済みバリエーション」テーブル1行分。
+export type StockVariantRow = {
+  id: string;
+  stage: string;
+  popsAndBangs: boolean;
+  popsSport: boolean;
+  optionTags: string[];
+  status: string;
+  fileName: string | null;
+  label: string;
+};
+
+async function stockVariantRows(baseFileId: string): Promise<StockVariantRow[]> {
+  const vs = await prisma.tunedVariant.findMany({
+    where: { baseFileId, deletedAt: null },
+    orderBy: [{ stage: "asc" }, { popsAndBangs: "asc" }, { popsSport: "asc" }],
+    select: {
+      id: true,
+      stage: true,
+      popsAndBangs: true,
+      popsSport: true,
+      optionTags: true,
+      status: true,
+      fileName: true,
+    },
+  });
+  return vs.map((v) => ({
+    id: v.id,
+    stage: v.stage,
+    popsAndBangs: v.popsAndBangs,
+    popsSport: v.popsSport,
+    optionTags: v.optionTags ?? [],
+    status: v.status as string,
+    fileName: v.fileName ?? null,
+    label: tuningContentLabel(v.stage, v.popsAndBangs, v.optionTags ?? [], v.popsSport),
+  }));
+}
+
+// 登録済みバリエーションの最新一覧を取得（差し替え/削除後の再描画用）。
+export async function listStockVariants(
+  baseFileId: string,
+): Promise<{ variants: StockVariantRow[] }> {
+  await requireHQ();
+  return { variants: await stockVariantRows(baseFileId) };
+}
+
 // 原本(純正)binを解析して ECU 識別子を先読み（フォーム自動入力用）。DBは触らない。
 export async function analyzeStockBin(formData: FormData): Promise<{
   ok?: true;
@@ -930,8 +976,8 @@ export async function analyzeStockBin(formData: FormData): Promise<{
     fuel: string | null;
     cal: string | null;
     sw: string | null;
-    // 登録済みバリエーション（「Stage1・O2」等のラベル＋状態）
-    variants: { label: string; status: string }[];
+    // 登録済みバリエーション（テーブル表示用の全項目）
+    variants: StockVariantRow[];
   } | null;
   error?: string;
 }> {
@@ -969,11 +1015,6 @@ export async function analyzeStockBin(formData: FormData): Promise<{
   });
   let existing = null;
   if (dup && !dup.archived) {
-    // 既存のバリエーション一覧（登録済み表示＆差し替え判定用）
-    const vars = await prisma.tunedVariant.findMany({
-      where: { baseFileId: dup.id, deletedAt: null },
-      select: { stage: true, popsAndBangs: true, popsSport: true, optionTags: true, status: true },
-    });
     existing = {
       id: dup.id,
       manufacturer: dup.manufacturer,
@@ -981,10 +1022,7 @@ export async function analyzeStockBin(formData: FormData): Promise<{
       fuel: dup.fuel,
       cal: dup.calNumber,
       sw: dup.swNumber,
-      variants: vars.map((v) => ({
-        label: tuningContentLabel(v.stage, v.popsAndBangs, v.optionTags ?? [], v.popsSport),
-        status: v.status as string,
-      })),
+      variants: await stockVariantRows(dup.id),
     };
   }
 
@@ -1209,10 +1247,6 @@ export async function createBaseFileFromBin(formData: FormData): Promise<FormSta
           customerName, workedAtRaw, userId: user.id, hw: hwNumber, sw: swNumber, cal: calNumber,
         });
       }
-      const vars = await prisma.tunedVariant.findMany({
-        where: { baseFileId: dup.id, deletedAt: null },
-        select: { stage: true, popsAndBangs: true, popsSport: true, optionTags: true, status: true },
-      });
       return {
         ok: true,
         data: {
@@ -1224,10 +1258,7 @@ export async function createBaseFileFromBin(formData: FormData): Promise<FormSta
           cal: dup.calNumber,
           sw: dup.swNumber,
           recordId: recId,
-          variants: vars.map((v) => ({
-            label: tuningContentLabel(v.stage, v.popsAndBangs, v.optionTags ?? [], v.popsSport),
-            status: v.status as string,
-          })),
+          variants: await stockVariantRows(dup.id),
         },
       };
     }
