@@ -44,8 +44,9 @@ export async function matchAndLinkCatalog(opts: {
   if (!hash) return NONE;
 
   // 1) 既存カタログと照合
-  const base = await prisma.baseFile.findUnique({
-    where: { stockHash: hash },
+  // ※ 復号hashは大文字・カタログ手動アップは小文字保存のため両方で照合する
+  const base = await prisma.baseFile.findFirst({
+    where: { stockHash: { in: [hash, hash.toLowerCase(), hash.toUpperCase()] } },
     select: { id: true },
   });
   if (base) {
@@ -144,8 +145,8 @@ export async function matchAndLinkCatalog(opts: {
     return { matched: false, captured: true, availableCount: 0 };
   } catch {
     // stockHash 一意制約の競合（並行復号）→ 再 find して link
-    const again = await prisma.baseFile.findUnique({
-      where: { stockHash: hash },
+    const again = await prisma.baseFile.findFirst({
+      where: { stockHash: { in: [hash, hash.toLowerCase(), hash.toUpperCase()] } },
       select: { id: true },
     });
     if (again) {

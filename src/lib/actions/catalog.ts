@@ -885,6 +885,16 @@ export async function analyzeStockBin(formData: FormData): Promise<{
   hw: string | null;
   displacement: string | null;
   fuel: string | null;
+  // 同一内容(stockHash)の純正が既にカタログ/未整備にある場合はその情報を返す
+  // → クライアントはバリエーション登録画面へ自動切替する
+  existing?: {
+    id: string;
+    manufacturer: string;
+    model: string;
+    fuel: string | null;
+    cal: string | null;
+    sw: string | null;
+  } | null;
   error?: string;
 }> {
   await requireHQ();
@@ -903,6 +913,34 @@ export async function analyzeStockBin(formData: FormData): Promise<{
     : /TFSI|TSI|FSI|petrol|gasoline/i.test(desc)
       ? "petrol"
       : null;
+
+  // 既にストック済み（同一hash・却下されていない）なら、その純正の情報を返して
+  // クライアント側でバリエーション登録画面へ直行させる（二重登録の手間をなくす）
+  // ※ 自動取込(復号)の stockHash は大文字・カタログ計算は小文字なので両方で照合する
+  const dup = await prisma.baseFile.findFirst({
+    where: { stockHash: { in: [hash, hash.toUpperCase()] } },
+    select: {
+      id: true,
+      archived: true,
+      manufacturer: true,
+      model: true,
+      fuel: true,
+      calNumber: true,
+      swNumber: true,
+    },
+  });
+  const existing =
+    dup && !dup.archived
+      ? {
+          id: dup.id,
+          manufacturer: dup.manufacturer,
+          model: dup.model,
+          fuel: dup.fuel,
+          cal: dup.calNumber,
+          sw: dup.swNumber,
+        }
+      : null;
+
   return {
     ok: true,
     ecu: ecu.ecuType,
@@ -911,6 +949,7 @@ export async function analyzeStockBin(formData: FormData): Promise<{
     hw: ecu.hw,
     displacement: dm ? `${dm[1]}L` : null,
     fuel,
+    existing,
   };
 }
 
@@ -1098,16 +1137,44 @@ export async function createBaseFileFromBin(formData: FormData): Promise<FormSta
 
   const swSeq = swNumber ? await prisma.baseFile.count({ where: { swNumber } }) : 0;
 
-  // 同一hashの既存純正があれば：却下(archived)済みなら復帰して上書き、現役ならエラー。
-  // （却下した純正はカタログ/未整備ストックから消えるが stockHash は残るため、
-  //   再アップ時に「見えないのに重複で弾かれる」状態を解消する）
-  const dup = await prisma.baseFile.findUnique({
-    where: { stockHash },
-    select: { id: true, archived: true },
+  // 同一hashの既存純正があれば：現役ならエラーにせず既存のバリエーション登録へ誘導、
+  // 却下(archived)済みなら復帰して上書き。
+  // ※ 自動取込(復号)の stockHash は大文字・ここの計算は小文字なので両方で照合する
+  const dup = await prisma.baseFile.findFirst({
+    where: { stockHash: { in: [stockHash, stockHash.toUpperCase()] } },
+    select: {
+      id: true,
+      archived: true,
+      manufacturer: true,
+      model: true,
+      fuel: true,
+      calNumber: true,
+      swNumber: true,
+    },
   });
   if (dup) {
     if (!dup.archived) {
-      return { error: "この原本ファイルは既に登録済みです（カタログ/未整備ストックに存在します）" };
+      // 既にストック済み → その純正の mod 登録画面へ直行（顧客名があれば本店案件も作る）
+      let recId: string | undefined;
+      if (customerName) {
+        recId = await createHqServiceRecord({
+          baseFileId: dup.id, manufacturer: dup.manufacturer, model: dup.model, unit,
+          customerName, workedAtRaw, userId: user.id, hw: hwNumber, sw: swNumber, cal: calNumber,
+        });
+      }
+      return {
+        ok: true,
+        data: {
+          id: dup.id,
+          existing: true,
+          manufacturer: dup.manufacturer,
+          model: dup.model,
+          fuel: dup.fuel,
+          cal: dup.calNumber,
+          sw: dup.swNumber,
+          recordId: recId,
+        },
+      };
     }
     const revived = await prisma.baseFile.update({
       where: { id: dup.id },

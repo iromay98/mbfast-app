@@ -20,6 +20,14 @@ type Analyzed = {
   hw: string | null;
   displacement: string | null;
   fuel: string | null;
+  existing?: {
+    id: string;
+    manufacturer: string;
+    model: string;
+    fuel: string | null;
+    cal: string | null;
+    sw: string | null;
+  } | null;
 };
 
 // 純正(原本)bin をアップして車両(BaseFile)を追加。ファイル先 → 自動解析(ECU等) → メーカー/車種入力。
@@ -45,6 +53,7 @@ export function StockUploadForm({
   const [created, setCreated] = useState<{
     id: string;
     recordId?: string;
+    existing?: boolean; // 既にストック済みの純正へ mod 追加するモード
     manufacturer: string;
     model: string;
     fuelKind: FuelKind;
@@ -95,6 +104,21 @@ export function StockUploadForm({
         return;
       }
       setAnalyzed(r);
+      // 既にストック済みの純正なら、いつものバリエーション登録画面へ自動切替
+      //（メーカー・車種の再入力や二重登録は不要）
+      if (r.existing) {
+        setCreated({
+          id: r.existing.id,
+          existing: true,
+          manufacturer: r.existing.manufacturer,
+          model: r.existing.model,
+          fuelKind: fuelKindOf(r.existing.fuel),
+          cal: r.existing.cal ?? "",
+          sw: r.existing.sw ?? "",
+        });
+        setAddedMods([]);
+        return;
+      }
       // 抽出値を既定として流し込む（編集可）。
       // ベンツは Cal/SW/HW の自動認識が誤検出するため流し込まない（手入力のみ）。
       setF((s) => {
@@ -190,9 +214,33 @@ export function StockUploadForm({
       } else {
         setMsg(null);
         // 純正登録完了 → そのまま mod アップ画面へ
-        const data = res?.data as { id?: string; recordId?: string } | undefined;
+        const data = res?.data as
+          | {
+              id?: string;
+              recordId?: string;
+              existing?: boolean;
+              manufacturer?: string;
+              model?: string;
+              fuel?: string | null;
+              cal?: string | null;
+              sw?: string | null;
+            }
+          | undefined;
         const id = data?.id ?? "";
-        setCreated({ id, recordId: data?.recordId, ...ctx });
+        setCreated(
+          data?.existing
+            ? {
+                id,
+                recordId: data.recordId,
+                existing: true,
+                manufacturer: data.manufacturer ?? ctx.manufacturer,
+                model: data.model ?? ctx.model,
+                fuelKind: fuelKindOf(data.fuel ?? null),
+                cal: data.cal ?? "",
+                sw: data.sw ?? "",
+              }
+            : { id, recordId: data?.recordId, ...ctx },
+        );
         setAddedMods([]);
         setFileName("");
         setAnalyzed(null);
@@ -435,9 +483,15 @@ export function StockUploadForm({
       {open && created && (
         <Card className="mt-2 space-y-3">
           <div className="rounded-lg bg-green-50 px-3 py-2 text-sm text-green-800">
-            ✅ 純正を登録しました：<b>{created.manufacturer} {created.model}</b>
+            {created.existing ? (
+              <>✅ この純正は<b>既にストック済み</b>です：<b>{created.manufacturer} {created.model}</b></>
+            ) : (
+              <>✅ 純正を登録しました：<b>{created.manufacturer} {created.model}</b></>
+            )}
             <div className="mt-0.5 text-xs text-green-700">
-              続けて mod（チューニング済みファイル）をアップしてください。ステージ・バブリングを選んで何件でも追加できます。
+              {created.existing
+                ? "そのままバリエーション（mod）を追加できます。ステージ・バブリングを選んでアップしてください。"
+                : "続けて mod（チューニング済みファイル）をアップしてください。ステージ・バブリングを選んで何件でも追加できます。"}
             </div>
             {created.recordId && (
               <a
