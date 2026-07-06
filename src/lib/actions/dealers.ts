@@ -23,6 +23,7 @@ function parseDealerForm(formData: FormData) {
     autotunerToolId: formData.get("autotunerToolId"),
     note: formData.get("note"),
     status: formData.get("status") ?? "ACTIVE",
+    fileFormat: formData.get("fileFormat") ?? "SLAVE",
   });
 }
 

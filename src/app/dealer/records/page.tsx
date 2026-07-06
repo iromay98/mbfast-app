@@ -12,9 +12,15 @@ import { PageTitle, Card, Badge, EmptyState, LinkButton } from "@/components/ui"
 import { AutoRefresh } from "@/components/auto-refresh";
 import { vehicleLabel } from "@/lib/catalog/vehicle";
 import { SlaveUpload } from "./slave-upload";
+import { MasterFileUpload } from "./master-upload";
 
 export default async function DealerRecordsPage() {
   const user = await requireDealer();
+  const dealer = await prisma.dealer.findUnique({
+    where: { id: user.dealerId },
+    select: { fileFormat: true },
+  });
+  const isMaster = dealer?.fileFormat === "MASTER";
   const records = await prisma.serviceRecord.findMany({
     where: { dealerId: user.dealerId, deletedAt: null },
     orderBy: { createdAt: "desc" },
@@ -106,7 +112,7 @@ export default async function DealerRecordsPage() {
       )}
 
       <div className="mb-4">
-        <SlaveUpload />
+        {isMaster ? <MasterFileUpload /> : <SlaveUpload />}
       </div>
 
       {records.length === 0 ? (

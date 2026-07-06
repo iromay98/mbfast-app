@@ -14,6 +14,7 @@ type DealerDefaults = {
   autotunerToolId?: string | null;
   note?: string | null;
   status?: "ACTIVE" | "INACTIVE";
+  fileFormat?: string | null;
 };
 
 export function DealerForm({
@@ -86,6 +87,16 @@ export function DealerForm({
             </Select>
           </Field>
         </div>
+
+        <Field
+          label="やり取りファイル形式"
+          hint="Powergate3(OBLY/Rig Tuning等)は Master File。通常の代理店はスレーブ。"
+        >
+          <Select name="fileFormat" defaultValue={defaults?.fileFormat ?? "SLAVE"}>
+            <option value="SLAVE">スレーブ（AutoTuner）</option>
+            <option value="MASTER">Master File（Powergate3・生bin）</option>
+          </Select>
+        </Field>
 
         <Field label="備考">
           <Textarea name="note" rows={3} defaultValue={defaults?.note ?? ""} />

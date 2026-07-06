@@ -112,6 +112,7 @@ async function loadMatchContext(recordId: string, dealerId: string) {
       autotunerEcuId: true,
       autotunerModelId: true,
       autotunerMcuId: true,
+      dealer: { select: { fileFormat: true } },
       matchedBaseFile: {
         select: { fuel: true, manufacturer: true, limiterCutDisabled: true },
       },
@@ -124,11 +125,14 @@ async function loadMatchContext(recordId: string, dealerId: string) {
   const fuelKind = fuelKindOf(record.matchedBaseFile?.fuel);
   const manufacturer = record.matchedBaseFile?.manufacturer ?? record.carMaker ?? null;
   const limiterCutDisabled = !!record.matchedBaseFile?.limiterCutDisabled;
+  // Master File 形式は再暗号化が不要（生binをそのまま配信）なので、
+  // AutoTunerの車固有IDが無くても配布可能。スレーブ形式は従来どおりID必須。
   const canDeliver =
-    !!record.autotunerSlaveId &&
-    record.autotunerEcuId != null &&
-    record.autotunerModelId != null &&
-    !!record.autotunerMcuId;
+    record.dealer?.fileFormat === "MASTER" ||
+    (!!record.autotunerSlaveId &&
+      record.autotunerEcuId != null &&
+      record.autotunerModelId != null &&
+      !!record.autotunerMcuId);
   return {
     ok: true as const,
     record,

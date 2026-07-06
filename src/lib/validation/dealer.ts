@@ -29,6 +29,8 @@ export const dealerSchema = z.object({
   autotunerToolId: optionalStr,
   note: optionalStr,
   status: z.enum(["ACTIVE", "INACTIVE"]).default("ACTIVE"),
+  // やり取りファイル形式。SLAVE=AutoTunerスレーブ / MASTER=Powergate3のMaster File(生bin)。
+  fileFormat: z.enum(["SLAVE", "MASTER"]).default("SLAVE"),
 });
 
 export type DealerInput = z.infer<typeof dealerSchema>;

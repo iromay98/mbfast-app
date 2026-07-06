@@ -184,6 +184,9 @@ model Dealer {
   email           String?
   status          DealerStatus @default(ACTIVE)
   autotunerToolId String? // スレーブツールID等のメモ
+  // やり取りするファイル形式。SLAVE=AutoTunerスレーブ（既定）/ MASTER=Powergate3のMaster File(生bin)。
+  // 子会社OBLY(Rig Tuning)等、Powergateでやり取りする代理店は MASTER。
+  fileFormat      String       @default("SLAVE")
   note            String?
   createdAt       DateTime     @default(now())
 

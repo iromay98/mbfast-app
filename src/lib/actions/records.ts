@@ -10,6 +10,7 @@ import { serviceRecordSchema, recordSupplementSchema } from "@/lib/validation/re
 import { type FormState, zodToFieldErrors } from "@/lib/actions/form-state";
 import { saveUpload, storage } from "@/server/storage";
 import { runDecryptJob } from "@/server/autotuner/job";
+import { runMasterFileJob } from "@/server/autotuner/master-job";
 import { learnEcuRules, smartExtractEcuId } from "@/server/ecu/learn";
 import { aiExtractIds, aiEnabled, recordCorrection } from "@/server/ecu/ai-extract";
 import { normalizeManufacturer } from "@/lib/catalog/manufacturers";
@@ -135,6 +136,57 @@ export async function uploadSlaveRecord(
 
   // バックグラウンドではなく同期実行。完了後の状態(DECODED/FAILED)を返す。
   await runDecryptJob(record.id);
+  const done = await prisma.serviceRecord.findUnique({
+    where: { id: record.id },
+    select: { status: true },
+  });
+  revalidatePath("/dealer/records");
+
+  return { ok: true, data: { recordId: record.id, status: done?.status ?? "DECODED" } };
+}
+
+// ── Master File（Powergate3・生bin）アップロード：MASTER形式の代理店(OBLY等)用 ──
+// スレーブ復号APIは使わず、生binをそのままSHA-256照合してカタログに紐づける。
+export async function uploadMasterFileRecord(
+  _prev: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  const user = await requireDealer();
+  const dealer = await prisma.dealer.findUnique({
+    where: { id: user.dealerId },
+    select: { fileFormat: true },
+  });
+  if (dealer?.fileFormat !== "MASTER") {
+    return { error: "この操作はMasterFile形式の代理店のみ利用できます" };
+  }
+
+  const file = formData.get("masterFile");
+  if (!(file instanceof File) || file.size === 0) {
+    return { error: "マスターファイルを選択してください", fieldErrors: { masterFile: "未選択" } };
+  }
+  const customerName = String(formData.get("customerName") ?? "").trim();
+  if (!customerName) {
+    return { error: "顧客名を入力してください", fieldErrors: { customerName: "必須" } };
+  }
+  const saved = await saveUpload(file, "masters");
+  if (!saved.ok) {
+    return { error: saved.error, fieldErrors: { masterFile: saved.error } };
+  }
+
+  const record = await prisma.serviceRecord.create({
+    data: {
+      dealerId: user.dealerId,
+      createdById: user.id,
+      source: "SLAVE_UPLOAD",
+      status: "UPLOADED",
+      slaveFilePath: saved.key, // Master File 実体（生bin）
+      slaveHash: saved.sha256,
+      customerName,
+      unit: formData.get("unit") === "TCU" ? "TCU" : "ECU",
+    },
+  });
+
+  await runMasterFileJob(record.id);
   const done = await prisma.serviceRecord.findUnique({
     where: { id: record.id },
     select: { status: true },

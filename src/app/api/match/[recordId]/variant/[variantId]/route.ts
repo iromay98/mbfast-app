@@ -31,7 +31,8 @@ export async function GET(
       autotunerMcuId: true,
       customerName: true,
       workedAt: true,
-      dealer: { select: { name: true } },
+      unit: true,
+      dealer: { select: { name: true, fileFormat: true } },
     },
   });
   if (!record) return new Response("Not Found", { status: 404 });
@@ -71,6 +72,42 @@ export async function GET(
     !v.fileRef
   ) {
     return new Response("Not Found", { status: 404 });
+  }
+
+  // Master File 形式の代理店(Powergate3・OBLY等)は再暗号化しない。
+  // チューニング済みの生bin＝Master File をそのまま配信する（.slave化しない）。
+  if (record.dealer?.fileFormat === "MASTER") {
+    const tuned = await storage.read(v.fileRef);
+    if (!tuned) return new Response("Not Found", { status: 404 });
+
+    await logCatalogDownload({
+      variantId,
+      versionId: v.currentVersionId,
+      fileHash: v.fileHash,
+      userId: user.id,
+      dealerId: record.dealerId,
+      serviceRecordId: recordId,
+      context: "MATCH_AUTO",
+      ip: request.headers.get("x-forwarded-for"),
+    });
+
+    const masterName = buildDownloadName({
+      model: v.baseFile.model,
+      generation: v.baseFile.generation,
+      method: v.baseFile.method,
+      content: composeContent(v.stage, v.popsAndBangs, v.optionTags, v.popsSport),
+      unit: v.baseFile.unit,
+      ext: "bin", // Master File は生bin
+      dealerName: record.dealer?.name,
+      customerName: record.customerName,
+      dateLabel: dateLabel(record.workedAt),
+    });
+    const outMaster: StoredFile = {
+      buffer: tuned.buffer,
+      contentType: "application/octet-stream",
+      size: tuned.buffer.byteLength,
+    };
+    return fileResponse(outMaster, masterName, outMaster.contentType);
   }
 
   // encrypt に必要なID（その車固有・復号時に保存）。揃っていなければ .slave 化できない。
