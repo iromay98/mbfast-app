@@ -74,8 +74,8 @@ export async function GET(
       generation: gen,
       // 施工記録ページからのDLは Cal を出さない（命名規則: 車種 店名(顧客名 日付) AT_方法_内容）
       method: record.matchedBaseFile?.method ?? record.method,
-      // チューニング済み→tuned / リアル読み(backup可)→backup / ヴァーチャル→ori
-      content: record.isTuned ? "tuned" : record.backupSupported ? "backup" : "ori",
+      // 純正はどの読み方でも ori。チューニング済み(既にチューン済みを読んだ)時だけ backup。
+      content: record.isTuned ? "backup" : "ori",
       unit: record.unit,
       ext: "bin",
       dealerName: record.dealer?.name,
