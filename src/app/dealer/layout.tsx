@@ -6,6 +6,7 @@ import type { NavItem } from "@/components/nav-bar";
 const dealerNav: NavItem[] = [
   { href: "/dealer", label: "ダッシュボード" },
   { href: "/dealer/records", label: "施工記録・依頼" },
+  { href: "/dealer/showcase", label: "施工事例" },
   { href: "/dealer/activity", label: "DL・依頼履歴" },
   { href: "/dealer/announcements", label: "お知らせ" },
 ];

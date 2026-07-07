@@ -48,6 +48,11 @@ enum AnnouncementCategory {
   PRICING // 価格改定
 }
 
+enum ShowcaseVisibility {
+  PUBLIC // 一般公開（未ログインでも閲覧可）
+  DEALER // 代理店・本店のみ
+}
+
 // 施工記録の取り込み状態（スレーブアップロード起点の自動生成パイプライン）
 enum RecordStatus {
   UPLOADED   // スレーブ受領・解析待ち（一覧では「解析中」プレースホルダ表示）
@@ -98,6 +103,7 @@ model User {
 
   serviceRecords     ServiceRecord[] @relation("RecordCreatedBy")
   publishedAnnounces Announcement[]  @relation("AnnouncePublishedBy")
+  publishedShowcases Showcase[]      @relation("ShowcasePublishedBy")
   requestEvents      RequestEvent[]  @relation("EventActor")
   recordMessages     RecordMessage[] @relation("MessageAuthor")
 
@@ -376,6 +382,35 @@ model Announcement {
   reads AnnouncementRead[]
 
   @@index([category])
+  @@index([publishedAt])
+}
+
+// 施工事例（ショーケース）。車両でドリルダウンして閲覧。
+// 動画/ブログ/Instagram等は「DLせずリンク/iframe埋め込み」で掲載（著作権配慮）。
+model Showcase {
+  id           String             @id @default(cuid())
+  title        String
+  comment      String? // 本文（Markdown可・「このバブリングは○○」等）
+  // 車両（ドリルダウン用。作成時に施工記録/純正からコピー）
+  carMaker     String
+  carModel     String
+  generation   String?
+  grade        String?
+  stage        String? // 例 Stage1
+  contentLabel String? // 例 「Stage1・バブリング」
+  // 埋め込み配列 [{kind:"youtube"|"instagram"|"link", url, title?}]。実体はDLせずリンク/iframe。
+  embeds       Json               @default("[]")
+  coverImage   String? // 任意：カバー画像の外部URL（自社撮影のみ）
+  visibility   ShowcaseVisibility @default(PUBLIC)
+  createdFromRecordId String?
+
+  publishedById String
+  publishedBy   User     @relation("ShowcasePublishedBy", fields: [publishedById], references: [id])
+  publishedAt   DateTime @default(now())
+  createdAt     DateTime @default(now())
+
+  @@index([carMaker, carModel])
+  @@index([visibility])
   @@index([publishedAt])
 }
 

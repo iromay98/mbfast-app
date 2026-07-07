@@ -25,6 +25,8 @@ export const authConfig = {
       const isPublic =
         path === "/login" ||
         path.startsWith("/api/auth") ||
+        path === "/showcase" ||
+        path.startsWith("/showcase/") ||
         path === "/manifest.webmanifest" ||
         path === "/sw.js";
       if (isPublic) return true;

@@ -28,6 +28,7 @@ import { RecordTunedEdit } from "./record-tuned-edit";
 import { RecordUnitEdit } from "./record-unit-edit";
 import { HqEncryptForm } from "./hq-encrypt-form";
 import { VariationBuilder } from "./variation-matrix";
+import { ShowcaseCreateForm } from "./showcase-create-form";
 import { dateLabel } from "@/server/catalog/filename";
 import {
   fuelKindOf,
@@ -247,6 +248,15 @@ export default async function HQRecordDetailPage({
         <div className="mt-3 border-t border-line pt-3">
           <RecordTunedEdit recordId={record.id} isTuned={record.isTuned} />
         </div>
+      </Card>
+
+      <Card>
+        <h3 className="mb-1 text-sm font-bold text-ink">施工事例として公開</h3>
+        <p className="mb-3 text-xs text-ink-soft">
+          この施工を事例ギャラリーに掲載します。動画・ブログ・Instagram等は<b>URLを貼るだけ</b>
+          （ダウンロードせずリンク/埋め込み表示）。車両情報はこの記録から自動で引き継ぎます。
+        </p>
+        <ShowcaseCreateForm recordId={record.id} />
       </Card>
 
       <Card>
