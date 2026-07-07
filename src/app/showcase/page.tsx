@@ -2,6 +2,9 @@ import { prisma } from "@/lib/db";
 import { formatDate } from "@/lib/labels";
 import { ShowcaseGallery, type ShowcaseEntry } from "@/components/showcase-gallery";
 
+// 公開ページだが DB を読むためビルド時の静的プリレンダを避け、リクエスト時に描画する。
+export const dynamic = "force-dynamic";
+
 export const metadata = {
   title: "施工事例 | mbFAST",
   description: "車両を選んで施工事例（動画・ブログ）をご覧いただけます。",
