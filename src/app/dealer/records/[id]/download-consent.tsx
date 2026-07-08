@@ -3,9 +3,24 @@
 import { useEffect, useRef, useState } from "react";
 import { getDownloadFee, type TuningSelection, type DownloadFee } from "@/lib/actions/requests";
 
-type Phase = "idle" | "checking" | "consent" | "counting";
+type Phase = "idle" | "checking" | "consent" | "counting" | "preparing";
 
 const COUNTDOWN_SEC = 10;
+
+// Content-Disposition からダウンロード名を取り出す（RFC5987 の filename* を優先）。
+function filenameFromDisposition(cd: string | null): string | null {
+  if (!cd) return null;
+  const star = cd.match(/filename\*=UTF-8''([^;]+)/i);
+  if (star) {
+    try {
+      return decodeURIComponent(star[1]);
+    } catch {
+      /* フォールバックへ */
+    }
+  }
+  const plain = cd.match(/filename="?([^";]+)"?/i);
+  return plain ? plain[1] : null;
+}
 
 // DLボタン → 課金種別を判定 → 有料なら忠告＋同意＋10秒キャンセル可能カウントダウン → 自動DL。
 // 無料（当日のバブリング等）は即DL。
@@ -22,15 +37,37 @@ export function DownloadConsent({
   const [fee, setFee] = useState<DownloadFee | null>(null);
   const [agreed, setAgreed] = useState(false);
   const [remaining, setRemaining] = useState(COUNTDOWN_SEC);
+  const [dlError, setDlError] = useState<string | null>(null);
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const triggerDownload = () => {
-    const a = document.createElement("a");
-    a.href = href;
-    a.download = "";
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
+  // .slave は初回に本部APIで再暗号化されるため数秒かかることがある。
+  // その間ずっと「準備中…」を出し、完了(=バイト受信)して初めて保存する。
+  const triggerDownload = async () => {
+    setDlError(null);
+    setPhase("preparing");
+    try {
+      const res = await fetch(href);
+      if (!res.ok) {
+        const txt = await res.text().catch(() => "");
+        throw new Error(txt || `ダウンロードに失敗しました (${res.status})`);
+      }
+      const blob = await res.blob();
+      const name =
+        filenameFromDisposition(res.headers.get("content-disposition")) ?? "download.slave";
+      const objUrl = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = objUrl;
+      a.download = name;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      // すぐに revoke するとダウンロードが始まらない場合があるため少し待つ。
+      setTimeout(() => URL.revokeObjectURL(objUrl), 10000);
+      setPhase("idle");
+    } catch (e) {
+      setDlError(e instanceof Error ? e.message : "ダウンロードに失敗しました");
+      setPhase("idle");
+    }
   };
 
   const clearTimer = () => {
@@ -46,8 +83,7 @@ export function DownloadConsent({
       const f = await getDownloadFee(recordId, selection);
       setFee(f);
       if (f.kind === "free") {
-        triggerDownload();
-        setPhase("idle");
+        await triggerDownload();
       } else {
         setPhase("consent");
       }
@@ -66,8 +102,7 @@ export function DownloadConsent({
       setRemaining(rem);
       if (rem <= 0) {
         clearTimer();
-        triggerDownload();
-        setPhase("idle");
+        void triggerDownload();
       }
     }, 100);
   };
@@ -80,13 +115,20 @@ export function DownloadConsent({
 
   if (phase === "idle") {
     return (
-      <button
-        type="button"
-        onClick={onDownloadClick}
-        className="inline-flex items-center rounded-lg bg-gold-500 px-4 py-2 text-sm font-semibold text-white"
-      >
-        DL可能 — .slave をダウンロード
-      </button>
+      <div className="space-y-2">
+        <button
+          type="button"
+          onClick={onDownloadClick}
+          className="inline-flex items-center rounded-lg bg-gold-500 px-4 py-2 text-sm font-semibold text-white"
+        >
+          DL可能 — .slave をダウンロード
+        </button>
+        {dlError && (
+          <p className="text-sm text-red-600">
+            {dlError}（もう一度お試しください）
+          </p>
+        )}
+      </div>
     );
   }
 
@@ -95,6 +137,15 @@ export function DownloadConsent({
       <div className="flex items-center gap-2 text-sm text-ink-soft">
         <span className="h-4 w-4 animate-spin rounded-full border-2 border-gold-300 border-t-gold-600" />
         確認中…
+      </div>
+    );
+  }
+
+  if (phase === "preparing") {
+    return (
+      <div className="flex items-center gap-2 text-sm text-ink-soft">
+        <span className="h-4 w-4 animate-spin rounded-full border-2 border-gold-300 border-t-gold-600" />
+        ダウンロードを準備中…（初回は数秒かかることがあります）
       </div>
     );
   }
@@ -161,8 +212,7 @@ export function DownloadConsent({
             type="button"
             onClick={() => {
               clearTimer();
-              triggerDownload();
-              setPhase("idle");
+              void triggerDownload();
             }}
             className="text-xs font-semibold text-gold-700 hover:underline"
           >

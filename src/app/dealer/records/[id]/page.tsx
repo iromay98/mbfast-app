@@ -19,6 +19,7 @@ import { RetryDecryptButton } from "@/components/retry-decrypt-button";
 import { updateRecordSupplement } from "@/lib/actions/records";
 import { SupplementForm } from "./supplement-form";
 import { TuningConfigurator } from "./tuning-configurator";
+import { SlaveDownloadButton } from "@/components/slave-download-button";
 import { fuelKindOf, optionTagsFor, popsAllowed, stageRank, baselineStages } from "@/lib/catalog/options";
 import { vehicleLabel } from "@/lib/catalog/vehicle";
 
@@ -192,12 +193,12 @@ export default async function DealerRecordDetailPage({
             アップ時の純正データを、この車用の .slave に暗号化してダウンロードできます。
             チューニングを元に戻したいときにいつでも使えます（無料）。
           </p>
-          <a
+          <SlaveDownloadButton
             href={`/api/records/${record.id}/stock-slave`}
-            className="inline-flex items-center rounded-lg border border-gold-300 bg-white px-4 py-2 text-sm font-semibold text-gold-700 hover:bg-gold-50"
-          >
-            ⬇ 純正(ori) .slave をダウンロード
-          </a>
+            label="⬇ 純正(ori) .slave をダウンロード"
+            className="inline-flex items-center rounded-lg border border-gold-300 bg-white px-4 py-2 text-sm font-semibold text-gold-700 hover:bg-gold-50 disabled:opacity-70"
+          />
+
         </Card>
       )}
 
@@ -213,13 +214,11 @@ export default async function DealerRecordDetailPage({
                 </Link>
                 <div className="flex shrink-0 items-center gap-2">
                   {req.status === "DELIVERED" && req.resultFilePath && canDeliver && (
-                    <a
+                    <SlaveDownloadButton
                       href={`/api/requests/${req.id}/slave`}
-                      download
-                      className="rounded-lg bg-gold-500 px-3 py-1.5 text-xs font-semibold text-white"
-                    >
-                      .slave をダウンロード
-                    </a>
+                      label=".slave をダウンロード"
+                      className="rounded-lg bg-gold-500 px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-70"
+                    />
                   )}
                   <Badge color={requestStatusColors[req.status]}>
                     {requestStatusLabels[req.status]}
