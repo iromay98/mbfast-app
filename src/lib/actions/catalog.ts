@@ -958,6 +958,70 @@ export async function listStockVariants(
   return { variants: await stockVariantRows(baseFileId) };
 }
 
+// この純正が .slave 化できるか（取込元記録に AutoTuner の車固有IDが揃っているか）。
+async function baseCanSlave(baseFileId: string): Promise<boolean> {
+  const base = await prisma.baseFile.findUnique({
+    where: { id: baseFileId },
+    select: { capturedFromRecordId: true },
+  });
+  if (!base?.capturedFromRecordId) return false;
+  const rec = await prisma.serviceRecord.findUnique({
+    where: { id: base.capturedFromRecordId },
+    select: {
+      autotunerSlaveId: true,
+      autotunerEcuId: true,
+      autotunerModelId: true,
+      autotunerMcuId: true,
+    },
+  });
+  return (
+    !!rec?.autotunerSlaveId &&
+    rec.autotunerEcuId != null &&
+    rec.autotunerModelId != null &&
+    !!rec.autotunerMcuId
+  );
+}
+
+// 既存ストックへの顧客登録（重複アップ時に後から登録できる）。
+// 本店施工として 施工記録(本店ダミー代理店) を作成し recordId を返す。
+export async function registerHqCustomerForBase(
+  baseFileId: string,
+  formData: FormData,
+): Promise<{ ok?: true; recordId?: string; error?: string }> {
+  const user = await requireHQ();
+  const customerName = String(formData.get("customerName") ?? "").trim();
+  if (!customerName) return { error: "顧客名を入力してください" };
+  const workedAtRaw = String(formData.get("workedAt") ?? "").trim();
+  const unit = formData.get("unit") === "TCU" ? "TCU" : "ECU";
+
+  const base = await prisma.baseFile.findUnique({
+    where: { id: baseFileId },
+    select: {
+      manufacturer: true,
+      model: true,
+      hwNumber: true,
+      swNumber: true,
+      calNumber: true,
+    },
+  });
+  if (!base) return { error: "純正(BaseFile)が見つかりません" };
+
+  const recordId = await createHqServiceRecord({
+    baseFileId,
+    manufacturer: base.manufacturer,
+    model: base.model,
+    unit,
+    customerName,
+    workedAtRaw,
+    userId: user.id,
+    hw: base.hwNumber,
+    sw: base.swNumber,
+    cal: base.calNumber,
+  });
+  revalidatePath("/hq/records");
+  return { ok: true, recordId };
+}
+
 // 原本(純正)binを解析して ECU 識別子を先読み（フォーム自動入力用）。DBは触らない。
 export async function analyzeStockBin(formData: FormData): Promise<{
   ok?: true;
@@ -978,6 +1042,8 @@ export async function analyzeStockBin(formData: FormData): Promise<{
     sw: string | null;
     // 登録済みバリエーション（テーブル表示用の全項目）
     variants: StockVariantRow[];
+    // .slave 化できるか（取込元の車固有IDが揃っている場合のみ）
+    canSlave: boolean;
   } | null;
   error?: string;
 }> {
@@ -1023,6 +1089,7 @@ export async function analyzeStockBin(formData: FormData): Promise<{
       cal: dup.calNumber,
       sw: dup.swNumber,
       variants: await stockVariantRows(dup.id),
+      canSlave: await baseCanSlave(dup.id),
     };
   }
 
@@ -1259,6 +1326,7 @@ export async function createBaseFileFromBin(formData: FormData): Promise<FormSta
           sw: dup.swNumber,
           recordId: recId,
           variants: await stockVariantRows(dup.id),
+          canSlave: await baseCanSlave(dup.id),
         },
       };
     }

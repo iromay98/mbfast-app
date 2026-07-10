@@ -26,6 +26,7 @@ export function RegisteredVariants({
   optionCols,
   showPops,
   busy,
+  canSlave = false,
   onReplace,
   onDelete,
 }: {
@@ -33,6 +34,7 @@ export function RegisteredVariants({
   optionCols: string[]; // 表示するオプション列（NOx/DTC/O2/スピードリミッターカット 等）
   showPops: boolean;
   busy?: boolean;
+  canSlave?: boolean; // 取込元の車固有IDが揃い .slave 化できる（純正単位）
   onReplace: (id: string, file: File) => void;
   onDelete: (id: string) => void;
 }) {
@@ -66,6 +68,7 @@ export function RegisteredVariants({
                 optionCols={optionCols}
                 showPops={showPops}
                 busy={busy}
+                canSlave={canSlave}
                 onReplace={onReplace}
                 onDelete={onDelete}
               />
@@ -82,6 +85,7 @@ function Row({
   optionCols,
   showPops,
   busy,
+  canSlave,
   onReplace,
   onDelete,
 }: {
@@ -89,6 +93,7 @@ function Row({
   optionCols: string[];
   showPops: boolean;
   busy?: boolean;
+  canSlave?: boolean;
   onReplace: (id: string, file: File) => void;
   onDelete: (id: string) => void;
 }) {
@@ -142,6 +147,35 @@ function Row({
             <span className="text-[12px] text-ink-soft">未登録</span>
           )}
           <div className="mt-1 flex items-center gap-2">
+            {/* 欲しいファイルをその場でDL（.bin=生チューニング / .slave=取込元の車で再暗号化） */}
+            {v.fileName && (
+              <a
+                href={`/api/catalog/variants/${v.id}/file`}
+                download
+                title="チューニング済みの生bin"
+                className="rounded border border-line px-2.5 py-1 text-xs font-semibold text-ink-soft hover:bg-surface-2"
+              >
+                .bin
+              </a>
+            )}
+            {v.fileName &&
+              (canSlave ? (
+                <a
+                  href={`/api/catalog/variants/${v.id}/slave`}
+                  download
+                  title="取込元の車両で再暗号化した焼ける .slave"
+                  className="rounded border border-gold-300 px-2.5 py-1 text-xs font-semibold text-gold-700 hover:bg-gold-50"
+                >
+                  .slave
+                </a>
+              ) : (
+                <span
+                  title="取込元の車両情報が無いため .slave 化できません（手動登録の純正など）"
+                  className="cursor-not-allowed rounded border border-line px-2.5 py-1 text-xs font-semibold text-ink-soft opacity-40"
+                >
+                  .slave
+                </span>
+              ))}
             <button
               type="button"
               disabled={busy}

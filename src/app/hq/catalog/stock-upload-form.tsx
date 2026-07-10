@@ -11,6 +11,7 @@ import {
   deleteVariant,
   replaceVariantFile,
   listStockVariants,
+  registerHqCustomerForBase,
 } from "@/lib/actions/catalog";
 import { MANUFACTURERS, isMercedes } from "@/lib/catalog/manufacturers";
 import {
@@ -37,6 +38,7 @@ type Analyzed = {
     cal: string | null;
     sw: string | null;
     variants: StockVariantRow[];
+    canSlave: boolean;
   } | null;
 };
 
@@ -65,6 +67,7 @@ export function StockUploadForm({
     recordId?: string;
     existing?: boolean; // 既にストック済みの純正へ mod 追加するモード
     variants?: StockVariantRow[]; // 登録済みバリエーション
+    canSlave?: boolean; // .slave 化できるか（取込元の車固有IDあり）
     manufacturer: string;
     model: string;
     fuelKind: FuelKind;
@@ -122,6 +125,7 @@ export function StockUploadForm({
           id: r.existing.id,
           existing: true,
           variants: r.existing.variants,
+          canSlave: r.existing.canSlave,
           manufacturer: r.existing.manufacturer,
           model: r.existing.model,
           fuelKind: fuelKindOf(r.existing.fuel),
@@ -237,6 +241,7 @@ export function StockUploadForm({
               cal?: string | null;
               sw?: string | null;
               variants?: StockVariantRow[];
+              canSlave?: boolean;
             }
           | undefined;
         const id = data?.id ?? "";
@@ -247,6 +252,7 @@ export function StockUploadForm({
                 recordId: data.recordId,
                 existing: true,
                 variants: data.variants,
+                canSlave: data.canSlave,
                 manufacturer: data.manufacturer ?? ctx.manufacturer,
                 model: data.model ?? ctx.model,
                 fuelKind: fuelKindOf(data.fuel ?? null),
@@ -555,12 +561,23 @@ export function StockUploadForm({
             )}
           </div>
 
-          {/* 登録済みバリエーション（テーブル：オプション列＋状態＋差し替え/削除） */}
+          {/* 重複（既存ストック）でも顧客登録できる。従来はここで登録できず取りこぼしていた。 */}
+          {created.existing && !created.recordId && (
+            <HqCustomerRegister
+              baseFileId={created.id}
+              onRegistered={(recordId) =>
+                setCreated((c) => (c ? { ...c, recordId } : c))
+              }
+            />
+          )}
+
+          {/* 登録済みバリエーション（テーブル：オプション列＋状態＋差し替え/削除＋DL） */}
           <RegisteredVariants
             variants={created.variants ?? []}
             optionCols={optionTagsFor(created.fuelKind, created.manufacturer)}
             showPops={popsAllowed(created.fuelKind)}
             busy={submitting}
+            canSlave={created.canSlave ?? false}
             onReplace={replaceVariant}
             onDelete={removeVariant}
           />
@@ -599,6 +616,90 @@ export function StockUploadForm({
           </div>
         </Card>
       )}
+    </div>
+  );
+}
+
+// 既存ストック（重複アップ）でも顧客名・施工日を登録できるボックス。
+// 登録すると本店名義の施工案件が作成され、リンクが出る。
+function HqCustomerRegister({
+  baseFileId,
+  onRegistered,
+}: {
+  baseFileId: string;
+  onRegistered: (recordId: string) => void;
+}) {
+  const [customerName, setCustomerName] = useState("");
+  const [workedAt, setWorkedAt] = useState("");
+  const [unit, setUnit] = useState<"ECU" | "TCU">("ECU");
+  const [pending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+
+  const submit = () =>
+    startTransition(async () => {
+      setError(null);
+      const fd = new FormData();
+      fd.set("customerName", customerName.trim());
+      if (workedAt.trim()) fd.set("workedAt", workedAt.trim());
+      fd.set("unit", unit);
+      const r = await registerHqCustomerForBase(baseFileId, fd);
+      if (r.error) setError(r.error);
+      else if (r.recordId) onRegistered(r.recordId);
+    });
+
+  const inp = "rounded-lg border border-line bg-surface px-2 py-1.5 text-sm";
+  return (
+    <div className="rounded-lg border border-gold-200 bg-gold-50 p-3">
+      <p className="text-xs font-semibold text-ink">
+        この施工の顧客を登録（本店名義の施工案件を作成）
+      </p>
+      <p className="mt-0.5 text-[11px] text-ink-soft">
+        重複ファイルでも顧客登録できます。登録すると本店の施工記録として履歴に残ります。
+      </p>
+      <div className="mt-2 flex flex-wrap items-center gap-2">
+        <input
+          value={customerName}
+          onChange={(e) => setCustomerName(e.target.value)}
+          placeholder="顧客名 *"
+          className={`${inp} w-40`}
+        />
+        <input
+          type="date"
+          value={workedAt}
+          onChange={(e) => setWorkedAt(e.target.value)}
+          title="施工日（未入力は今日）"
+          className={inp}
+        />
+        <div className="flex items-center gap-2 text-xs text-ink-soft">
+          <label className="inline-flex items-center gap-1">
+            <input
+              type="radio"
+              checked={unit === "ECU"}
+              onChange={() => setUnit("ECU")}
+              className="h-3.5 w-3.5 accent-gold-500"
+            />
+            ECU
+          </label>
+          <label className="inline-flex items-center gap-1">
+            <input
+              type="radio"
+              checked={unit === "TCU"}
+              onChange={() => setUnit("TCU")}
+              className="h-3.5 w-3.5 accent-sky-500"
+            />
+            TCU
+          </label>
+        </div>
+        <button
+          type="button"
+          disabled={pending || !customerName.trim()}
+          onClick={submit}
+          className="rounded-lg bg-gold-500 px-3 py-1.5 text-xs font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {pending ? "登録中…" : "顧客を登録"}
+        </button>
+      </div>
+      {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
     </div>
   );
 }
