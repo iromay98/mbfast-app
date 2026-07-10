@@ -3,11 +3,12 @@
 import { useActionState, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { emptyFormState } from "@/lib/actions/form-state";
-import { uploadVariation, deleteVariation } from "@/lib/actions/catalog";
+import { uploadVariation, deleteVariation, setVariantStatus } from "@/lib/actions/catalog";
 import { tuningContentLabel } from "@/lib/catalog/options";
 
 type Stage = { value: string; label: string };
 type VRow = {
+  variantId: string | null; // 状態切替（下書き⇄配布可⇄無効）用
   label: string;
   stage: string;
   pops: boolean;
@@ -137,6 +138,15 @@ function VariationRow({
     });
   };
 
+  const [statusPending, startStatus] = useTransition();
+  const onStatus = (s: string) => {
+    if (!row.variantId) return;
+    startStatus(async () => {
+      await setVariantStatus(row.variantId!, s);
+      router.refresh();
+    });
+  };
+
   const dim = row.status === "DISABLED" ? "opacity-60" : "";
   return (
     <tr className={dim}>
@@ -167,9 +177,26 @@ function VariationRow({
         </td>
       ))}
       <td className="whitespace-nowrap px-2 py-1.5">
-        <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${STATUS_CLASS[row.status]}`}>
-          {STATUS_LABEL[row.status]}
-        </span>
+        {/* 状態はその場で切替可能（下書き⇄配布可⇄無効）。配布可にすると代理店がDLできる。 */}
+        {row.variantId ? (
+          <select
+            value={row.status}
+            disabled={statusPending}
+            onChange={(e) => onStatus(e.target.value)}
+            className={`rounded-full border-0 px-2 py-0.5 text-[11px] font-medium ${STATUS_CLASS[row.status]} disabled:opacity-50`}
+            title="状態を切替（配布可にすると代理店がDLできます）"
+          >
+            {(Object.keys(STATUS_LABEL) as VRow["status"][]).map((s) => (
+              <option key={s} value={s}>
+                {STATUS_LABEL[s]}
+              </option>
+            ))}
+          </select>
+        ) : (
+          <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${STATUS_CLASS[row.status]}`}>
+            {STATUS_LABEL[row.status]}
+          </span>
+        )}
       </td>
       <td className="px-3 py-1.5">
         {/* ファイル名はフルで表示（長ければ折り返して2行になってもよい） */}

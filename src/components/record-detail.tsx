@@ -58,7 +58,7 @@ type RecordForDetail = {
 
 function Row({ label, value }: { label: string; value: React.ReactNode }) {
   return (
-    <div className="flex justify-between gap-3 py-2">
+    <div className="flex justify-between gap-3 py-1">
       <dt className="shrink-0 text-sm text-ink-soft">{label}</dt>
       <dd className="text-right text-sm font-medium text-ink">{value || "—"}</dd>
     </div>
@@ -73,6 +73,8 @@ export function RecordDetail({
   workedAtControl,
   swDisplay,
   vehicleName,
+  ecuControl,
+  hideFiles = false,
 }: {
   record: RecordForDetail;
   // 代理店向けは true。ECU/Cal/HW/SW・読み方式・TCU・エンジン情報・復号ファイル等を一切出さない。
@@ -87,6 +89,10 @@ export function RecordDetail({
   swDisplay?: string;
   // 照合した純正(カタログ)由来の車両名（例 "Mercedes S-class(W222) S550"）。指定時はこれを優先表示。
   vehicleName?: string;
+  // 本店向け: ECU識別子の手動入力UI（ECU識別子カード内に一体表示）。
+  ecuControl?: React.ReactNode;
+  // ファイル(slave/bin)カードを出さない（本店ページでバリエーション登録側にまとめる場合）。
+  hideFiles?: boolean;
 }) {
   const engine = (record.engineInfo as EngineInfo) ?? null;
   const title =
@@ -96,7 +102,7 @@ export function RecordDetail({
       : record.slaveName || "（解析中…）");
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       <Card>
         <div className="mb-2 flex items-center justify-between gap-2">
           <h2 className="text-base font-bold text-ink">
@@ -158,53 +164,77 @@ export function RecordDetail({
         </dl>
       </Card>
 
-      {/* 本店向けは常に表示（手動アップ時も HW/SW/Cal を確認できるように）。 */}
+      {/* ECU識別子とエンジン情報は横並び（本店向け・場所の節約） */}
       {!hideTechnical && (
-        <Card>
-          <h3 className="mb-1 text-sm font-bold text-ink">ECU識別子（自動抽出）</h3>
-          {record.calNumber ? (
-            <div className="mb-2 rounded-lg bg-gold-50 px-3 py-2">
-              <div className="text-xs text-ink-soft">Cal番号</div>
-              <div className="font-mono text-base font-bold text-ink">
-                {record.calNumber}
+        <div className="grid gap-3 lg:grid-cols-2">
+          <Card>
+            <h3 className="mb-1 text-sm font-bold text-ink">ECU識別子（自動抽出・手動入力）</h3>
+            {record.calNumber ? (
+              <div className="mb-2 rounded-lg bg-gold-50 px-3 py-1.5">
+                <div className="text-xs text-ink-soft">Cal番号</div>
+                <div className="font-mono text-base font-bold text-ink">
+                  {record.calNumber}
+                  {record.idSource === "AI" && (
+                    <span className="ml-2 align-middle rounded bg-sky-100 px-1.5 py-0.5 font-sans text-[11px] font-bold text-sky-700">
+                      AI自動認識
+                      {record.idConfidence != null
+                        ? `（確信度${Math.round(record.idConfidence * 100)}%）`
+                        : ""}
+                    </span>
+                  )}
+                </div>
                 {record.idSource === "AI" && (
-                  <span className="ml-2 align-middle rounded bg-sky-100 px-1.5 py-0.5 font-sans text-[11px] font-bold text-sky-700">
-                    AI自動認識
-                    {record.idConfidence != null
-                      ? `（確信度${Math.round(record.idConfidence * 100)}%）`
-                      : ""}
-                  </span>
+                  <div className="mt-0.5 text-[11px] text-sky-700">
+                    AIによる候補です。下の手動入力で確認・修正して保存すると確定します。
+                  </div>
                 )}
               </div>
-              {record.idSource === "AI" && (
-                <div className="mt-1 text-[11px] text-sky-700">
-                  AIによる候補です。下の「ECU識別子の手動入力」で確認・修正して保存すると確定します。
-                </div>
-              )}
-            </div>
+            ) : null}
+            <dl className="divide-y divide-line">
+              <Row
+                label="SW番号"
+                value={
+                  swDisplay ?? record.swNumber ? (
+                    <span className="font-mono">{swDisplay ?? record.swNumber}</span>
+                  ) : null
+                }
+              />
+              <Row
+                label="HW番号"
+                value={record.hwNumber ? <span className="font-mono">{record.hwNumber}</span> : null}
+              />
+              {!record.calNumber && <Row label="Cal番号" value={null} />}
+            </dl>
+            {!record.calNumber && !record.swNumber && !record.hwNumber && (
+              <p className="mt-1 text-xs text-ink-soft">
+                識別子が見つかりませんでした（ベンツ系は誤認識を避けるため自動抽出しません）。
+                下の手動入力で保存すると、次回以降は学習で自動認識されます。
+              </p>
+            )}
+            {/* 手動入力（Cal/SW/HW）を同じカード内に一体表示 */}
+            {ecuControl && <div className="mt-2 border-t border-line pt-2">{ecuControl}</div>}
+          </Card>
+
+          {engine && (engine.name || engine.power || engine.fuel) ? (
+            <Card>
+              <h3 className="mb-1 text-sm font-bold text-ink">エンジン情報（自動取得）</h3>
+              <dl className="divide-y divide-line">
+                <Row label="エンジン名" value={engine.name} />
+                <Row label="出力" value={engine.power ? `${engine.power} hp` : null} />
+                <Row label="トルク" value={engine.torque ? `${engine.torque} Nm` : null} />
+                <Row label="燃料" value={engine.fuel} />
+                <Row
+                  label="年式"
+                  value={
+                    engine.year_from
+                      ? `${engine.year_from}${engine.year_to ? `–${engine.year_to}` : "–"}`
+                      : null
+                  }
+                />
+              </dl>
+            </Card>
           ) : null}
-          <dl className="divide-y divide-line">
-            <Row
-              label="SW番号"
-              value={
-                swDisplay ?? record.swNumber ? (
-                  <span className="font-mono">{swDisplay ?? record.swNumber}</span>
-                ) : null
-              }
-            />
-            <Row
-              label="HW番号"
-              value={record.hwNumber ? <span className="font-mono">{record.hwNumber}</span> : null}
-            />
-            {!record.calNumber && <Row label="Cal番号" value={null} />}
-          </dl>
-          {!record.calNumber && !record.swNumber && !record.hwNumber && (
-            <p className="mt-2 text-xs text-ink-soft">
-              識別子が見つかりませんでした（自動抽出は VAG・トヨタ系に対応。ベンツ系は誤認識を避けるため自動抽出しません）。
-              下の「ECU識別子の手動入力」から本店が手で入力すると、次回以降は学習で自動認識されます。
-            </p>
-          )}
-        </Card>
+        </div>
       )}
 
       {(record.registrationNumber ||
@@ -240,26 +270,6 @@ export function RecordDetail({
         </Card>
       )}
 
-      {!hideTechnical && engine && (engine.name || engine.power || engine.fuel) && (
-        <Card>
-          <h3 className="mb-1 text-sm font-bold text-ink">エンジン情報（自動取得）</h3>
-          <dl className="divide-y divide-line">
-            <Row label="エンジン名" value={engine.name} />
-            <Row label="出力" value={engine.power ? `${engine.power} hp` : null} />
-            <Row label="トルク" value={engine.torque ? `${engine.torque} Nm` : null} />
-            <Row label="燃料" value={engine.fuel} />
-            <Row
-              label="年式"
-              value={
-                engine.year_from
-                  ? `${engine.year_from}${engine.year_to ? `–${engine.year_to}` : "–"}`
-                  : null
-              }
-            />
-          </dl>
-        </Card>
-      )}
-
       {record.note && (
         <Card>
           <h3 className="mb-1 text-sm font-bold text-ink">メモ</h3>
@@ -268,7 +278,7 @@ export function RecordDetail({
       )}
 
       {/* ファイル(slave/bin)は本店のみ。代理店は slave を入れ直せないため非表示（純正に戻す ori は別カードで用意）。 */}
-      {!hideTechnical && (record.slaveFilePath || record.decryptedFilePath) && (
+      {!hideTechnical && !hideFiles && (record.slaveFilePath || record.decryptedFilePath) && (
         <Card>
           <h3 className="mb-2 text-sm font-bold text-ink">ファイル</h3>
           <div className="flex flex-wrap gap-2">

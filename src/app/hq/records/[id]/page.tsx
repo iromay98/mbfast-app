@@ -105,6 +105,7 @@ export default async function HQRecordDetailPage({
           swSeq: true,
           variants: {
             select: {
+              id: true,
               stage: true,
               popsAndBangs: true,
               popsSport: true,
@@ -119,6 +120,7 @@ export default async function HQRecordDetailPage({
     : null;
 
   type VRow = {
+    variantId: string | null;
     label: string;
     stage: string;
     pops: boolean;
@@ -156,6 +158,7 @@ export default async function HQRecordDetailPage({
       const prev = byLabel.get(label);
       if (!prev || score > prev._score) {
         byLabel.set(label, {
+          variantId: v.id,
           label,
           stage,
           pops: v.popsAndBangs,
@@ -189,7 +192,7 @@ export default async function HQRecordDetailPage({
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       <PageTitle
         title="施工記録の詳細"
         action={
@@ -237,48 +240,100 @@ export default async function HQRecordDetailPage({
               ? swLabel(record.swNumber, 0)
               : undefined
         }
+        hideFiles
+        ecuControl={
+          <div>
+            {/* 識別子の手動入力（自動抽出とセット・本店のみ） */}
+            <EcuEditForm
+              recordId={record.id}
+              hw={record.hwNumber}
+              sw={record.swNumber}
+              cal={record.calNumber}
+            />
+            {record.decryptedFilePath && (
+              <div className="mt-2">
+                <ReidentifyEcuButton recordId={record.id} />
+              </div>
+            )}
+          </div>
+        }
       />
 
+      {/* この案件の依頼（バリエーションの直上に配置） */}
+      {requests.length > 0 && (
+        <Card>
+          <h3 className="mb-2 text-sm font-bold text-ink">この案件の依頼</h3>
+          <div className="divide-y divide-line">
+            {requests.map((req) => {
+              const label = req.requestNote?.match(/「(.+?)」/)?.[1];
+              return (
+                <Link
+                  key={req.id}
+                  href={`/hq/requests/${req.id}`}
+                  className="flex items-center justify-between gap-3 py-1.5 hover:bg-surface-2"
+                >
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      {label && (
+                        <span className="rounded bg-gold-500 px-1.5 py-0.5 text-[11px] font-bold text-white">
+                          {label}
+                        </span>
+                      )}
+                      <span className="truncate text-sm font-medium text-ink">{req.title}</span>
+                    </div>
+                    <div className="mt-0.5 text-xs text-ink-soft">{formatDate(req.createdAt)}</div>
+                  </div>
+                  <Badge color={requestStatusColors[req.status]}>
+                    {requestStatusLabels[req.status]}
+                  </Badge>
+                </Link>
+              );
+            })}
+          </div>
+        </Card>
+      )}
+
+      {/* バリエーション登録（ファイルDL・ファイル区分もここにまとめる） */}
       <Card>
-        <h3 className="mb-1 text-sm font-bold text-ink">ファイル区分（ECU/TCU・純正/チューニング済み）</h3>
-        <p className="mb-2 text-xs text-ink-soft">
-          同時施工の取り違えに気づいたらここで直せます（表示・ファイル名・カタログに反映）。
-        </p>
-        <RecordUnitEdit recordId={record.id} unit={record.unit} />
-        <div className="mt-3 border-t border-line pt-3">
+        <h3 className="mb-2 text-sm font-bold text-ink">バリエーション登録</h3>
+        {/* ファイル＋ファイル区分（コンパクトな1段） */}
+        <div className="mb-3 flex flex-wrap items-center gap-x-5 gap-y-2 rounded-lg bg-surface-2 px-3 py-2">
+          <span className="text-xs font-semibold text-ink-soft">ファイル</span>
+          {record.slaveFilePath && (
+            <a
+              href={`/api/records/${record.id}/files/slave`}
+              className="rounded-lg border border-line bg-white px-2.5 py-1 text-xs font-semibold text-ink-soft hover:bg-surface"
+            >
+              ⬇ slave
+            </a>
+          )}
+          {record.decryptedFilePath ? (
+            <a
+              href={`/api/records/${record.id}/files/decrypted`}
+              className="rounded-lg border border-gold-300 bg-white px-2.5 py-1 text-xs font-semibold text-gold-700 hover:bg-gold-50"
+            >
+              ⬇ bin
+            </a>
+          ) : (
+            <span className="text-xs text-ink-soft">bin 未生成</span>
+          )}
+          <span className="hidden h-4 w-px bg-line sm:block" />
+          <RecordUnitEdit recordId={record.id} unit={record.unit} />
           <RecordTunedEdit recordId={record.id} isTuned={record.isTuned} />
         </div>
-      </Card>
-
-      <Card>
-        <h3 className="mb-1 text-sm font-bold text-ink">施工事例として公開</h3>
-        <p className="mb-3 text-xs text-ink-soft">
-          この施工を事例ギャラリーに掲載します。動画・ブログ・Instagram等は<b>URLを貼るだけ</b>
-          （ダウンロードせずリンク/埋め込み表示）。車両情報はこの記録から自動で引き継ぎます。
-        </p>
-        <ShowcaseCreateForm recordId={record.id} />
-      </Card>
-
-      <Card>
-        <h3 className="mb-1 text-sm font-bold text-ink">ECU識別子の手動入力（本店）</h3>
-        <p className="mb-3 text-xs text-ink-soft">
-          自動抽出に未対応の車種（ベンツ系など）は、ここで Cal / SW / HW を手入力できます。
-          保存すると上の「ECU識別子」表示とカタログ照合に反映されます。
-        </p>
-        <EcuEditForm
-          recordId={record.id}
-          hw={record.hwNumber}
-          sw={record.swNumber}
-          cal={record.calNumber}
-        />
-        {/* 過去案件も含め、保存済み復号binをAIで読み直す（再復号なし） */}
-        {record.decryptedFilePath && (
-          <div className="mt-3 border-t border-line pt-3">
-            <p className="mb-2 text-xs text-ink-soft">
-              AI導入前の過去案件などは、保存済みの復号データをAIで読み直せます（再復号なし）。
-            </p>
-            <ReidentifyEcuButton recordId={record.id} />
-          </div>
+        {builderProps ? (
+          <VariationBuilder
+            recordId={record.id}
+            stages={builderProps.stages}
+            showPops={builderProps.showPops}
+            optionTags={builderProps.optionTags}
+            variants={builderProps.variants}
+            openLabels={builderProps.openLabels}
+          />
+        ) : (
+          <p className="text-xs text-ink-soft">
+            この記録はストック（純正ファイル）に紐づいていないため、バリエーション登録は表示できません。
+          </p>
         )}
       </Card>
 
@@ -343,62 +398,13 @@ export default async function HQRecordDetailPage({
 
       <ServiceLog recordId={record.id} logs={serviceLogs} canEdit />
 
-      {requests.length > 0 && (
-        <Card>
-          <h3 className="mb-2 text-sm font-bold text-ink">この案件の依頼</h3>
-          <div className="divide-y divide-line">
-            {requests.map((req) => {
-              const label = req.requestNote?.match(/「(.+?)」/)?.[1];
-              return (
-                <Link
-                  key={req.id}
-                  href={`/hq/requests/${req.id}`}
-                  className="flex items-center justify-between gap-3 py-2 hover:bg-surface-2"
-                >
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-1.5">
-                      {label && (
-                        <span className="rounded bg-gold-500 px-1.5 py-0.5 text-[11px] font-bold text-white">
-                          {label}
-                        </span>
-                      )}
-                      <span className="truncate text-sm font-medium text-ink">{req.title}</span>
-                    </div>
-                    <div className="mt-0.5 text-xs text-ink-soft">{formatDate(req.createdAt)}</div>
-                  </div>
-                  <Badge color={requestStatusColors[req.status]}>
-                    {requestStatusLabels[req.status]}
-                  </Badge>
-                </Link>
-              );
-            })}
-          </div>
-        </Card>
-      )}
-
-      {builderProps ? (
-        <Card>
-          <h3 className="mb-1 text-sm font-bold text-ink">バリエーション登録</h3>
-          <p className="mb-3 text-xs text-ink-soft">
-            カタログ同様にステージ・バブリング・オプションを選び、チューニング済みbinをアップすると
-            即・配布可になり代理店がその場でダウンロードできます。「依頼あり・未返却」の内容はアップで自動納品されます。
-          </p>
-          <VariationBuilder
-            recordId={record.id}
-            stages={builderProps.stages}
-            showPops={builderProps.showPops}
-            optionTags={builderProps.optionTags}
-            variants={builderProps.variants}
-            openLabels={builderProps.openLabels}
-          />
-        </Card>
-      ) : (
-        <Card>
-          <p className="text-xs text-ink-soft">
-            この記録はストック（純正ファイル）に紐づいていないため、バリエーション登録は表示できません。
-          </p>
-        </Card>
-      )}
+      <Card>
+        <h3 className="mb-1 text-sm font-bold text-ink">施工事例として公開</h3>
+        <p className="mb-2 text-xs text-ink-soft">
+          動画・ブログ・Instagram等は<b>URLを貼るだけ</b>（DLせずリンク/埋め込み表示）。車両情報は自動で引き継ぎます。
+        </p>
+        <ShowcaseCreateForm recordId={record.id} />
+      </Card>
 
       <HqNoteForm
         action={updateHqNote.bind(null, record.id)}
