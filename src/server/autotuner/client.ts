@@ -44,15 +44,20 @@ async function logCall(
   }
 }
 
-/** スレーブバイナリを decrypt(maps) で復号する。検証済みの結果を返す。失敗時は AutotunerError。 */
+/**
+ * スレーブバイナリを decrypt で復号する。検証済みの結果を返す。失敗時は AutotunerError。
+ * mode: "maps"=マップ部分のみ（既定） / "backup"=ECU全内容（bak・マップスイッチ用）。
+ * backup 非対応ECU（backup_supported=false）では API が 412 を返す。
+ */
 export async function decryptSlave(
   slave: Buffer,
-  opts: { recordId?: string } = {},
+  opts: { recordId?: string; mode?: "maps" | "backup" } = {},
 ): Promise<DecryptResult> {
+  const mode = opts.mode ?? "maps";
   const id = process.env.AUTOTUNER_ID;
   const key = process.env.AUTOTUNER_API_KEY;
   if (!id || !key) {
-    await logCall(opts.recordId, "maps", null, false, "認証情報(AUTOTUNER_ID/API_KEY)が未設定");
+    await logCall(opts.recordId, mode, null, false, "認証情報(AUTOTUNER_ID/API_KEY)が未設定");
     throw new AutotunerError(
       "AutoTuner の認証情報(AUTOTUNER_ID / AUTOTUNER_API_KEY)が未設定です",
       null,
@@ -60,7 +65,7 @@ export async function decryptSlave(
     );
   }
 
-  const body = JSON.stringify({ mode: "maps", data: slave.toString("base64") });
+  const body = JSON.stringify({ mode, data: slave.toString("base64") });
 
   let lastErr: AutotunerError | null = null;
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
@@ -81,7 +86,7 @@ export async function decryptSlave(
     } catch (e) {
       clearTimeout(timer);
       const msg = e instanceof Error ? e.message : String(e);
-      await logCall(opts.recordId, "maps", null, false, `network: ${msg}`);
+      await logCall(opts.recordId, mode, null, false, `network: ${msg}`);
       lastErr = new AutotunerError(`通信エラー: ${msg}`, null, "NETWORK");
       // ネットワーク失敗も指数バックオフで再試行
       if (attempt < MAX_RETRIES) {
@@ -97,7 +102,7 @@ export async function decryptSlave(
       try {
         json = (await res.json()) as DecryptResponse;
       } catch {
-        await logCall(opts.recordId, "maps", 200, false, "JSON解析失敗");
+        await logCall(opts.recordId, mode, 200, false, "JSON解析失敗");
         throw new AutotunerError("レスポンスJSONの解析に失敗", 200, "BAD_RESPONSE");
       }
       // ハッシュ検証（参照PHP準拠）
@@ -108,20 +113,20 @@ export async function decryptSlave(
         .digest("hex")
         .toUpperCase();
       if (!json.hash || computed !== json.hash.toUpperCase()) {
-        await logCall(opts.recordId, "maps", 200, false, "hash不一致");
+        await logCall(opts.recordId, mode, 200, false, "hash不一致");
         throw new AutotunerError(
           "復号データのハッシュが一致しません（破損の可能性）",
           200,
           "HASH_MISMATCH",
         );
       }
-      await logCall(opts.recordId, "maps", 200, true);
+      await logCall(opts.recordId, mode, 200, true);
       return { meta: json, decryptedData, hash: json.hash.toUpperCase() };
     }
 
     // レート制限 / 未準備 は再試行対象
     if (res.status === 429 || res.status === 503) {
-      await logCall(opts.recordId, "maps", res.status, false, `retryable ${res.status}`);
+      await logCall(opts.recordId, mode, res.status, false, `retryable ${res.status}`);
       lastErr = new AutotunerError(
         res.status === 429 ? "レート制限(429)" : "サーバー未準備(503)",
         res.status,
@@ -137,7 +142,7 @@ export async function decryptSlave(
 
     // その他の非200は即失敗（400/401/405/406/412/500 等）
     const text = await safeText(res);
-    await logCall(opts.recordId, "maps", res.status, false, text.slice(0, 300));
+    await logCall(opts.recordId, mode, res.status, false, text.slice(0, 300));
     throw new AutotunerError(
       `APIエラー HTTP ${res.status}${text ? `: ${text.slice(0, 200)}` : ""}`,
       res.status,
@@ -157,12 +162,13 @@ export async function decryptSlave(
 export async function encryptSlave(
   tuned: Buffer,
   ids: EncryptIds,
-  opts: { recordId?: string } = {},
+  opts: { recordId?: string; mode?: "maps" | "backup" } = {},
 ): Promise<EncryptResult> {
+  const mode = opts.mode ?? "maps";
   const id = process.env.AUTOTUNER_ID;
   const key = process.env.AUTOTUNER_API_KEY;
   if (!id || !key) {
-    await logCall(opts.recordId, "encrypt", null, false, "認証情報(AUTOTUNER_ID/API_KEY)が未設定");
+    await logCall(opts.recordId, `encrypt-${mode}`, null, false, "認証情報(AUTOTUNER_ID/API_KEY)が未設定");
     throw new AutotunerError(
       "AutoTuner の認証情報(AUTOTUNER_ID / AUTOTUNER_API_KEY)が未設定です",
       null,
@@ -171,7 +177,7 @@ export async function encryptSlave(
   }
 
   const body = JSON.stringify({
-    mode: "maps",
+    mode,
     data: tuned.toString("base64"),
     slave_id: ids.slaveId,
     ecu_id: ids.ecuId,
@@ -198,7 +204,7 @@ export async function encryptSlave(
     } catch (e) {
       clearTimeout(timer);
       const msg = e instanceof Error ? e.message : String(e);
-      await logCall(opts.recordId, "encrypt", null, false, `network: ${msg}`);
+      await logCall(opts.recordId, `encrypt-${mode}`, null, false, `network: ${msg}`);
       lastErr = new AutotunerError(`通信エラー: ${msg}`, null, "NETWORK");
       if (attempt < MAX_RETRIES) {
         await sleep(backoffMs(attempt));
@@ -213,7 +219,7 @@ export async function encryptSlave(
       try {
         json = (await res.json()) as DecryptResponse;
       } catch {
-        await logCall(opts.recordId, "encrypt", 200, false, "JSON解析失敗");
+        await logCall(opts.recordId, `encrypt-${mode}`, 200, false, "JSON解析失敗");
         throw new AutotunerError("レスポンスJSONの解析に失敗", 200, "BAD_RESPONSE");
       }
       const slaveData = Buffer.from(json.data ?? "", "base64");
@@ -223,19 +229,19 @@ export async function encryptSlave(
         .digest("hex")
         .toUpperCase();
       if (!json.hash || computed !== json.hash.toUpperCase()) {
-        await logCall(opts.recordId, "encrypt", 200, false, "hash不一致");
+        await logCall(opts.recordId, `encrypt-${mode}`, 200, false, "hash不一致");
         throw new AutotunerError(
           "暗号化データのハッシュが一致しません（破損の可能性）",
           200,
           "HASH_MISMATCH",
         );
       }
-      await logCall(opts.recordId, "encrypt", 200, true);
+      await logCall(opts.recordId, `encrypt-${mode}`, 200, true);
       return { slaveData, hash: json.hash.toUpperCase() };
     }
 
     if (res.status === 429 || res.status === 503) {
-      await logCall(opts.recordId, "encrypt", res.status, false, `retryable ${res.status}`);
+      await logCall(opts.recordId, `encrypt-${mode}`, res.status, false, `retryable ${res.status}`);
       lastErr = new AutotunerError(
         res.status === 429 ? "レート制限(429)" : "サーバー未準備(503)",
         res.status,
@@ -250,7 +256,7 @@ export async function encryptSlave(
     }
 
     const text = await safeText(res);
-    await logCall(opts.recordId, "encrypt", res.status, false, text.slice(0, 300));
+    await logCall(opts.recordId, `encrypt-${mode}`, res.status, false, text.slice(0, 300));
     throw new AutotunerError(
       `APIエラー HTTP ${res.status}${text ? `: ${text.slice(0, 200)}` : ""}`,
       res.status,

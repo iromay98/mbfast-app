@@ -10,17 +10,21 @@ export function HqEncryptForm({
   showPops,
   optionTags,
   namePreview,
+  backupSupported = false,
 }: {
   recordId: string;
   canEncrypt: boolean;
   showPops: boolean;
   optionTags: string[];
   namePreview: string; // 例: 代理店名(顧客名+2026-06-10)
+  // このECUが backup(フル読み書き) 対応か（復号時の backup_supported）。bak encrypt の可否。
+  backupSupported?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [fileName, setFileName] = useState("");
   const [drag, setDrag] = useState(false);
   const [stage, setStage] = useState("");
+  const [mode, setMode] = useState<"maps" | "backup">("maps");
   const [popsMode, setPopsMode] = useState<"none" | "all" | "sport">("none");
   const [selected, setSelected] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
@@ -52,6 +56,7 @@ export function HqEncryptForm({
       fd.set("stage", stage.trim());
       fd.set("pops", popsMode);
       fd.set("optionTags", JSON.stringify(selected));
+      fd.set("mode", mode);
       const res = await fetch(`/api/records/${recordId}/encrypt`, { method: "POST", body: fd });
       if (!res.ok) {
         setError((await res.text()) || `エラー (${res.status})`);
@@ -141,6 +146,48 @@ export function HqEncryptForm({
             </button>
             <span className="text-xs text-ink-soft">{fileName || "未選択"}</span>
             <input ref={fileRef} type="file" className="hidden" onChange={(e) => pick(e.target.files?.[0])} />
+          </div>
+
+          {/* 種類: マップのみ / bak(ECU全内容・マップスイッチ用) */}
+          <div>
+            <div className="mb-1 text-xs font-semibold text-ink-soft">encrypt の種類</div>
+            <div className="flex flex-wrap items-center gap-1.5">
+              {([
+                ["maps", "マップのみ（通常）"],
+                ["backup", "bak：フルバックアップ（マップスイッチ用）"],
+              ] as const).map(([v, label]) => {
+                const disabled = v === "backup" && !backupSupported;
+                return (
+                  <button
+                    key={v}
+                    type="button"
+                    disabled={disabled}
+                    onClick={() => setMode(v)}
+                    title={
+                      disabled
+                        ? "このECUは backup(フル読み書き) に対応していません（backup_supported=false）"
+                        : v === "backup"
+                          ? "ECU全内容を暗号化して焼ける .slave にします（マップスイッチ等のフル書き込み）"
+                          : undefined
+                    }
+                    className={`rounded-lg border px-2.5 py-1.5 text-xs font-semibold ${
+                      mode === v
+                        ? v === "backup"
+                          ? "border-sky-500 bg-sky-500 text-white"
+                          : "border-gold-400 bg-gold-500 text-white"
+                        : "border-line bg-white text-ink-soft hover:bg-surface-2"
+                    } disabled:cursor-not-allowed disabled:opacity-40`}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
+            {mode === "backup" && (
+              <p className="mt-1 text-[11px] text-sky-700">
+                bak: フルバックアップbin（ECU全内容）を丸ごと暗号化します。ファイル名に _bak が付きます。
+              </p>
+            )}
           </div>
 
           {/* 内容（ファイル名に反映） */}

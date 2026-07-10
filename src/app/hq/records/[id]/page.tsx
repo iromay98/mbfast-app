@@ -317,6 +317,16 @@ export default async function HQRecordDetailPage({
           ) : (
             <span className="text-xs text-ink-soft">bin 未生成</span>
           )}
+          {/* bak: ECU全内容のフル復号bin（backup対応車のみ・マップスイッチ用） */}
+          {record.slaveFilePath && record.backupSupported && (
+            <a
+              href={`/api/records/${record.id}/files/bak`}
+              title="ECU全内容のフル復号bin（mode=backup・マップスイッチ用・初回は数秒かかります）"
+              className="rounded-lg border border-sky-300 bg-white px-2.5 py-1 text-xs font-semibold text-sky-700 hover:bg-sky-50"
+            >
+              ⬇ bak（フル）
+            </a>
+          )}
           <span className="hidden h-4 w-px bg-line sm:block" />
           <RecordUnitEdit recordId={record.id} unit={record.unit} />
           <RecordTunedEdit recordId={record.id} isTuned={record.isTuned} />
@@ -345,6 +355,7 @@ export default async function HQRecordDetailPage({
         </p>
         <HqEncryptForm
           recordId={record.id}
+          backupSupported={record.backupSupported === true}
           canEncrypt={
             !!record.autotunerSlaveId &&
             record.autotunerEcuId != null &&

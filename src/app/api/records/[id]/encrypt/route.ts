@@ -55,6 +55,8 @@ export async function POST(
   const popsMode = String(form.get("pops") ?? "none"); // none | all | sport
   const pops = popsMode !== "none";
   const popsSport = popsMode === "sport";
+  // mode: maps=マップのみ（既定） / backup=ECU全内容（bak・マップスイッチ用）
+  const mode = form.get("mode") === "backup" ? ("backup" as const) : ("maps" as const);
   let optionTags: string[] = [];
   try {
     const raw = form.get("optionTags");
@@ -67,16 +69,16 @@ export async function POST(
   }
 
   const tuned = Buffer.from(await file.arrayBuffer());
-  // キャッシュ: 同じ bin(hash) × 同じ車(slaveId) は使い回す
+  // キャッシュ: 同じ bin(hash) × 同じ車(slaveId) × mode は使い回す
   const tunedHash = createHash("sha256").update(tuned).digest("hex");
-  const cacheKey = `records/encrypted/${tunedHash}__${slaveId}.slave`;
+  const cacheKey = `records/encrypted/${tunedHash}__${slaveId}${mode === "backup" ? "__bak" : ""}.slave`;
   let slaveData: Buffer;
   const cached = await storage.read(cacheKey);
   if (cached) {
     slaveData = cached.buffer;
   } else {
     try {
-      const enc = await encryptSlave(tuned, { slaveId, ecuId, modelId, mcuId }, { recordId });
+      const enc = await encryptSlave(tuned, { slaveId, ecuId, modelId, mcuId }, { recordId, mode });
       slaveData = enc.slaveData;
       await storage.save(cacheKey, slaveData, "application/octet-stream");
     } catch (e) {
@@ -90,7 +92,11 @@ export async function POST(
     generation: record.matchedBaseFile?.generation,
     // 施工記録ページからのDLは Cal を出さない（命名規則: 車種 店名(顧客名 日付) AT_方法_内容）
     method: record.matchedBaseFile?.method,
-    content: composeContent(stage, pops, optionTags, popsSport),
+    // bak(フルバックアップ)は内容名にも bak を入れて区別する
+    content:
+      mode === "backup"
+        ? `${composeContent(stage, pops, optionTags, popsSport)}_bak`
+        : composeContent(stage, pops, optionTags, popsSport),
     unit: record.unit,
     ext: "slave",
     dealerName: record.dealer?.name,

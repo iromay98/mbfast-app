@@ -2,12 +2,14 @@ import type { NextRequest } from "next/server";
 import { getSessionUser } from "@/lib/authz";
 import { prisma } from "@/lib/db";
 import { storage } from "@/server/storage";
+import { decryptSlave } from "@/server/autotuner/client";
 import { filenameFromKey } from "@/server/storage/filename";
 import { buildDownloadName, dateLabel, contentDisposition } from "@/server/catalog/filename";
 
 // スレーブ/復号ファイルの認可付きダウンロード。
 //   kind = "slave"     : 代理店がアップしたスレーブ
 //   kind = "decrypted" : 復号後バイナリ（本店がダウンロード）
+//   kind = "bak"       : ECU全内容のフル復号bin（decrypt mode=backup・マップスイッチ用・本店のみ）
 // 親(ServiceRecord)のアクセス権を確認してから添付として返す。推測可能URLでの直配信はしない。
 export async function GET(
   _request: NextRequest,
@@ -17,7 +19,7 @@ export async function GET(
   if (!user) return new Response("Unauthorized", { status: 401 });
 
   const { id, kind } = await ctx.params;
-  if (kind !== "slave" && kind !== "decrypted") {
+  if (kind !== "slave" && kind !== "decrypted" && kind !== "bak") {
     return new Response("Not Found", { status: 404 });
   }
 
@@ -49,9 +51,57 @@ export async function GET(
     return new Response("Forbidden", { status: 403 });
   }
 
-  // 復号(decrypt)した純正binは代理店に一切渡さない（御法度）。本店のみ。
-  if (kind === "decrypted" && user.role !== "HQ_ADMIN") {
+  // 復号(decrypt)した純正bin・bakフルダンプは代理店に一切渡さない（御法度）。本店のみ。
+  if ((kind === "decrypted" || kind === "bak") && user.role !== "HQ_ADMIN") {
     return new Response("Forbidden", { status: 403 });
+  }
+
+  // bak: 保存済みスレーブを mode=backup で復号して ECU 全内容を返す（マップスイッチ用）。
+  // 初回のみ AutoTuner API を呼び、以後はキャッシュを使う。
+  if (kind === "bak") {
+    if (!record.slaveFilePath) return new Response("Not Found", { status: 404 });
+    if (record.backupSupported === false) {
+      return new Response("このECUは backup（フル読み書き）に対応していません", { status: 412 });
+    }
+    const cacheKey = `decrypted-bak/${id}.bin`;
+    let bak = await storage.read(cacheKey);
+    if (!bak) {
+      const slave = await storage.read(record.slaveFilePath);
+      if (!slave) return new Response("Not Found", { status: 404 });
+      try {
+        const result = await decryptSlave(slave.buffer, { recordId: id, mode: "backup" });
+        await storage.save(cacheKey, result.decryptedData, "application/octet-stream");
+        bak = await storage.read(cacheKey);
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        return new Response(`bak復号に失敗しました: ${msg}`, { status: 502 });
+      }
+    }
+    if (!bak) return new Response("Not Found", { status: 404 });
+    const gen =
+      record.matchedBaseFile?.generation ??
+      (record.engineInfo as { version?: string } | null)?.version ??
+      null;
+    const bakName = buildDownloadName({
+      model: record.matchedBaseFile?.model ?? record.carModel,
+      generation: gen,
+      method: record.matchedBaseFile?.method ?? record.method,
+      content: "bak", // フルダンプは bak（ori/backup とは区別）
+      unit: record.unit,
+      ext: "bin",
+      dealerName: record.dealer?.name,
+      customerName: record.customerName,
+      dateLabel: dateLabel(record.workedAt),
+    });
+    return new Response(new Uint8Array(bak.buffer), {
+      status: 200,
+      headers: {
+        "Content-Type": "application/octet-stream",
+        "Content-Length": String(bak.size),
+        "Content-Disposition": contentDisposition(bakName),
+        "Cache-Control": "private, no-store",
+      },
+    });
   }
 
   const key = kind === "slave" ? record.slaveFilePath : record.decryptedFilePath;
