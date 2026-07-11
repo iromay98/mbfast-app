@@ -16,11 +16,14 @@ export function RecordThread({
   messages,
   viewerRole,
   canEncrypt = false,
+  backupSupported = false,
 }: {
   recordId: string;
   messages: ThreadMessage[];
   viewerRole: "HQ_ADMIN" | "DEALER";
   canEncrypt?: boolean;
+  // slave変換で bak(フル・マップスイッチ用) を選べるか（backup対応ECUのみ）。
+  backupSupported?: boolean;
 }) {
   return (
     <Card className="p-0">
@@ -83,7 +86,7 @@ export function RecordThread({
       </div>
 
       <div className="border-t border-line px-4 py-3">
-        <MessageComposer recordId={recordId} canEncrypt={canEncrypt} />
+        <MessageComposer recordId={recordId} canEncrypt={canEncrypt} backupSupported={backupSupported} />
       </div>
     </Card>
   );

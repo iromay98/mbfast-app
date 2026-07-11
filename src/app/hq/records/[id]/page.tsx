@@ -400,6 +400,7 @@ export default async function HQRecordDetailPage({
           record.autotunerModelId != null &&
           !!record.autotunerMcuId
         }
+        backupSupported={record.backupSupported === true}
       />
 
       <div>

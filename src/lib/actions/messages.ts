@@ -71,6 +71,7 @@ export async function postRecordMessage(
           customerName: true,
           workedAt: true,
           unit: true,
+          backupSupported: true,
           dealer: { select: { name: true } },
           matchedBaseFile: {
             select: { model: true, generation: true, calNumber: true, method: true },
@@ -84,10 +85,16 @@ export async function postRecordMessage(
       if (!slaveId || ecuId == null || modelId == null || !mcuId) {
         return { error: "この記録は暗号化IDが無いため .slave 化できません。チェックを外して送ってください。" };
       }
+      // 種類: maps=マップのみ（既定） / backup=ECU全内容（bak・マップスイッチ用）
+      const mode =
+        formData.get("encryptMode") === "backup" ? ("backup" as const) : ("maps" as const);
+      if (mode === "backup" && rec?.backupSupported === false) {
+        return { error: "このECUは backup（フル読み書き）に対応していないため bak は作れません。" };
+      }
       const tuned = Buffer.from(await file.arrayBuffer());
       let slaveData: Buffer;
       try {
-        const enc = await encryptSlave(tuned, { slaveId, ecuId, modelId, mcuId }, { recordId });
+        const enc = await encryptSlave(tuned, { slaveId, ecuId, modelId, mcuId }, { recordId, mode });
         slaveData = enc.slaveData;
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
@@ -97,12 +104,14 @@ export async function postRecordMessage(
       // 内容は本店が入力（例 Stage1_Pops_AdBlue）。未入力は元ファイル名の語幹を流用。
       const contentInput = String(formData.get("content") ?? "").trim();
       const fallback = (file.name || "test").replace(/\.[^.]+$/, "");
+      // bak(フルバックアップ)は内容名にも bak を入れて区別する
+      const contentBase = contentInput || fallback;
       const fileName = buildDownloadName({
         model: rec?.matchedBaseFile?.model ?? rec?.carModel,
         generation: rec?.matchedBaseFile?.generation,
         cal: rec?.matchedBaseFile?.calNumber, // 本店なので Cal も付与
         method: rec?.matchedBaseFile?.method,
-        content: contentInput || fallback,
+        content: mode === "backup" ? `${contentBase}_bak` : contentBase,
         unit: rec?.unit,
         ext: "slave",
         dealerName: rec?.dealer?.name,

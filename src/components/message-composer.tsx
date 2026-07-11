@@ -16,9 +16,12 @@ type Slot = "slave" | "file" | "camera";
 export function MessageComposer({
   recordId,
   canEncrypt = false,
+  backupSupported = false,
 }: {
   recordId: string;
   canEncrypt?: boolean;
+  // このECUが backup(フル読み書き) 対応か。true のとき slave変換で bak(フル) を選べる。
+  backupSupported?: boolean;
 }) {
   const [state, formAction, pending] = useActionState(
     postRecordMessage.bind(null, recordId),
@@ -30,11 +33,13 @@ export function MessageComposer({
   const cameraRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
   const [picked, setPicked] = useState<{ slot: Slot; name: string } | null>(null);
+  const [encryptMode, setEncryptMode] = useState<"maps" | "backup">("maps");
 
   useEffect(() => {
     if (state.ok) {
       formRef.current?.reset();
       setPicked(null);
+      setEncryptMode("maps");
       router.refresh();
     }
   }, [state, router]);
@@ -129,17 +134,53 @@ export function MessageComposer({
         </div>
       )}
 
-      {/* slave のときファイル名に入れる内容（任意） */}
+      {/* slave のとき: 変換の種類（マップ/bak）とファイル名に入れる内容（任意） */}
       {canEncrypt && picked?.slot === "slave" && (
-        <label className="flex items-center gap-2 text-xs text-ink-soft">
-          <span className="shrink-0">内容（任意）</span>
-          <input
-            type="text"
-            name="content"
-            placeholder="例: Stage1_Pops_AdBlue（ファイル名に入ります）"
-            className="min-w-0 flex-1 rounded-lg border border-line bg-surface px-2 py-1 font-mono text-xs"
-          />
-        </label>
+        <div className="space-y-1.5">
+          <div className="flex flex-wrap items-center gap-1.5 text-xs">
+            <span className="shrink-0 font-semibold text-ink-soft">種類</span>
+            {([
+              ["maps", "マップのみ（通常）"],
+              ["backup", "bak：フル（マップスイッチ用）"],
+            ] as const).map(([v, label]) => {
+              const disabled = v === "backup" && !backupSupported;
+              return (
+                <button
+                  key={v}
+                  type="button"
+                  disabled={disabled}
+                  onClick={() => setEncryptMode(v)}
+                  title={
+                    disabled
+                      ? "このECUは backup(フル読み書き) に対応していません"
+                      : v === "backup"
+                        ? "フルバックアップbinを丸ごと暗号化（ファイル名に _bak が付きます）"
+                        : undefined
+                  }
+                  className={`rounded-lg border px-2 py-1 font-semibold ${
+                    encryptMode === v
+                      ? v === "backup"
+                        ? "border-sky-500 bg-sky-500 text-white"
+                        : "border-gold-400 bg-gold-500 text-white"
+                      : "border-line bg-white text-ink-soft hover:bg-surface-2"
+                  } disabled:cursor-not-allowed disabled:opacity-40`}
+                >
+                  {label}
+                </button>
+              );
+            })}
+            <input type="hidden" name="encryptMode" value={encryptMode} />
+          </div>
+          <label className="flex items-center gap-2 text-xs text-ink-soft">
+            <span className="shrink-0">内容（任意）</span>
+            <input
+              type="text"
+              name="content"
+              placeholder="例: Stage1_Pops_AdBlue（ファイル名に入ります）"
+              className="min-w-0 flex-1 rounded-lg border border-line bg-surface px-2 py-1 font-mono text-xs"
+            />
+          </label>
+        </div>
       )}
 
       <FormError message={state.error} />
