@@ -244,6 +244,10 @@ model ServiceRecord {
   isTuned         Boolean  @default(false)
   // 対象ユニット "ECU" | "TCU"。同時施工での取り違え防止（表示・ファイル名に使用）。
   unit            String   @default("ECU")
+  // チューンド車用: 本店が事前アップする純正(ori)bin。代理店はこれを ori .slave でいつでもDLできる。
+  oriFilePath String?
+  oriFileName String?
+  oriFileHash String? // SHA-256（.slave暗号化キャッシュのキー）
 
   // ── encrypt（再暗号化）用に保存（今回 encrypt は未実装） ──
   autotunerSlaveId String? // ← decrypt: slave_id

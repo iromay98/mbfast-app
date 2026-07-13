@@ -1,5 +1,6 @@
 "use server";
 
+import { createHash } from "node:crypto";
 import { after } from "next/server";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
@@ -143,6 +144,49 @@ export async function uploadSlaveRecord(
   revalidatePath("/dealer/records");
 
   return { ok: true, data: { recordId: record.id, status: done?.status ?? "DECODED" } };
+}
+
+// ── チューンド車用: 本店が純正(ori)binを事前アップ（代理店が ori .slave でDLできるように） ──
+export async function uploadRecordOri(
+  recordId: string,
+  formData: FormData,
+): Promise<{ ok?: true; fileName?: string; error?: string }> {
+  await requireHQ();
+  const file = formData.get("file");
+  if (!(file instanceof File) || file.size === 0) {
+    return { error: "純正(ori)のbinを選択してください" };
+  }
+  const record = await prisma.serviceRecord.findUnique({
+    where: { id: recordId },
+    select: { id: true },
+  });
+  if (!record) return { error: "記録が見つかりません" };
+
+  const buf = Buffer.from(await file.arrayBuffer());
+  const hash = createHash("sha256").update(buf).digest("hex");
+  const key = `records/hq-ori/${recordId}.bin`;
+  await storage.save(key, buf, "application/octet-stream");
+  await prisma.serviceRecord.update({
+    where: { id: recordId },
+    data: { oriFilePath: key, oriFileName: file.name, oriFileHash: hash },
+  });
+  revalidatePath(`/hq/records/${recordId}`);
+  revalidatePath(`/dealer/records/${recordId}`);
+  return { ok: true, fileName: file.name };
+}
+
+// 登録済みoriの取り外し（誤アップ時）
+export async function removeRecordOri(
+  recordId: string,
+): Promise<{ ok?: true; error?: string }> {
+  await requireHQ();
+  await prisma.serviceRecord.update({
+    where: { id: recordId },
+    data: { oriFilePath: null, oriFileName: null, oriFileHash: null },
+  });
+  revalidatePath(`/hq/records/${recordId}`);
+  revalidatePath(`/dealer/records/${recordId}`);
+  return { ok: true };
 }
 
 // ── Master File（Powergate3・生bin）アップロード：MASTER形式の代理店(OBLY等)用 ──

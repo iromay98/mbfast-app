@@ -23,6 +23,8 @@ export async function GET(
       dealerId: true,
       decryptedFilePath: true,
       decryptedHash: true,
+      oriFilePath: true,
+      oriFileHash: true,
       autotunerSlaveId: true,
       autotunerEcuId: true,
       autotunerModelId: true,
@@ -44,8 +46,18 @@ export async function GET(
     return new Response("Forbidden", { status: 403 });
   }
 
-  if (!record.decryptedFilePath) {
-    return new Response("純正(復号)ファイルがありません", { status: 409 });
+  // ori の実体:
+  //   通常（純正読み）  → 復号ファイル（その車から読んだ元の中身）
+  //   チューニング済み車 → 本店が事前アップした純正bin（読んだ中身は純正でないため）
+  const srcPath = record.isTuned ? record.oriFilePath : record.decryptedFilePath;
+  const srcHash = record.isTuned ? record.oriFileHash : record.decryptedHash;
+  if (!srcPath) {
+    return new Response(
+      record.isTuned
+        ? "この車はチューニング済み読みのため、本店が純正(ori)binを登録するとDLできるようになります"
+        : "純正(復号)ファイルがありません",
+      { status: 409 },
+    );
   }
   const slaveId = record.autotunerSlaveId;
   const ecuId = record.autotunerEcuId;
@@ -55,14 +67,14 @@ export async function GET(
     return new Response("この記録には暗号化に必要な情報がありません", { status: 409 });
   }
 
-  // キャッシュ: 同じ純正(decryptedHash) × 同じ車(slaveId)
-  const cacheKey = `records/stock-encrypted/${record.decryptedHash ?? recordId}__${slaveId}.slave`;
+  // キャッシュ: 同じ純正(hash) × 同じ車(slaveId)
+  const cacheKey = `records/stock-encrypted/${srcHash ?? recordId}__${slaveId}.slave`;
   let slaveData: Buffer;
   const cached = await storage.read(cacheKey);
   if (cached) {
     slaveData = cached.buffer;
   } else {
-    const stock = await storage.read(record.decryptedFilePath);
+    const stock = await storage.read(srcPath);
     if (!stock) return new Response("Not Found", { status: 404 });
     try {
       const enc = await encryptSlave(stock.buffer, { slaveId, ecuId, modelId, mcuId }, { recordId });
@@ -76,7 +88,7 @@ export async function GET(
 
   await logCatalogDownload({
     variantId: null,
-    fileHash: record.decryptedHash,
+    fileHash: srcHash,
     userId: user.id,
     dealerId: record.dealerId,
     serviceRecordId: recordId,
@@ -89,8 +101,8 @@ export async function GET(
     generation: record.matchedBaseFile?.generation,
     // 施工記録ページからのDLは Cal を出さない（命名規則: 車種 店名(顧客名 日付) AT_方法_内容）
     method: record.matchedBaseFile?.method,
-    // 純正はどの読み方でも ori。チューニング済み(既にチューン済みを読んだ)時だけ backup。
-    content: record.isTuned ? "backup" : "ori",
+    // 配るのは常に純正＝ori（チューンド車は本店アップの純正を配るため ori）。
+    content: "ori",
     unit: record.unit,
     ext: "slave",
     dealerName: record.dealer?.name,

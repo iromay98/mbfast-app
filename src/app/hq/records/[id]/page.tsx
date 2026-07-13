@@ -26,6 +26,7 @@ import { EcuEditForm } from "./ecu-edit-form";
 import { ReidentifyEcuButton } from "./reidentify-ecu-button";
 import { RecordTunedEdit } from "./record-tuned-edit";
 import { RecordUnitEdit } from "./record-unit-edit";
+import { RecordOriUpload } from "./record-ori-upload";
 import { HqEncryptForm } from "./hq-encrypt-form";
 import { VariationBuilder } from "./variation-matrix";
 import { ShowcaseCreateForm } from "./showcase-create-form";
@@ -326,6 +327,13 @@ export default async function HQRecordDetailPage({
             >
               ⬇ bak（フル）
             </a>
+          )}
+          {/* チューンド車: 本店が純正(ori)を事前登録 → 代理店が「純正に戻す(ori)」を使える */}
+          {record.isTuned && (
+            <>
+              <span className="hidden h-4 w-px bg-line sm:block" />
+              <RecordOriUpload recordId={record.id} oriFileName={record.oriFileName} />
+            </>
           )}
           <span className="hidden h-4 w-px bg-line sm:block" />
           <RecordUnitEdit recordId={record.id} unit={record.unit} />

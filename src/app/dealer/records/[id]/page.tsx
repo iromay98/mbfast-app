@@ -185,12 +185,17 @@ export default async function DealerRecordDetailPage({
       {/* 施工ログ（本部が記録。代理店は閲覧のみ） */}
       <ServiceLog recordId={record.id} logs={serviceLogs} canEdit={false} />
 
-      {/* ファイル＝純正に戻す（ori）のみ。slave は入れ直せないため非表示。チューニング済みは純正でないので非表示。 */}
-      {canDeliver && record.decryptedFilePath && !record.isTuned && (
+      {/* ファイル＝純正に戻す（ori）のみ。slave は入れ直せないため非表示。
+          通常: アップ時の復号データ（純正読み）。
+          チューニング済み読み: 本店が事前登録した純正bin（登録済みの時だけ表示）。 */}
+      {canDeliver &&
+        (record.isTuned ? !!record.oriFilePath : !!record.decryptedFilePath) && (
         <Card>
           <h3 className="mb-1 text-sm font-bold text-ink">純正に戻す（ori）</h3>
           <p className="mb-3 text-xs text-ink-soft">
-            アップ時の純正データを、この車用の .slave に暗号化してダウンロードできます。
+            {record.isTuned
+              ? "本店が登録した純正データを、この車用の .slave に暗号化してダウンロードできます。"
+              : "アップ時の純正データを、この車用の .slave に暗号化してダウンロードできます。"}
             チューニングを元に戻したいときにいつでも使えます（無料）。
           </p>
           <SlaveDownloadButton
