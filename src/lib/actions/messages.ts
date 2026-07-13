@@ -102,22 +102,31 @@ export async function postRecordMessage(
       }
       // 代理店DLと同じ構造化ファイル名（車種(世代) 代理店名(顧客名+日付) AT_method_内容.slave）。
       // 内容は本店が入力（例 Stage1_Pops_AdBlue）。未入力は元ファイル名の語幹を流用。
+      // ファイル名: 本店が入力した名前を最優先（.slave は自動付与）。
+      // 未入力なら従来の自動命名（車種(世代) 店名(顧客名 日付) Cal AT_方法_内容.slave）。
+      const nameInput = String(formData.get("fileName") ?? "")
+        .trim()
+        .replace(/[\\/:*?"<>|]/g, "_"); // パス・禁止文字は除去
       const contentInput = String(formData.get("content") ?? "").trim();
       const fallback = (file.name || "test").replace(/\.[^.]+$/, "");
       // bak(フルバックアップ)は内容名にも bak を入れて区別する
       const contentBase = contentInput || fallback;
-      const fileName = buildDownloadName({
-        model: rec?.matchedBaseFile?.model ?? rec?.carModel,
-        generation: rec?.matchedBaseFile?.generation,
-        cal: rec?.matchedBaseFile?.calNumber, // 本店なので Cal も付与
-        method: rec?.matchedBaseFile?.method,
-        content: mode === "backup" ? `${contentBase}_bak` : contentBase,
-        unit: rec?.unit,
-        ext: "slave",
-        dealerName: rec?.dealer?.name,
-        customerName: rec?.customerName,
-        dateLabel: dateLabel(rec?.workedAt),
-      });
+      const fileName = nameInput
+        ? nameInput.toLowerCase().endsWith(".slave")
+          ? nameInput
+          : `${nameInput}.slave`
+        : buildDownloadName({
+            model: rec?.matchedBaseFile?.model ?? rec?.carModel,
+            generation: rec?.matchedBaseFile?.generation,
+            cal: rec?.matchedBaseFile?.calNumber, // 本店なので Cal も付与
+            method: rec?.matchedBaseFile?.method,
+            content: mode === "backup" ? `${contentBase}_bak` : contentBase,
+            unit: rec?.unit,
+            ext: "slave",
+            dealerName: rec?.dealer?.name,
+            customerName: rec?.customerName,
+            dateLabel: dateLabel(rec?.workedAt),
+          });
       const key = `record-messages/${recordId}/${Date.now()}_${fileName}`;
       await storage.save(key, slaveData, "application/octet-stream");
       fileFields = {

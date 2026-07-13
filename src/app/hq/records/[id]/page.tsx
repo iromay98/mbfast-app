@@ -27,10 +27,8 @@ import { ReidentifyEcuButton } from "./reidentify-ecu-button";
 import { RecordTunedEdit } from "./record-tuned-edit";
 import { RecordUnitEdit } from "./record-unit-edit";
 import { RecordOriUpload } from "./record-ori-upload";
-import { HqEncryptForm } from "./hq-encrypt-form";
 import { VariationBuilder } from "./variation-matrix";
 import { ShowcaseCreateForm } from "./showcase-create-form";
-import { dateLabel } from "@/server/catalog/filename";
 import {
   fuelKindOf,
   popsAllowed,
@@ -355,48 +353,9 @@ export default async function HQRecordDetailPage({
         )}
       </Card>
 
-      <Card>
-        <h3 className="mb-1 text-sm font-bold text-ink">本部で encrypt（.slave を焼く）</h3>
-        <p className="mb-3 text-xs text-ink-soft">
-          外部で作ったチューニング後bin を、この車固有のID で暗号化して焼ける .slave を取得します。
-          ファイル名の代理店名・顧客名・日付・車種・Cal は<b>この記録から自動</b>で入ります。
-        </p>
-        <HqEncryptForm
-          recordId={record.id}
-          backupSupported={record.backupSupported === true}
-          canEncrypt={
-            !!record.autotunerSlaveId &&
-            record.autotunerEcuId != null &&
-            record.autotunerModelId != null &&
-            !!record.autotunerMcuId
-          }
-          showPops={builderProps?.showPops ?? true}
-          optionTags={builderProps?.optionTags ?? []}
-          namePreview={`${record.dealer?.name ?? ""}(${[record.customerName, dateLabel(record.workedAt)]
-            .filter(Boolean)
-            .join("+")})`}
-        />
-      </Card>
-
-      {record.decryptedFilePath &&
-        !record.isTuned &&
-        !!record.autotunerSlaveId &&
-        record.autotunerEcuId != null &&
-        record.autotunerModelId != null &&
-        !!record.autotunerMcuId && (
-          <Card>
-            <h3 className="mb-1 text-sm font-bold text-ink">純正に戻す（ori）</h3>
-            <p className="mb-3 text-xs text-ink-soft">
-              アップ時の純正データを、この車用の .slave に暗号化してダウンロードします（焼ける純正復元ファイル）。
-            </p>
-            <a
-              href={`/api/records/${record.id}/stock-slave`}
-              className="inline-flex items-center rounded-lg border border-gold-300 bg-white px-4 py-2 text-sm font-semibold text-gold-700 hover:bg-gold-50"
-            >
-              ⬇ 純正(ori) .slave をダウンロード
-            </a>
-          </Card>
-        )}
+      {/* 本部encrypt・純正に戻す(ori)のカードは廃止:
+          encrypt はチャットの「slaveに変換」(マップ/bak) で、
+          ori はバリエーション登録のファイル段（⬇slave=アップ時の焼ける純正 / ⬇bin=復号純正）で行う。 */}
 
       <RecordThread
         recordId={record.id}

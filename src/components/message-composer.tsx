@@ -172,11 +172,20 @@ export function MessageComposer({
             <input type="hidden" name="encryptMode" value={encryptMode} />
           </div>
           <label className="flex items-center gap-2 text-xs text-ink-soft">
+            <span className="shrink-0">ファイル名（任意）</span>
+            <input
+              type="text"
+              name="fileName"
+              placeholder="例: RS3_st1_vmax（.slaveは自動付与・未入力は自動命名）"
+              className="min-w-0 flex-1 rounded-lg border border-line bg-surface px-2 py-1 font-mono text-xs"
+            />
+          </label>
+          <label className="flex items-center gap-2 text-xs text-ink-soft">
             <span className="shrink-0">内容（任意）</span>
             <input
               type="text"
               name="content"
-              placeholder="例: Stage1_Pops_AdBlue（ファイル名に入ります）"
+              placeholder="例: Stage1_Pops_AdBlue（自動命名のときファイル名に入ります）"
               className="min-w-0 flex-1 rounded-lg border border-line bg-surface px-2 py-1 font-mono text-xs"
             />
           </label>
