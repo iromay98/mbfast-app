@@ -15,10 +15,13 @@ export function fuelKindOf(fuel?: string | null): FuelKind {
   return "unknown";
 }
 
-const BASE_TAGS = ["NOx", "DTC", "O2"];
+const BASE_TAGS = ["NOx", "DTC", "O2", "Flap Open"];
 const DIESEL_TAGS = ["Adblue", "DPF", "EGR"];
 
 export const SPEED_LIMITER_TAG = "スピードリミッターカット";
+// バブリングの強度区分。無印＝推奨 / このタグ付き＝強（触媒を無視）。
+// 料金上はバブリングの一部＝無料（有料OPには数えない）。
+export const POPS_STRONG_TAG = "バブリング強(触媒無視)";
 
 // その燃料で選択肢として出すタグ。
 // スピードリミッターカットは全車種で表示し、可否は各Calの limiterCutDisabled で制御する。
@@ -26,8 +29,15 @@ export const SPEED_LIMITER_TAG = "スピードリミッターカット";
 export function optionTagsFor(kind: FuelKind, _manufacturer?: string | null): string[] {
   // ガソリンは Adblue/DPF/EGR を出さない。ディーゼル/不明は全部出す。
   const base = kind === "gasoline" ? [...BASE_TAGS] : [...BASE_TAGS, ...DIESEL_TAGS];
+  // バブリング強はバブリング可の燃料のみ（ディーゼルは不可）
+  if (popsAllowed(kind)) base.push(POPS_STRONG_TAG);
   base.push(SPEED_LIMITER_TAG);
   return base;
+}
+
+// 有料OPの数え方: バブリング強はバブリングの一部なので有料OPから除外する。
+export function paidTags(tags: string[]): string[] {
+  return tags.filter((t) => t !== POPS_STRONG_TAG);
 }
 
 // バブリング(Pops)を扱えるか（ディーゼルは不可）

@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useTransition } from "react";
 import { resolveTuning, requestTuning } from "@/lib/actions/requests";
-import { SPEED_LIMITER_TAG, tuningContentLabel } from "@/lib/catalog/options";
+import { SPEED_LIMITER_TAG, tuningContentLabel, paidTags } from "@/lib/catalog/options";
 import { DownloadConsent } from "./download-consent";
 
 type Stage = { value: string; label: string };
@@ -40,8 +40,9 @@ export function TuningConfigurator({
   const [requested, setRequested] = useState(false);
   const [agreed, setAgreed] = useState(false);
 
-  // バブリング以外のオプション(=selected の全て)は有料OP
-  const hasPaid = selected.length > 0;
+  // 有料OP＝バブリング系（バブリング強含む）以外のオプション
+  const paidSelected = paidTags(selected);
+  const hasPaid = paidSelected.length > 0;
 
   // 選択が変わるたびに判定（loading→DL可能 or リクエスト）
   useEffect(() => {
@@ -216,7 +217,7 @@ export function TuningConfigurator({
                     有料オプションが含まれます
                   </p>
                   <p className="mt-1 text-xs text-amber-700">
-                    バブリング以外のオプション（{selected.join("・")}）は<b>有料</b>です。
+                    バブリング以外のオプション（{paidSelected.join("・")}）は<b>有料</b>です。
                     別途料金が発生することにご同意のうえリクエストしてください。
                   </p>
                   <label className="mt-2 inline-flex items-center gap-1.5 text-xs font-medium text-amber-900">

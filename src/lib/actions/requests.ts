@@ -21,6 +21,8 @@ import {
   popsAllowed,
   tuningContentLabel,
   SPEED_LIMITER_TAG,
+  POPS_STRONG_TAG,
+  paidTags,
 } from "@/lib/catalog/options";
 
 // ── 代理店: 依頼作成 ───────────────────────────
@@ -151,8 +153,11 @@ function normalizeSelection(
   manufacturer?: string | null,
 ): Required<TuningSelection> {
   const allowed = new Set(optionTagsFor(fuelKind, manufacturer));
-  const optionTags = [...new Set(sel.optionTags)].filter((t) => allowed.has(t));
   const pops = popsAllowed(fuelKind) ? !!sel.pops : false;
+  const optionTags = [...new Set(sel.optionTags)]
+    .filter((t) => allowed.has(t))
+    // バブリング強はバブリング選択時のみ意味を持つ
+    .filter((t) => pops || t !== POPS_STRONG_TAG);
   return {
     stage: (sel.stage ?? "").trim(),
     pops,
@@ -288,7 +293,8 @@ export async function getDownloadFee(
   }
 
   const paidBefore = new Set(downloads.flatMap((d) => d.variant?.optionTags ?? []));
-  const newPaid = selTags.filter((t) => !paidBefore.has(t));
+  // バブリング強はバブリングの一部＝無料なので、新規有料OPには数えない
+  const newPaid = paidTags(selTags).filter((t) => !paidBefore.has(t));
   if (newPaid.length > 0) {
     return {
       kind: "additional",
@@ -327,8 +333,8 @@ export async function requestTuning(
   if (!ctx.ok) return { error: ctx.error };
 
   const sel = normalizeSelection(selection, ctx.fuelKind, ctx.manufacturer);
-  // 正規化後の optionTags はすべて有料OP（バブリングは pops で別枠＝無料）。
-  if (sel.optionTags.length > 0 && !agreed) {
+  // 有料OP（バブリングとバブリング強は無料枠）が含まれる場合のみ同意必須。
+  if (paidTags(sel.optionTags).length > 0 && !agreed) {
     return { error: "有料オプションの同意が必要です" };
   }
   const content = contentLabel(sel);

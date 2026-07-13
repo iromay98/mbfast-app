@@ -3,7 +3,7 @@
 import { useActionState, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { emptyFormState } from "@/lib/actions/form-state";
-import { uploadVariation, deleteVariation, setVariantStatus } from "@/lib/actions/catalog";
+import { uploadVariation, deleteVariation, setVariantStatus, updateVariant } from "@/lib/actions/catalog";
 import { tuningContentLabel } from "@/lib/catalog/options";
 
 type Stage = { value: string; label: string };
@@ -146,6 +146,15 @@ function VariationRow({
       router.refresh();
     });
   };
+  // オプションはその場で編集可（例: 既存バブリングを「バブリング強(触媒無視)」に振り分け）
+  const onToggleTag = (tag: string, checked: boolean) => {
+    if (!row.variantId) return;
+    const next = checked ? [...row.optionTags, tag] : row.optionTags.filter((t) => t !== tag);
+    startStatus(async () => {
+      await updateVariant(row.variantId!, { optionTags: next });
+      router.refresh();
+    });
+  };
 
   const dim = row.status === "DISABLED" ? "opacity-60" : "";
   return (
@@ -170,9 +179,10 @@ function VariationRow({
           <input
             type="checkbox"
             checked={row.optionTags.includes(t)}
-            readOnly
-            disabled
-            className="h-4 w-4 accent-gold-500"
+            disabled={!row.variantId || statusPending}
+            onChange={(e) => onToggleTag(t, e.target.checked)}
+            title="クリックで切替（例: 既存バブリングを『強(触媒無視)』へ振り分け）"
+            className="h-4 w-4 cursor-pointer accent-gold-500"
           />
         </td>
       ))}
@@ -217,6 +227,27 @@ function VariationRow({
               if (e.target.files?.length) formRef.current?.requestSubmit();
             }}
           />
+          {/* 本部DL: .bin=登録されている生チューニング / .slave=この車用に再暗号化 */}
+          {row.variantId && row.fileName && (
+            <a
+              href={`/api/catalog/variants/${row.variantId}/file`}
+              download
+              title="登録されているチューニング済みbin（本店のみ）"
+              className="shrink-0 rounded-md border border-line px-2.5 py-1.5 text-xs font-semibold text-ink-soft hover:bg-surface-2"
+            >
+              .bin
+            </a>
+          )}
+          {row.variantId && row.available && (
+            <a
+              href={`/api/match/${recordId}/variant/${row.variantId}`}
+              download
+              title="この車用に再暗号化した焼ける .slave"
+              className="shrink-0 rounded-md border border-gold-300 px-2.5 py-1.5 text-xs font-semibold text-gold-700 hover:bg-gold-50"
+            >
+              .slave
+            </a>
+          )}
           <button
             type="button"
             onClick={() => fileRef.current?.click()}
