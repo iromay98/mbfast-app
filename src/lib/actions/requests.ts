@@ -277,8 +277,9 @@ export async function getDownloadFee(
     return { kind: "service", label: "施工料金", note: "" };
   }
 
+  // キャンセル承諾済み(cancelledAt)のDLは課金判定から除外する（誤DL救済）
   const downloads = await prisma.catalogDownloadLog.findMany({
-    where: { serviceRecordId: recordId },
+    where: { serviceRecordId: recordId, cancelledAt: null },
     orderBy: { createdAt: "asc" },
     select: { createdAt: true, variant: { select: { optionTags: true } } },
   });

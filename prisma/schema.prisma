@@ -348,6 +348,10 @@ model FileRequest {
   requestNote     String? // 依頼内容
   inputFilePath   String? // 代理店がアップしたスレーブ/読み出しファイル(ストレージ参照キー)
   status          RequestStatus  @default(RECEIVED)
+  // 誤リクエストのキャンセルフロー: 代理店が依頼→本店が承諾(status=CANCELLED)/却下。
+  cancelRequestedAt DateTime?
+  cancelReason      String?
+  cancelRejectedAt  DateTime?
   resultFilePath  String? // 本店が返す成果ファイル(ストレージ参照キー)
   hqNote          String? // 本店からのコメント
   serviceRecordId String? // 完了時に紐づける施工記録
@@ -614,6 +618,12 @@ model CatalogDownloadLog {
 
   context   DownloadContext
   ip        String?
+  // 誤DLのキャンセルフロー: 代理店が依頼→本店が承諾(cancelledAt)/却下(cancelRejectedAt)。
+  // cancelledAt が入ったDLは課金判定(getDownloadFee)から除外される。
+  cancelRequestedAt DateTime?
+  cancelReason      String?
+  cancelledAt       DateTime?
+  cancelRejectedAt  DateTime?
   createdAt DateTime        @default(now())
 
   @@index([variantId])
