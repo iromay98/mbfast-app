@@ -65,6 +65,31 @@ export function popsModeLabel(pops: boolean, popsSport = false): string | null {
   return popsSport ? "バブリング(スポーツ)" : "バブリング(全モード)";
 }
 
+// tuningContentLabel の逆パース（納品→バリエーション自動登録用）。
+// 形式: "stage・バブリング(全モード|スポーツ)?・tag1・tag2…"（tagsはソート済み・「・」を含まない前提）
+export function parseTuningContentLabel(label: string): {
+  stage: string;
+  pops: boolean;
+  popsSport: boolean;
+  optionTags: string[];
+} | null {
+  const segs = label.split("・").map((s) => s.trim()).filter(Boolean);
+  if (segs.length === 0) return null;
+  const stage = segs[0] === "チューニングなし" ? "" : segs[0];
+  let i = 1;
+  let pops = false;
+  let popsSport = false;
+  if (segs[i] === "バブリング(全モード)") {
+    pops = true;
+    i++;
+  } else if (segs[i] === "バブリング(スポーツ)") {
+    pops = true;
+    popsSport = true;
+    i++;
+  }
+  return { stage, pops, popsSport, optionTags: segs.slice(i) };
+}
+
 // 施工内容の人間可読ラベル（専門情報なし）。popsSport: true=スポーツ / false=全モード。
 // 例: ("Stage1", true, ["O2"], false) → "Stage1・バブリング(全モード)・O2"
 export function tuningContentLabel(

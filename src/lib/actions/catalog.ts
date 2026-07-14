@@ -21,6 +21,7 @@ import {
   optionTagsFor,
   popsAllowed,
   tuningContentLabel,
+  parseTuningContentLabel,
 } from "@/lib/catalog/options";
 import { type FormState, zodToFieldErrors } from "@/lib/actions/form-state";
 import {
@@ -668,6 +669,99 @@ function sameTagSet(a: string[], b: string[]): boolean {
 // カタログ同様にステージ＋バブリング＋オプション(O2 等)を指定して、マッチした stock(BaseFile)
 // 配下に variant を作成/差し替えし即・配布可(AVAILABLE)に。該当の未返却リクエストは納品＋通知。
 // 選択は formData（stage / pops / optionTags(JSON)）で受け取る。
+// 納品（リクエスト成果物）からのバリエーション自動登録。
+// リクエスト内容ラベルを逆パースし、uploadVariation と同じ規則で
+// 既存(同stage/pops/OP集合)を差し替え or 新規作成（いずれも配布可）。
+export async function registerVariationFromDelivery(opts: {
+  recordId: string;
+  label: string;
+  fileRef: string;
+  fileHash: string;
+  fileName: string | null;
+  fileSize: number | null;
+  contentType: string | null;
+  userId: string;
+}): Promise<{ ok?: true; skipped?: string }> {
+  const sel = parseTuningContentLabel(opts.label);
+  if (!sel) return { skipped: "リクエスト内容を解析できませんでした" };
+
+  const record = await prisma.serviceRecord.findUnique({
+    where: { id: opts.recordId },
+    select: {
+      matchedBaseFileId: true,
+      matchedBaseFile: { select: { fuel: true, manufacturer: true } },
+    },
+  });
+  if (!record?.matchedBaseFileId) {
+    return { skipped: "施工記録がストックに紐づいていないため自動登録できません" };
+  }
+  const fuelKind = fuelKindOf(record.matchedBaseFile?.fuel);
+  const allowed = new Set(optionTagsFor(fuelKind, record.matchedBaseFile?.manufacturer));
+  const unknown = sel.optionTags.filter((t) => !allowed.has(t));
+  if (unknown.length > 0) {
+    return { skipped: `不明なオプション（${unknown.join("・")}）のため自動登録をスキップしました` };
+  }
+  const pops = popsAllowed(fuelKind) && sel.pops;
+  const popsSport = pops && sel.popsSport;
+  const optionTags = [...new Set(sel.optionTags)].sort();
+  const baseFileId = record.matchedBaseFileId;
+
+  const candidates = await prisma.tunedVariant.findMany({
+    where: { baseFileId, stage: sel.stage, popsAndBangs: pops, popsSport, deletedAt: null },
+    select: {
+      id: true,
+      status: true,
+      optionTags: true,
+      versions: { select: { version: true }, orderBy: { version: "desc" }, take: 1 },
+    },
+  });
+  const matched = candidates.filter((c) => sameTagSet(c.optionTags, optionTags));
+  const existing = matched.find((c) => c.status === "AVAILABLE") ?? matched[0];
+
+  const fileFields = {
+    fileRef: opts.fileRef,
+    fileHash: opts.fileHash,
+    fileName: opts.fileName,
+    fileSize: opts.fileSize,
+    contentType: opts.contentType,
+  };
+
+  if (existing) {
+    const nextVer = (existing.versions[0]?.version ?? 0) + 1;
+    const ver = await prisma.tunedVariantVersion.create({
+      data: { variantId: existing.id, version: nextVer, ...fileFields, replacedById: opts.userId },
+    });
+    await prisma.tunedVariant.update({
+      where: { id: existing.id },
+      data: { status: "AVAILABLE", currentVersionId: ver.id, ...fileFields },
+    });
+  } else {
+    const variant = await prisma.tunedVariant.create({
+      data: {
+        baseFileId,
+        stage: sel.stage,
+        popsAndBangs: pops,
+        popsSport,
+        optionTags,
+        status: "AVAILABLE",
+        createdById: opts.userId,
+      },
+    });
+    const ver = await prisma.tunedVariantVersion.create({
+      data: { variantId: variant.id, version: 1, ...fileFields, replacedById: opts.userId },
+    });
+    await prisma.tunedVariant.update({
+      where: { id: variant.id },
+      data: { currentVersionId: ver.id, ...fileFields },
+    });
+  }
+
+  revalidatePath(CATALOG_PATH);
+  revalidatePath(`/hq/records/${opts.recordId}`);
+  revalidatePath(`/dealer/records/${opts.recordId}`);
+  return { ok: true };
+}
+
 export async function uploadVariation(
   recordId: string,
   _prev: FormState,

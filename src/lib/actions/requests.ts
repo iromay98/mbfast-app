@@ -10,7 +10,9 @@ import {
   hqRequestUpdateSchema,
 } from "@/lib/validation/request";
 import { type FormState, zodToFieldErrors } from "@/lib/actions/form-state";
-import { saveUpload } from "@/server/storage";
+import { createHash } from "node:crypto";
+import { saveUpload, storage } from "@/server/storage";
+import { registerVariationFromDelivery } from "@/lib/actions/catalog";
 import { notify } from "@/server/notifications";
 import { sendPushToUsers, recipientUserIds } from "@/server/push";
 import { requestStatusLabels } from "@/lib/labels";
@@ -460,20 +462,37 @@ export async function updateRequestByHQ(
 
   const current = await prisma.fileRequest.findUnique({
     where: { id: requestId },
-    select: { status: true, dealerId: true, resultFilePath: true },
+    select: {
+      status: true,
+      dealerId: true,
+      resultFilePath: true,
+      requestNote: true,
+      serviceRecordId: true,
+    },
   });
   if (!current) return { error: "依頼が見つかりません" };
 
   // 成果ファイル（任意・差し替え可）
   let resultFilePath = current.resultFilePath ?? undefined;
+  let uploaded: { key: string; sha256: string; filename: string; size: number; contentType: string | null } | null = null;
   const file = formData.get("resultFile");
   if (file instanceof File && file.size > 0) {
     const res = await saveUpload(file, "requests");
     if (!res.ok) return { error: res.error, fieldErrors: { resultFile: res.error } };
     resultFilePath = res.key;
+    uploaded = { key: res.key, sha256: res.sha256, filename: res.filename, size: res.size, contentType: res.contentType ?? null };
   }
 
-  const { status, hqNote, serviceRecordId } = parsed.data;
+  // 納品内容: as_requested=リクエスト通り（バリエーションへ自動登録） / different=異なる仕様（自動登録しない）
+  const specMatch = formData.get("specMatch") === "different" ? "different" : "as_requested";
+  const specNote = String(formData.get("specNote") ?? "").trim();
+
+  const { status, hqNote: hqNoteRaw, serviceRecordId } = parsed.data;
+  // 異なる仕様の備考は本店コメントに追記して残す（代理店にも伝わる）
+  const hqNote =
+    specMatch === "different" && specNote
+      ? [hqNoteRaw, `【仕様メモ】${specNote}`].filter(Boolean).join("\n")
+      : hqNoteRaw;
 
   await prisma.fileRequest.update({
     where: { id: requestId },
@@ -488,6 +507,52 @@ export async function updateRequestByHQ(
         : {}),
     },
   });
+
+  // 納品＝リクエスト通りなら、バリエーションへ自動登録（再アップの手間を無くす）
+  let autoMessage: string | null = null;
+  if (status === "DELIVERED" && specMatch === "as_requested") {
+    const recId = serviceRecordId || current.serviceRecordId;
+    const label = current.requestNote?.match(/「(.+?)」/)?.[1];
+    if (!recId) {
+      autoMessage = "自動登録スキップ: 施工記録が紐づいていません";
+    } else if (!label) {
+      autoMessage = "自動登録スキップ: リクエスト内容（「…」）が読み取れませんでした";
+    } else if (!resultFilePath) {
+      autoMessage = "自動登録スキップ: 成果ファイルがありません";
+    } else {
+      // ファイル情報（今回アップ分 or 既存の成果物を読み直してhash計算）
+      let f = uploaded;
+      if (!f) {
+        const stored = await storage.read(resultFilePath);
+        if (stored) {
+          f = {
+            key: resultFilePath,
+            sha256: createHash("sha256").update(stored.buffer).digest("hex"),
+            filename: resultFilePath.split("/").pop() ?? "delivered.bin",
+            size: stored.size,
+            contentType: stored.contentType ?? null,
+          };
+        }
+      }
+      if (!f) {
+        autoMessage = "自動登録スキップ: 成果ファイルを読み込めませんでした";
+      } else {
+        const r = await registerVariationFromDelivery({
+          recordId: recId,
+          label,
+          fileRef: f.key,
+          fileHash: f.sha256,
+          fileName: f.filename,
+          fileSize: f.size,
+          contentType: f.contentType,
+          userId: user.id,
+        });
+        autoMessage = r.ok
+          ? `バリエーションに自動登録しました（${label}・配布可）`
+          : `自動登録スキップ: ${r.skipped}`;
+      }
+    }
+  }
 
   // ステータス変更を代理店へ通知
   if (status !== current.status) {
@@ -515,5 +580,5 @@ export async function updateRequestByHQ(
   revalidatePath("/hq/requests");
   revalidatePath(`/hq/requests/${requestId}`);
   revalidatePath(`/dealer/requests/${requestId}`);
-  return { ok: true };
+  return { ok: true, data: autoMessage ? { autoMessage } : undefined };
 }

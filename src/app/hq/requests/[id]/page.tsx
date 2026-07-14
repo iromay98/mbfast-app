@@ -69,6 +69,7 @@ export default async function HQRequestDetailPage({
         currentServiceRecordId={request.serviceRecordId}
         recordOptions={recordOptions}
         hasResultFile={!!request.resultFilePath}
+        requestedLabel={request.requestNote?.match(/「(.+?)」/)?.[1] ?? null}
       />
 
       <Card>
