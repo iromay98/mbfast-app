@@ -9,6 +9,7 @@ import { encryptSlave } from "@/server/autotuner/client";
 import { notify } from "@/server/notifications";
 import { sendPushToUsers, recipientUserIds } from "@/server/push";
 import { buildDownloadName, dateLabel } from "@/server/catalog/filename";
+import { maybeUnzipBin } from "@/server/util/unzip";
 import { type FormState } from "@/lib/actions/form-state";
 
 // 案件(施工記録)へのアクセス可否。本店は全件、代理店は自店のみ。
@@ -91,7 +92,17 @@ export async function postRecordMessage(
       if (mode === "backup" && rec?.backupSupported === false) {
         return { error: "このECUは backup（フル読み書き）に対応していないため bak は作れません。" };
       }
-      const tuned = Buffer.from(await file.arrayBuffer());
+      // zip で来た場合は中の bin を取り出してから encrypt（zipをそのまま暗号化する事故を防ぐ）
+      let tuned: Buffer;
+      let innerName: string | null = file.name || null;
+      try {
+        const un = maybeUnzipBin(Buffer.from(await file.arrayBuffer()), file.name);
+        tuned = un.buf;
+        innerName = un.name;
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        return { error: `zipの解凍に失敗しました: ${msg}` };
+      }
       let slaveData: Buffer;
       try {
         const enc = await encryptSlave(tuned, { slaveId, ecuId, modelId, mcuId }, { recordId, mode });
@@ -108,7 +119,7 @@ export async function postRecordMessage(
         .trim()
         .replace(/[\\/:*?"<>|]/g, "_"); // パス・禁止文字は除去
       const contentInput = String(formData.get("content") ?? "").trim();
-      const fallback = (file.name || "test").replace(/\.[^.]+$/, "");
+      const fallback = (innerName || file.name || "test").replace(/\.[^.]+$/, "");
       // bak(フルバックアップ)は内容名にも bak を入れて区別する
       const contentBase = contentInput || fallback;
       const fileName = nameInput

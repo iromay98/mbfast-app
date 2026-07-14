@@ -121,7 +121,7 @@ export function MessageComposer({
           ref={slaveRef}
           type="file"
           name="slaveFile"
-          accept=".bin,application/octet-stream"
+          accept=".bin,.zip,application/octet-stream,application/zip"
           className="hidden"
           onChange={() => onPick("slave", slaveRef.current)}
         />
