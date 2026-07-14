@@ -30,6 +30,7 @@ import { RecordOriUpload } from "./record-ori-upload";
 import { BaseToolEdit } from "./base-tool-edit";
 import { BaseDriverEdit } from "./base-driver-edit";
 import { HqFiles, type HqFileRow } from "./hq-files";
+import { SpliceTool, type SpliceSource } from "./splice-tool";
 import { VariationBuilder } from "./variation-matrix";
 import { ShowcaseCreateForm } from "./showcase-create-form";
 import {
@@ -125,6 +126,8 @@ export default async function HQRecordDetailPage({
           method: true,
           driver: true,
           driverBorrowed: true,
+          substituteKey: true,
+          calNumber: true,
           variants: {
             select: {
               id: true,
@@ -222,6 +225,50 @@ export default async function HQRecordDetailPage({
       openLabels,
     };
   }
+
+  // 別ツール準用（ニコイチ）の候補ソース: 同一車種+Cal もしくは同一準用キーで、
+  // 純正(ori)とチューン済みが揃った「別の」バリエーション。この車のoriへ差分転写する。
+  let spliceSources: SpliceSource[] = [];
+  const hasDealerOri = record.isTuned ? !!record.oriFilePath : !!record.decryptedFilePath;
+  if (matched && record.matchedBaseFileId && hasDealerOri) {
+    const orConds: import("@/generated/prisma/client").Prisma.BaseFileWhereInput[] = [
+      { manufacturer: matched.manufacturer, model: matched.model },
+    ];
+    if (matched.substituteKey) orConds.push({ substituteKey: matched.substituteKey });
+    const cand = await prisma.tunedVariant.findMany({
+      where: {
+        deletedAt: null,
+        fileRef: { not: null },
+        baseFileId: { not: record.matchedBaseFileId }, // 同一純正(=同一ツール)以外
+        baseFile: { OR: orConds },
+      },
+      orderBy: { updatedAt: "desc" },
+      take: 30,
+      select: {
+        id: true,
+        stage: true,
+        popsAndBangs: true,
+        popsSport: true,
+        optionTags: true,
+        baseFile: {
+          select: {
+            manufacturer: true, model: true, generation: true, grade: true,
+            tool: true, method: true, calNumber: true, stockFileRef: true,
+          },
+        },
+      },
+    });
+    spliceSources = cand.map((v) => ({
+      variantId: v.id,
+      label: tuningContentLabel(v.stage, v.popsAndBangs, v.optionTags ?? [], v.popsSport),
+      vehicle: `${v.baseFile.model}${v.baseFile.generation ? `(${v.baseFile.generation})` : ""}${v.baseFile.grade ? ` ${v.baseFile.grade}` : ""}`,
+      tool: v.baseFile.tool ?? "AT",
+      method: v.baseFile.method ?? "",
+      cal: v.baseFile.calNumber ?? "",
+      hasOri: !!v.baseFile.stockFileRef,
+    }));
+  }
+
 
   return (
     <div className="space-y-3">
@@ -446,6 +493,13 @@ export default async function HQRecordDetailPage({
         </p>
         <ShowcaseCreateForm recordId={record.id} />
       </Card>
+
+      {spliceSources.length > 0 && (
+        <Card>
+          <h3 className="mb-1 text-sm font-bold text-ink">別ツール準用（ニコイチ生成・本店のみ）</h3>
+          <SpliceTool recordId={record.id} sources={spliceSources} />
+        </Card>
+      )}
 
       <Card>
         <h3 className="mb-1 text-sm font-bold text-ink">本店専用ファイル（代理店非公開）</h3>

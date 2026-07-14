@@ -51,6 +51,7 @@ export type CatalogRow = {
   unit: string; // "ECU" | "TCU"（同時施工の取り違え防止）
   tool: string; // 読み取りツール（AT/PG3/K3/任意）
   method: string; // 読み方式（OBD/Bench/Boot/任意）
+  substituteKey: string; // 準用グループキー
   baseDriver: string;
   baseDriverBorrowed: boolean;
   baseNote: string;
@@ -90,6 +91,7 @@ export type CalGroup = {
   unit: string;
   tool: string;
   method: string;
+  substituteKey: string;
   driver: string;
   driverBorrowed: boolean;
   note: string;
@@ -541,6 +543,19 @@ function CalGroupCard({
           />
           リミッターカット不可
         </label>
+        <span
+          className="ml-2 font-semibold text-ink-soft"
+          title="同一キャリブレーションで別ツール/Method準用したい純正どうしに同じキーを付ける（ニコイチ候補に出やすくなる）"
+        >
+          準用
+        </span>
+        <EditCell
+          value={g.substituteKey}
+          onSave={(v) => onPatchBase({ substituteKey: v })}
+          placeholder="準用キー"
+          mono
+          className="w-24"
+        />
         <span className="ml-2 font-semibold text-ink-soft">備考</span>
         <EditCell
           value={g.note}

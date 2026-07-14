@@ -40,6 +40,8 @@ export const baseFileSchema = z.object({
   // 読み取りツール（AT/PG3/K3/任意）と読み方式（OBD/Bench/Boot/任意）
   tool: optionalStr,
   method: optionalStr,
+  // 準用グループキー（同一キャリブレーション・別ツール準用）
+  substituteKey: optionalStr,
 });
 
 export const baseFilePatchSchema = baseFileSchema.partial();

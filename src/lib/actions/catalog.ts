@@ -280,7 +280,7 @@ export async function updateBaseFile(
   }
   // Cal/SW/HW は空入力で「クリア(null)」できるようにする（誤認識値の消去用）。
   const data: Record<string, unknown> = { ...parsed.data };
-  for (const k of ["calNumber", "swNumber", "hwNumber", "generation", "grade", "method"] as const) {
+  for (const k of ["calNumber", "swNumber", "hwNumber", "generation", "grade", "method", "substituteKey"] as const) {
     if (k in patch) data[k] = String(patch[k] ?? "").trim() || null;
   }
   // 対象ユニットは "ECU"/"TCU" のみ（クリア不可・既定ECU）

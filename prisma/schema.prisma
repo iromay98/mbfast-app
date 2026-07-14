@@ -478,6 +478,9 @@ model BaseFile {
   method       String? // 読み方式（例 OBD / Bench / Boot）
   // 読み取りツール（ファイル名のツールトークン）。AT=AutoTuner / PG3=Powergate3 / K3=Kess3 / 任意追加可。
   tool         String  @default("AT")
+  // 準用グループ: 同一キャリブレーションで別ツール/Methodの純正どうしを紐付ける任意キー。
+  // 同じ値の BaseFile は「ニコイチ（キャリブ転写）」の準用候補として提示される。
+  substituteKey String?
   fuel       String? // 燃料（petrol/diesel 等）＝復号 engine.fuel 由来。OP/バブの出し分けに使用
 
   // ECM Titanium 等の Driver 情報（本店のみ・代理店には一切出さない）。純正(ECU)基準で管理。
