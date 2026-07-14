@@ -1397,6 +1397,11 @@ export async function createBaseFileFromBin(formData: FormData): Promise<FormSta
   const unit = formData.get("unit") === "TCU" ? "TCU" : "ECU";
   const customerName = String(formData.get("customerName") ?? "").trim();
   const workedAtRaw = String(formData.get("workedAt") ?? "").trim();
+  // 読み取りツール(AT/PG3/K3/任意)・方式(OBD/Bench/Boot/任意)・Driver
+  const tool = String(formData.get("tool") ?? "").trim() || "AT";
+  const method = String(formData.get("method") ?? "").trim() || null;
+  const driver = String(formData.get("driver") ?? "").trim() || null;
+  const driverBorrowed = formData.get("driverBorrowed") === "true";
 
   const swSeq = swNumber ? await prisma.baseFile.count({ where: { swNumber } }) : 0;
 
@@ -1459,6 +1464,10 @@ export async function createBaseFileFromBin(formData: FormData): Promise<FormSta
         displacement,
         fuel,
         unit,
+        tool,
+        method,
+        driver,
+        driverBorrowed,
         stockFileRef: saved.key,
         stockFileName: saved.filename,
         stockFileSize: saved.size,
@@ -1510,6 +1519,10 @@ export async function createBaseFileFromBin(formData: FormData): Promise<FormSta
         displacement,
         fuel,
         unit,
+        tool,
+        method,
+        driver,
+        driverBorrowed,
         source: "MANUAL",
         createdById: user.id,
         stockFileRef: saved.key,

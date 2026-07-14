@@ -22,6 +22,7 @@ import {
 } from "@/lib/catalog/options";
 import { ModUploadForm } from "./mod-upload-form";
 import { RegisteredVariants, type StockVariantRow } from "./registered-variants";
+import { ChoiceSelect, TOOL_OPTIONS, METHOD_OPTIONS } from "./catalog-grid";
 
 type Analyzed = {
   ecu: string | null;
@@ -82,6 +83,10 @@ export function StockUploadForm({
     generation: "",
     grade: "",
     unit: "ECU",
+    tool: "AT",
+    method: "",
+    driver: "",
+    driverBorrowed: false,
     customerName: "",
     workedAt: "",
     engineCode: "",
@@ -214,6 +219,10 @@ export function StockUploadForm({
     if (f.hw.trim()) fd.set("hwNumber", f.hw.trim());
     if (analyzed?.fuel) fd.set("fuel", analyzed.fuel);
     fd.set("unit", f.unit === "TCU" ? "TCU" : "ECU");
+    fd.set("tool", f.tool || "AT");
+    if (f.method.trim()) fd.set("method", f.method.trim());
+    if (f.driver.trim()) fd.set("driver", f.driver.trim());
+    if (f.driverBorrowed) fd.set("driverBorrowed", "true");
     if (f.customerName.trim()) fd.set("customerName", f.customerName.trim());
     if (f.workedAt.trim()) fd.set("workedAt", f.workedAt.trim());
     const ctx = {
@@ -338,7 +347,7 @@ export function StockUploadForm({
   const finish = () => {
     setCreated(null);
     setAddedMods([]);
-    setF({ manufacturer: "", model: "", generation: "", grade: "", unit: "ECU", customerName: "", workedAt: "", engineCode: "", displacement: "", ecu: "", mcu: "", cal: "", sw: "", hw: "" });
+    setF({ manufacturer: "", model: "", generation: "", grade: "", unit: "ECU", tool: "AT", method: "", driver: "", driverBorrowed: false, customerName: "", workedAt: "", engineCode: "", displacement: "", ecu: "", mcu: "", cal: "", sw: "", hw: "" });
     setMsg(null);
     setOpen(false);
     router.refresh();
@@ -505,6 +514,39 @@ export function StockUploadForm({
                 </label>
               ))}
               <span className="text-[11px] text-ink-soft">※ 表示・ファイル名に入ります（取り違え防止）</span>
+            </div>
+            {/* 読み取りツール・方式・Driver（ファイル名/本店管理に使用） */}
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-xs text-ink-soft">
+              <span className="font-semibold" title="読み取りツール。ファイル名のトークンに入ります（例 PG3_OBD_ori.bin）">ツール</span>
+              <ChoiceSelect
+                value={f.tool}
+                options={TOOL_OPTIONS}
+                onSave={(v) => setF((s) => ({ ...s, tool: v }))}
+                addPrompt="ツール名（ファイル名に入る短い表記。例: KTAG）"
+              />
+              <span className="font-semibold">Method</span>
+              <ChoiceSelect
+                value={f.method}
+                options={METHOD_OPTIONS}
+                onSave={(v) => setF((s) => ({ ...s, method: v }))}
+                addPrompt="読み方式（例: BDM）"
+              />
+              <span className="font-semibold" title="ECM Titanium 等の使用Driver（本店のみ）">Driver</span>
+              <input
+                className={`${inp} w-40 font-mono text-xs`}
+                placeholder="Driver名（任意）"
+                value={f.driver}
+                onChange={set("driver")}
+              />
+              <label className="inline-flex items-center gap-1" title="他のDriverを流用（名前を()で表示）">
+                <input
+                  type="checkbox"
+                  checked={f.driverBorrowed}
+                  onChange={(e) => setF((s) => ({ ...s, driverBorrowed: e.target.checked }))}
+                  className="h-3.5 w-3.5 accent-gold-500"
+                />
+                流用
+              </label>
             </div>
             <div className="grid gap-2 sm:grid-cols-2">
               <label className="block">

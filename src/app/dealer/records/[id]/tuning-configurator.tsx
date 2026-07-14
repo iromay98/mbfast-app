@@ -28,7 +28,8 @@ export function TuningConfigurator({
   optionTags: string[];
   limiterDisabled?: boolean;
 }) {
-  const [stage, setStage] = useState(stages[0]?.value ?? "");
+  // 初期は未選択。ステージを明示的に選ぶまで判定・リクエストはできない（誤依頼防止）。
+  const [stage, setStage] = useState<string | null>(null);
   const [popsMode, setPopsMode] = useState<"none" | "all" | "sport">("none");
   const [selected, setSelected] = useState<string[]>([]);
   const pops = popsMode !== "none";
@@ -50,6 +51,7 @@ export function TuningConfigurator({
     setError(null);
     setRequested(false);
     setAgreed(false); // 構成が変わったら同意もリセット
+    if (stage === null) return; // ステージ未選択の間は判定しない
     startResolve(async () => {
       const r = await resolveTuning(recordId, { stage, pops, popsSport, optionTags: selected });
       if ("error" in r) setError(r.error);
@@ -63,6 +65,7 @@ export function TuningConfigurator({
 
   const onRequest = () =>
     startRequest(async () => {
+      if (stage === null) return;
       const r = await requestTuning(
         recordId,
         { stage, pops, popsSport, optionTags: selected },
@@ -161,6 +164,12 @@ export function TuningConfigurator({
 
       {/* 判定結果 */}
       <div className="space-y-3 border-t border-line pt-3">
+        {stage === null && (
+          <p className="rounded-lg bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-800">
+            ↑ まず<b>ステージ</b>を選んでください（チューニング無しの場合は「チューニングなし」）。
+            選ぶとDL可否の判定が始まります。
+          </p>
+        )}
         {/* 状態バッジ（即DL=Automatic 緑 / リクエスト=赤）＋選択内容のサマリ */}
         {!resolving && !error && result && (
           <div className="flex flex-wrap items-center gap-2">
@@ -174,7 +183,7 @@ export function TuningConfigurator({
               </span>
             )}
             <span className="text-sm font-semibold text-ink">
-              {tuningContentLabel(stage, pops, selected, popsSport)}
+              {tuningContentLabel(stage ?? "", pops, selected, popsSport)}
             </span>
           </div>
         )}
@@ -188,7 +197,7 @@ export function TuningConfigurator({
         ) : result?.kind === "download" ? (
           <DownloadConsent
             recordId={recordId}
-            selection={{ stage, pops, popsSport, optionTags: selected }}
+            selection={{ stage: stage ?? "", pops, popsSport, optionTags: selected }}
             href={result.href}
           />
         ) : result?.kind === "compat" ? (
