@@ -12,6 +12,7 @@ import {
   setVariantStatus,
   updateBaseFile,
   updateVariant,
+  updateVersionMeta,
   reidentifyBaseEcuAi,
 } from "@/lib/actions/catalog";
 import { type FuelKind, optionTagsFor, popsAllowed, baselineStages } from "@/lib/catalog/options";
@@ -23,6 +24,8 @@ export type CatalogVersion = {
   fileName: string;
   fileHash: string;
   replacedAtLabel: string;
+  label: string; // ver名（例 "ver2"・"-15 2000~"）
+  note: string; // 特徴メモ（例 "強め・触媒無視前提"）
 };
 
 export type CatalogRow = {
@@ -733,6 +736,20 @@ function LeafRow({
         ) : (
           <span className="text-[11px] text-ink-soft">未登録</span>
         )}
+        {/* 現行ファイルの ver名・特徴メモ（版履歴で編集） */}
+        {(() => {
+          const cur = row.versions.find((v) => v.fileHash === row.fileHash);
+          if (!cur || (!cur.label && !cur.note)) return null;
+          return (
+            <span
+              title={cur.note || undefined}
+              className="max-w-[160px] truncate rounded bg-sky-50 px-1.5 py-0.5 text-[10px] font-semibold text-sky-700"
+            >
+              {cur.label || "ver"}
+              {cur.note ? `｜${cur.note}` : ""}
+            </span>
+          );
+        })()}
         {/* DLボタン（.bin = 生チューニング, .slave = 取込元の車両で再暗号化）。本店専用。 */}
         {row.fileName && (
           <a
@@ -824,21 +841,48 @@ function VersionHistory({
   row: CatalogRow;
   onRestore: (versionId: string) => void;
 }) {
+  const router = useRouter();
+  const [, startTransition] = useTransition();
+  const saveMeta = (versionId: string, patch: { label?: string; note?: string }) =>
+    startTransition(async () => {
+      await updateVersionMeta(versionId, patch);
+      router.refresh();
+    });
   return (
     <div>
-      <p className="mb-1 text-xs font-semibold text-ink">バージョン履歴</p>
+      <p className="mb-1 text-xs font-semibold text-ink">
+        バージョン履歴
+        <span className="ml-2 font-normal text-ink-soft">
+          ver名・特徴メモはファイルごとに保存されます（クリックで編集）
+        </span>
+      </p>
       <div className="space-y-1">
         {row.versions.map((v) => {
           const isCurrent = v.fileHash === row.fileHash;
           return (
-            <div key={v.id} className="flex items-center gap-3 text-xs">
+            <div key={v.id} className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs">
               <span className="w-10 shrink-0 font-mono text-ink-soft">v{v.version}</span>
               <a
                 href={`/api/catalog/versions/${v.id}/file`}
-                className="truncate font-mono text-gold-700 underline"
+                className="max-w-[220px] truncate font-mono text-gold-700 underline"
               >
                 {v.fileName || "(no name)"}
               </a>
+              {/* ver名（例 ver2 / -15 2000~） */}
+              <EditCell
+                value={v.label}
+                onSave={(val) => saveMeta(v.id, { label: val })}
+                placeholder="ver名"
+                mono
+                className="w-24"
+              />
+              {/* 特徴メモ（例 強め・触媒無視前提） */}
+              <EditCell
+                value={v.note}
+                onSave={(val) => saveMeta(v.id, { note: val })}
+                placeholder="特徴メモ"
+                className="min-w-0 flex-1"
+              />
               <span className="shrink-0 text-ink-soft">{v.replacedAtLabel}</span>
               {isCurrent ? (
                 <Badge color="green">現行</Badge>

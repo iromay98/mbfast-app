@@ -113,6 +113,12 @@ export default async function HQRecordDetailPage({
               status: true,
               fileRef: true,
               fileName: true,
+              // 現行ファイルの ver名・特徴メモ（最新版のメタ）
+              versions: {
+                orderBy: { version: "desc" },
+                take: 1,
+                select: { label: true, note: true },
+              },
             },
           },
         },
@@ -121,6 +127,8 @@ export default async function HQRecordDetailPage({
 
   type VRow = {
     variantId: string | null;
+    verLabel: string;
+    verNote: string;
     label: string;
     stage: string;
     pops: boolean;
@@ -159,6 +167,8 @@ export default async function HQRecordDetailPage({
       if (!prev || score > prev._score) {
         byLabel.set(label, {
           variantId: v.id,
+          verLabel: v.versions[0]?.label ?? "",
+          verNote: v.versions[0]?.note ?? "",
           label,
           stage,
           pops: v.popsAndBangs,

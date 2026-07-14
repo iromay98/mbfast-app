@@ -9,6 +9,8 @@ import { tuningContentLabel } from "@/lib/catalog/options";
 type Stage = { value: string; label: string };
 type VRow = {
   variantId: string | null; // 状態切替（下書き⇄配布可⇄無効）用
+  verLabel: string; // 現行ファイルの ver名（カタログの版履歴で編集）
+  verNote: string; // 現行ファイルの特徴メモ
   label: string;
   stage: string;
   pops: boolean;
@@ -211,7 +213,18 @@ function VariationRow({
       <td className="px-3 py-1.5">
         {/* ファイル名はフルで表示（長ければ折り返して2行になってもよい） */}
         {row.fileName && (
-          <div className="mb-1 break-all text-xs text-ink-soft">{row.fileName}</div>
+          <div className="mb-1 break-all text-xs text-ink-soft">
+            {row.fileName}
+            {(row.verLabel || row.verNote) && (
+              <span
+                title={row.verNote || undefined}
+                className="ml-1.5 rounded bg-sky-50 px-1.5 py-0.5 text-[10px] font-semibold text-sky-700"
+              >
+                {row.verLabel || "ver"}
+                {row.verNote ? `｜${row.verNote}` : ""}
+              </span>
+            )}
+          </div>
         )}
         <form ref={formRef} action={formAction} className="flex items-center gap-1.5">
           <input type="hidden" name="stage" value={row.stage} />

@@ -146,7 +146,7 @@ export default async function HQCatalogPage({
         baseFile: true,
         versions: {
           orderBy: { version: "desc" },
-          select: { id: true, version: true, fileName: true, fileHash: true, replacedAt: true },
+          select: { id: true, version: true, fileName: true, fileHash: true, replacedAt: true, label: true, note: true },
         },
       },
     }),
@@ -229,6 +229,8 @@ export default async function HQCatalogPage({
       fileName: ver.fileName ?? "",
       fileHash: ver.fileHash ?? "",
       replacedAtLabel: fmt(ver.replacedAt),
+      label: ver.label ?? "",
+      note: ver.note ?? "",
     })),
   }));
 

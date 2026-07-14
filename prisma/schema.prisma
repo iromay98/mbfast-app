@@ -561,6 +561,9 @@ model TunedVariantVersion {
   fileName    String?
   fileSize    Int?
   contentType String?
+  // 本店用メタ: ver名（例 "ver2"・"-15 2000~"）と特徴メモ（例 "強め・触媒無視前提"）。
+  label String?
+  note  String?
   replacedAt  DateTime     @default(now())
   replacedById String?
   replacedBy   User?       @relation("VersionReplacedBy", fields: [replacedById], references: [id])

@@ -381,6 +381,21 @@ export async function replaceVariantFile(
 }
 
 // 旧版に戻す（履歴は保持し、現行ポインタを差し替えるだけ）
+// 版(バージョン)の ver名・特徴メモを更新（本店のみ）。
+// バブリング等は版ごとに中身が違う（ver2・強め等）ため、ファイルに紐づけて記録する。
+export async function updateVersionMeta(
+  versionId: string,
+  patch: { label?: string; note?: string },
+): Promise<{ ok?: true; error?: string }> {
+  await requireHQ();
+  const data: Record<string, string | null> = {};
+  if ("label" in patch) data.label = (patch.label ?? "").trim() || null;
+  if ("note" in patch) data.note = (patch.note ?? "").trim() || null;
+  await prisma.tunedVariantVersion.update({ where: { id: versionId }, data });
+  revalidatePath(CATALOG_PATH);
+  return { ok: true };
+}
+
 export async function restoreVariantVersion(
   variantId: string,
   versionId: string,
