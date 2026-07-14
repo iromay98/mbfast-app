@@ -75,8 +75,33 @@ export function MessageComposer({
       {/* 添付トリガー */}
       <div className="flex flex-wrap items-center gap-2">
         {canEncrypt && (
-          <button type="button" className={`${trigger} border-gold-300 text-gold-700`} onClick={() => slaveRef.current?.click()}>
+          <button
+            type="button"
+            className={`${trigger} border-gold-300 text-gold-700`}
+            onClick={() => {
+              setEncryptMode("maps");
+              slaveRef.current?.click();
+            }}
+          >
             🔧 slave（.slaveに変換）
+          </button>
+        )}
+        {canEncrypt && (
+          <button
+            type="button"
+            disabled={!backupSupported}
+            title={
+              backupSupported
+                ? "フルバックアップbinを丸ごと暗号化して送信（マップスイッチ用・ファイル名に _bak）"
+                : "このECUは backup(フル読み書き) に対応していません"
+            }
+            className={`${trigger} border-sky-300 text-sky-700 disabled:cursor-not-allowed disabled:opacity-40`}
+            onClick={() => {
+              setEncryptMode("backup");
+              slaveRef.current?.click();
+            }}
+          >
+            💾 bak（bakに変換）
           </button>
         )}
         <button type="button" className={trigger} onClick={() => fileRef.current?.click()}>
@@ -126,7 +151,11 @@ export function MessageComposer({
             {picked.name}
           </span>
           {picked.slot === "slave" && (
-            <span className="text-gold-700">→ .slave に変換して送信</span>
+            <span className={encryptMode === "backup" ? "text-sky-700" : "text-gold-700"}>
+              {encryptMode === "backup"
+                ? "→ bak（フル）を .slave に変換して送信"
+                : "→ .slave に変換して送信"}
+            </span>
           )}
           <button type="button" onClick={clearPick} className="ml-auto text-ink-soft hover:text-red-600">
             ✕ 取消
