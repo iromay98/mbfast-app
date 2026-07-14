@@ -57,6 +57,8 @@ function buildGroups(rows: CatalogRow[]): CalGroup[] {
       hasStock: first.hasStock,
       limiterCutDisabled: first.limiterCutDisabled,
       unit: first.unit,
+      tool: first.tool,
+      method: first.method,
       driver: first.baseDriver,
       driverBorrowed: first.baseDriverBorrowed,
       note: first.baseNote,
@@ -205,6 +207,8 @@ export default async function HQCatalogPage({
     fuel: v.baseFile.fuel ?? "",
     stockHash: v.baseFile.stockHash ?? "",
     hasStock: !!v.baseFile.stockFileRef,
+    tool: v.baseFile.tool ?? "AT",
+    method: v.baseFile.method ?? "",
     canSlave:
       !!v.baseFile.capturedFromRecordId && slaveReady.has(v.baseFile.capturedFromRecordId),
     limiterCutDisabled: v.baseFile.limiterCutDisabled,

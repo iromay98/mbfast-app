@@ -40,7 +40,7 @@ export async function GET(
       unit: true,
       dealer: { select: { name: true } },
       matchedBaseFile: {
-        select: { model: true, generation: true, calNumber: true, method: true },
+        select: { model: true, generation: true, calNumber: true, method: true, tool: true, },
       },
     },
   });
@@ -86,6 +86,7 @@ export async function GET(
       model: record.matchedBaseFile?.model ?? record.carModel,
       generation: gen,
       method: record.matchedBaseFile?.method ?? record.method,
+      tool: record.matchedBaseFile?.tool ?? undefined,
       content: "bak", // フルダンプは bak（ori/backup とは区別）
       unit: record.unit,
       ext: "bin",
@@ -124,6 +125,7 @@ export async function GET(
       generation: gen,
       // 施工記録ページからのDLは Cal を出さない（命名規則: 車種 店名(顧客名 日付) AT_方法_内容）
       method: record.matchedBaseFile?.method ?? record.method,
+      tool: record.matchedBaseFile?.tool ?? undefined,
       // 純正はどの読み方でも ori。チューニング済み(既にチューン済みを読んだ)時だけ backup。
       content: record.isTuned ? "backup" : "ori",
       unit: record.unit,

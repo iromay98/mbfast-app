@@ -27,6 +27,7 @@ import { ReidentifyEcuButton } from "./reidentify-ecu-button";
 import { RecordTunedEdit } from "./record-tuned-edit";
 import { RecordUnitEdit } from "./record-unit-edit";
 import { RecordOriUpload } from "./record-ori-upload";
+import { BaseToolEdit } from "./base-tool-edit";
 import { VariationBuilder } from "./variation-matrix";
 import { ShowcaseCreateForm } from "./showcase-create-form";
 import {
@@ -103,6 +104,8 @@ export default async function HQRecordDetailPage({
           swNumber: true,
           swSeq: true,
           stockFileRef: true,
+          tool: true,
+          method: true,
           variants: {
             select: {
               id: true,
@@ -352,6 +355,16 @@ export default async function HQRecordDetailPage({
             <>
               <span className="hidden h-4 w-px bg-line sm:block" />
               <RecordOriUpload recordId={record.id} oriFileName={record.oriFileName} />
+            </>
+          )}
+          {matched && record.matchedBaseFileId && (
+            <>
+              <span className="hidden h-4 w-px bg-line sm:block" />
+              <BaseToolEdit
+                baseFileId={record.matchedBaseFileId}
+                tool={matched.tool ?? "AT"}
+                method={matched.method ?? ""}
+              />
             </>
           )}
           <span className="hidden h-4 w-px bg-line sm:block" />

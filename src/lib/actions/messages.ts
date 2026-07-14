@@ -74,7 +74,7 @@ export async function postRecordMessage(
           backupSupported: true,
           dealer: { select: { name: true } },
           matchedBaseFile: {
-            select: { model: true, generation: true, calNumber: true, method: true },
+            select: { model: true, generation: true, calNumber: true, method: true, tool: true, },
           },
         },
       });
@@ -120,6 +120,7 @@ export async function postRecordMessage(
             generation: rec?.matchedBaseFile?.generation,
             cal: rec?.matchedBaseFile?.calNumber, // 本店なので Cal も付与
             method: rec?.matchedBaseFile?.method,
+            tool: rec?.matchedBaseFile?.tool ?? undefined,
             content: mode === "backup" ? `${contentBase}_bak` : contentBase,
             unit: rec?.unit,
             ext: "slave",

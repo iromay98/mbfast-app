@@ -59,7 +59,7 @@ export async function GET(
       popsSport: true,
       optionTags: true,
       baseFile: {
-        select: { model: true, generation: true, calNumber: true, method: true, unit: true },
+        select: { model: true, generation: true, calNumber: true, method: true, tool: true, unit: true },
       },
     },
   });
@@ -95,6 +95,7 @@ export async function GET(
       model: v.baseFile.model,
       generation: v.baseFile.generation,
       method: v.baseFile.method,
+      tool: v.baseFile.tool,
       content: composeContent(v.stage, v.popsAndBangs, v.optionTags, v.popsSport),
       unit: v.baseFile.unit,
       ext: "bin", // Master File は生bin
@@ -158,6 +159,7 @@ export async function GET(
     generation: v.baseFile.generation,
     // 施工記録ページからのDLは Cal を出さない（命名規則: 車種 店名(顧客名 日付) AT_方法_内容）
     method: v.baseFile.method,
+    tool: v.baseFile.tool,
     content: composeContent(v.stage, v.popsAndBangs, v.optionTags, v.popsSport),
     unit: v.baseFile.unit,
     ext: "slave", // 再暗号化済み＝焼ける .slave

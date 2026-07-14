@@ -452,7 +452,9 @@ model BaseFile {
   grade        String? // グレード/車格（任意・手入力 例 S550, RS3, S-class）
   engineCode   String? // エンジン型式（任意・手入力 例 CZGB）
   displacement String? // 排気量（任意・手入力 例 2.5L）。原本binから推定して既定値にする
-  method       String? // 読み方式（例 OBD）
+  method       String? // 読み方式（例 OBD / Bench / Boot）
+  // 読み取りツール（ファイル名のツールトークン）。AT=AutoTuner / PG3=Powergate3 / K3=Kess3 / 任意追加可。
+  tool         String  @default("AT")
   fuel       String? // 燃料（petrol/diesel 等）＝復号 engine.fuel 由来。OP/バブの出し分けに使用
 
   // ECM Titanium 等の Driver 情報（本店のみ・代理店には一切出さない）。純正(ECU)基準で管理。

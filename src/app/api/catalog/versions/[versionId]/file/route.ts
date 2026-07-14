@@ -31,7 +31,7 @@ export async function GET(
           popsSport: true,
           optionTags: true,
           baseFile: {
-            select: { model: true, generation: true, calNumber: true, method: true, driver: true, unit: true },
+            select: { model: true, generation: true, calNumber: true, method: true, tool: true, driver: true, unit: true },
           },
         },
       },
@@ -58,6 +58,7 @@ export async function GET(
     // カタログ命名: 車種 Cal（無ければDriver） AT_方法_内容
     cal: b.calNumber || b.driver,
     method: b.method,
+    tool: b.tool,
     content: `${composeContent(ver.variant.stage, ver.variant.popsAndBangs, ver.variant.optionTags, ver.variant.popsSport)}_v${ver.version}`,
     unit: b.unit,
     ext: extFromName(ver.fileName, "bin"),

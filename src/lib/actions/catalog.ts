@@ -279,11 +279,13 @@ export async function updateBaseFile(
   }
   // Cal/SW/HW は空入力で「クリア(null)」できるようにする（誤認識値の消去用）。
   const data: Record<string, unknown> = { ...parsed.data };
-  for (const k of ["calNumber", "swNumber", "hwNumber", "generation", "grade"] as const) {
+  for (const k of ["calNumber", "swNumber", "hwNumber", "generation", "grade", "method"] as const) {
     if (k in patch) data[k] = String(patch[k] ?? "").trim() || null;
   }
   // 対象ユニットは "ECU"/"TCU" のみ（クリア不可・既定ECU）
   if ("unit" in patch) data.unit = patch.unit === "TCU" ? "TCU" : "ECU";
+  // 読み取りツールは空なら既定 AT
+  if ("tool" in patch) data.tool = String(patch.tool ?? "").trim() || "AT";
   try {
     await prisma.baseFile.update({ where: { id: baseFileId }, data });
   } catch (e) {

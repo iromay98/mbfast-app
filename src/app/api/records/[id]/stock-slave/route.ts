@@ -37,7 +37,7 @@ export async function GET(
       unit: true,
       dealer: { select: { name: true } },
       matchedBaseFile: {
-        select: { model: true, generation: true, calNumber: true, method: true },
+        select: { model: true, generation: true, calNumber: true, method: true, tool: true, },
       },
     },
   });
@@ -101,6 +101,7 @@ export async function GET(
     generation: record.matchedBaseFile?.generation,
     // 施工記録ページからのDLは Cal を出さない（命名規則: 車種 店名(顧客名 日付) AT_方法_内容）
     method: record.matchedBaseFile?.method,
+    tool: record.matchedBaseFile?.tool ?? undefined,
     // 配るのは常に純正＝ori（チューンド車は本店アップの純正を配るため ori）。
     content: "ori",
     unit: record.unit,

@@ -31,7 +31,7 @@ export async function POST(
       unit: true,
       dealer: { select: { name: true } },
       matchedBaseFile: {
-        select: { model: true, generation: true, calNumber: true, method: true },
+        select: { model: true, generation: true, calNumber: true, method: true, tool: true, },
       },
     },
   });
@@ -92,6 +92,7 @@ export async function POST(
     generation: record.matchedBaseFile?.generation,
     // 施工記録ページからのDLは Cal を出さない（命名規則: 車種 店名(顧客名 日付) AT_方法_内容）
     method: record.matchedBaseFile?.method,
+    tool: record.matchedBaseFile?.tool ?? undefined,
     // bak(フルバックアップ)は内容名にも bak を入れて区別する
     content:
       mode === "backup"

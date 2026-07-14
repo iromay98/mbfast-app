@@ -49,6 +49,8 @@ export type CatalogRow = {
   canSlave: boolean; // 取込元の車両IDが揃い .slave 化できる
   limiterCutDisabled: boolean; // スピードリミッターカット不可（本店設定）
   unit: string; // "ECU" | "TCU"（同時施工の取り違え防止）
+  tool: string; // 読み取りツール（AT/PG3/K3/任意）
+  method: string; // 読み方式（OBD/Bench/Boot/任意）
   baseDriver: string;
   baseDriverBorrowed: boolean;
   baseNote: string;
@@ -86,6 +88,8 @@ export type CalGroup = {
   hasStock: boolean;
   limiterCutDisabled: boolean;
   unit: string;
+  tool: string;
+  method: string;
   driver: string;
   driverBorrowed: boolean;
   note: string;
@@ -140,6 +144,59 @@ function EditCell({
     />
   );
 }
+
+// プルダウン＋「＋追加…」でその場に新しい値を足せる選択。ツール/Method用。
+export function ChoiceSelect({
+  value,
+  options,
+  onSave,
+  addPrompt,
+  className,
+}: {
+  value: string;
+  options: [string, string][]; // [値, 表示ラベル]
+  onSave: (v: string) => void;
+  addPrompt: string; // 追加時のプロンプト文
+  className?: string;
+}) {
+  const opts = [...options];
+  if (value && !opts.some(([v]) => v === value)) opts.push([value, value]);
+  return (
+    <select
+      value={value}
+      onChange={(e) => {
+        if (e.target.value === "__add__") {
+          const input = window.prompt(addPrompt)?.trim();
+          if (input) onSave(input);
+          else e.target.value = value; // キャンセル時は戻す
+          return;
+        }
+        onSave(e.target.value);
+      }}
+      className={`rounded border border-line bg-surface px-1.5 py-0.5 text-xs font-semibold ${className ?? ""}`}
+    >
+      {opts.map(([v, label]) => (
+        <option key={v || "(none)"} value={v}>
+          {label}
+        </option>
+      ))}
+      <option value="__add__">＋追加…</option>
+    </select>
+  );
+}
+
+// ツール（読み取り機器）の既定候補。値はファイル名トークンにそのまま使う。
+export const TOOL_OPTIONS: [string, string][] = [
+  ["AT", "AT（AutoTuner）"],
+  ["PG3", "PG3（Powergate3）"],
+  ["K3", "K3（Kess3）"],
+];
+export const METHOD_OPTIONS: [string, string][] = [
+  ["", "（未設定）"],
+  ["OBD", "OBD"],
+  ["Bench", "Bench"],
+  ["Boot", "Boot"],
+];
 
 export function CatalogGrid({ groups }: { groups: CalGroup[] }) {
   const router = useRouter();
@@ -428,6 +485,24 @@ function CalGroupCard({
           placeholder="HW番号"
           mono
           className="w-28"
+        />
+        <span className="mx-1 text-line">|</span>
+        {/* 読み取りツール（AT/PG3/K3/追加可）と方式（OBD/Bench/Boot/追加可）。ファイル名に入る */}
+        <span className="font-semibold text-ink-soft" title="読み取りツール。ファイル名のトークンに使われます（例 PG3_OBD_ori.bin）">
+          ツール
+        </span>
+        <ChoiceSelect
+          value={g.tool}
+          options={TOOL_OPTIONS}
+          onSave={(v) => onPatchBase({ tool: v })}
+          addPrompt="ツール名（ファイル名に入る短い表記。例: KTAG）"
+        />
+        <span className="text-ink-soft">Method</span>
+        <ChoiceSelect
+          value={g.method}
+          options={METHOD_OPTIONS}
+          onSave={(v) => onPatchBase({ method: v })}
+          addPrompt="読み方式（例: BDM）"
         />
         <span className="mx-1 text-line">|</span>
         <span className="font-semibold text-ink-soft" title="ECM Titanium 等の使用Driver（本店のみ）">

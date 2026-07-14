@@ -33,7 +33,7 @@ export async function GET(
           model: true,
           generation: true,
           calNumber: true,
-          method: true,
+          method: true, tool: true,
           driver: true,
           unit: true,
           capturedFromRecordId: true,
@@ -101,6 +101,7 @@ export async function GET(
     // カタログ命名: 車種 Cal（無ければDriver） AT_方法_内容
     cal: v.baseFile.calNumber || v.baseFile.driver,
     method: v.baseFile.method,
+    tool: v.baseFile.tool,
     content: composeContent(v.stage, v.popsAndBangs, v.optionTags, v.popsSport),
     unit: v.baseFile.unit,
     ext: "slave",

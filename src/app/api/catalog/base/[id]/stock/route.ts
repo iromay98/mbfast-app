@@ -24,7 +24,7 @@ export async function GET(
       model: true,
       generation: true,
       calNumber: true,
-      method: true,
+      method: true, tool: true,
       driver: true,
       unit: true,
     },
@@ -40,6 +40,7 @@ export async function GET(
     // カタログ命名: 車種 Cal（無ければDriver） AT_方法_内容
     cal: base.calNumber || base.driver,
     method: base.method,
+    tool: base.tool,
     content: "ori",
     unit: base.unit,
     ext: extFromName(base.stockFileName, "bin"),

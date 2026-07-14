@@ -37,6 +37,9 @@ export const baseFileSchema = z.object({
   limiterCutDisabled: optionalBool,
   // 対象ユニット "ECU" | "TCU"
   unit: optionalStr,
+  // 読み取りツール（AT/PG3/K3/任意）と読み方式（OBD/Bench/Boot/任意）
+  tool: optionalStr,
+  method: optionalStr,
 });
 
 export const baseFilePatchSchema = baseFileSchema.partial();
