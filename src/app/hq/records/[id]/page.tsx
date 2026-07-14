@@ -102,6 +102,7 @@ export default async function HQRecordDetailPage({
           grade: true,
           swNumber: true,
           swSeq: true,
+          stockFileRef: true,
           variants: {
             select: {
               id: true,
@@ -312,6 +313,16 @@ export default async function HQRecordDetailPage({
               className="rounded-lg border border-gold-300 bg-white px-2.5 py-1 text-xs font-semibold text-gold-700 hover:bg-gold-50"
             >
               ⬇ bin
+            </a>
+          ) : matched?.stockFileRef && record.matchedBaseFileId ? (
+            // 記録自体に復号binが無い（カタログ経由の本店施工・Powergate等）場合は
+            // 照合先カタログの純正原本をDLできるようにする
+            <a
+              href={`/api/catalog/base/${record.matchedBaseFileId}/stock`}
+              title="照合したカタログの純正bin（原本）"
+              className="rounded-lg border border-gold-300 bg-white px-2.5 py-1 text-xs font-semibold text-gold-700 hover:bg-gold-50"
+            >
+              ⬇ 純正bin（カタログ原本）
             </a>
           ) : (
             <span className="text-xs text-ink-soft">bin 未生成</span>
