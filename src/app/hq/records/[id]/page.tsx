@@ -28,6 +28,7 @@ import { RecordTunedEdit } from "./record-tuned-edit";
 import { RecordUnitEdit } from "./record-unit-edit";
 import { RecordOriUpload } from "./record-ori-upload";
 import { BaseToolEdit } from "./base-tool-edit";
+import { BaseDriverEdit } from "./base-driver-edit";
 import { HqFiles, type HqFileRow } from "./hq-files";
 import { VariationBuilder } from "./variation-matrix";
 import { ShowcaseCreateForm } from "./showcase-create-form";
@@ -122,6 +123,8 @@ export default async function HQRecordDetailPage({
           stockFileRef: true,
           tool: true,
           method: true,
+          driver: true,
+          driverBorrowed: true,
           variants: {
             select: {
               id: true,
@@ -279,6 +282,15 @@ export default async function HQRecordDetailPage({
               sw={record.swNumber}
               cal={record.calNumber}
             />
+            {matched && record.matchedBaseFileId && (
+              <div className="mt-2 border-t border-line pt-2">
+                <BaseDriverEdit
+                  baseFileId={record.matchedBaseFileId}
+                  driver={matched.driver ?? ""}
+                  driverBorrowed={matched.driverBorrowed ?? false}
+                />
+              </div>
+            )}
             {record.decryptedFilePath && (
               <div className="mt-2">
                 <ReidentifyEcuButton recordId={record.id} />
