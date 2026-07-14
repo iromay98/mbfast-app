@@ -28,6 +28,7 @@ import { RecordTunedEdit } from "./record-tuned-edit";
 import { RecordUnitEdit } from "./record-unit-edit";
 import { RecordOriUpload } from "./record-ori-upload";
 import { BaseToolEdit } from "./base-tool-edit";
+import { HqFiles, type HqFileRow } from "./hq-files";
 import { VariationBuilder } from "./variation-matrix";
 import { ShowcaseCreateForm } from "./showcase-create-form";
 import {
@@ -85,6 +86,21 @@ export default async function HQRecordDetailPage({
     content: l.content,
     note: l.note,
   }));
+  // 本店専用ファイル（代理店非公開）
+  const hqFiles: HqFileRow[] = (
+    await prisma.recordHqFile.findMany({
+      where: { serviceRecordId: id },
+      orderBy: { createdAt: "desc" },
+      select: { id: true, fileName: true, fileSize: true, note: true, createdAt: true },
+    })
+  ).map((f) => ({
+    id: f.id,
+    fileName: f.fileName,
+    fileSize: f.fileSize,
+    note: f.note,
+    createdAtLabel: formatDate(f.createdAt),
+  }));
+
   // 未返却リクエストの「内容」ラベル（requestNote の 「…」 を抽出）
   const openLabels = requests
     .filter((r) => r.status !== "DELIVERED" && r.status !== "CANCELLED")
@@ -417,6 +433,15 @@ export default async function HQRecordDetailPage({
           動画・ブログ・Instagram等は<b>URLを貼るだけ</b>（DLせずリンク/埋め込み表示）。車両情報は自動で引き継ぎます。
         </p>
         <ShowcaseCreateForm recordId={record.id} />
+      </Card>
+
+      <Card>
+        <h3 className="mb-1 text-sm font-bold text-ink">本店専用ファイル（代理店非公開）</h3>
+        <p className="mb-2 text-xs text-ink-soft">
+          この顧客に関するファイルを本店管理で保存できます（見積・現車ログ・資料など）。
+          代理店には一切表示されません。備考も付けられます。
+        </p>
+        <HqFiles recordId={record.id} files={hqFiles} />
       </Card>
 
       <HqNoteForm

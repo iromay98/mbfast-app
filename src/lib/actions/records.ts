@@ -189,6 +189,65 @@ export async function removeRecordOri(
   return { ok: true };
 }
 
+// ── 本店専用の顧客関連ファイル（代理店非公開・備考付き） ──
+export async function uploadRecordHqFile(
+  recordId: string,
+  formData: FormData,
+): Promise<{ ok?: true; error?: string }> {
+  const user = await requireHQ();
+  const file = formData.get("file");
+  if (!(file instanceof File) || file.size === 0) {
+    return { error: "ファイルを選択してください" };
+  }
+  const rec = await prisma.serviceRecord.findUnique({
+    where: { id: recordId },
+    select: { id: true },
+  });
+  if (!rec) return { error: "記録が見つかりません" };
+
+  const saved = await saveUpload(file, `records/hq-files/${recordId}`);
+  if (!saved.ok) return { error: saved.error };
+  await prisma.recordHqFile.create({
+    data: {
+      serviceRecordId: recordId,
+      filePath: saved.key,
+      fileName: saved.filename,
+      fileSize: saved.size,
+      contentType: saved.contentType,
+      note: String(formData.get("note") ?? "").trim() || null,
+      uploadedById: user.id,
+    },
+  });
+  revalidatePath(`/hq/records/${recordId}`);
+  return { ok: true };
+}
+
+export async function updateRecordHqFileNote(
+  fileId: string,
+  note: string,
+): Promise<{ ok?: true; error?: string }> {
+  await requireHQ();
+  const f = await prisma.recordHqFile.update({
+    where: { id: fileId },
+    data: { note: note.trim() || null },
+    select: { serviceRecordId: true },
+  });
+  revalidatePath(`/hq/records/${f.serviceRecordId}`);
+  return { ok: true };
+}
+
+export async function deleteRecordHqFile(
+  fileId: string,
+): Promise<{ ok?: true; error?: string }> {
+  await requireHQ();
+  const f = await prisma.recordHqFile.delete({
+    where: { id: fileId },
+    select: { serviceRecordId: true },
+  });
+  revalidatePath(`/hq/records/${f.serviceRecordId}`);
+  return { ok: true };
+}
+
 // ── Master File（Powergate3・生bin）アップロード：MASTER形式の代理店(OBLY等)用 ──
 // スレーブ復号APIは使わず、生binをそのままSHA-256照合してカタログに紐づける。
 export async function uploadMasterFileRecord(

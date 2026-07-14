@@ -117,6 +117,23 @@ model User {
   @@index([dealerId])
 }
 
+// 本店専用の顧客関連ファイル（代理店には一切公開しない）。
+// 見積・現車データ・作業メモの添付など。備考付き。
+model RecordHqFile {
+  id              String        @id @default(cuid())
+  serviceRecordId String
+  serviceRecord   ServiceRecord @relation(fields: [serviceRecordId], references: [id], onDelete: Cascade)
+  filePath        String // ストレージ参照キー
+  fileName        String
+  fileSize        Int?
+  contentType     String?
+  note            String? // 備考（何のファイルか）
+  uploadedById    String?
+  createdAt       DateTime      @default(now())
+
+  @@index([serviceRecordId])
+}
+
 // 手動の施工ログ。自動の活動履歴(DL/依頼)とは別に、過去客の遡り登録など
 // 「いつ・何を施工したか」を本店が手で記録するためのもの。
 model ServiceLog {
@@ -300,6 +317,8 @@ model ServiceRecord {
   @@index([matchedBaseFileId])
   @@index([swNumber])
   @@index([calNumber])
+  hqFiles RecordHqFile[]
+
 }
 
 // AutoTuner API 呼び出しログ（監査）
