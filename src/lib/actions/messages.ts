@@ -168,7 +168,8 @@ export async function postRecordMessage(
       let tuned: Buffer;
       let innerName: string | null = file.name || null;
       try {
-        const un = maybeUnzipBin(Buffer.from(await file.arrayBuffer()), file.name);
+        // bak はバックアップ一式をそのまま渡す。maps は単一binを取り出す（複数なら拒否）。
+        const un = maybeUnzipBin(Buffer.from(await file.arrayBuffer()), file.name, mode);
         tuned = un.buf;
         innerName = un.name;
       } catch (e) {
