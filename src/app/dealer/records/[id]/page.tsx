@@ -214,14 +214,14 @@ export default async function DealerRecordDetailPage({
                 <SlaveDownloadButton
                   href={`/api/records/${record.id}/stock-slave`}
                   label="⬇ 純正(ori) .slave"
-                  className="inline-flex items-center rounded-lg border border-gold-300 bg-white px-3 py-2 text-xs font-semibold text-gold-700 hover:bg-gold-50 disabled:opacity-70"
+                  className="inline-flex items-center rounded-full bg-green-600 px-3.5 py-2 text-xs font-extrabold text-white shadow-sm hover:bg-green-700 disabled:opacity-70"
                 />
                 {/* bak形式（マップスイッチ等でフル書き換えした車の完全復元用） */}
                 {!record.isTuned && record.backupSupported && (
                   <SlaveDownloadButton
                     href={`/api/records/${record.id}/stock-slave?mode=backup`}
                     label="⬇ 純正(ori) bak（フル）"
-                    className="inline-flex items-center rounded-lg border border-sky-300 bg-white px-3 py-2 text-xs font-semibold text-sky-700 hover:bg-sky-50 disabled:opacity-70"
+                    className="inline-flex items-center rounded-full bg-sky-600 px-3.5 py-2 text-xs font-extrabold text-white shadow-sm hover:bg-sky-700 disabled:opacity-70"
                   />
                 )}
               </div>
@@ -240,8 +240,9 @@ export default async function DealerRecordDetailPage({
                     <span className="text-[11px] text-ink-soft">初回DL {v.atLabel}</span>
                     <SlaveDownloadButton
                       href={`/api/match/${record.id}/variant/${v.variantId}`}
-                      label="⬇ 再ダウンロード"
-                      className="ml-auto inline-flex items-center rounded-lg bg-gold-500 px-3 py-1.5 text-xs font-semibold text-white hover:bg-gold-600 disabled:opacity-70"
+                      label="⬇ DOWNLOAD"
+                      hideBar
+                      className="ml-auto inline-flex shrink-0 items-center rounded-full bg-green-600 px-3 py-1 text-[11px] font-extrabold tracking-wide text-white shadow-sm hover:bg-green-700 disabled:opacity-70"
                     />
                   </div>
                 ))}

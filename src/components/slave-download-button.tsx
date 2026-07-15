@@ -25,6 +25,7 @@ export function SlaveDownloadButton({
   className,
   fallbackName = "download.slave",
   onDone,
+  hideBar = false,
 }: {
   href: string;
   label: string;
@@ -32,6 +33,8 @@ export function SlaveDownloadButton({
   fallbackName?: string | null;
   // DL完了後に呼ぶ（DL済み表示の更新など）
   onDone?: () => void;
+  // 進捗バーを出さない（横1列に収めたい場所用。％はボタン内に出る）
+  hideBar?: boolean;
 }) {
   const [busy, setBusy] = useState(false);
   const [pct, setPct] = useState<number | null>(null); // 受信進捗（Content-Length があるとき）
@@ -110,7 +113,7 @@ export function SlaveDownloadButton({
         )}
       </button>
       {/* 進捗バー: 数値が取れれば実測、取れない間（暗号化待ち等）は不定アニメーション */}
-      {busy && <ProgressBar pct={pct} />}
+      {busy && !hideBar && <ProgressBar pct={pct} />}
       {error && <span className="text-xs text-red-600">{error}（再度お試しください）</span>}
     </span>
   );
