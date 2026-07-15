@@ -17,16 +17,7 @@ export type ThreadMessage = {
   downloadedAt: Date | null;
 };
 
-function dayLabel(d: Date): string {
-  const t = new Date();
-  const y = new Date(t.getTime() - 86400000);
-  const same = (a: Date, b: Date) => a.toDateString() === b.toDateString();
-  if (same(d, t)) return "今日";
-  if (same(d, y)) return "昨日";
-  return `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, "0")}/${String(d.getDate()).padStart(2, "0")}`;
-}
-
-// 案件ごとの本部⇄代理店チャット（LINE/WhatsApp風）。日付区切り＋吹き出し。
+// 案件ごとの本部⇄代理店のやり取り。OLSX風のイベントカード・タイムライン（新しい順）。
 export function RecordThread({
   recordId,
   messages,
@@ -42,24 +33,34 @@ export function RecordThread({
   canEncrypt?: boolean;
   backupSupported?: boolean;
 }) {
+  // 新しいものを上に（OLSX同様）
+  const ordered = [...messages].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+
   return (
     <Card className="p-0">
       <div className="flex items-center gap-2 border-b border-line px-4 py-3">
         <span className="flex h-7 w-7 items-center justify-center rounded-full bg-gold-500 text-sm">💬</span>
         <div>
           <h3 className="text-sm font-bold text-ink">この案件のやりとり</h3>
-          <p className="text-[11px] text-ink-soft">本部⇄代理店のチャット（テストファイル送付・質問・別リクエスト）</p>
+          <p className="text-[11px] text-ink-soft">
+            ファイル送受信・質問・別リクエストの履歴（新しい順）
+          </p>
         </div>
       </div>
 
-      {/* チャット本文（WhatsApp風の壁紙背景＋日付区切り） */}
-      <div className="max-h-[30rem] space-y-2 overflow-y-auto bg-[#e9edea] px-3 py-4 dark:bg-surface-2/40">
-        {messages.length === 0 ? (
-          <p className="py-8 text-center text-xs text-ink-soft">まだメッセージはありません。下から送信できます。</p>
+      {/* 入力は上（すぐ送れる） */}
+      <div className="border-b border-line bg-surface-2/50 px-4 py-3">
+        <MessageComposer recordId={recordId} canEncrypt={canEncrypt} backupSupported={backupSupported} />
+      </div>
+
+      {/* イベントカードの縦タイムライン */}
+      <div className="max-h-[36rem] overflow-y-auto">
+        {ordered.length === 0 ? (
+          <p className="py-8 text-center text-xs text-ink-soft">
+            まだやり取りはありません。上から送信できます。
+          </p>
         ) : (
-          messages.map((m, i) => {
-            const prev = messages[i - 1];
-            const showDay = !prev || prev.createdAt.toDateString() !== m.createdAt.toDateString();
+          ordered.map((m) => {
             const cm: ChatMsg = {
               id: m.id,
               authorId: m.authorId,
@@ -75,23 +76,16 @@ export function RecordThread({
               downloadedAt: m.downloadedAt ? m.downloadedAt.toISOString() : null,
             };
             return (
-              <div key={m.id} className="space-y-2">
-                {showDay && (
-                  <div className="flex justify-center">
-                    <span className="rounded-full bg-black/10 px-3 py-0.5 text-[10px] font-semibold text-ink-soft">
-                      {dayLabel(m.createdAt)}
-                    </span>
-                  </div>
-                )}
-                <ChatMessage recordId={recordId} m={cm} viewerRole={viewerRole} viewerId={viewerId} />
-              </div>
+              <ChatMessage
+                key={m.id}
+                recordId={recordId}
+                m={cm}
+                viewerRole={viewerRole}
+                viewerId={viewerId}
+              />
             );
           })
         )}
-      </div>
-
-      <div className="border-t border-line px-4 py-3">
-        <MessageComposer recordId={recordId} canEncrypt={canEncrypt} backupSupported={backupSupported} />
       </div>
     </Card>
   );
