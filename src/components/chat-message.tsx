@@ -24,10 +24,20 @@ export type ChatMsg = {
   downloadedAt: string | null;
 };
 
+// 表示は常に日本時間（サーバーがUTCでもズレない）
 function stamp(iso: string): string {
-  const d = new Date(iso);
-  const p = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+  return new Intl.DateTimeFormat("ja-JP", {
+    timeZone: "Asia/Tokyo",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  })
+    .format(new Date(iso))
+    .replace(/\//g, "-");
 }
 function sizeLabel(n: number | null): string {
   if (n == null) return "";

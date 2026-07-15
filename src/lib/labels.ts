@@ -61,10 +61,14 @@ export const roleLabels = {
 } as const;
 
 /** 日付を YYYY/MM/DD 表記に */
+// 表示は常に日本時間（サーバーがUTCでもズレない）
+const JST = "Asia/Tokyo";
+
 export function formatDate(d: Date | string | null | undefined): string {
   if (!d) return "—";
   const date = typeof d === "string" ? new Date(d) : d;
   return new Intl.DateTimeFormat("ja-JP", {
+    timeZone: JST,
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
@@ -76,6 +80,7 @@ export function formatDateTime(d: Date | string | null | undefined): string {
   if (!d) return "—";
   const date = typeof d === "string" ? new Date(d) : d;
   return new Intl.DateTimeFormat("ja-JP", {
+    timeZone: JST,
     year: "numeric",
     month: "2-digit",
     day: "2-digit",

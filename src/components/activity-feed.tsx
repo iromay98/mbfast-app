@@ -154,12 +154,24 @@ export async function getRecordActivity(recordId: string): Promise<Activity[]> {
 }
 
 // 日時を "MM/DD HH:mm" で短く（年は当年なら省略）
+// 表示は常に日本時間（サーバーがUTCでもズレない）
 function shortDateTime(d: Date): string {
-  const now = new Date();
-  const sameYear = d.getFullYear() === now.getFullYear();
-  const mmdd = `${String(d.getMonth() + 1).padStart(2, "0")}/${String(d.getDate()).padStart(2, "0")}`;
-  const hm = `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
-  return sameYear ? `${mmdd} ${hm}` : `${d.getFullYear()}/${mmdd} ${hm}`;
+  const f = new Intl.DateTimeFormat("ja-JP", {
+    timeZone: "Asia/Tokyo",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).formatToParts(d);
+  const g = (t: string) => f.find((p) => p.type === t)?.value ?? "";
+  const nowYear = new Intl.DateTimeFormat("ja-JP", { timeZone: "Asia/Tokyo", year: "numeric" })
+    .format(new Date())
+    .replace(/[^0-9]/g, "");
+  const mmdd = `${g("month")}/${g("day")}`;
+  const hm = `${g("hour")}:${g("minute")}`;
+  return g("year") === nowYear ? `${mmdd} ${hm}` : `${g("year")}/${mmdd} ${hm}`;
 }
 
 // Excel風の1行テーブル。1画面に多くの行が入るようコンパクトに。

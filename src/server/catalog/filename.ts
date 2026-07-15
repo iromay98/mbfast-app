@@ -53,10 +53,14 @@ export function buildDownloadName(opts: {
 // 日付を YYYY-MM-DD（ファイル名安全）に整形
 export function dateLabel(d: Date | null | undefined): string {
   if (!d) return "";
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
+  // ファイル名の日付は日本時間で固定（サーバーがUTCでも前日にならない）
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Tokyo",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(d); // en-CA は YYYY-MM-DD
+  return parts;
 }
 
 // TunedVariant の内容文字列（stage + Pops + optionTags）
