@@ -86,7 +86,20 @@ export default async function DealerRecordDetailPage({
   const messages = await prisma.recordMessage.findMany({
     where: { serviceRecordId: id },
     orderBy: { createdAt: "asc" },
-    select: { id: true, authorRole: true, body: true, fileName: true, createdAt: true },
+    select: {
+      id: true,
+      authorId: true,
+      authorRole: true,
+      body: true,
+      fileName: true,
+      fileSize: true,
+      createdAt: true,
+      deletedAt: true,
+      hqNote: true,
+      dealerNote: true,
+      redownloadable: true,
+      downloadedAt: true,
+    },
   });
   const recordActivity = await getRecordActivity(id);
   const serviceLogs = (
@@ -174,7 +187,7 @@ export default async function DealerRecordDetailPage({
       )}
 
       {/* 3番目: この案件のやりとり（チャット） */}
-      <RecordThread recordId={record.id} messages={messages} viewerRole="DEALER" />
+      <RecordThread recordId={record.id} messages={messages} viewerRole="DEALER" viewerId={user.id} />
 
       {/* 4番目: この案件のダウンロード・リクエスト履歴 */}
       <div>

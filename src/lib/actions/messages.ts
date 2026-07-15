@@ -12,6 +12,78 @@ import { buildDownloadName, dateLabel } from "@/server/catalog/filename";
 import { maybeUnzipBin } from "@/server/util/unzip";
 import { type FormState } from "@/lib/actions/form-state";
 
+// メッセージへのアクセス可否（記録経由）。返り値に自分がHQ/代理店かも含む。
+async function authzMessage(messageId: string) {
+  const user = await getSessionUser();
+  if (!user) return null;
+  const msg = await prisma.recordMessage.findUnique({
+    where: { id: messageId },
+    select: {
+      id: true,
+      authorId: true,
+      authorRole: true,
+      serviceRecordId: true,
+      serviceRecord: { select: { dealerId: true } },
+    },
+  });
+  if (!msg) return null;
+  if (user.role === "DEALER" && user.dealerId !== msg.serviceRecord.dealerId) return null;
+  return { user, msg };
+}
+
+// 送信取り消し（自分の投稿のみ。本部は自分の投稿を、代理店は自分の投稿を取り消せる）。
+// 本文/添付は配信停止し、「送信を取り消しました」と表示する。
+export async function retractMessage(
+  messageId: string,
+): Promise<{ ok?: true; error?: string }> {
+  const ctx = await authzMessage(messageId);
+  if (!ctx) return { error: "権限がありません" };
+  if (ctx.msg.authorId !== ctx.user.id && ctx.user.role !== "HQ_ADMIN") {
+    return { error: "自分の送信のみ取り消せます" };
+  }
+  await prisma.recordMessage.update({
+    where: { id: messageId },
+    data: { deletedAt: new Date() },
+  });
+  revalidatePath(`/hq/records/${ctx.msg.serviceRecordId}`);
+  revalidatePath(`/dealer/records/${ctx.msg.serviceRecordId}`);
+  return { ok: true };
+}
+
+// 添付ファイルの備考（本部/代理店それぞれが自分の欄に記入）。
+export async function setMessageFileNote(
+  messageId: string,
+  note: string,
+): Promise<{ ok?: true; error?: string }> {
+  const ctx = await authzMessage(messageId);
+  if (!ctx) return { error: "権限がありません" };
+  const isHQ = ctx.user.role === "HQ_ADMIN";
+  await prisma.recordMessage.update({
+    where: { id: messageId },
+    data: isHQ ? { hqNote: note.trim() || null } : { dealerNote: note.trim() || null },
+  });
+  revalidatePath(`/hq/records/${ctx.msg.serviceRecordId}`);
+  revalidatePath(`/dealer/records/${ctx.msg.serviceRecordId}`);
+  return { ok: true };
+}
+
+// 本部が添付の再DL可否を切替（false=以後、代理店はDL不可）。
+export async function setMessageRedownloadable(
+  messageId: string,
+  redownloadable: boolean,
+): Promise<{ ok?: true; error?: string }> {
+  const ctx = await authzMessage(messageId);
+  if (!ctx) return { error: "権限がありません" };
+  if (ctx.user.role !== "HQ_ADMIN") return { error: "本部のみ設定できます" };
+  await prisma.recordMessage.update({
+    where: { id: messageId },
+    data: { redownloadable },
+  });
+  revalidatePath(`/hq/records/${ctx.msg.serviceRecordId}`);
+  revalidatePath(`/dealer/records/${ctx.msg.serviceRecordId}`);
+  return { ok: true };
+}
+
 // 案件(施工記録)へのアクセス可否。本店は全件、代理店は自店のみ。
 async function authzRecord(recordId: string) {
   const user = await getSessionUser();

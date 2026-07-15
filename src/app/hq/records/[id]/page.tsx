@@ -49,7 +49,7 @@ export default async function HQRecordDetailPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  await requireHQ();
+  const viewer = await requireHQ();
   const { id } = await params;
 
   const record = await prisma.serviceRecord.findUnique({
@@ -73,7 +73,20 @@ export default async function HQRecordDetailPage({
   const messages = await prisma.recordMessage.findMany({
     where: { serviceRecordId: id },
     orderBy: { createdAt: "asc" },
-    select: { id: true, authorRole: true, body: true, fileName: true, createdAt: true },
+    select: {
+      id: true,
+      authorId: true,
+      authorRole: true,
+      body: true,
+      fileName: true,
+      fileSize: true,
+      createdAt: true,
+      deletedAt: true,
+      hqNote: true,
+      dealerNote: true,
+      redownloadable: true,
+      downloadedAt: true,
+    },
   });
   const recordActivity = await getRecordActivity(id);
   const serviceLogs = (
@@ -470,6 +483,7 @@ export default async function HQRecordDetailPage({
         recordId={record.id}
         messages={messages}
         viewerRole="HQ_ADMIN"
+        viewerId={viewer.id}
         canEncrypt={
           !!record.autotunerSlaveId &&
           record.autotunerEcuId != null &&

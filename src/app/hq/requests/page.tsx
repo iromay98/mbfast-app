@@ -1,8 +1,9 @@
 import Link from "next/link";
 import { requireHQ } from "@/lib/authz";
 import { prisma } from "@/lib/db";
-import { requestStatusLabels, requestStatusColors, formatDate } from "@/lib/labels";
-import { PageTitle, Card, Badge, EmptyState, Button, Select, Field } from "@/components/ui";
+import { requestStatusLabels, formatDate } from "@/lib/labels";
+import { PageTitle, Card, Button, Select, Field } from "@/components/ui";
+import { RequestTable, type RequestRow } from "@/components/request-table";
 import type { Prisma } from "@/generated/prisma/client";
 
 type SP = Record<string, string | string[] | undefined>;
@@ -31,9 +32,30 @@ export default async function HQRequestsPage({
     prisma.fileRequest.findMany({
       where,
       orderBy: { updatedAt: "desc" },
-      include: { dealer: { select: { name: true } } },
+      select: {
+        id: true,
+        title: true,
+        requestNote: true,
+        status: true,
+        resultFilePath: true,
+        updatedAt: true,
+        dealer: { select: { name: true } },
+        serviceRecord: { select: { carMaker: true, carModel: true, customerName: true } },
+      },
     }),
   ]);
+
+  const rows: RequestRow[] = requests.map((r) => ({
+    id: r.id,
+    dealer: r.dealer?.name ?? null,
+    customer: r.serviceRecord?.customerName ?? null,
+    car: `${r.serviceRecord?.carMaker ?? ""} ${r.serviceRecord?.carModel ?? ""}`.trim(),
+    title: r.title,
+    content: r.requestNote?.match(/「(.+?)」/)?.[1] ?? null,
+    status: r.status,
+    autoDelivered: r.status === "DELIVERED" && !r.resultFilePath,
+    updatedAtLabel: formatDate(r.updatedAt),
+  }));
 
   return (
     <div>
@@ -73,29 +95,7 @@ export default async function HQRequestsPage({
         </form>
       </Card>
 
-      {requests.length === 0 ? (
-        <EmptyState message="該当する依頼がありません。" />
-      ) : (
-        <Card className="divide-y divide-line p-0">
-          {requests.map((r) => (
-            <Link
-              key={r.id}
-              href={`/hq/requests/${r.id}`}
-              className="flex items-center justify-between gap-3 p-3 hover:bg-surface-2"
-            >
-              <div className="min-w-0">
-                <div className="truncate text-sm font-medium text-ink">{r.title}</div>
-                <div className="mt-0.5 text-xs text-ink-soft">
-                  {r.dealer.name}・更新 {formatDate(r.updatedAt)}
-                </div>
-              </div>
-              <Badge color={requestStatusColors[r.status]}>
-                {requestStatusLabels[r.status]}
-              </Badge>
-            </Link>
-          ))}
-        </Card>
-      )}
+      <RequestTable rows={rows} forHQ hrefBase="/hq/requests" />
     </div>
   );
 }

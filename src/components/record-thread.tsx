@@ -1,28 +1,45 @@
 import { Card } from "@/components/ui";
-import { formatDateTime } from "@/lib/labels";
 import { MessageComposer } from "@/components/message-composer";
+import { ChatMessage, type ChatMsg } from "@/components/chat-message";
 
 export type ThreadMessage = {
   id: string;
+  authorId: string;
   authorRole: "HQ_ADMIN" | "DEALER";
   body: string | null;
   fileName: string | null;
+  fileSize: number | null;
   createdAt: Date;
+  deletedAt: Date | null;
+  hqNote: string | null;
+  dealerNote: string | null;
+  redownloadable: boolean;
+  downloadedAt: Date | null;
 };
 
-// 案件ごとの本部⇄代理店メッセージ表示＋投稿。viewer から見て自分の発言は右寄せ。
+function dayLabel(d: Date): string {
+  const t = new Date();
+  const y = new Date(t.getTime() - 86400000);
+  const same = (a: Date, b: Date) => a.toDateString() === b.toDateString();
+  if (same(d, t)) return "今日";
+  if (same(d, y)) return "昨日";
+  return `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, "0")}/${String(d.getDate()).padStart(2, "0")}`;
+}
+
+// 案件ごとの本部⇄代理店チャット（LINE/WhatsApp風）。日付区切り＋吹き出し。
 export function RecordThread({
   recordId,
   messages,
   viewerRole,
+  viewerId,
   canEncrypt = false,
   backupSupported = false,
 }: {
   recordId: string;
   messages: ThreadMessage[];
   viewerRole: "HQ_ADMIN" | "DEALER";
+  viewerId: string;
   canEncrypt?: boolean;
-  // slave変換で bak(フル・マップスイッチ用) を選べるか（backup対応ECUのみ）。
   backupSupported?: boolean;
 }) {
   return (
@@ -35,50 +52,38 @@ export function RecordThread({
         </div>
       </div>
 
-      {/* チャット本文（LINE風の吹き出し） */}
-      <div className="max-h-[28rem] space-y-3 overflow-y-auto bg-surface-2/40 px-4 py-4">
+      {/* チャット本文（WhatsApp風の壁紙背景＋日付区切り） */}
+      <div className="max-h-[30rem] space-y-2 overflow-y-auto bg-[#e9edea] px-3 py-4 dark:bg-surface-2/40">
         {messages.length === 0 ? (
           <p className="py-8 text-center text-xs text-ink-soft">まだメッセージはありません。下から送信できます。</p>
         ) : (
-          messages.map((m) => {
-            const mine = m.authorRole === viewerRole;
-            const isHQ = m.authorRole === "HQ_ADMIN";
-            const avatar = isHQ ? "本" : "店";
+          messages.map((m, i) => {
+            const prev = messages[i - 1];
+            const showDay = !prev || prev.createdAt.toDateString() !== m.createdAt.toDateString();
+            const cm: ChatMsg = {
+              id: m.id,
+              authorId: m.authorId,
+              authorRole: m.authorRole,
+              body: m.body,
+              fileName: m.fileName,
+              fileSize: m.fileSize,
+              createdAt: m.createdAt.toISOString(),
+              deletedAt: m.deletedAt ? m.deletedAt.toISOString() : null,
+              hqNote: m.hqNote,
+              dealerNote: m.dealerNote,
+              redownloadable: m.redownloadable,
+              downloadedAt: m.downloadedAt ? m.downloadedAt.toISOString() : null,
+            };
             return (
-              <div key={m.id} className={`flex items-end gap-2 ${mine ? "flex-row-reverse" : "flex-row"}`}>
-                {/* アバター */}
-                <span
-                  className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[11px] font-bold text-white ${
-                    isHQ ? "bg-gold-500" : "bg-sky-500"
-                  }`}
-                  title={isHQ ? "本部" : "代理店"}
-                >
-                  {avatar}
-                </span>
-                <div className={`flex max-w-[78%] flex-col ${mine ? "items-end" : "items-start"}`}>
-                  <span className="mb-0.5 px-1 text-[10px] text-ink-soft">
-                    {isHQ ? "本部" : "代理店"}・{formatDateTime(m.createdAt)}
-                  </span>
-                  <div
-                    className={`rounded-2xl px-3.5 py-2 text-sm shadow-sm ${
-                      mine
-                        ? "rounded-br-sm bg-gold-500 text-white"
-                        : "rounded-bl-sm border border-line bg-white text-ink"
-                    }`}
-                  >
-                    {m.body && <div className="whitespace-pre-wrap break-words">{m.body}</div>}
-                    {m.fileName && (
-                      <a
-                        href={`/api/records/${recordId}/messages/${m.id}/file`}
-                        className={`mt-1 inline-flex items-center gap-1 break-all text-xs font-semibold underline ${
-                          mine ? "text-white" : "text-gold-700"
-                        }`}
-                      >
-                        ⬇ {m.fileName}
-                      </a>
-                    )}
+              <div key={m.id} className="space-y-2">
+                {showDay && (
+                  <div className="flex justify-center">
+                    <span className="rounded-full bg-black/10 px-3 py-0.5 text-[10px] font-semibold text-ink-soft">
+                      {dayLabel(m.createdAt)}
+                    </span>
                   </div>
-                </div>
+                )}
+                <ChatMessage recordId={recordId} m={cm} viewerRole={viewerRole} viewerId={viewerId} />
               </div>
             );
           })

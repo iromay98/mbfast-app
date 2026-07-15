@@ -24,13 +24,34 @@ export async function GET(
 
   const msg = await prisma.recordMessage.findUnique({
     where: { id: messageId },
-    select: { serviceRecordId: true, filePath: true, fileName: true, contentType: true },
+    select: {
+      serviceRecordId: true,
+      filePath: true,
+      fileName: true,
+      contentType: true,
+      authorRole: true,
+      deletedAt: true,
+      redownloadable: true,
+      downloadedAt: true,
+    },
   });
   if (!msg || msg.serviceRecordId !== recordId || !msg.filePath) {
     return new Response("Not Found", { status: 404 });
   }
+  if (msg.deletedAt) return new Response("この添付は送信取り消しされました", { status: 410 });
+  // 本部が再DL不可にした添付は、相手（代理店）にはもう渡さない。本部自身は可。
+  if (user.role === "DEALER" && !msg.redownloadable) {
+    return new Response("この添付はダウンロードできません（本部が公開を終了）", { status: 403 });
+  }
   const f = await storage.read(msg.filePath);
   if (!f) return new Response("Not Found", { status: 404 });
+
+  // 相手がDLしたら「DL済み」を記録（自分の投稿の自己DLは除く）
+  if (!msg.downloadedAt && user.role !== msg.authorRole) {
+    await prisma.recordMessage
+      .update({ where: { id: messageId }, data: { downloadedAt: new Date() } })
+      .catch(() => {});
+  }
 
   return fileResponse(
     { buffer: f.buffer, contentType: msg.contentType ?? "application/octet-stream", size: f.size },

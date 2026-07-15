@@ -379,6 +379,15 @@ model RecordMessage {
   fileName        String?
   fileSize        Int?
   contentType     String?
+  // 送信取り消し（削除済み表示。本文/ファイルは配信停止）
+  deletedAt       DateTime?
+  // 添付ファイルの備考（本部・代理店それぞれが書ける「このファイルどうだった」メモ）
+  hqNote          String?
+  dealerNote      String?
+  // 本部が添付ファイルの再DL可否を制御（false=以後DL不可）。既定は可。
+  redownloadable  Boolean       @default(true)
+  // 相手が添付を初回DLした日時（DL済みステータス表示用）
+  downloadedAt    DateTime?
   createdAt       DateTime      @default(now())
 
   @@index([serviceRecordId])
