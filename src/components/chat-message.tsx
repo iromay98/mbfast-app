@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { SlaveDownloadButton } from "@/components/slave-download-button";
 import {
   retractMessage,
   setMessageFileNote,
@@ -114,14 +115,15 @@ export function ChatMessage({
                   ダウンロード終了（本部が公開停止）
                 </span>
               ) : (
-                <a
-                  href={`/api/records/${recordId}/messages/${m.id}/file`}
-                  download
-                  onClick={() => setTimeout(() => router.refresh(), 1500)}
-                  className="mt-1.5 inline-flex items-center gap-1 rounded-lg bg-gold-500 px-3 py-1 text-[11px] font-bold text-white hover:bg-gold-600"
-                >
-                  ⬇ ダウンロード
-                </a>
+                <div className="mt-1.5">
+                  <SlaveDownloadButton
+                    href={`/api/records/${recordId}/messages/${m.id}/file`}
+                    label="⬇ ダウンロード"
+                    fallbackName={m.fileName}
+                    onDone={() => router.refresh()}
+                    className="inline-flex items-center gap-1 rounded-lg bg-gold-500 px-3 py-1 text-[11px] font-bold text-white hover:bg-gold-600 disabled:opacity-70"
+                  />
+                </div>
               )}
 
               {/* 本部のみ: 再DL可否トグル */}

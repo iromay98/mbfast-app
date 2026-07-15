@@ -37,3 +37,13 @@ body {
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
 }
+
+/* アップロード/ダウンロードの不定進捗バー（流れるアニメーション） */
+@keyframes indeterminate {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(400%);
+  }
+}

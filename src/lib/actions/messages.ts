@@ -9,7 +9,6 @@ import { encryptSlave } from "@/server/autotuner/client";
 import { notify } from "@/server/notifications";
 import { sendPushToUsers, recipientUserIds } from "@/server/push";
 import { buildDownloadName, dateLabel } from "@/server/catalog/filename";
-import { maybeUnzipBin } from "@/server/util/unzip";
 import { type FormState } from "@/lib/actions/form-state";
 
 // メッセージへのアクセス可否（記録経由）。返り値に自分がHQ/代理店かも含む。
@@ -164,18 +163,10 @@ export async function postRecordMessage(
       if (mode === "backup" && rec?.backupSupported === false) {
         return { error: "このECUは backup（フル読み書き）に対応していないため bak は作れません。" };
       }
-      // zip で来た場合は中の bin を取り出してから encrypt（zipをそのまま暗号化する事故を防ぐ）
-      let tuned: Buffer;
-      let innerName: string | null = file.name || null;
-      try {
-        // bak はバックアップ一式をそのまま渡す。maps は単一binを取り出す（複数なら拒否）。
-        const un = maybeUnzipBin(Buffer.from(await file.arrayBuffer()), file.name, mode);
-        tuned = un.buf;
-        innerName = un.name;
-      } catch (e) {
-        const msg = e instanceof Error ? e.message : String(e);
-        return { error: `zipの解凍に失敗しました: ${msg}` };
-      }
+      // アップされたファイルはそのまま AutoTuner へ渡す（zipもそのまま。
+      // 展開や中身の選別はしない＝AutoTuner側が扱う）。
+      const tuned = Buffer.from(await file.arrayBuffer());
+      const innerName: string | null = file.name || null;
       let slaveData: Buffer;
       try {
         const enc = await encryptSlave(tuned, { slaveId, ecuId, modelId, mcuId }, { recordId, mode });

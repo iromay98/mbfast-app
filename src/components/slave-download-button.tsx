@@ -24,28 +24,56 @@ export function SlaveDownloadButton({
   label,
   className,
   fallbackName = "download.slave",
+  onDone,
 }: {
   href: string;
   label: string;
   className?: string;
-  fallbackName?: string;
+  fallbackName?: string | null;
+  // DL完了後に呼ぶ（DL済み表示の更新など）
+  onDone?: () => void;
 }) {
   const [busy, setBusy] = useState(false);
+  const [pct, setPct] = useState<number | null>(null); // 受信進捗（Content-Length があるとき）
   const [error, setError] = useState<string | null>(null);
 
   const onClick = async () => {
     if (busy) return;
     setError(null);
     setBusy(true);
+    setPct(null);
     try {
       const res = await fetch(href);
       if (!res.ok) {
         const txt = await res.text().catch(() => "");
         throw new Error(txt || `ダウンロードに失敗しました (${res.status})`);
       }
-      const blob = await res.blob();
+      // 進捗表示: Content-Length があればストリームで受信量を数える
+      const total = Number(res.headers.get("content-length") ?? 0);
+      let blob: Blob;
+      if (total > 0 && res.body) {
+        const reader = res.body.getReader();
+        const chunks: Uint8Array[] = [];
+        let received = 0;
+        setPct(0);
+        for (;;) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          if (value) {
+            chunks.push(value);
+            received += value.byteLength;
+            setPct(Math.min(99, Math.round((received / total) * 100)));
+          }
+        }
+        setPct(100);
+        blob = new Blob(chunks as BlobPart[]);
+      } else {
+        blob = await res.blob();
+      }
       const name =
-        filenameFromDisposition(res.headers.get("content-disposition")) ?? fallbackName;
+        filenameFromDisposition(res.headers.get("content-disposition")) ??
+        fallbackName ??
+        "download.slave";
       const objUrl = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = objUrl;
@@ -54,10 +82,12 @@ export function SlaveDownloadButton({
       a.click();
       a.remove();
       setTimeout(() => URL.revokeObjectURL(objUrl), 10000);
+      onDone?.();
     } catch (e) {
       setError(e instanceof Error ? e.message : "ダウンロードに失敗しました");
     } finally {
       setBusy(false);
+      setPct(null);
     }
   };
 
@@ -73,13 +103,31 @@ export function SlaveDownloadButton({
         {busy ? (
           <span className="inline-flex items-center gap-1.5">
             <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-current border-t-transparent opacity-70" />
-            準備中…
+            {pct == null ? "準備中…" : `受信中 ${pct}%`}
           </span>
         ) : (
           label
         )}
       </button>
+      {/* 進捗バー: 数値が取れれば実測、取れない間（暗号化待ち等）は不定アニメーション */}
+      {busy && <ProgressBar pct={pct} />}
       {error && <span className="text-xs text-red-600">{error}（再度お試しください）</span>}
+    </span>
+  );
+}
+
+// 進捗バー（pct=null は不定＝流れるアニメーション）
+export function ProgressBar({ pct }: { pct: number | null }) {
+  return (
+    <span className="block h-1.5 w-full min-w-[9rem] overflow-hidden rounded-full bg-black/10">
+      {pct == null ? (
+        <span className="block h-full w-1/3 animate-[indeterminate_1.2s_ease-in-out_infinite] rounded-full bg-gold-500" />
+      ) : (
+        <span
+          className="block h-full rounded-full bg-gold-500 transition-[width] duration-150"
+          style={{ width: `${pct}%` }}
+        />
+      )}
     </span>
   );
 }

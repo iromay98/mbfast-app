@@ -2,7 +2,7 @@ import type { NextRequest } from "next/server";
 import { getSessionUser } from "@/lib/authz";
 import { prisma } from "@/lib/db";
 import { storage, type StoredFile } from "@/server/storage";
-import { encryptSlave } from "@/server/autotuner/client";
+import { encryptSlave, decryptSlave } from "@/server/autotuner/client";
 import { fileResponse, logCatalogDownload } from "@/server/catalog/download-log";
 import { buildDownloadName, dateLabel } from "@/server/catalog/filename";
 
@@ -25,6 +25,7 @@ export async function GET(
       decryptedHash: true,
       oriFilePath: true,
       oriFileHash: true,
+      slaveFilePath: true,
       autotunerSlaveId: true,
       autotunerEcuId: true,
       autotunerModelId: true,
@@ -46,6 +47,10 @@ export async function GET(
     return new Response("Forbidden", { status: 403 });
   }
 
+  // mode=backup: 純正戻しを「bak(フル)」形式で作る（マップスイッチ車の完全復元用）。
+  // 元スレーブを decrypt(backup) してフルの純正バックアップを得て、それを encrypt(backup)。
+  const mode = request.nextUrl.searchParams.get("mode") === "backup" ? "backup" : "maps";
+
   // ori の実体:
   //   通常（純正読み）  → 復号ファイル（その車から読んだ元の中身）
   //   チューニング済み車 → 本店が事前アップした純正bin（読んだ中身は純正でないため）
@@ -65,6 +70,76 @@ export async function GET(
   const mcuId = record.autotunerMcuId;
   if (!slaveId || ecuId == null || modelId == null || !mcuId) {
     return new Response("この記録には暗号化に必要な情報がありません", { status: 409 });
+  }
+
+  if (mode === "backup") {
+    if (record.isTuned) {
+      return new Response(
+        "チューニング済み読みの車はbak形式の純正戻しを作れません（本店登録の純正はマップ形式のため）",
+        { status: 409 },
+      );
+    }
+    if (record.backupSupported === false) {
+      return new Response("このECUは backup（フル読み書き）に対応していません", { status: 412 });
+    }
+    if (!record.slaveFilePath) return new Response("Not Found", { status: 404 });
+    const bakCache = `records/stock-encrypted/${recordId}__${slaveId}__bak.slave`;
+    let bakSlave = (await storage.read(bakCache))?.buffer ?? null;
+    if (!bakSlave) {
+      // 純正のフルバックアップ（decrypt mode=backup）。既存キャッシュがあれば使う。
+      let bakBin = (await storage.read(`decrypted-bak/${recordId}.bin`))?.buffer ?? null;
+      if (!bakBin) {
+        const slave = await storage.read(record.slaveFilePath);
+        if (!slave) return new Response("Not Found", { status: 404 });
+        try {
+          const dec = await decryptSlave(slave.buffer, { recordId, mode: "backup" });
+          bakBin = dec.decryptedData;
+          await storage.save(`decrypted-bak/${recordId}.bin`, bakBin, "application/octet-stream");
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : String(e);
+          return new Response(`bak復号に失敗しました: ${msg}`, { status: 502 });
+        }
+      }
+      try {
+        const enc = await encryptSlave(
+          bakBin,
+          { slaveId, ecuId, modelId, mcuId },
+          { recordId, mode: "backup" },
+        );
+        bakSlave = enc.slaveData;
+        await storage.save(bakCache, bakSlave, "application/octet-stream");
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        return new Response(`暗号化に失敗しました: ${msg}`, { status: 502 });
+      }
+    }
+    await logCatalogDownload({
+      variantId: null,
+      fileHash: record.decryptedHash,
+      userId: user.id,
+      dealerId: record.dealerId,
+      serviceRecordId: recordId,
+      context: user.role === "HQ_ADMIN" ? "HQ_MANUAL" : "MATCH_AUTO",
+      ip: request.headers.get("x-forwarded-for"),
+    });
+    const bakName = buildDownloadName({
+      model: record.matchedBaseFile?.model ?? record.carModel,
+      generation: record.matchedBaseFile?.generation,
+      method: record.matchedBaseFile?.method,
+      tool: record.matchedBaseFile?.tool ?? undefined,
+      content: "ori_bak",
+      unit: record.unit,
+      ext: "slave",
+      dealerName: record.dealer?.name,
+      customerName: record.customerName,
+      dateLabel: dateLabel(record.workedAt),
+    });
+    const outBak: StoredFile = {
+      buffer: bakSlave,
+      contentType: "application/octet-stream",
+      size: bakSlave.byteLength,
+    };
+    return fileResponse(outBak, bakName, outBak.contentType);
   }
 
   // キャッシュ: 同じ純正(hash) × 同じ車(slaveId)

@@ -20,7 +20,7 @@ import { updateRecordSupplement } from "@/lib/actions/records";
 import { SupplementForm } from "./supplement-form";
 import { TuningConfigurator } from "./tuning-configurator";
 import { SlaveDownloadButton } from "@/components/slave-download-button";
-import { fuelKindOf, optionTagsFor, popsAllowed, stageRank, baselineStages } from "@/lib/catalog/options";
+import { fuelKindOf, optionTagsFor, popsAllowed, stageRank, baselineStages, tuningContentLabel } from "@/lib/catalog/options";
 import { vehicleLabel } from "@/lib/catalog/vehicle";
 
 export default async function DealerRecordDetailPage({
@@ -101,6 +101,34 @@ export default async function DealerRecordDetailPage({
       downloadedAt: true,
     },
   });
+  // 過去に配布された（この車で実際にDLされた）バリエーション＝再DL可能なもの。
+  // キャンセル承諾済みは除外。同じ版は1つにまとめる。
+  const pastDownloads = await prisma.catalogDownloadLog.findMany({
+    where: { serviceRecordId: id, cancelledAt: null, variantId: { not: null } },
+    orderBy: { createdAt: "desc" },
+    select: {
+      variantId: true,
+      createdAt: true,
+      variant: {
+        select: { id: true, stage: true, popsAndBangs: true, popsSport: true, optionTags: true, status: true, fileRef: true },
+      },
+    },
+  });
+  const seenVar = new Set<string>();
+  const deliveredVariants = pastDownloads
+    .filter((d) => {
+      const v = d.variant;
+      if (!v || !v.fileRef || v.status !== "AVAILABLE") return false;
+      if (seenVar.has(v.id)) return false;
+      seenVar.add(v.id);
+      return true;
+    })
+    .map((d) => ({
+      variantId: d.variant!.id,
+      label: tuningContentLabel(d.variant!.stage, d.variant!.popsAndBangs, d.variant!.optionTags ?? [], d.variant!.popsSport),
+      atLabel: formatDate(d.createdAt),
+    }));
+
   const recordActivity = await getRecordActivity(id);
   const serviceLogs = (
     await prisma.serviceLog.findMany({
@@ -120,6 +148,8 @@ export default async function DealerRecordDetailPage({
     record.autotunerEcuId != null &&
     record.autotunerModelId != null &&
     !!record.autotunerMcuId;
+  // 純正戻しの元データがあるか（純正読み=復号ファイル / チューン済み読み=本店登録のori）
+  const hasOri = record.isTuned ? !!record.oriFilePath : !!record.decryptedFilePath;
 
   // 代理店クライアントへは専門情報(Cal/HW/SW/ecuIdRaw・TCU・適用マップ・本店メモ等)を一切渡さない。
   // フォームが実際に使う項目だけを明示的に渡す（プロップス経由の漏洩防止）。
@@ -169,6 +199,58 @@ export default async function DealerRecordDetailPage({
         }
       />
 
+      {/* この車のダウンロード: 純正戻し(ori) と 納品済みの再DL。適合チューニングの上段。 */}
+      {canDeliver && (hasOri || deliveredVariants.length > 0) && (
+        <Card>
+          <h3 className="mb-1 text-sm font-bold text-ink">この車のダウンロード</h3>
+          <p className="mb-3 text-xs text-ink-soft">
+            純正に戻すファイルと、これまでに納品されたファイルはいつでも再ダウンロードできます（無料）。
+          </p>
+
+          {hasOri && (
+            <div className="mb-3">
+              <div className="mb-1.5 text-xs font-semibold text-ink-soft">純正に戻す（ori）</div>
+              <div className="flex flex-wrap gap-2">
+                <SlaveDownloadButton
+                  href={`/api/records/${record.id}/stock-slave`}
+                  label="⬇ 純正(ori) .slave"
+                  className="inline-flex items-center rounded-lg border border-gold-300 bg-white px-3 py-2 text-xs font-semibold text-gold-700 hover:bg-gold-50 disabled:opacity-70"
+                />
+                {/* bak形式（マップスイッチ等でフル書き換えした車の完全復元用） */}
+                {!record.isTuned && record.backupSupported && (
+                  <SlaveDownloadButton
+                    href={`/api/records/${record.id}/stock-slave?mode=backup`}
+                    label="⬇ 純正(ori) bak（フル）"
+                    className="inline-flex items-center rounded-lg border border-sky-300 bg-white px-3 py-2 text-xs font-semibold text-sky-700 hover:bg-sky-50 disabled:opacity-70"
+                  />
+                )}
+              </div>
+            </div>
+          )}
+
+          {deliveredVariants.length > 0 && (
+            <div>
+              <div className="mb-1.5 text-xs font-semibold text-ink-soft">
+                納品済みファイル（再ダウンロード）
+              </div>
+              <div className="divide-y divide-line rounded-lg border border-line">
+                {deliveredVariants.map((v) => (
+                  <div key={v.variantId} className="flex flex-wrap items-center gap-2 px-3 py-2">
+                    <span className="text-xs font-semibold text-ink">{v.label}</span>
+                    <span className="text-[11px] text-ink-soft">初回DL {v.atLabel}</span>
+                    <SlaveDownloadButton
+                      href={`/api/match/${record.id}/variant/${v.variantId}`}
+                      label="⬇ 再ダウンロード"
+                      className="ml-auto inline-flex items-center rounded-lg bg-gold-500 px-3 py-1.5 text-xs font-semibold text-white hover:bg-gold-600 disabled:opacity-70"
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </Card>
+      )}
+
       {configurator && (
         <Card className="border-gold-200 bg-gold-50">
           <h3 className="mb-1 text-sm font-bold text-ink">適合チューニング済みファイル</h3>
@@ -197,28 +279,6 @@ export default async function DealerRecordDetailPage({
 
       {/* 施工ログ（本部が記録。代理店は閲覧のみ） */}
       <ServiceLog recordId={record.id} logs={serviceLogs} canEdit={false} />
-
-      {/* ファイル＝純正に戻す（ori）のみ。slave は入れ直せないため非表示。
-          通常: アップ時の復号データ（純正読み）。
-          チューニング済み読み: 本店が事前登録した純正bin（登録済みの時だけ表示）。 */}
-      {canDeliver &&
-        (record.isTuned ? !!record.oriFilePath : !!record.decryptedFilePath) && (
-        <Card>
-          <h3 className="mb-1 text-sm font-bold text-ink">純正に戻す（ori）</h3>
-          <p className="mb-3 text-xs text-ink-soft">
-            {record.isTuned
-              ? "本店が登録した純正データを、この車用の .slave に暗号化してダウンロードできます。"
-              : "アップ時の純正データを、この車用の .slave に暗号化してダウンロードできます。"}
-            チューニングを元に戻したいときにいつでも使えます（無料）。
-          </p>
-          <SlaveDownloadButton
-            href={`/api/records/${record.id}/stock-slave`}
-            label="⬇ 純正(ori) .slave をダウンロード"
-            className="inline-flex items-center rounded-lg border border-gold-300 bg-white px-4 py-2 text-sm font-semibold text-gold-700 hover:bg-gold-50 disabled:opacity-70"
-          />
-
-        </Card>
-      )}
 
       {requests.length > 0 && (
         <Card>

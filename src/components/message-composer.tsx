@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { postRecordMessage } from "@/lib/actions/messages";
 import { emptyFormState } from "@/lib/actions/form-state";
 import { Button, FormError } from "@/components/ui";
+import { ProgressBar } from "@/components/slave-download-button";
 
 type Slot = "slave" | "file" | "camera";
 
@@ -218,6 +219,21 @@ export function MessageComposer({
               className="min-w-0 flex-1 rounded-lg border border-line bg-surface px-2 py-1 font-mono text-xs"
             />
           </label>
+        </div>
+      )}
+
+      {/* 送信中の進捗（slave/bak はアップロード後に本部APIで暗号化するため時間がかかる） */}
+      {pending && (
+        <div className="space-y-1 rounded-lg border border-gold-200 bg-gold-50 px-3 py-2">
+          <div className="flex items-center gap-2 text-xs font-semibold text-gold-800">
+            <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-gold-500 border-t-transparent" />
+            {picked?.slot === "slave"
+              ? encryptMode === "backup"
+                ? "アップロード中… → bak を暗号化しています（数十秒かかることがあります）"
+                : "アップロード中… → .slave に暗号化しています（数十秒かかることがあります）"
+              : "アップロード中…"}
+          </div>
+          <ProgressBar pct={null} />
         </div>
       )}
 
