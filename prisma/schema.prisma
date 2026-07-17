@@ -218,6 +218,7 @@ model Dealer {
   fileRequests   FileRequest[]
   reads          AnnouncementRead[]
   catalogDownloads CatalogDownloadLog[]
+  pitStore       PitStore? // mbPIT 自動ブログ公開の店舗設定（対象店舗のみ）
 }
 
 // 施工記録 / 愛車カルテ
@@ -640,6 +641,87 @@ model CatalogDownloadLog {
 
   @@index([variantId])
   @@index([dealerId])
+  @@index([createdAt])
+}
+
+// ─────────────────────────────────────────────
+// mbPIT 施工記録 → 自動ブログ公開
+// 店舗(代理店)が写真＋メモを投稿 → AI記事化 → mbfasttuning.com へ自動公開。
+// 既存の「代理店」カテゴリツリー(本部管理)は絶対に触らず、mbpit 側カテゴリのみ使用。
+// ─────────────────────────────────────────────
+
+// 施工内容カテゴリ（投稿画面の選択肢）
+enum PitCategory {
+  ECU         // ECUチューニング
+  COATING     // コーティング
+  POLISH      // 磨き
+  MAINTENANCE // メンテナンス
+  OTHER       // その他
+}
+
+// 投稿の処理状態
+enum PitPostStatus {
+  PROCESSING // 受付済み・記事化パイプライン実行中
+  PUBLISHED  // WordPress へ公開済み
+  HELD       // コンテンツガードで保留（自動公開しない・本部が確認）
+  FAILED     // 生成/公開エラー（再試行可）
+}
+
+// 店舗マスタ。既存 Dealer アカウントに 1:1 で紐づけ、mbPIT 公開設定を持つ。
+model PitStore {
+  id           String  @id @default(cuid())
+  dealerId     String  @unique // 既存アカウントの店舗(代理店)ID
+  dealer       Dealer  @relation(fields: [dealerId], references: [id])
+  displayName  String // 表示名（記事タイトル・フッターに使用。例 Glanzcoat）
+  wpCategoryId Int // WordPress 店舗カテゴリID（例 555）
+  storeSlug    String // 店舗slug（記事slug末尾に含める。例 glanzcoat-mbpit）
+  footerHtml   String  @default("") // 記事末尾の店舗紹介＋CTAブロック（本部が投入）
+  active       Boolean @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  posts PitPost[]
+}
+
+// 投稿ログ（全公開記事の監査・ガード判定・保留の追跡）
+model PitPost {
+  id       String        @id @default(cuid())
+  storeId  String
+  store    PitStore      @relation(fields: [storeId], references: [id])
+  dealerId String // 冗長だが集計を単純にするため保持
+
+  // 入力
+  vehicle  String // 車種（フリーテキスト）
+  category PitCategory
+  memo     String? // 自由メモ（500文字以内）
+
+  photoPaths     String[] @default([]) // 元写真（ストレージ参照キー）
+  processedPaths String[] @default([]) // ぼかし・リサイズ後（ストレージ参照キー）
+
+  // 処理状態
+  status     PitPostStatus @default(PROCESSING)
+  holdReason String? // HELD の理由（該当キーワード等・本部向け）
+  error      String? // FAILED の理由
+
+  // ガード判定結果（監査用）: { blocked: string[], caution: string[], piiRemoved: boolean }
+  guardResult   Json?
+  cautionAdded  Boolean @default(false) // 車検非対応注意文言を挿入したか
+  // ナンバープレートぼかしのログ: [{ index, detected, regions }]
+  plateBlurLog  Json?
+
+  // 生成結果・公開結果
+  title        String?
+  slug         String?
+  wpPostId     Int?
+  publishedUrl String?
+  publishedAt  DateTime?
+
+  createdById String
+  createdAt   DateTime @default(now())
+
+  @@index([storeId])
+  @@index([dealerId])
+  @@index([status])
   @@index([createdAt])
 }
 

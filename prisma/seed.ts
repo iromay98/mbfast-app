@@ -17,6 +17,8 @@ async function main() {
   const passwordHash = await bcrypt.hash(DEFAULT_PASSWORD, 10);
 
   // 依存関係の逆順で全削除（再実行を冪等にする）
+  await prisma.pitPost.deleteMany();
+  await prisma.pitStore.deleteMany();
   await prisma.requestEvent.deleteMany();
   await prisma.announcementRead.deleteMany();
   await prisma.announcement.deleteMany();
@@ -97,6 +99,19 @@ async function main() {
     });
     dealers.push({ dealer, user });
   }
+
+  // ── mbPIT 施工ブログ: 開発用店舗設定（東京ベースを投稿可能にする） ──
+  await prisma.pitStore.create({
+    data: {
+      dealerId: dealers[0].dealer.id,
+      displayName: "mbFAST 東京ベース",
+      wpCategoryId: 547, // 開発用ダミー（本番は各店舗の確定IDを設定）
+      storeSlug: "tokyo-base",
+      footerHtml:
+        '<div class="store-footer"><h3>mbFAST 東京ベース</h3><p>東京都世田谷区桜新町1-2-3 / 営業時間 10:00-19:00（水曜定休）</p><p><a href="https://mbfasttuning.com/contact/">お問い合わせはこちら</a></p></div>',
+      active: true,
+    },
+  });
 
   // ── 施工記録 ────────────────────────────────
   const recordsSeed = [
