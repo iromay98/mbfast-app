@@ -642,3 +642,52 @@ model CatalogDownloadLog {
   @@index([dealerId])
   @@index([createdAt])
 }
+
+// ─────────────────────────────────────────────
+// 価格表（mbFAST Tuning の公開価格。WordPressへ貼るHTMLの元データ）
+// ─────────────────────────────────────────────
+
+// ブランド定義。列構成がブランドごとに違うため columns(Json) で動的に持つ。
+model PriceBrand {
+  id                String   @id // "bmw" / "mercedes_gasoline" / "mercedes_diesel" / "audi" / "lamborghini"
+  displayName       String // "BMW"
+  slug              String   @unique // URL用
+  namespacePrefix   String // "bmw-" 等（CSS/ID衝突防止）
+  seriesGroups      String[] @default([]) // フィルタチップ
+  columns           Json     @default("[]") // ColumnDefinition[]
+  csvMapping        Json     @default("{}") // Airtable列名 → 内部キー（列変更に追従）
+  intro             String   @default("") // 表の導入文（HTML可）
+  jsonLdDescription String   @default("") // SEO(JSON-LD Service)
+  wordPressPageId   Int? // Phase 2: 反映先WPページID
+  displayOrder      Int      @default(0)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  vehicles PriceVehicle[]
+}
+
+// 価格表の1行（1車両）。価格列はブランドで異なるため prices(Json) に動的キーで保持。
+model PriceVehicle {
+  id           String     @id @default(cuid())
+  brandId      String
+  brand        PriceBrand @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  seriesGroup  String // "3-Series" 等（フィルタ用）
+  carName      String // "3-Series (G20)"
+  grade        String? // "340i"（Audi等は無し）
+  engine       String     @default("") // "B58"（Lamboは無し）
+  engineFamily String? // バッジ表示用
+  ecuType      String? // "MG1CS003"（右端列）
+  stockOutput  String? // "382ps/500Nm"
+  stage1Gain   String? // "+80ps/60Nm"
+  prices       Json       @default("{}") // { babble: "121000", stage1: "165000", stage2: "ASK" }
+  labor        String?
+  shops        String?
+  remote       Json       @default("{}") // { autoTuner, powerGate3, flasher, atOne }
+  notes        String? // ★マーク＋ツールチップ
+  displayOrder Int        @default(0)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  @@index([brandId, displayOrder])
+  @@index([brandId, seriesGroup])
+}

@@ -9,6 +9,7 @@ const hqNav: NavItem[] = [
   { href: "/hq/records", label: "施工記録・依頼" },
   { href: "/hq/catalog", label: "カタログ" },
   { href: "/hq/showcase", label: "施工事例" },
+  { href: "/hq/prices", label: "価格表" },
   { href: "/hq/activity", label: "ログ" },
   { href: "/hq/announcements", label: "お知らせ" },
   { href: "/hq/admin", label: "メンテナンス" },
