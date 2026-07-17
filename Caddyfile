@@ -5,3 +5,13 @@
 	encode zstd gzip
 	reverse_proxy app:3000
 }
+
+# ─────────────────────────────────────────────────────────────
+# 経理アプリ keiri-app(同じVPSに同居)。このブロックを消さないこと。
+# mbfast再デプロイでこのファイルがVPSへ上書きされても keiri.ns-inc.jp が
+# 生き続けるよう、mbfastリポジトリ側にも定義を持つ。
+# コンテナは /root/keiri-app の docker-compose.shared.yml が起動する。
+keiri.ns-inc.jp {
+	encode zstd gzip
+	reverse_proxy keiri-app:8400
+}
