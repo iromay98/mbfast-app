@@ -1,9 +1,20 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import Papa from "papaparse";
 import { prisma } from "@/lib/db";
 import { requireHQ } from "@/lib/authz";
-import type { PriceMap, RemoteFlags } from "@/lib/prices/types";
+import { generatePriceTableHtml } from "@/lib/prices/generate-html";
+import {
+  REMOTE_TOOLS,
+  toColumns,
+  toPrices,
+  toRemote,
+  type BrandRow,
+  type PriceMap,
+  type RemoteFlags,
+  type VehicleRow,
+} from "@/lib/prices/types";
 
 const PRICES_PATH = "/hq/prices";
 
@@ -178,4 +189,165 @@ export async function updateBrand(
   await prisma.priceBrand.update({ where: { id: brandId }, data });
   revalidatePath(PRICES_PATH);
   return { ok: true };
+}
+
+// 公開HTMLを生成して返す（プレビュー・コピー・DL用）
+export async function generateBrandHtml(
+  brandId: string,
+): Promise<{ ok?: true; html?: string; filename?: string; error?: string }> {
+  await requireHQ();
+  const { brand, vehicles } = await loadBrandForHtml(brandId);
+  if (!brand) return { error: "ブランドが見つかりません" };
+  try {
+    const html = generatePriceTableHtml(brand, vehicles);
+    return { ok: true, html, filename: `${brand.slug.replace(/-/g, "_")}_price_table.html` };
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "生成に失敗しました" };
+  }
+}
+
+async function loadBrandForHtml(brandId: string) {
+  const b = await prisma.priceBrand.findUnique({
+    where: { id: brandId },
+    include: { vehicles: { orderBy: { displayOrder: "asc" } } },
+  });
+  if (!b) return { brand: null, vehicles: [] as VehicleRow[] };
+  const brand: BrandRow = {
+    id: b.id,
+    displayName: b.displayName,
+    slug: b.slug,
+    namespacePrefix: b.namespacePrefix,
+    seriesGroups: b.seriesGroups,
+    columns: toColumns(b.columns),
+    intro: b.intro ?? "",
+    jsonLdDescription: b.jsonLdDescription ?? "",
+    wordPressPageId: b.wordPressPageId,
+    vehicleCount: b.vehicles.length,
+  };
+  const vehicles: VehicleRow[] = b.vehicles.map((v) => ({
+    id: v.id,
+    seriesGroup: v.seriesGroup,
+    carName: v.carName,
+    grade: v.grade,
+    engine: v.engine,
+    engineFamily: v.engineFamily,
+    ecuType: v.ecuType,
+    stockOutput: v.stockOutput,
+    stage1Gain: v.stage1Gain,
+    prices: toPrices(v.prices),
+    labor: v.labor,
+    shops: v.shops,
+    remote: toRemote(v.remote),
+    notes: v.notes,
+    displayOrder: v.displayOrder,
+  }));
+  return { brand, vehicles };
+}
+
+// CSVエクスポート（Excelで開ける・再インポート可能な形）
+export async function exportBrandCsv(
+  brandId: string,
+): Promise<{ ok?: true; csv?: string; filename?: string; error?: string }> {
+  await requireHQ();
+  const { brand, vehicles } = await loadBrandForHtml(brandId);
+  if (!brand) return { error: "ブランドが見つかりません" };
+  const priceKeys = brand.columns.filter((c) => c.type === "price").map((c) => c.key);
+  const rows = vehicles.map((v) => {
+    const base: Record<string, string> = {
+      id: v.id,
+      series: v.seriesGroup,
+      car: v.carName,
+      grade: v.grade ?? "",
+      engine: v.engine,
+      engineFamily: v.engineFamily ?? "",
+      ecuType: v.ecuType ?? "",
+      stockOutput: v.stockOutput ?? "",
+      stage1Gain: v.stage1Gain ?? "",
+    };
+    for (const k of priceKeys) base[`price_${k}`] = v.prices[k] ?? "";
+    base.labor = v.labor ?? "";
+    base.shops = v.shops ?? "";
+    base.remote = REMOTE_TOOLS.filter((t) => v.remote[t.key]).map((t) => t.badge).join("+");
+    base.notes = v.notes ?? "";
+    return base;
+  });
+  const csv = Papa.unparse(rows, { newline: "\r\n" });
+  return { ok: true, csv: "﻿" + csv, filename: `${brand.slug}_prices.csv` };
+}
+
+// CSVインポート: id あり=更新 / id 空=新規追加。削除はしない（安全側）。
+export async function importBrandCsv(
+  brandId: string,
+  csvText: string,
+): Promise<{ ok?: true; updated?: number; created?: number; error?: string }> {
+  await requireHQ();
+  const brand = await prisma.priceBrand.findUnique({
+    where: { id: brandId },
+    select: { id: true, columns: true, seriesGroups: true },
+  });
+  if (!brand) return { error: "ブランドが見つかりません" };
+  const priceKeys = toColumns(brand.columns).filter((c) => c.type === "price").map((c) => c.key);
+
+  const parsed = Papa.parse<Record<string, string>>(csvText.replace(/^﻿/, ""), {
+    header: true,
+    skipEmptyLines: true,
+  });
+  if (parsed.errors.length > 0) {
+    return { error: `CSV解析エラー: ${parsed.errors[0].message}（${parsed.errors[0].row ?? "?"}行目）` };
+  }
+
+  let updated = 0;
+  let created = 0;
+  const last = await prisma.priceVehicle.findFirst({
+    where: { brandId },
+    orderBy: { displayOrder: "desc" },
+    select: { displayOrder: true },
+  });
+  let nextOrder = (last?.displayOrder ?? -1) + 1;
+
+  for (const r of parsed.data) {
+    if (!r.car?.trim() && !r.id?.trim()) continue;
+    const prices: PriceMap = {};
+    for (const k of priceKeys) {
+      const raw = (r[`price_${k}`] ?? "").trim();
+      if (!raw) continue;
+      if (/^ASK$/i.test(raw)) prices[k] = "ASK";
+      else {
+        const cleaned = raw.replace(/^'/, "").replace(/[¥￥,\s]/g, "");
+        prices[k] = /^\d+$/.test(cleaned) ? cleaned : raw.replace(/^'/, "");
+      }
+    }
+    const remote: RemoteFlags = {};
+    const badges = (r.remote ?? "").split("+").map((s) => s.trim()).filter(Boolean);
+    for (const t of REMOTE_TOOLS) remote[t.key] = badges.includes(t.badge);
+
+    const data = {
+      seriesGroup: r.series?.trim() || brand.seriesGroups[0] || "",
+      carName: r.car?.trim() || "（新規）",
+      grade: r.grade?.trim() || null,
+      engine: r.engine?.trim() ?? "",
+      engineFamily: r.engineFamily?.trim() || null,
+      ecuType: r.ecuType?.trim() || null,
+      stockOutput: r.stockOutput?.trim() || null,
+      stage1Gain: r.stage1Gain?.trim() || null,
+      prices,
+      labor: r.labor?.trim() || null,
+      shops: r.shops?.trim() || null,
+      remote: remote as object,
+      notes: r.notes?.trim() || null,
+    };
+
+    const id = r.id?.trim();
+    if (id) {
+      const exists = await prisma.priceVehicle.findFirst({ where: { id, brandId }, select: { id: true } });
+      if (!exists) return { error: `id が不正です（このブランドの行ではありません）: ${id}` };
+      await prisma.priceVehicle.update({ where: { id }, data });
+      updated++;
+    } else {
+      await prisma.priceVehicle.create({ data: { ...data, brandId, displayOrder: nextOrder++ } });
+      created++;
+    }
+  }
+  revalidatePath(PRICES_PATH);
+  return { ok: true, updated, created };
 }

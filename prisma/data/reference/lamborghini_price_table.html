@@ -1,0 +1,608 @@
+<!-- ====================================================================
+  Lamborghini ECUチューニング価格表 - mbFAST Tuning
+  全18モデル / 1枚テーブル形式 / ライトテーマ
+==================================================================== -->
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "Service",
+  "name": "ランボルギーニ ECUチューニング・バブリング施工",
+  "provider": {
+    "@type": "AutoRepair",
+    "name": "mbFAST Tuning",
+    "url": "https://mbfasttuning.com/"
+  },
+  "areaServed": "JP",
+  "serviceType": "ECU Tuning / Pops and Bangs / Dragon After Fire",
+  "description": "ランボルギーニ全車種(Aventador / Revuelto / Huracan / Temerario / Urus / Murcielago / Gallardo)対応のECUチューニング・バブリング・ドラゴンアフターファイヤ施工サービス。"
+}
+</script>
+
+<!-- START: 貼り付け範囲 -->
+<div class="lambo-price-wrapper">
+
+  <div class="lambo-intro">
+    <p>ランボルギーニ全<strong>18モデル</strong>のECUチューニング・バブリング価格表です。Aventador系には<strong>ドラゴンアフターファイヤ</strong>が標準で含まれます。Stage1/ECUチューニングは<strong>バブリング(Pops&amp;Bangs)オプションが無料</strong>で選択可能。価格は全て<strong>税込JPY</strong>です。価格未掲載のグレードは<strong>「💬 LINE」ボタン</strong>からお気軽にお問い合わせください。</p>
+  </div>
+
+  <div class="lambo-controls">
+    <div class="lambo-search-wrap">
+      <input type="search" id="lamboSearch" class="lambo-search" 
+             placeholder="🔍 車種・グレード・ECU型番で検索 (例: Aventador, Huracan STO, MED17, Revuelto)" 
+             autocomplete="off">
+      <button type="button" id="lamboClear" class="lambo-clear" aria-label="クリア">×</button>
+    </div>
+
+    <div class="lambo-filter-group" role="group" aria-label="モデルで絞り込み">
+      <div class="filter-label">モデル:</div>
+      <button type="button" class="filter-chip active" data-filter-series="all">すべて</button>
+      <button type="button" class="filter-chip" data-filter-series="Aventador">Aventador</button>
+      <button type="button" class="filter-chip" data-filter-series="Revuelto">Revuelto</button>
+      <button type="button" class="filter-chip" data-filter-series="Huracan">Huracan</button>
+      <button type="button" class="filter-chip" data-filter-series="Temerario">Temerario</button>
+      <button type="button" class="filter-chip" data-filter-series="Urus">Urus</button>
+      <button type="button" class="filter-chip" data-filter-series="Murcielago">Murcielago</button>
+      <button type="button" class="filter-chip" data-filter-series="Gallardo">Gallardo</button>
+    </div>
+
+    <div class="lambo-result-count">
+      <span id="lamboResultCount">18</span> / 18 件表示中
+    </div>
+  </div>
+
+  <div class="lambo-table-wrap">
+    <table class="lambo-price-table" id="lamboTable">
+      <thead>
+        <tr>
+          <th class="sortable" data-sort="car">車種</th>
+          <th class="sortable" data-sort="grade">グレード</th>
+          <th class="col-price">バブリング<br>のみ</th>
+          <th class="col-price">ECUチューニング<br><small>(バブ無料)</small></th>
+          <th class="col-price">TCU<br>チューニング</th>
+          <th>純正出力</th>
+          <th>Stage1<br>出力向上</th>
+          <th>工賃</th>
+          <th>取扱店</th>
+          <th>リモート</th>
+          <th>ECU/TCU<br>型番</th>
+        </tr>
+      </thead>
+      <tbody id="lamboTableBody">
+<tr data-search="aventador lp700 lie/- aventador" data-series="Aventador">
+    <td class="cell-car"><strong>Aventador</strong></td>
+    <td class="cell-grade">LP700 <span class="cell-note" title="ドラゴンアフターファイヤも含まれます">★</span></td>
+    <td class="cell-price-babble">¥495,000</td>
+    <td class="cell-price-stage1">¥594,000</td>
+    <td class="cell-tcu"><a href="https://lin.ee/8yOXuPJ" target="_blank" rel="noopener" class="ask-btn" data-car="Aventador" data-grade="LP700" data-label="TCUチューニング" title="LINEで問い合わせ:【TCUチューニング見積希望】Aventador LP700"><span class="ask-icon">💬</span><span class="ask-text">LINE</span></a></td>
+    <td class="cell-stock">700ps</td>
+    <td class="cell-stage1-gain">+35ps</td>
+    <td class="cell-labor"><a href="https://lin.ee/8yOXuPJ" target="_blank" rel="noopener" class="ask-btn" data-car="Aventador" data-grade="LP700" data-label="工賃見積" title="LINEで問い合わせ:【工賃見積希望】Aventador LP700"><span class="ask-icon">💬</span><span class="ask-text">LINE</span></a></td>
+    <td class="cell-shops"><span class="muted">—</span></td>
+    <td class="cell-remote"><span class="muted">—</span></td>
+    <td class="cell-ecu-tcu">LIE/-</td>
+  </tr>
+<tr data-search="aventador s lp740 lie/- aventador" data-series="Aventador">
+    <td class="cell-car"><strong>Aventador</strong></td>
+    <td class="cell-grade">S LP740 <span class="cell-note" title="ドラゴンアフターファイヤも含まれます">★</span></td>
+    <td class="cell-price-babble">¥495,000</td>
+    <td class="cell-price-stage1">¥594,000</td>
+    <td class="cell-tcu"><a href="https://lin.ee/8yOXuPJ" target="_blank" rel="noopener" class="ask-btn" data-car="Aventador" data-grade="S LP740" data-label="TCUチューニング" title="LINEで問い合わせ:【TCUチューニング見積希望】Aventador S LP740"><span class="ask-icon">💬</span><span class="ask-text">LINE</span></a></td>
+    <td class="cell-stock">740ps</td>
+    <td class="cell-stage1-gain">+25ps</td>
+    <td class="cell-labor"><a href="https://lin.ee/8yOXuPJ" target="_blank" rel="noopener" class="ask-btn" data-car="Aventador" data-grade="S LP740" data-label="工賃見積" title="LINEで問い合わせ:【工賃見積希望】Aventador S LP740"><span class="ask-icon">💬</span><span class="ask-text">LINE</span></a></td>
+    <td class="cell-shops"><span class="muted">—</span></td>
+    <td class="cell-remote"><span class="muted">—</span></td>
+    <td class="cell-ecu-tcu">LIE/-</td>
+  </tr>
+<tr data-search="aventador sv lp750 lie/- aventador" data-series="Aventador">
+    <td class="cell-car"><strong>Aventador</strong></td>
+    <td class="cell-grade">SV LP750 <span class="cell-note" title="ドラゴンアフターファイヤも含まれます">★</span></td>
+    <td class="cell-price-babble">¥495,000</td>
+    <td class="cell-price-stage1">¥594,000</td>
+    <td class="cell-tcu"><a href="https://lin.ee/8yOXuPJ" target="_blank" rel="noopener" class="ask-btn" data-car="Aventador" data-grade="SV LP750" data-label="TCUチューニング" title="LINEで問い合わせ:【TCUチューニング見積希望】Aventador SV LP750"><span class="ask-icon">💬</span><span class="ask-text">LINE</span></a></td>
+    <td class="cell-stock">750ps</td>
+    <td class="cell-stage1-gain">+30ps</td>
+    <td class="cell-labor"><a href="https://lin.ee/8yOXuPJ" target="_blank" rel="noopener" class="ask-btn" data-car="Aventador" data-grade="SV LP750" data-label="工賃見積" title="LINEで問い合わせ:【工賃見積希望】Aventador SV LP750"><span class="ask-icon">💬</span><span class="ask-text">LINE</span></a></td>
+    <td class="cell-shops"><span class="muted">—</span></td>
+    <td class="cell-remote"><span class="muted">—</span></td>
+    <td class="cell-ecu-tcu">LIE/-</td>
+  </tr>
+<tr data-search="aventador svj lp770 lie/- aventador" data-series="Aventador">
+    <td class="cell-car"><strong>Aventador</strong></td>
+    <td class="cell-grade">SVJ LP770 <span class="cell-note" title="ドラゴンアフターファイヤも含まれます">★</span></td>
+    <td class="cell-price-babble">¥594,000</td>
+    <td class="cell-price-stage1">¥693,000</td>
+    <td class="cell-tcu"><a href="https://lin.ee/8yOXuPJ" target="_blank" rel="noopener" class="ask-btn" data-car="Aventador" data-grade="SVJ LP770" data-label="TCUチューニング" title="LINEで問い合わせ:【TCUチューニング見積希望】Aventador SVJ LP770"><span class="ask-icon">💬</span><span class="ask-text">LINE</span></a></td>
+    <td class="cell-stock">770ps</td>
+    <td class="cell-stage1-gain">+30ps</td>
+    <td class="cell-labor"><a href="https://lin.ee/8yOXuPJ" target="_blank" rel="noopener" class="ask-btn" data-car="Aventador" data-grade="SVJ LP770" data-label="工賃見積" title="LINEで問い合わせ:【工賃見積希望】Aventador SVJ LP770"><span class="ask-icon">💬</span><span class="ask-text">LINE</span></a></td>
+    <td class="cell-shops"><span class="muted">—</span></td>
+    <td class="cell-remote"><span class="muted">—</span></td>
+    <td class="cell-ecu-tcu">LIE/-</td>
+  </tr>
+<tr data-search="aventador ultimae lp780 lie/- aventador" data-series="Aventador">
+    <td class="cell-car"><strong>Aventador</strong></td>
+    <td class="cell-grade">Ultimae LP780 <span class="cell-note" title="ドラゴンアフターファイヤも含まれます">★</span></td>
+    <td class="cell-price-babble">¥594,000</td>
+    <td class="cell-price-stage1">¥693,000</td>
+    <td class="cell-tcu"><a href="https://lin.ee/8yOXuPJ" target="_blank" rel="noopener" class="ask-btn" data-car="Aventador" data-grade="Ultimae LP780" data-label="TCUチューニング" title="LINEで問い合わせ:【TCUチューニング見積希望】Aventador Ultimae LP780"><span class="ask-icon">💬</span><span class="ask-text">LINE</span></a></td>
+    <td class="cell-stock">780ps</td>
+    <td class="cell-stage1-gain">+20ps</td>
+    <td class="cell-labor"><a href="https://lin.ee/8yOXuPJ" target="_blank" rel="noopener" class="ask-btn" data-car="Aventador" data-grade="Ultimae LP780" data-label="工賃見積" title="LINEで問い合わせ:【工賃見積希望】Aventador Ultimae LP780"><span class="ask-icon">💬</span><span class="ask-text">LINE</span></a></td>
+    <td class="cell-shops"><span class="muted">—</span></td>
+    <td class="cell-remote"><span class="muted">—</span></td>
+    <td class="cell-ecu-tcu">LIE/-</td>
+  </tr>
+<tr data-search="revuelto mg1cs038 revuelto" data-series="Revuelto">
+    <td class="cell-car"><strong>Revuelto</strong></td>
+    <td class="cell-grade"></td>
+    <td class="cell-price-babble"><a href="https://lin.ee/8yOXuPJ" target="_blank" rel="noopener" class="ask-btn" data-car="Revuelto" data-grade="" data-label="バブリング" title="LINEで問い合わせ:【バブリング見積希望】Revuelto"><span class="ask-icon">💬</span><span class="ask-text">LINE</span></a></td>
+    <td class="cell-price-stage1"><a href="https://lin.ee/8yOXuPJ" target="_blank" rel="noopener" class="ask-btn" data-car="Revuelto" data-grade="" data-label="ECUチューニング" title="LINEで問い合わせ:【ECUチューニング見積希望】Revuelto"><span class="ask-icon">💬</span><span class="ask-text">LINE</span></a></td>
+    <td class="cell-tcu"><a href="https://lin.ee/8yOXuPJ" target="_blank" rel="noopener" class="ask-btn" data-car="Revuelto" data-grade="" data-label="TCUチューニング" title="LINEで問い合わせ:【TCUチューニング見積希望】Revuelto"><span class="ask-icon">💬</span><span class="ask-text">LINE</span></a></td>
+    <td class="cell-stock"><span class="muted">—</span></td>
+    <td class="cell-stage1-gain"><span class="muted">—</span></td>
+    <td class="cell-labor">ロック解除必要</td>
+    <td class="cell-shops"><span class="muted">—</span></td>
+    <td class="cell-remote"><span class="badge badge-remote" title="AutoTuner">AT</span></td>
+    <td class="cell-ecu-tcu">MG1CS038</td>
+  </tr>
+<tr data-search="huracan lp580 med17.1.1/dl800 huracan" data-series="Huracan">
+    <td class="cell-car"><strong>Huracan</strong></td>
+    <td class="cell-grade">LP580</td>
+    <td class="cell-price-babble">¥396,000</td>
+    <td class="cell-price-stage1">¥495,000</td>
+    <td class="cell-tcu"><a href="https://lin.ee/8yOXuPJ" target="_blank" rel="noopener" class="ask-btn" data-car="Huracan" data-grade="LP580" data-label="TCUチューニング" title="LINEで問い合わせ:【TCUチューニング見積希望】Huracan LP580"><span class="ask-icon">💬</span><span class="ask-text">LINE</span></a></td>
+    <td class="cell-stock">580ps</td>
+    <td class="cell-stage1-gain">+50ps</td>
+    <td class="cell-labor"><span class="muted">—</span></td>
+    <td class="cell-shops"><span class="muted">—</span></td>
+    <td class="cell-remote"><span class="badge badge-remote" title="Powergate3">PG3</span><span class="badge badge-remote" title="AutoTuner">AT</span></td>
+    <td class="cell-ecu-tcu">MED17.1.1/DL800</td>
+  </tr>
+<tr data-search="huracan lp610 med17.1.1/dl800 huracan" data-series="Huracan">
+    <td class="cell-car"><strong>Huracan</strong></td>
+    <td class="cell-grade">LP610</td>
+    <td class="cell-price-babble">¥396,000</td>
+    <td class="cell-price-stage1">¥495,000</td>
+    <td class="cell-tcu"><a href="https://lin.ee/8yOXuPJ" target="_blank" rel="noopener" class="ask-btn" data-car="Huracan" data-grade="LP610" data-label="TCUチューニング" title="LINEで問い合わせ:【TCUチューニング見積希望】Huracan LP610"><span class="ask-icon">💬</span><span class="ask-text">LINE</span></a></td>
+    <td class="cell-stock">610ps</td>
+    <td class="cell-stage1-gain">+15ps</td>
+    <td class="cell-labor"><span class="muted">—</span></td>
+    <td class="cell-shops"><span class="muted">—</span></td>
+    <td class="cell-remote"><span class="badge badge-remote" title="Powergate3">PG3</span><span class="badge badge-remote" title="IXI Flasher">Flasher</span><span class="badge badge-remote" title="AutoTuner">AT</span></td>
+    <td class="cell-ecu-tcu">MED17.1.1/DL800</td>
+  </tr>
+<tr data-search="huracan performance med17.1.1/dl800 huracan" data-series="Huracan">
+    <td class="cell-car"><strong>Huracan</strong></td>
+    <td class="cell-grade">Performance</td>
+    <td class="cell-price-babble">¥396,000</td>
+    <td class="cell-price-stage1">¥495,000</td>
+    <td class="cell-tcu"><a href="https://lin.ee/8yOXuPJ" target="_blank" rel="noopener" class="ask-btn" data-car="Huracan" data-grade="Performance" data-label="TCUチューニング" title="LINEで問い合わせ:【TCUチューニング見積希望】Huracan Performance"><span class="ask-icon">💬</span><span class="ask-text">LINE</span></a></td>
+    <td class="cell-stock">640ps</td>
+    <td class="cell-stage1-gain">+15ps</td>
+    <td class="cell-labor"><span class="muted">—</span></td>
+    <td class="cell-shops"><span class="muted">—</span></td>
+    <td class="cell-remote"><span class="badge badge-remote" title="Powergate3">PG3</span><span class="badge badge-remote" title="AutoTuner">AT</span></td>
+    <td class="cell-ecu-tcu">MED17.1.1/DL800</td>
+  </tr>
+<tr data-search="huracan sto med17.1.1/dl800 huracan" data-series="Huracan">
+    <td class="cell-car"><strong>Huracan</strong></td>
+    <td class="cell-grade">STO</td>
+    <td class="cell-price-babble">¥396,000</td>
+    <td class="cell-price-stage1">¥495,000</td>
+    <td class="cell-tcu"><a href="https://lin.ee/8yOXuPJ" target="_blank" rel="noopener" class="ask-btn" data-car="Huracan" data-grade="STO" data-label="TCUチューニング" title="LINEで問い合わせ:【TCUチューニング見積希望】Huracan STO"><span class="ask-icon">💬</span><span class="ask-text">LINE</span></a></td>
+    <td class="cell-stock">640ps</td>
+    <td class="cell-stage1-gain">+15ps</td>
+    <td class="cell-labor"><span class="muted">—</span></td>
+    <td class="cell-shops"><span class="muted">—</span></td>
+    <td class="cell-remote"><span class="badge badge-remote" title="Powergate3">PG3</span><span class="badge badge-remote" title="AutoTuner">AT</span></td>
+    <td class="cell-ecu-tcu">MED17.1.1/DL800</td>
+  </tr>
+<tr data-search="temerario mg1cs038 temerario" data-series="Temerario">
+    <td class="cell-car"><strong>Temerario</strong></td>
+    <td class="cell-grade"></td>
+    <td class="cell-price-babble"><a href="https://lin.ee/8yOXuPJ" target="_blank" rel="noopener" class="ask-btn" data-car="Temerario" data-grade="" data-label="バブリング" title="LINEで問い合わせ:【バブリング見積希望】Temerario"><span class="ask-icon">💬</span><span class="ask-text">LINE</span></a></td>
+    <td class="cell-price-stage1"><a href="https://lin.ee/8yOXuPJ" target="_blank" rel="noopener" class="ask-btn" data-car="Temerario" data-grade="" data-label="ECUチューニング" title="LINEで問い合わせ:【ECUチューニング見積希望】Temerario"><span class="ask-icon">💬</span><span class="ask-text">LINE</span></a></td>
+    <td class="cell-tcu"><a href="https://lin.ee/8yOXuPJ" target="_blank" rel="noopener" class="ask-btn" data-car="Temerario" data-grade="" data-label="TCUチューニング" title="LINEで問い合わせ:【TCUチューニング見積希望】Temerario"><span class="ask-icon">💬</span><span class="ask-text">LINE</span></a></td>
+    <td class="cell-stock"><span class="muted">—</span></td>
+    <td class="cell-stage1-gain"><span class="muted">—</span></td>
+    <td class="cell-labor">ロック解除必要</td>
+    <td class="cell-shops"><span class="muted">—</span></td>
+    <td class="cell-remote"><span class="badge badge-remote" title="AutoTuner">AT</span></td>
+    <td class="cell-ecu-tcu">MG1CS038</td>
+  </tr>
+<tr data-search="urus (base) mg1/al552 urus" data-series="Urus">
+    <td class="cell-car"><strong>Urus</strong></td>
+    <td class="cell-grade">(Base)</td>
+    <td class="cell-price-babble">¥297,000</td>
+    <td class="cell-price-stage1">¥396,000</td>
+    <td class="cell-tcu">+¥88,000</td>
+    <td class="cell-stock">650ps</td>
+    <td class="cell-stage1-gain">+70ps</td>
+    <td class="cell-labor"><span class="muted">—</span></td>
+    <td class="cell-shops"><span class="muted">—</span></td>
+    <td class="cell-remote"><span class="badge badge-remote" title="IXI Flasher">Flasher</span><span class="badge badge-remote" title="AutoTuner">AT</span></td>
+    <td class="cell-ecu-tcu">MG1/AL552</td>
+  </tr>
+<tr data-search="urus performce mg1/al552 urus" data-series="Urus">
+    <td class="cell-car"><strong>Urus</strong></td>
+    <td class="cell-grade">Performce</td>
+    <td class="cell-price-babble">¥297,000</td>
+    <td class="cell-price-stage1">¥396,000</td>
+    <td class="cell-tcu">+¥88,000</td>
+    <td class="cell-stock">666ps</td>
+    <td class="cell-stage1-gain">+54ps</td>
+    <td class="cell-labor"><span class="muted">—</span></td>
+    <td class="cell-shops"><span class="muted">—</span></td>
+    <td class="cell-remote"><span class="badge badge-remote" title="IXI Flasher">Flasher</span><span class="badge badge-remote" title="AutoTuner">AT</span></td>
+    <td class="cell-ecu-tcu">MG1/AL552</td>
+  </tr>
+<tr data-search="murcielago 6.2 05s/- murcielago" data-series="Murcielago">
+    <td class="cell-car"><strong>Murcielago</strong></td>
+    <td class="cell-grade">6.2</td>
+    <td class="cell-price-babble"><a href="https://lin.ee/8yOXuPJ" target="_blank" rel="noopener" class="ask-btn" data-car="Murcielago" data-grade="6.2" data-label="バブリング" title="LINEで問い合わせ:【バブリング見積希望】Murcielago 6.2"><span class="ask-icon">💬</span><span class="ask-text">LINE</span></a></td>
+    <td class="cell-price-stage1"><a href="https://lin.ee/8yOXuPJ" target="_blank" rel="noopener" class="ask-btn" data-car="Murcielago" data-grade="6.2" data-label="ECUチューニング" title="LINEで問い合わせ:【ECUチューニング見積希望】Murcielago 6.2"><span class="ask-icon">💬</span><span class="ask-text">LINE</span></a></td>
+    <td class="cell-tcu"><a href="https://lin.ee/8yOXuPJ" target="_blank" rel="noopener" class="ask-btn" data-car="Murcielago" data-grade="6.2" data-label="TCUチューニング" title="LINEで問い合わせ:【TCUチューニング見積希望】Murcielago 6.2"><span class="ask-icon">💬</span><span class="ask-text">LINE</span></a></td>
+    <td class="cell-stock">580ps</td>
+    <td class="cell-stage1-gain">+22ps</td>
+    <td class="cell-labor"><span class="muted">—</span></td>
+    <td class="cell-shops"><span class="muted">—</span></td>
+    <td class="cell-remote"><span class="muted">—</span></td>
+    <td class="cell-ecu-tcu">05S/-</td>
+  </tr>
+<tr data-search="murcielago lp640 05s/- murcielago" data-series="Murcielago">
+    <td class="cell-car"><strong>Murcielago</strong></td>
+    <td class="cell-grade">LP640</td>
+    <td class="cell-price-babble">¥396,000</td>
+    <td class="cell-price-stage1">¥495,000</td>
+    <td class="cell-tcu"><a href="https://lin.ee/8yOXuPJ" target="_blank" rel="noopener" class="ask-btn" data-car="Murcielago" data-grade="LP640" data-label="TCUチューニング" title="LINEで問い合わせ:【TCUチューニング見積希望】Murcielago LP640"><span class="ask-icon">💬</span><span class="ask-text">LINE</span></a></td>
+    <td class="cell-stock">640ps</td>
+    <td class="cell-stage1-gain">+25ps</td>
+    <td class="cell-labor"><a href="https://lin.ee/8yOXuPJ" target="_blank" rel="noopener" class="ask-btn" data-car="Murcielago" data-grade="LP640" data-label="工賃見積" title="LINEで問い合わせ:【工賃見積希望】Murcielago LP640"><span class="ask-icon">💬</span><span class="ask-text">LINE</span></a></td>
+    <td class="cell-shops"><span class="muted">—</span></td>
+    <td class="cell-remote"><span class="muted">—</span></td>
+    <td class="cell-ecu-tcu">05S/-</td>
+  </tr>
+<tr data-search="gallardo lp550 med9/cfc311 gallardo" data-series="Gallardo">
+    <td class="cell-car"><strong>Gallardo</strong></td>
+    <td class="cell-grade">LP550</td>
+    <td class="cell-price-babble">¥297,000</td>
+    <td class="cell-price-stage1">¥396,000</td>
+    <td class="cell-tcu"><a href="https://lin.ee/8yOXuPJ" target="_blank" rel="noopener" class="ask-btn" data-car="Gallardo" data-grade="LP550" data-label="TCUチューニング" title="LINEで問い合わせ:【TCUチューニング見積希望】Gallardo LP550"><span class="ask-icon">💬</span><span class="ask-text">LINE</span></a></td>
+    <td class="cell-stock">550ps/540Nm</td>
+    <td class="cell-stage1-gain">+25ps/25Nm</td>
+    <td class="cell-labor"><span class="muted">—</span></td>
+    <td class="cell-shops"><span class="muted">—</span></td>
+    <td class="cell-remote"><span class="badge badge-remote" title="Powergate3">PG3</span><span class="badge badge-remote" title="IXI Flasher">Flasher</span><span class="badge badge-remote" title="AutoTuner">AT</span></td>
+    <td class="cell-ecu-tcu">MED9/CFC311</td>
+  </tr>
+<tr data-search="gallardo lp560 med9/cfc311 gallardo" data-series="Gallardo">
+    <td class="cell-car"><strong>Gallardo</strong></td>
+    <td class="cell-grade">LP560</td>
+    <td class="cell-price-babble">¥297,000</td>
+    <td class="cell-price-stage1">¥396,000</td>
+    <td class="cell-tcu"><a href="https://lin.ee/8yOXuPJ" target="_blank" rel="noopener" class="ask-btn" data-car="Gallardo" data-grade="LP560" data-label="TCUチューニング" title="LINEで問い合わせ:【TCUチューニング見積希望】Gallardo LP560"><span class="ask-icon">💬</span><span class="ask-text">LINE</span></a></td>
+    <td class="cell-stock">560ps/540Nm</td>
+    <td class="cell-stage1-gain">+25ps/25Nm</td>
+    <td class="cell-labor"><span class="muted">—</span></td>
+    <td class="cell-shops"><span class="muted">—</span></td>
+    <td class="cell-remote"><span class="badge badge-remote" title="Powergate3">PG3</span><span class="badge badge-remote" title="IXI Flasher">Flasher</span><span class="badge badge-remote" title="AutoTuner">AT</span></td>
+    <td class="cell-ecu-tcu">MED9/CFC311</td>
+  </tr>
+<tr data-search="gallardo lp570 med9/cfc311 gallardo" data-series="Gallardo">
+    <td class="cell-car"><strong>Gallardo</strong></td>
+    <td class="cell-grade">LP570</td>
+    <td class="cell-price-babble">¥297,000</td>
+    <td class="cell-price-stage1">¥396,000</td>
+    <td class="cell-tcu"><a href="https://lin.ee/8yOXuPJ" target="_blank" rel="noopener" class="ask-btn" data-car="Gallardo" data-grade="LP570" data-label="TCUチューニング" title="LINEで問い合わせ:【TCUチューニング見積希望】Gallardo LP570"><span class="ask-icon">💬</span><span class="ask-text">LINE</span></a></td>
+    <td class="cell-stock">570ps/540Nm</td>
+    <td class="cell-stage1-gain">+25ps/25Nm</td>
+    <td class="cell-labor"><span class="muted">—</span></td>
+    <td class="cell-shops"><span class="muted">—</span></td>
+    <td class="cell-remote"><span class="badge badge-remote" title="Powergate3">PG3</span><span class="badge badge-remote" title="IXI Flasher">Flasher</span><span class="badge badge-remote" title="AutoTuner">AT</span></td>
+    <td class="cell-ecu-tcu">MED9/CFC311</td>
+  </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="lambo-no-results" id="lamboNoResults" hidden>
+    該当する車種が見つかりませんでした。検索ワードやフィルタを変更してお試しください。
+  </div>
+
+  <div class="lambo-table-note">
+    <p>📌 上記は標準施工価格です。<span class="ask-btn-inline"><span class="ask-icon">💬</span><span class="ask-text">LINE</span></span> ボタンが表示されているセルは、LINEで個別お見積りいたします。お気軽にお問い合わせください。</p>
+    <p>📌 グレード横の <span class="cell-note">★</span> マーク: マウスオーバー(タップ)で備考を表示します。</p>
+    <p>📌 Aventador系には<strong>ドラゴンアフターファイヤ</strong>が標準で含まれます。</p>
+    <p>📌 Revuelto / Temerario は最新型のため、ロック解除を含む特殊作業が必要です。詳しくはお問い合わせください。</p>
+    <p>📌 「リモート」列: 
+      <span class="badge badge-remote">PG3</span> = Powergate3, 
+      <span class="badge badge-remote">Flasher</span> = IXI Flasher, 
+      <span class="badge badge-remote">AT</span> = AutoTuner で全国リモート施工可能。
+    </p>
+  </div>
+
+</div>
+
+<style>
+.lambo-price-wrapper {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Hiragino Kaku Gothic ProN", "Noto Sans JP", sans-serif;
+  color: #1a1a1a; max-width: 100%; margin: 0 0 2em 0;
+  background: #ffffff; padding: 1.8em; border-radius: 12px;
+  border: 1px solid #e5e5e5; box-shadow: 0 2px 16px rgba(0,0,0,0.05);
+  position: relative; overflow: hidden;
+}
+.lambo-price-wrapper::before {
+  content: ''; position: absolute; top: 0; left: 0; right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, #b8941f 20%, #d4af37 50%, #b8941f 80%, transparent);
+}
+.lambo-intro {
+  background: linear-gradient(135deg, #fafafa 0%, #f5f5f5 100%);
+  border-left: 3px solid #b8941f; padding: 1.1em 1.4em;
+  margin-bottom: 1.5em; border-radius: 2px;
+}
+.lambo-intro p { margin: 0; line-height: 1.7; color: #333; font-size: 0.95rem; }
+.lambo-intro strong { color: #8a6d14; font-weight: 700; }
+.lambo-controls {
+  background: #fafafa; border: 1px solid #e5e5e5;
+  border-radius: 8px; padding: 1.2em 1.4em; margin-bottom: 1em;
+}
+.lambo-search-wrap { position: relative; margin-bottom: 1.2em; }
+.lambo-search {
+  width: 100%; padding: 0.85em 2.5em 0.85em 1.1em;
+  font-size: 1rem; background: #ffffff;
+  border: 1px solid #d0d0d0; border-radius: 6px;
+  box-sizing: border-box; color: #1a1a1a;
+  transition: all 0.2s; font-family: inherit;
+}
+.lambo-search::placeholder { color: #999; }
+.lambo-search:focus {
+  outline: none; border-color: #b8941f;
+  box-shadow: 0 0 0 3px rgba(184, 148, 31, 0.12);
+}
+.lambo-clear {
+  position: absolute; right: 10px; top: 50%;
+  transform: translateY(-50%);
+  background: #ddd; border: none; color: #666;
+  width: 28px; height: 28px; border-radius: 50%;
+  cursor: pointer; font-size: 1rem; line-height: 1;
+  display: none; transition: all 0.15s;
+}
+.lambo-clear:hover { background: #b8941f; color: #fff; }
+.lambo-search:not(:placeholder-shown) ~ .lambo-clear { display: block; }
+.lambo-filter-group {
+  display: flex; flex-wrap: wrap; gap: 0.4em;
+  align-items: center; margin-bottom: 0.7em;
+}
+.filter-label {
+  font-size: 0.78rem; color: #666; font-weight: 600;
+  margin-right: 0.5em; min-width: 68px;
+  letter-spacing: 0.05em; text-transform: uppercase;
+}
+.filter-chip {
+  padding: 0.4em 0.95em; font-size: 0.82rem;
+  background: #ffffff; border: 1px solid #d5d5d5;
+  border-radius: 3px; cursor: pointer;
+  transition: all 0.15s; color: #555;
+  font-family: inherit; font-weight: 500;
+}
+.filter-chip:hover { background: #f0f0f0; border-color: #b0b0b0; color: #1a1a1a; }
+.filter-chip.active {
+  background: linear-gradient(135deg, #d4af37 0%, #b8941f 100%);
+  color: #ffffff; border-color: #b8941f; font-weight: 700;
+  box-shadow: 0 2px 6px rgba(184, 148, 31, 0.25);
+}
+.lambo-result-count {
+  margin-top: 1em; padding-top: 1em;
+  border-top: 1px solid #e5e5e5;
+  font-size: 0.82rem; color: #666;
+}
+.lambo-result-count #lamboResultCount { font-weight: 700; color: #8a6d14; font-size: 1.05rem; }
+.lambo-table-wrap {
+  overflow-x: auto; overflow-y: auto; max-height: 70vh;
+  border: 1px solid #e0e0e0; border-radius: 6px; background: #ffffff;
+}
+.lambo-price-table {
+  width: 100%; border-collapse: collapse;
+  font-size: 0.88rem; min-width: 1100px; color: #1a1a1a;
+}
+.lambo-price-table thead th {
+  background: linear-gradient(180deg, #2a2a2a 0%, #1a1a1a 100%);
+  color: #d4af37; padding: 1em 0.7em;
+  text-align: left; font-weight: 600;
+  font-size: 0.78rem; letter-spacing: 0.08em;
+  text-transform: uppercase; white-space: nowrap;
+  position: sticky; top: 0; z-index: 1;
+  border-bottom: 2px solid #b8941f;
+}
+.lambo-price-table thead th small {
+  font-weight: 400; opacity: 0.75; font-size: 0.68rem;
+  letter-spacing: 0; text-transform: none;
+  display: block; margin-top: 2px; color: #bbb;
+}
+.lambo-price-table thead th.sortable { cursor: pointer; user-select: none; }
+.lambo-price-table thead th.sortable:hover { background: #333; color: #f0c850; }
+.lambo-price-table thead th.sortable::after { content: ' ⇅'; opacity: 0.5; font-size: 0.8em; }
+.lambo-price-table thead th.sort-asc::after { content: ' ▲'; opacity: 1; color: #d4af37; }
+.lambo-price-table thead th.sort-desc::after { content: ' ▼'; opacity: 1; color: #d4af37; }
+.lambo-price-table tbody tr:nth-child(even) { background: #fafafa; }
+.lambo-price-table tbody td {
+  padding: 0.85em 0.7em; border-bottom: 1px solid #eee;
+  vertical-align: middle;
+}
+.lambo-price-table tbody tr { transition: background 0.15s; }
+.lambo-price-table tbody tr:hover { background: #fff8e7; }
+.lambo-price-table tbody tr:hover .cell-grade { color: #8a6d14; }
+.lambo-price-table tbody tr.hidden { display: none; }
+.cell-car { white-space: nowrap; color: #1a1a1a; }
+.cell-car strong { font-weight: 700; }
+.cell-grade {
+  white-space: nowrap; font-weight: 700;
+  color: #a8851a; letter-spacing: 0.02em;
+  transition: color 0.15s;
+}
+.cell-ecu-tcu {
+  white-space: nowrap;
+  font-family: 'SF Mono', 'Menlo', Consolas, monospace;
+  font-size: 0.76rem; color: #777;
+}
+.cell-stock { white-space: nowrap; font-size: 0.84rem; color: #666; }
+.cell-stage1-gain {
+  white-space: nowrap; font-size: 0.84rem;
+  color: #c62828; font-weight: 600;
+}
+.col-price, .cell-price-stage1, .cell-price-babble, .cell-tcu, .cell-labor {
+  white-space: nowrap; text-align: right;
+  font-variant-numeric: tabular-nums; font-size: 0.88rem;
+}
+.cell-price-stage1 { font-weight: 700; color: #8a6d14; font-size: 0.92rem; }
+.cell-price-babble { font-weight: 700; color: #8a6d14; font-size: 0.92rem; }
+.cell-tcu { color: #444; }
+.cell-labor { color: #777; font-size: 0.82rem; }
+.cell-shops { white-space: nowrap; font-size: 0.74rem; color: #666; }
+.cell-note {
+  display: inline-block; margin-left: 0.4em;
+  color: #d4af37; font-size: 0.85rem; cursor: help;
+}
+.ask-btn {
+  display: inline-flex; align-items: center; gap: 0.3em;
+  padding: 0.35em 0.75em;
+  background: linear-gradient(135deg, #06c755 0%, #04a043 100%);
+  color: #ffffff !important; text-decoration: none !important;
+  font-size: 0.78rem; font-weight: 700;
+  letter-spacing: 0.04em; border-radius: 4px;
+  border: none; cursor: pointer; white-space: nowrap;
+  transition: all 0.15s;
+  box-shadow: 0 1px 3px rgba(6, 199, 85, 0.3);
+  font-family: inherit;
+}
+.ask-btn:hover {
+  background: linear-gradient(135deg, #05b54e 0%, #03933d 100%);
+  transform: translateY(-1px);
+  box-shadow: 0 3px 8px rgba(6, 199, 85, 0.4);
+  color: #ffffff !important;
+}
+.ask-btn:active { transform: translateY(0); box-shadow: 0 1px 2px rgba(6, 199, 85, 0.3); }
+.ask-btn .ask-icon { font-size: 0.9em; }
+.ask-btn .ask-text { letter-spacing: 0.05em; }
+.ask-btn-inline {
+  display: inline-flex; align-items: center; gap: 0.25em;
+  padding: 0.15em 0.5em;
+  background: linear-gradient(135deg, #06c755 0%, #04a043 100%);
+  color: #ffffff; font-size: 0.72rem; font-weight: 700;
+  border-radius: 3px; vertical-align: middle;
+}
+.ask-btn-inline .ask-icon { font-size: 0.85em; }
+.badge {
+  display: inline-block; padding: 0.18em 0.5em;
+  font-size: 0.66rem; border-radius: 2px;
+  font-weight: 700; letter-spacing: 0.04em;
+  margin-left: 0.25em;
+  font-family: 'SF Mono', Menlo, Consolas, monospace;
+}
+.badge-remote {
+  background: rgba(46, 125, 50, 0.1); color: #2e7d32;
+  border: 1px solid rgba(46, 125, 50, 0.3); margin-right: 0.25em;
+}
+.muted { color: #ccc; font-size: 0.9em; }
+.lambo-no-results {
+  padding: 3em 2em; text-align: center; color: #666;
+  background: #fafafa; border: 1px solid #e5e5e5;
+  border-radius: 6px; margin-top: 1em; font-size: 0.95rem;
+}
+.lambo-table-note {
+  margin-top: 1.2em; padding: 1.2em 1.4em;
+  background: #fafafa; border: 1px solid #e5e5e5;
+  border-left: 3px solid #b8941f; border-radius: 2px;
+  font-size: 0.82rem; color: #555; line-height: 1.7;
+}
+.lambo-table-note p { margin: 0.35em 0; }
+.lambo-table-note strong { color: #8a6d14; }
+.lambo-table-note a {
+  color: #8a6d14; text-decoration: none;
+  border-bottom: 1px solid rgba(184, 148, 31, 0.4);
+}
+.lambo-table-note a:hover { border-bottom-color: #8a6d14; }
+.lambo-table-wrap::-webkit-scrollbar { height: 10px; width: 10px; background: #f5f5f5; }
+.lambo-table-wrap::-webkit-scrollbar-thumb { background: #ccc; border-radius: 5px; }
+.lambo-table-wrap::-webkit-scrollbar-thumb:hover { background: #b8941f; }
+@media (max-width: 768px) {
+  .lambo-price-wrapper { padding: 1em; border-radius: 6px; }
+  .lambo-price-table { font-size: 0.78rem; min-width: 950px; }
+  .lambo-price-table thead th, .lambo-price-table tbody td { padding: 0.55em 0.45em; }
+  .lambo-price-table thead th { font-size: 0.7rem; }
+  .filter-chip { font-size: 0.76rem; padding: 0.35em 0.75em; }
+  .lambo-search { font-size: 0.95rem; }
+  .lambo-intro { padding: 0.9em 1em; }
+  .lambo-intro p { font-size: 0.88rem; }
+  .ask-btn { font-size: 0.72rem; padding: 0.3em 0.6em; }
+}
+@media (max-width: 480px) {
+  .lambo-controls { padding: 0.9em; }
+  .filter-label { min-width: 52px; font-size: 0.72rem; }
+  .lambo-table-note { padding: 0.9em 1em; font-size: 0.78rem; }
+}
+</style>
+
+<script>
+(function() {
+  'use strict';
+  const tbody = document.getElementById('lamboTableBody');
+  if (!tbody) return;
+  const rows = Array.from(tbody.querySelectorAll('tr'));
+  const searchInput = document.getElementById('lamboSearch');
+  const clearBtn = document.getElementById('lamboClear');
+  const countEl = document.getElementById('lamboResultCount');
+  const noResultsEl = document.getElementById('lamboNoResults');
+  const tableWrap = document.querySelector('.lambo-table-wrap');
+  let state = { query: '', series: 'all' };
+  function applyFilters() {
+    const q = state.query.trim().toLowerCase();
+    let visible = 0;
+    rows.forEach(row => {
+      const searchText = row.dataset.search || '';
+      const rowSeries = row.dataset.series || '';
+      const matchSearch = !q || searchText.includes(q);
+      const matchSeries = state.series === 'all' || rowSeries === state.series;
+      if (matchSearch && matchSeries) {
+        row.classList.remove('hidden'); visible++;
+      } else { row.classList.add('hidden'); }
+    });
+    countEl.textContent = visible;
+    noResultsEl.hidden = visible > 0;
+    tableWrap.style.display = visible > 0 ? '' : 'none';
+  }
+  searchInput.addEventListener('input', (e) => { state.query = e.target.value; applyFilters(); });
+  clearBtn.addEventListener('click', () => {
+    searchInput.value = ''; state.query = ''; applyFilters(); searchInput.focus();
+  });
+  document.querySelectorAll('[data-filter-series]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('[data-filter-series]').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      state.series = btn.dataset.filterSeries;
+      applyFilters();
+    });
+  });
+  const headers = document.querySelectorAll('.lambo-price-table th.sortable');
+  let sortState = { col: null, asc: true };
+  headers.forEach((th, idx) => {
+    th.addEventListener('click', () => {
+      const col = th.dataset.sort;
+      if (sortState.col === col) { sortState.asc = !sortState.asc; }
+      else { sortState.col = col; sortState.asc = true; }
+      headers.forEach(h => h.classList.remove('sort-asc', 'sort-desc'));
+      th.classList.add(sortState.asc ? 'sort-asc' : 'sort-desc');
+      const sorted = [...rows].sort((a, b) => {
+        const av = a.children[idx].textContent.trim();
+        const bv = b.children[idx].textContent.trim();
+        return sortState.asc ? av.localeCompare(bv, 'ja') : bv.localeCompare(av, 'ja');
+      });
+      sorted.forEach(row => tbody.appendChild(row));
+    });
+  });
+})();
+</script>
+<!-- END: 貼り付け範囲 -->

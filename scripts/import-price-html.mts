@@ -229,7 +229,7 @@ function priceValue(html: string): string | null {
   const m = v.replace(/[¥,\s]/g, "");
   return /^\d+$/.test(m) ? m : v;
 }
-// リモート: バッジのtitle属性から4フラグを復元
+// リモート: バッジのtitle属性から4フラグを復元（titleの実物: Powergate3 / IXI Flasher / AutoTuner / AT One）
 function remoteValue(html: string) {
   const titles = [...html.matchAll(/badge-remote"[^>]*title="([^"]*)"/g)].map((m) => m[1]);
   const t = titles.join("|");
@@ -237,8 +237,15 @@ function remoteValue(html: string) {
     autoTuner: /AutoTuner(?!\s*One)/.test(t),
     powerGate3: /Powergate3/i.test(t),
     flasher: /Flasher/i.test(t),
-    atOne: /AutoTuner\s*One|AT1/i.test(t),
+    atOne: /AT One/i.test(t),
   };
+}
+// 工賃: LINEボタン=null / ダッシュ="—"（区別を保存する。生成時 null はLINEボタンに戻る）
+function laborValue(html: string): string | null {
+  if (/ask-btn/.test(html)) return null;
+  const text = decode(stripTags(html));
+  if (!text) return null;
+  return text; // "—" もそのまま保存
 }
 
 type Row = {
@@ -301,7 +308,7 @@ function parseBrand(html: string, b: BrandSpec): { rows: Row[]; seriesGroups: st
       stockOutput: cellValue(cell(`${ns}cell-stock`) ?? ""),
       stage1Gain: cellValue(cell(`${ns}cell-stage1-gain`) ?? ""),
       prices,
-      labor: cellValue(cell(`${ns}cell-labor`) ?? ""),
+      labor: laborValue(cell(`${ns}cell-labor`) ?? ""),
       shops: cellValue(cell(`${ns}cell-shops`) ?? ""),
       remote: remoteValue(cell(`${ns}cell-remote`) ?? ""),
       notes: noteM ? decode(noteM[1]) : null,
@@ -315,6 +322,11 @@ function parseBrand(html: string, b: BrandSpec): { rows: Row[]; seriesGroups: st
 
   const introM = new RegExp(`<div class="${b.namespacePrefix}intro">\\s*<p>([\\s\\S]*?)</p>`).exec(html);
   return { rows, seriesGroups, intro: introM ? introM[1].trim() : "" };
+}
+
+// JSON-LD description はHTML実物を正とする（ハードコードとズレていた事故があったため）
+function jsonLdDescription(html: string, fallback: string): string {
+  return /"description":\s*"([^"]*)"/.exec(html)?.[1] ?? fallback;
 }
 
 // ── 実行 ──
@@ -341,7 +353,7 @@ for (const b of BRANDS) {
        "displayName"=EXCLUDED."displayName", slug=EXCLUDED.slug, "namespacePrefix"=EXCLUDED."namespacePrefix",
        "seriesGroups"=EXCLUDED."seriesGroups", columns=EXCLUDED.columns, intro=EXCLUDED.intro,
        "jsonLdDescription"=EXCLUDED."jsonLdDescription", "displayOrder"=EXCLUDED."displayOrder", "updatedAt"=now()`,
-    [b.id, b.displayName, b.slug, b.namespacePrefix, seriesGroups, JSON.stringify(b.columns), intro, b.jsonLdDescription, BRANDS.indexOf(b)],
+    [b.id, b.displayName, b.slug, b.namespacePrefix, seriesGroups, JSON.stringify(b.columns), intro, jsonLdDescription(html, b.jsonLdDescription), BRANDS.indexOf(b)],
   );
 
   // 再取込は洗い替え（HTMLが唯一の初期データ源）

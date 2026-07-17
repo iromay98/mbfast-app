@@ -5,6 +5,7 @@ import { Card } from "@/components/ui";
 import type { BrandRow, VehicleRow } from "@/lib/prices/types";
 import { PriceGrid } from "./price-grid";
 import { BrandSettings } from "./brand-settings";
+import { PublishPanel } from "./publish-panel";
 
 // ブランドタブ + 選択中ブランドの編集グリッド
 export function PriceBoard({ data }: { data: { brand: BrandRow; vehicles: VehicleRow[] }[] }) {
@@ -36,6 +37,8 @@ export function PriceBoard({ data }: { data: { brand: BrandRow; vehicles: Vehicl
       </div>
 
       <BrandSettings brand={current.brand} />
+
+      <PublishPanel key={`pub-${current.brand.id}`} brand={current.brand} />
 
       <Card className="p-2">
         <PriceGrid key={current.brand.id} brand={current.brand} vehicles={current.vehicles} />
