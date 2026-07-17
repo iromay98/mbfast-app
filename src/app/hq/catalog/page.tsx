@@ -388,7 +388,7 @@ export default async function HQCatalogPage({
         ))}
       </datalist>
 
-      <CatalogGrid groups={groups} />
+      <CatalogGrid groups={groups} makerOptions={makerSuggest} />
     </div>
   );
 }

@@ -574,6 +574,53 @@ export async function setRecordCustomerName(
   return { ok: true };
 }
 
+// 記録の車両（メーカー・車種）をその場で変更（本店のみ）。
+// 照合済みの記録はカタログ(BaseFile)の値が優先表示されるため、そちらも合わせて更新する。
+export async function setRecordVehicle(
+  recordId: string,
+  patch: { carMaker?: string; carModel?: string },
+): Promise<{ ok?: true; error?: string }> {
+  await requireHQ();
+  const rec = await prisma.serviceRecord.findUnique({
+    where: { id: recordId },
+    select: { matchedBaseFileId: true },
+  });
+  if (!rec) return { error: "記録が見つかりません" };
+
+  const data: { carMaker?: string | null; carModel?: string | null } = {};
+  if ("carMaker" in patch) {
+    const typed = String(patch.carMaker ?? "").trim();
+    if (typed) {
+      const existing = (
+        await prisma.baseFile.findMany({ distinct: ["manufacturer"], select: { manufacturer: true } })
+      ).map((b) => b.manufacturer);
+      data.carMaker = normalizeManufacturer(typed, existing);
+    } else {
+      data.carMaker = null;
+    }
+  }
+  if ("carModel" in patch) data.carModel = String(patch.carModel ?? "").trim() || null;
+  if (Object.keys(data).length === 0) return { ok: true };
+
+  await prisma.serviceRecord.update({ where: { id: recordId }, data });
+
+  // 照合済みなら表示元のカタログも合わせる（記録だけ直しても表示が変わらないため）
+  if (rec.matchedBaseFileId) {
+    const baseData: { manufacturer?: string; model?: string } = {};
+    if (data.carMaker) baseData.manufacturer = data.carMaker;
+    if (data.carModel) baseData.model = data.carModel;
+    if (Object.keys(baseData).length > 0) {
+      await prisma.baseFile.update({ where: { id: rec.matchedBaseFileId }, data: baseData });
+      revalidatePath("/hq/catalog");
+    }
+  }
+
+  revalidatePath(`/hq/records/${recordId}`);
+  revalidatePath("/hq/records");
+  revalidatePath(`/dealer/records/${recordId}`);
+  return { ok: true };
+}
+
 // 施工日をその場で変更（本店のみ）。入力は YYYY-MM-DD。
 export async function setRecordWorkedAt(
   recordId: string,

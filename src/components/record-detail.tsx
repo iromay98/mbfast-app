@@ -74,6 +74,7 @@ export function RecordDetail({
   swDisplay,
   vehicleName,
   ecuControl,
+  vehicleControl,
   hideFiles = false,
 }: {
   record: RecordForDetail;
@@ -91,6 +92,8 @@ export function RecordDetail({
   vehicleName?: string;
   // 本店向け: ECU識別子の手動入力UI（ECU識別子カード内に一体表示）。
   ecuControl?: React.ReactNode;
+  // 本店向け: 車両(メーカー・車種)の修正UI。タイトル直下に表示。
+  vehicleControl?: React.ReactNode;
   // ファイル(slave/bin)カードを出さない（本店ページでバリエーション登録側にまとめる場合）。
   hideFiles?: boolean;
 }) {
@@ -120,6 +123,8 @@ export function RecordDetail({
             </Badge>
           </div>
         </div>
+
+        {vehicleControl && <div className="mb-2">{vehicleControl}</div>}
 
         {!hideTechnical && record.status === "FAILED" && record.decryptError && (
           <p className="mb-2 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">

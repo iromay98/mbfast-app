@@ -21,6 +21,7 @@ import { HqNoteForm } from "./hq-note-form";
 import { RecordDealerSelect } from "./record-dealer-select";
 import { DeleteRecordButton } from "./delete-record-button";
 import { RecordCustomerEdit } from "./record-customer-edit";
+import { RecordVehicleEdit } from "./record-vehicle-edit";
 import { RecordWorkedAtEdit } from "./record-workedat-edit";
 import { EcuEditForm } from "./ecu-edit-form";
 import { ReidentifyEcuButton } from "./reidentify-ecu-button";
@@ -41,6 +42,7 @@ import {
   stageRank,
   baselineStages,
 } from "@/lib/catalog/options";
+import { MANUFACTURERS } from "@/lib/catalog/manufacturers";
 import { swLabel } from "@/lib/catalog/sw";
 import { vehicleLabel } from "@/lib/catalog/vehicle";
 
@@ -115,6 +117,18 @@ export default async function HQRecordDetailPage({
     note: f.note,
     createdAtLabel: formatDate(f.createdAt),
   }));
+
+  // 車両編集のメーカー候補（既存DB値＋カノニカル）
+  const makerSuggest = Array.from(
+    new Set([
+      ...MANUFACTURERS,
+      ...(
+        await prisma.baseFile.findMany({ distinct: ["manufacturer"], select: { manufacturer: true } })
+      ).map((b) => b.manufacturer),
+    ]),
+  )
+    .filter(Boolean)
+    .sort((a, b) => a.localeCompare(b));
 
   // 未返却リクエストの「内容」ラベル（requestNote の 「…」 を抽出）
   const openLabels = requests
@@ -308,6 +322,15 @@ export default async function HQRecordDetailPage({
                 grade: matched.grade,
               })
             : undefined
+        }
+        vehicleControl={
+          <RecordVehicleEdit
+            recordId={record.id}
+            carMaker={record.carMaker ?? ""}
+            carModel={record.carModel ?? ""}
+            makerOptions={makerSuggest}
+            matched={!!record.matchedBaseFileId}
+          />
         }
         dealerControl={
           <RecordDealerSelect

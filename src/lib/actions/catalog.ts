@@ -285,6 +285,18 @@ export async function updateBaseFile(
   }
   // 対象ユニットは "ECU"/"TCU" のみ（クリア不可・既定ECU）
   if ("unit" in patch) data.unit = patch.unit === "TCU" ? "TCU" : "ECU";
+  // メーカーは表記ゆれを正規化（既存DB値に寄せる）。空は無視（必須のため）。
+  if ("manufacturer" in patch) {
+    const typed = String(patch.manufacturer ?? "").trim();
+    if (!typed) {
+      delete data.manufacturer;
+    } else {
+      const existing = (
+        await prisma.baseFile.findMany({ distinct: ["manufacturer"], select: { manufacturer: true } })
+      ).map((b) => b.manufacturer);
+      data.manufacturer = normalizeManufacturer(typed, existing);
+    }
+  }
   // 読み取りツールは空なら既定 AT
   if ("tool" in patch) data.tool = String(patch.tool ?? "").trim() || "AT";
   try {

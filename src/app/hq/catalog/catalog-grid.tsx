@@ -114,12 +114,14 @@ function EditCell({
   mono,
   placeholder,
   className,
+  listId,
 }: {
   value: string;
   onSave: (v: string) => void;
   mono?: boolean;
   placeholder?: string;
   className?: string;
+  listId?: string; // datalist（候補表示）を紐づける
 }) {
   const [v, setV] = useState(value);
   const [prev, setPrev] = useState(value);
@@ -130,6 +132,7 @@ function EditCell({
   return (
     <input
       value={v}
+      list={listId}
       placeholder={placeholder}
       onChange={(e) => setV(e.target.value)}
       onBlur={() => {
@@ -200,7 +203,14 @@ export const METHOD_OPTIONS: [string, string][] = [
   ["Boot", "Boot"],
 ];
 
-export function CatalogGrid({ groups }: { groups: CalGroup[] }) {
+export function CatalogGrid({
+  groups,
+  makerOptions = [],
+}: {
+  groups: CalGroup[];
+  // メーカー候補（既存DB値＋カノニカル）。誤登録の修正・表記ゆれ防止に使う。
+  makerOptions?: string[];
+}) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [msg, setMsg] = useState<string | null>(null);
@@ -256,6 +266,7 @@ export function CatalogGrid({ groups }: { groups: CalGroup[] }) {
     <CalGroupCard
       key={g.baseFileId}
       group={g}
+      makerOptions={makerOptions}
       open={expanded.has(g.baseFileId)}
       onToggleOpen={() => toggleCollapse(g.baseFileId)}
       onPatchBase={(p) => run(() => updateBaseFile(g.baseFileId, p))}
@@ -343,6 +354,7 @@ export function CatalogGrid({ groups }: { groups: CalGroup[] }) {
 
 function CalGroupCard({
   group,
+  makerOptions,
   open,
   onToggleOpen,
   onPatchBase,
@@ -356,6 +368,7 @@ function CalGroupCard({
   onRestore,
 }: {
   group: CalGroup;
+  makerOptions: string[];
   open: boolean;
   onToggleOpen: () => void;
   onPatchBase: (p: Record<string, unknown>) => void;
@@ -394,8 +407,19 @@ function CalGroupCard({
         >
           {g.unit === "TCU" ? "TCU" : "ECU"}
         </button>
-        {/* メーカー・ECU は slave 由来で固定（編集不可）。グレード(車種)のみ編集可。 */}
-        <span className="text-sm font-semibold text-ink">{g.manufacturer}</span>
+        {/* メーカーも修正可（誤登録の訂正用）。表記ゆれはサーバー側で正規化。 */}
+        <EditCell
+          value={g.manufacturer}
+          onSave={(v) => onPatchBase({ manufacturer: v })}
+          placeholder="メーカー"
+          className="w-24 font-semibold"
+          listId={`makers-${g.baseFileId}`}
+        />
+        <datalist id={`makers-${g.baseFileId}`}>
+          {makerOptions.map((m) => (
+            <option key={m} value={m} />
+          ))}
+        </datalist>
         <EditCell value={g.model} onSave={(v) => onPatchBase({ model: v })} className="w-24 font-semibold" />
         <span className="text-xs text-ink-soft">(</span>
         <EditCell
