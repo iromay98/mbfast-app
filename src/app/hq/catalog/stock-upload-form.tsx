@@ -47,9 +47,12 @@ type Analyzed = {
 export function StockUploadForm({
   makerOptions,
   modelOptions,
+  toolOptions = TOOL_OPTIONS,
 }: {
   makerOptions: string[];
   modelOptions: string[];
+  // ツール候補（既定＋DBのカスタム値）。一度追加したツールを再入力せず選べるようにする。
+  toolOptions?: [string, string][];
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -520,17 +523,27 @@ export function StockUploadForm({
               <span className="font-semibold" title="読み取りツール。ファイル名のトークンに入ります（例 PG3_OBD_ori.bin）">ツール</span>
               <ChoiceSelect
                 value={f.tool}
-                options={TOOL_OPTIONS}
-                onSave={(v) => setF((s) => ({ ...s, tool: v }))}
+                options={toolOptions}
+                // Powergate3 は OBD 読みのみ（機器仕様）→ ツール選択と同時に Method も揃える
+                onSave={(v) => setF((s) => ({ ...s, tool: v, ...(v === "PG3" ? { method: "OBD" } : {}) }))}
                 addPrompt="ツール名（ファイル名に入る短い表記。例: KTAG）"
               />
               <span className="font-semibold">Method</span>
-              <ChoiceSelect
-                value={f.method}
-                options={METHOD_OPTIONS}
-                onSave={(v) => setF((s) => ({ ...s, method: v }))}
-                addPrompt="読み方式（例: BDM）"
-              />
+              {f.tool === "PG3" ? (
+                <span
+                  className="rounded border border-line bg-surface-2 px-1.5 py-0.5 text-xs font-semibold text-ink-soft"
+                  title="Powergate3 は OBD 読みのみのため変更できません"
+                >
+                  OBD
+                </span>
+              ) : (
+                <ChoiceSelect
+                  value={f.method}
+                  options={METHOD_OPTIONS}
+                  onSave={(v) => setF((s) => ({ ...s, method: v }))}
+                  addPrompt="読み方式（例: BDM）"
+                />
+              )}
               <span className="font-semibold" title="ECM Titanium 等の使用Driver（本店のみ）">Driver</span>
               <input
                 className={`${inp} w-40 font-mono text-xs`}

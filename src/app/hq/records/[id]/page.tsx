@@ -29,6 +29,7 @@ import { RecordTunedEdit } from "./record-tuned-edit";
 import { RecordUnitEdit } from "./record-unit-edit";
 import { RecordOriUpload } from "./record-ori-upload";
 import { BaseToolEdit } from "./base-tool-edit";
+import { mergeToolOptions } from "@/app/hq/catalog/catalog-grid";
 import { BaseDriverEdit } from "./base-driver-edit";
 import { HqFiles, type HqFileRow } from "./hq-files";
 import { SpliceTool, type SpliceSource } from "./splice-tool";
@@ -129,6 +130,11 @@ export default async function HQRecordDetailPage({
   )
     .filter(Boolean)
     .sort((a, b) => a.localeCompare(b));
+
+  // ツール候補（既定＋DBに登録済みのカスタム値）。一度追加したツールを再入力せず選べるように。
+  const toolOptions = mergeToolOptions(
+    (await prisma.baseFile.findMany({ distinct: ["tool"], select: { tool: true } })).map((b) => b.tool),
+  );
 
   // 未返却リクエストの「内容」ラベル（requestNote の 「…」 を抽出）
   const openLabels = requests
@@ -475,6 +481,7 @@ export default async function HQRecordDetailPage({
                 baseFileId={record.matchedBaseFileId}
                 tool={matched.tool ?? "AT"}
                 method={matched.method ?? ""}
+                toolOptions={toolOptions}
               />
             </>
           )}

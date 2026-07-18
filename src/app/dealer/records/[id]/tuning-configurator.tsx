@@ -2,7 +2,13 @@
 
 import { useEffect, useState, useTransition } from "react";
 import { resolveTuning, requestTuning } from "@/lib/actions/requests";
-import { SPEED_LIMITER_TAG, tuningContentLabel, paidTags } from "@/lib/catalog/options";
+import {
+  SPEED_LIMITER_TAG,
+  POPS_STRONG_TAG,
+  tuningContentLabel,
+  paidTags,
+  stripPopsStrongIfNoPops,
+} from "@/lib/catalog/options";
 import { DownloadConsent } from "./download-consent";
 
 type Stage = { value: string; label: string };
@@ -63,6 +69,12 @@ export function TuningConfigurator({
   const toggleOpt = (t: string) =>
     setSelected((prev) => (prev.includes(t) ? prev.filter((x) => x !== t) : [...prev, t]));
 
+  // バブリング「なし」に戻したら「強」タグも外す（強はバブリング選択時のみ有効）
+  const changePopsMode = (v: "none" | "all" | "sport") => {
+    setPopsMode(v);
+    if (v === "none") setSelected((prev) => stripPopsStrongIfNoPops(prev, false));
+  };
+
   const onRequest = () =>
     startRequest(async () => {
       if (stage === null) return;
@@ -113,7 +125,7 @@ export function TuningConfigurator({
               <button
                 key={v}
                 type="button"
-                onClick={() => setPopsMode(v)}
+                onClick={() => changePopsMode(v)}
                 className={`rounded-lg border px-3 py-1.5 text-sm font-semibold ${
                   popsMode === v
                     ? "border-gold-400 bg-gold-500 text-white"
@@ -133,13 +145,17 @@ export function TuningConfigurator({
         <div className="flex flex-wrap gap-2">
           {optionTags.map((t) => {
             const limOff = t === SPEED_LIMITER_TAG && limiterDisabled;
+            // バブリング強はバブリング選択時のみ選べる
+            const strongLocked = t === POPS_STRONG_TAG && popsMode === "none";
             const on = selected.includes(t);
             return (
               <button
                 key={t}
                 type="button"
+                disabled={strongLocked}
+                title={strongLocked ? "バブリングを選択すると選べます" : undefined}
                 onClick={() => toggleOpt(t)}
-                className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-semibold transition ${
+                className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-40 ${
                   on
                     ? "border-gold-400 bg-gold-500 text-white"
                     : "border-line bg-white text-ink-soft hover:bg-surface-2"

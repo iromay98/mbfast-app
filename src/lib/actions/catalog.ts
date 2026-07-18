@@ -22,6 +22,7 @@ import {
   popsAllowed,
   tuningContentLabel,
   parseTuningContentLabel,
+  stripPopsStrongIfNoPops,
 } from "@/lib/catalog/options";
 import { type FormState, zodToFieldErrors } from "@/lib/actions/form-state";
 import {
@@ -121,6 +122,20 @@ export async function updateVariant(
   if ("options" in patch) variantData.options = d.options ? d.options : null;
   if ("note" in patch) variantData.note = d.note ? d.note : null;
   if ("status" in patch && d.status) variantData.status = d.status;
+
+  // バブリング強はバブリングありの版のみ。optionTags 変更時と、バブリングを外した時の両方で正規化。
+  if ("optionTags" in variantData || "popsAndBangs" in variantData) {
+    const cur = await prisma.tunedVariant.findUnique({
+      where: { id: variantId },
+      select: { popsAndBangs: true, optionTags: true },
+    });
+    if (cur) {
+      const pops = ("popsAndBangs" in variantData ? variantData.popsAndBangs : cur.popsAndBangs) as boolean;
+      const tags = ("optionTags" in variantData ? variantData.optionTags : cur.optionTags) as string[];
+      const normalized = stripPopsStrongIfNoPops(tags, pops);
+      if (normalized.length !== tags.length) variantData.optionTags = normalized;
+    }
+  }
 
   const baseData: Record<string, unknown> = {};
   if ("manufacturer" in patch && d.manufacturer) baseData.manufacturer = d.manufacturer;
@@ -299,6 +314,16 @@ export async function updateBaseFile(
   }
   // 読み取りツールは空なら既定 AT
   if ("tool" in patch) data.tool = String(patch.tool ?? "").trim() || "AT";
+  // Powergate3 は OBD 読みのみ（機器仕様）。tool/method どちらの更新でも矛盾しないよう強制する。
+  if ("tool" in patch || "method" in patch) {
+    const finalTool =
+      "tool" in patch
+        ? (data.tool as string)
+        : (
+            await prisma.baseFile.findUnique({ where: { id: baseFileId }, select: { tool: true } })
+          )?.tool;
+    if (finalTool === "PG3") data.method = "OBD";
+  }
   try {
     await prisma.baseFile.update({ where: { id: baseFileId }, data });
   } catch (e) {
@@ -590,6 +615,8 @@ export async function createVariantWithFile(
   } catch {
     /* 無視 */
   }
+  // バブリング強はバブリング選択時のみ有効
+  optionTags = stripPopsStrongIfNoPops(optionTags, popsAndBangs);
 
   const fileFields = {
     fileRef: saved.key,
@@ -817,7 +844,11 @@ export async function uploadVariation(
     /* 無視 */
   }
   const allowed = new Set(optionTagsFor(fuelKind, record.matchedBaseFile?.manufacturer));
-  optionTags = [...new Set(optionTags)].filter((t) => allowed.has(t)).sort();
+  // バブリング強はバブリング選択時のみ有効
+  optionTags = stripPopsStrongIfNoPops(
+    [...new Set(optionTags)].filter((t) => allowed.has(t)),
+    pops,
+  ).sort();
 
   const saved = await saveUpload(file, "catalog/tuned");
   if (!saved.ok) return { error: saved.error };
@@ -1411,7 +1442,9 @@ export async function createBaseFileFromBin(formData: FormData): Promise<FormSta
   const workedAtRaw = String(formData.get("workedAt") ?? "").trim();
   // 読み取りツール(AT/PG3/K3/任意)・方式(OBD/Bench/Boot/任意)・Driver
   const tool = String(formData.get("tool") ?? "").trim() || "AT";
-  const method = String(formData.get("method") ?? "").trim() || null;
+  // Powergate3 は OBD 読みのみ（機器仕様）
+  const method =
+    tool === "PG3" ? "OBD" : String(formData.get("method") ?? "").trim() || null;
   const driver = String(formData.get("driver") ?? "").trim() || null;
   const driverBorrowed = formData.get("driverBorrowed") === "true";
 

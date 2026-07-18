@@ -15,7 +15,7 @@ import {
   updateVersionMeta,
   reidentifyBaseEcuAi,
 } from "@/lib/actions/catalog";
-import { type FuelKind, optionTagsFor, popsAllowed, baselineStages } from "@/lib/catalog/options";
+import { type FuelKind, optionTagsFor, popsAllowed, baselineStages, POPS_STRONG_TAG } from "@/lib/catalog/options";
 import { swLabel } from "@/lib/catalog/sw";
 
 export type CatalogVersion = {
@@ -196,6 +196,17 @@ export const TOOL_OPTIONS: [string, string][] = [
   ["PG3", "PG3（Powergate3）"],
   ["K3", "K3（Kess3）"],
 ];
+
+// 既定候補＋DBに登録済みのカスタムツール（「＋追加…」で入力した値）をマージ。
+// 一度登録したツールは以後どのプルダウンにも候補として出る。
+export function mergeToolOptions(customTools: string[]): [string, string][] {
+  const opts = [...TOOL_OPTIONS];
+  for (const t of customTools) {
+    const v = (t ?? "").trim();
+    if (v && !opts.some(([o]) => o === v)) opts.push([v, v]);
+  }
+  return opts;
+}
 export const METHOD_OPTIONS: [string, string][] = [
   ["", "（未設定）"],
   ["OBD", "OBD"],
@@ -206,10 +217,13 @@ export const METHOD_OPTIONS: [string, string][] = [
 export function CatalogGrid({
   groups,
   makerOptions = [],
+  toolOptions = TOOL_OPTIONS,
 }: {
   groups: CalGroup[];
   // メーカー候補（既存DB値＋カノニカル）。誤登録の修正・表記ゆれ防止に使う。
   makerOptions?: string[];
+  // ツール候補（既定＋DBのカスタム値）。一度追加したツールを再入力せず選べるようにする。
+  toolOptions?: [string, string][];
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -267,6 +281,7 @@ export function CatalogGrid({
       key={g.baseFileId}
       group={g}
       makerOptions={makerOptions}
+      toolOptions={toolOptions}
       open={expanded.has(g.baseFileId)}
       onToggleOpen={() => toggleCollapse(g.baseFileId)}
       onPatchBase={(p) => run(() => updateBaseFile(g.baseFileId, p))}
@@ -355,6 +370,7 @@ export function CatalogGrid({
 function CalGroupCard({
   group,
   makerOptions,
+  toolOptions,
   open,
   onToggleOpen,
   onPatchBase,
@@ -369,6 +385,7 @@ function CalGroupCard({
 }: {
   group: CalGroup;
   makerOptions: string[];
+  toolOptions: [string, string][];
   open: boolean;
   onToggleOpen: () => void;
   onPatchBase: (p: Record<string, unknown>) => void;
@@ -519,17 +536,27 @@ function CalGroupCard({
         </span>
         <ChoiceSelect
           value={g.tool}
-          options={TOOL_OPTIONS}
-          onSave={(v) => onPatchBase({ tool: v })}
+          options={toolOptions}
+          // Powergate3 は OBD 読みのみ（機器仕様）→ ツール変更と同時に Method も揃える
+          onSave={(v) => onPatchBase(v === "PG3" ? { tool: v, method: "OBD" } : { tool: v })}
           addPrompt="ツール名（ファイル名に入る短い表記。例: KTAG）"
         />
         <span className="text-ink-soft">Method</span>
-        <ChoiceSelect
-          value={g.method}
-          options={METHOD_OPTIONS}
-          onSave={(v) => onPatchBase({ method: v })}
-          addPrompt="読み方式（例: BDM）"
-        />
+        {g.tool === "PG3" ? (
+          <span
+            className="rounded border border-line bg-surface-2 px-1.5 py-0.5 text-xs font-semibold text-ink-soft"
+            title="Powergate3 は OBD 読みのみのため変更できません"
+          >
+            OBD
+          </span>
+        ) : (
+          <ChoiceSelect
+            value={g.method}
+            options={METHOD_OPTIONS}
+            onSave={(v) => onPatchBase({ method: v })}
+            addPrompt="読み方式（例: BDM）"
+          />
+        )}
         <span className="mx-1 text-line">|</span>
         <span className="font-semibold text-ink-soft" title="ECM Titanium 等の使用Driver（本店のみ）">
           Driver
@@ -811,22 +838,31 @@ function LeafRow({
             Pops{row.popsAndBangs ? (row.popsSport ? "(スポーツ)" : "(全)") : ""}
           </label>
         )}
-        {tags.map((tag) => (
-          <label key={tag} className="flex items-center gap-0.5 text-[11px] text-ink-soft">
-            <input
-              type="checkbox"
-              checked={row.optionTags.includes(tag)}
-              onChange={(e) => {
-                const next = e.target.checked
-                  ? [...row.optionTags, tag]
-                  : row.optionTags.filter((t) => t !== tag);
-                onPatch({ optionTags: next });
-              }}
-              className="h-3 w-3 accent-gold-500"
-            />
-            {tag}
-          </label>
-        ))}
+        {tags.map((tag) => {
+          // バブリング強はバブリングありの版でのみ付けられる
+          const strongLocked = tag === POPS_STRONG_TAG && !row.popsAndBangs;
+          return (
+            <label
+              key={tag}
+              className={`flex items-center gap-0.5 text-[11px] ${strongLocked ? "text-ink-soft/50" : "text-ink-soft"}`}
+              title={strongLocked ? "バブリングありの版でのみ選べます" : undefined}
+            >
+              <input
+                type="checkbox"
+                checked={row.optionTags.includes(tag)}
+                disabled={strongLocked}
+                onChange={(e) => {
+                  const next = e.target.checked
+                    ? [...row.optionTags, tag]
+                    : row.optionTags.filter((t) => t !== tag);
+                  onPatch({ optionTags: next });
+                }}
+                className="h-3 w-3 accent-gold-500 disabled:cursor-not-allowed"
+              />
+              {tag}
+            </label>
+          );
+        })}
         <select
           value={row.status}
           onChange={(e) => onStatus(e.target.value)}

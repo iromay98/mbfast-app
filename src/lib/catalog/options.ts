@@ -40,6 +40,12 @@ export function paidTags(tags: string[]): string[] {
   return tags.filter((t) => t !== POPS_STRONG_TAG);
 }
 
+// バブリング強はバブリング選択時のみ意味を持つ。UI・サーバー両方でこの正規化を通し、
+// バブリング無しの構成に「強」タグだけが付く矛盾を防ぐ。
+export function stripPopsStrongIfNoPops(tags: string[], pops: boolean): string[] {
+  return pops ? tags : tags.filter((t) => t !== POPS_STRONG_TAG);
+}
+
 // バブリング(Pops)を扱えるか（ディーゼルは不可）
 export function popsAllowed(kind: FuelKind): boolean {
   return kind !== "diesel";

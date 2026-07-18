@@ -3,7 +3,7 @@ import { requireHQ } from "@/lib/authz";
 import { prisma } from "@/lib/db";
 import { PageTitle, Card, Button, Input, Select, Field } from "@/components/ui";
 import type { Prisma } from "@/generated/prisma/client";
-import { CatalogGrid, type CatalogRow, type CalGroup } from "./catalog-grid";
+import { CatalogGrid, mergeToolOptions, type CatalogRow, type CalGroup } from "./catalog-grid";
 import { StockUploadForm } from "./stock-upload-form";
 import { BulkReidentifyButton } from "./bulk-reidentify-button";
 import { fuelKindOf, stageRank } from "@/lib/catalog/options";
@@ -133,17 +133,20 @@ export default async function HQCatalogPage({
     ];
   }
 
-  // 入力補助(datalist)用の既存メーカー/車種
-  const [makerRows, modelRows] = await Promise.all([
+  // 入力補助(datalist)用の既存メーカー/車種＋ツール候補
+  const [makerRows, modelRows, toolRows] = await Promise.all([
     prisma.baseFile.findMany({ distinct: ["manufacturer"], select: { manufacturer: true } }),
     prisma.baseFile.findMany({
       distinct: ["model"],
       select: { model: true },
       orderBy: { model: "asc" },
     }),
+    prisma.baseFile.findMany({ distinct: ["tool"], select: { tool: true } }),
   ]);
   const makerOptions = makerRows.map((m) => m.manufacturer).filter(Boolean);
   const modelOptions = modelRows.map((m) => m.model).filter(Boolean);
+  // 一度「＋追加…」で登録したカスタムツールを既定候補にマージ（再入力不要にする）
+  const toolOptions = mergeToolOptions(toolRows.map((t) => t.tool));
   const makerSuggest = Array.from(new Set([...MANUFACTURERS, ...makerOptions])).sort((a, b) =>
     a.localeCompare(b),
   );
@@ -267,7 +270,7 @@ export default async function HQCatalogPage({
 
       {/* このページの主目的＝純正(原本)データのアップロード。これに mod がぶら下がる。 */}
       <div className="mb-4 flex flex-wrap items-center gap-3">
-        <StockUploadForm makerOptions={makerOptions} modelOptions={modelOptions} />
+        <StockUploadForm makerOptions={makerOptions} modelOptions={modelOptions} toolOptions={toolOptions} />
         <BulkReidentifyButton />
       </div>
 
@@ -388,7 +391,7 @@ export default async function HQCatalogPage({
         ))}
       </datalist>
 
-      <CatalogGrid groups={groups} makerOptions={makerSuggest} />
+      <CatalogGrid groups={groups} makerOptions={makerSuggest} toolOptions={toolOptions} />
     </div>
   );
 }

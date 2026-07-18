@@ -1,7 +1,15 @@
 "use client";
 
 import { useRef, useState, useTransition } from "react";
-import { type FuelKind, optionTagsFor, popsAllowed, baselineStages, tuningContentLabel } from "@/lib/catalog/options";
+import {
+  type FuelKind,
+  optionTagsFor,
+  popsAllowed,
+  baselineStages,
+  tuningContentLabel,
+  stripPopsStrongIfNoPops,
+  POPS_STRONG_TAG,
+} from "@/lib/catalog/options";
 import { analyzeStockBin } from "@/lib/actions/catalog";
 
 const norm = (s?: string | null) => (s ?? "").trim().toUpperCase().replace(/\s+/g, "");
@@ -44,6 +52,12 @@ export function ModUploadForm({
   const toggleTag = (t: string) =>
     setTags((c) => (c.includes(t) ? c.filter((x) => x !== t) : [...c, t]));
 
+  // バブリング「なし」に戻したら「強」タグも外す（強はバブリング選択時のみ有効）
+  const changePopsMode = (v: "none" | "all" | "sport") => {
+    setPopsMode(v);
+    if (v === "none") setTags((c) => stripPopsStrongIfNoPops(c, false));
+  };
+
   // 選択中の構成が登録済みかどうか（登録済み→アップで差し替え）
   const curLabel = tuningContentLabel(
     stage,
@@ -85,7 +99,10 @@ export function ModUploadForm({
     fd.set("stage", stage.trim());
     fd.set("popsAndBangs", pops ? "true" : "false");
     fd.set("popsSport", showPops && popsMode === "sport" ? "true" : "false");
-    fd.set("optionTags", JSON.stringify(tags.filter((t) => availableTags.includes(t))));
+    fd.set(
+      "optionTags",
+      JSON.stringify(stripPopsStrongIfNoPops(tags.filter((t) => availableTags.includes(t)), pops)),
+    );
     if (options.trim()) fd.set("options", options.trim());
     if (verdict === "mismatch") fd.set("force", "true"); // 警告を見たうえで強行
     onAddFile(fd);
@@ -131,7 +148,7 @@ export function ModUploadForm({
                 <button
                   key={v}
                   type="button"
-                  onClick={() => setPopsMode(v)}
+                  onClick={() => changePopsMode(v)}
                   className={`rounded border px-2 py-1 text-xs font-semibold ${
                     popsMode === v
                       ? "border-gold-400 bg-gold-500 text-white"
@@ -144,17 +161,26 @@ export function ModUploadForm({
             </div>
           </>
         )}
-        {availableTags.map((tag) => (
-          <label key={tag} className="flex items-center gap-1 text-xs text-ink-soft">
-            <input
-              type="checkbox"
-              checked={tags.includes(tag)}
-              onChange={() => toggleTag(tag)}
-              className="h-3.5 w-3.5 accent-gold-500"
-            />
-            {tag}
-          </label>
-        ))}
+        {availableTags.map((tag) => {
+          // バブリング強はバブリング選択時のみ選べる
+          const strongLocked = tag === POPS_STRONG_TAG && popsMode === "none";
+          return (
+            <label
+              key={tag}
+              className={`flex items-center gap-1 text-xs ${strongLocked ? "text-ink-soft/50" : "text-ink-soft"}`}
+              title={strongLocked ? "バブリングを選択すると選べます" : undefined}
+            >
+              <input
+                type="checkbox"
+                checked={tags.includes(tag)}
+                disabled={strongLocked}
+                onChange={() => toggleTag(tag)}
+                className="h-3.5 w-3.5 accent-gold-500 disabled:cursor-not-allowed"
+              />
+              {tag}
+            </label>
+          );
+        })}
         <input
           value={options}
           onChange={(e) => setOptions(e.target.value)}

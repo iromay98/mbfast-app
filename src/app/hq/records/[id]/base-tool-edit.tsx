@@ -12,10 +12,13 @@ export function BaseToolEdit({
   baseFileId,
   tool,
   method,
+  toolOptions = TOOL_OPTIONS,
 }: {
   baseFileId: string;
   tool: string;
   method: string;
+  // ツール候補（既定＋DBのカスタム値）。一度追加したツールを再入力せず選べるようにする。
+  toolOptions?: [string, string][];
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
@@ -39,19 +42,29 @@ export function BaseToolEdit({
       </span>
       <ChoiceSelect
         value={tool}
-        options={TOOL_OPTIONS}
-        onSave={(v) => save({ tool: v })}
+        options={toolOptions}
+        // Powergate3 は OBD 読みのみ（機器仕様）→ ツール変更と同時に Method も揃える
+        onSave={(v) => save(v === "PG3" ? { tool: v, method: "OBD" } : { tool: v })}
         addPrompt="ツール名（ファイル名に入る短い表記。例: KTAG）"
         className={pending ? "opacity-50" : ""}
       />
       <span className="text-xs text-ink-soft">Method</span>
-      <ChoiceSelect
-        value={method}
-        options={METHOD_OPTIONS}
-        onSave={(v) => save({ method: v })}
-        addPrompt="読み方式（例: BDM）"
-        className={pending ? "opacity-50" : ""}
-      />
+      {tool === "PG3" ? (
+        <span
+          className="rounded border border-line bg-surface-2 px-1.5 py-0.5 text-xs font-semibold text-ink-soft"
+          title="Powergate3 は OBD 読みのみのため変更できません"
+        >
+          OBD
+        </span>
+      ) : (
+        <ChoiceSelect
+          value={method}
+          options={METHOD_OPTIONS}
+          onSave={(v) => save({ method: v })}
+          addPrompt="読み方式（例: BDM）"
+          className={pending ? "opacity-50" : ""}
+        />
+      )}
       {error && <span className="text-xs text-red-600">{error}</span>}
     </span>
   );

@@ -4,7 +4,7 @@ import { useActionState, useEffect, useMemo, useRef, useState, useTransition } f
 import { useRouter } from "next/navigation";
 import { emptyFormState } from "@/lib/actions/form-state";
 import { uploadVariation, deleteVariation, setVariantStatus, updateVariant } from "@/lib/actions/catalog";
-import { tuningContentLabel } from "@/lib/catalog/options";
+import { tuningContentLabel, stripPopsStrongIfNoPops, POPS_STRONG_TAG } from "@/lib/catalog/options";
 
 type Stage = { value: string; label: string };
 type VRow = {
@@ -176,18 +176,26 @@ function VariationRow({
           {popsText(row.pops, row.popsSport)}
         </td>
       )}
-      {optionTags.map((t) => (
-        <td key={t} className="px-2 py-1.5 text-center">
-          <input
-            type="checkbox"
-            checked={row.optionTags.includes(t)}
-            disabled={!row.variantId || statusPending}
-            onChange={(e) => onToggleTag(t, e.target.checked)}
-            title="クリックで切替（例: 既存バブリングを『強(触媒無視)』へ振り分け）"
-            className="h-4 w-4 cursor-pointer accent-gold-500"
-          />
-        </td>
-      ))}
+      {optionTags.map((t) => {
+        // バブリング強はバブリングありの行でのみ付けられる
+        const strongLocked = t === POPS_STRONG_TAG && !row.pops;
+        return (
+          <td key={t} className="px-2 py-1.5 text-center">
+            <input
+              type="checkbox"
+              checked={row.optionTags.includes(t)}
+              disabled={!row.variantId || statusPending || strongLocked}
+              onChange={(e) => onToggleTag(t, e.target.checked)}
+              title={
+                strongLocked
+                  ? "バブリングありの行でのみ選べます"
+                  : "クリックで切替（例: 既存バブリングを『強(触媒無視)』へ振り分け）"
+              }
+              className="h-4 w-4 cursor-pointer accent-gold-500 disabled:cursor-not-allowed"
+            />
+          </td>
+        );
+      })}
       <td className="whitespace-nowrap px-2 py-1.5">
         {/* 状態はその場で切替可能（下書き⇄配布可⇄無効）。配布可にすると代理店がDLできる。 */}
         {row.variantId ? (
@@ -310,6 +318,12 @@ function AddVariation({
   const pops = popsMode !== "none";
   const popsSport = popsMode === "sport";
 
+  // バブリング「なし」に戻したら「強」タグも外す（強はバブリング選択時のみ有効）
+  const changePopsMode = (v: "none" | "all" | "sport") => {
+    setPopsMode(v);
+    if (v === "none") setSelected((prev) => stripPopsStrongIfNoPops(prev, false));
+  };
+
   const action = uploadVariation.bind(null, recordId);
   const [state, formAction, pending] = useActionState(action, emptyFormState);
   const formRef = useRef<HTMLFormElement>(null);
@@ -366,7 +380,7 @@ function AddVariation({
               <button
                 key={v}
                 type="button"
-                onClick={() => setPopsMode(v)}
+                onClick={() => changePopsMode(v)}
                 className={`rounded-lg border px-3 py-1.5 text-sm font-semibold ${
                   popsMode === v
                     ? "border-gold-400 bg-gold-500 text-white"
@@ -383,17 +397,26 @@ function AddVariation({
       <div className="mb-3">
         <div className="mb-1.5 text-xs text-ink-soft">オプション</div>
         <div className="flex flex-wrap gap-3">
-          {optionTags.map((t) => (
-            <label key={t} className="inline-flex items-center gap-1.5 text-sm text-ink">
-              <input
-                type="checkbox"
-                checked={selected.includes(t)}
-                onChange={() => toggleOpt(t)}
-                className="h-4 w-4 accent-gold-500"
-              />
-              {t}
-            </label>
-          ))}
+          {optionTags.map((t) => {
+            // バブリング強はバブリング選択時のみ選べる
+            const strongLocked = t === POPS_STRONG_TAG && popsMode === "none";
+            return (
+              <label
+                key={t}
+                className={`inline-flex items-center gap-1.5 text-sm ${strongLocked ? "text-ink-soft/50" : "text-ink"}`}
+                title={strongLocked ? "バブリングを選択すると選べます" : undefined}
+              >
+                <input
+                  type="checkbox"
+                  checked={selected.includes(t)}
+                  disabled={strongLocked}
+                  onChange={() => toggleOpt(t)}
+                  className="h-4 w-4 accent-gold-500 disabled:cursor-not-allowed"
+                />
+                {t}
+              </label>
+            );
+          })}
         </div>
       </div>
 
