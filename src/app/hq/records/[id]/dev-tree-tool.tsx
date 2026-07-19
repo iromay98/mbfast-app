@@ -109,11 +109,23 @@ export function DevTreeTool({
               {nodes.map((n) => (
                 <tr key={n.id} className={n.id === currentNodeId ? "bg-gold-50/60" : ""}>
                   <td className="py-1.5">
-                    <span className="font-semibold">{n.label}</span>
-                    {n.id === currentNodeId && (
-                      <span className="ml-1 rounded bg-gold-500 px-1 py-0.5 text-[9px] font-bold text-white">現在</span>
-                    )}
-                    {n.note && <div className="text-[11px] text-ink-soft">{n.note}</div>}
+                    <div className="flex items-center gap-1">
+                      <EditCell
+                        value={n.label}
+                        bold
+                        placeholder="ラベル"
+                        onSave={(v) => run(() => updateDevNode(n.id, { label: v }))}
+                      />
+                      {n.id === currentNodeId && (
+                        <span className="rounded bg-gold-500 px-1 py-0.5 text-[9px] font-bold text-white">現在</span>
+                      )}
+                    </div>
+                    <EditCell
+                      value={n.note ?? ""}
+                      placeholder="メモ（クリックで編集）"
+                      soft
+                      onSave={(v) => run(() => updateDevNode(n.id, { note: v }))}
+                    />
                   </td>
                   <td className="max-w-[10rem] truncate font-mono text-[11px]">
                     {n.hasFile ? (
@@ -400,5 +412,47 @@ function NextSelect({
           ))}
       </select>
     </td>
+  );
+}
+
+// クリックで編集・blur/Enterで保存（Escで取消）
+function EditCell({
+  value,
+  onSave,
+  bold,
+  soft,
+  placeholder,
+}: {
+  value: string;
+  onSave: (v: string) => void;
+  bold?: boolean;
+  soft?: boolean;
+  placeholder?: string;
+}) {
+  const [v, setV] = useState(value);
+  const [prev, setPrev] = useState(value);
+  if (value !== prev) {
+    setPrev(value);
+    setV(value);
+  }
+  return (
+    <input
+      value={v}
+      placeholder={placeholder}
+      onChange={(e) => setV(e.target.value)}
+      onBlur={() => {
+        if (v.trim() !== value.trim()) onSave(v.trim());
+      }}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") e.currentTarget.blur();
+        if (e.key === "Escape") {
+          setV(value);
+          e.currentTarget.blur();
+        }
+      }}
+      className={`w-full min-w-[8rem] rounded border border-transparent bg-transparent px-1 py-0.5 hover:border-line focus:border-gold-400 focus:bg-white focus:outline-none ${
+        bold ? "text-xs font-semibold" : ""
+      } ${soft ? "text-[11px] text-ink-soft" : "text-xs"}`}
+    />
   );
 }
