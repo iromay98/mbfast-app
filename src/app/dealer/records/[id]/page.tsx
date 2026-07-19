@@ -185,6 +185,15 @@ export default async function DealerRecordDetailPage({
         })
       : null;
   const devCard = devNode && devNode.recordId === record.id ? devNode : null;
+  // 本部が許可した場合のみ: 全ノードの選択肢（ラベルのみ）を出す
+  const devNodeOptions =
+    devCard && record.devFreeChoice
+      ? await prisma.devNode.findMany({
+          where: { recordId: record.id },
+          orderBy: { sortOrder: "asc" },
+          select: { id: true, label: true },
+        })
+      : [];
 
   return (
     <div className="space-y-4">
@@ -300,6 +309,9 @@ export default async function DealerRecordDetailPage({
             nodeNote={devCard.note}
             hasFile={!!devCard.filePath}
             isEnd={!devCard.okNextId && !devCard.ngNextId}
+            freeChoice={record.devFreeChoice}
+            nodeOptions={devNodeOptions}
+            currentNodeId={devCard.id}
           />
         </Card>
       )}

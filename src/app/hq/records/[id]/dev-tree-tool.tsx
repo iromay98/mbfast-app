@@ -8,6 +8,7 @@ import {
   addDevNodeFromVersion,
   deleteDevNode,
   setDevCurrent,
+  setDevFreeChoice,
   setDevMode,
   updateDevNode,
 } from "@/lib/actions/dev-tree";
@@ -37,6 +38,7 @@ export type DevMsgSourceRow = { messageId: string; label: string };
 export function DevTreeTool({
   recordId,
   devMode,
+  devFreeChoice,
   currentNodeId,
   nodes,
   trials,
@@ -45,6 +47,7 @@ export function DevTreeTool({
 }: {
   recordId: string;
   devMode: boolean;
+  devFreeChoice: boolean;
   currentNodeId: string | null;
   nodes: DevNodeRow[];
   trials: DevTrialRow[];
@@ -73,6 +76,15 @@ export function DevTreeTool({
             onChange={(e) => run(() => setDevMode(recordId, e.target.checked))}
           />
           開発モードON（代理店に開発カードを表示）
+        </label>
+        <label className="flex items-center gap-1.5 text-xs" title="ONにすると代理店がツリー内のノードを自分で選んで切り替えられます（報告での自動進行も引き続き動きます）">
+          <input
+            type="checkbox"
+            checked={devFreeChoice}
+            disabled={pending || !devMode}
+            onChange={(e) => run(() => setDevFreeChoice(recordId, e.target.checked))}
+          />
+          代理店のノード選択を許可
         </label>
         {msg && <span className="text-xs text-red-600">{msg}</span>}
       </div>

@@ -27,6 +27,54 @@ export async function setDevMode(recordId: string, on: boolean): Promise<{ ok?: 
   return { ok: true };
 }
 
+// ── 本部: 代理店のノード自由選択を許可/禁止 ──
+export async function setDevFreeChoice(recordId: string, on: boolean): Promise<{ ok?: true; error?: string }> {
+  await requireHQ();
+  const rec = await prisma.serviceRecord.findUnique({ where: { id: recordId }, select: { id: true } });
+  if (!rec) return { error: "記録が見つかりません" };
+  await prisma.serviceRecord.update({ where: { id: recordId }, data: { devFreeChoice: on } });
+  reval(recordId);
+  return { ok: true };
+}
+
+// ── 代理店: ノードを自分で選んで切り替え（本部が許可した記録のみ） ──
+export async function selectDevNode(recordId: string, nodeId: string): Promise<{ ok?: true; error?: string }> {
+  const user = await getSessionUser();
+  if (!user) return { error: "ログインしてください" };
+
+  const rec = await prisma.serviceRecord.findUnique({
+    where: { id: recordId },
+    select: { id: true, dealerId: true, devMode: true, devFreeChoice: true, devCurrentNodeId: true },
+  });
+  if (!rec) return { error: "記録が見つかりません" };
+  const isHQ = user.role === "HQ_ADMIN";
+  if (!isHQ && user.dealerId !== rec.dealerId) return { error: "権限がありません" };
+  if (!rec.devMode) return { error: "開発モードが有効ではありません" };
+  if (!isHQ && !rec.devFreeChoice) return { error: "この案件ではノードの選択は本部のみ可能です" };
+
+  const node = await prisma.devNode.findUnique({
+    where: { id: nodeId },
+    select: { id: true, recordId: true, label: true },
+  });
+  if (!node || node.recordId !== recordId) return { error: "ノードが不正です" };
+  if (rec.devCurrentNodeId === nodeId) return { ok: true };
+
+  await prisma.$transaction([
+    prisma.serviceRecord.update({ where: { id: recordId }, data: { devCurrentNodeId: nodeId } }),
+    // 切り替えもタイムラインに残す（どれを焼いたか分からなくなるのを防ぐ）
+    prisma.recordMessage.create({
+      data: {
+        serviceRecordId: recordId,
+        authorId: user.id,
+        authorRole: user.role,
+        body: `【開発】「${node.label}」に切り替えました`,
+      },
+    }),
+  ]);
+  reval(recordId);
+  return { ok: true };
+}
+
 // ── 本部: ノード追加（modのbinをアップロード） ──
 export async function addDevNode(
   recordId: string,

@@ -596,6 +596,7 @@ export default async function HQRecordDetailPage({
         <DevTreeTool
           recordId={record.id}
           devMode={record.devMode}
+          devFreeChoice={record.devFreeChoice}
           currentNodeId={record.devCurrentNodeId}
           nodes={devNodeRows}
           trials={devTrialRows}

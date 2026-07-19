@@ -1,0 +1,1 @@
+ALTER TABLE "ServiceRecord" ADD COLUMN "devFreeChoice" BOOLEAN NOT NULL DEFAULT false;

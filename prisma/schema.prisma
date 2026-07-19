@@ -263,6 +263,8 @@ model ServiceRecord {
   // 実車開発モード: ONのとき代理店の記録詳細に開発カード（現在ノード＋良い/ダメ報告）を表示
   devMode          Boolean @default(false)
   devCurrentNodeId String?
+  // true = 代理店が自分でツリー内のノードを選んで切り替えられる（本部が許可制でON）
+  devFreeChoice    Boolean @default(false)
   // 左右ECU: メイン（この記録の既存フィールド）側の表示ラベル。2基目は RecordEcuSide。
   primarySide      String  @default("左")
   // 対象ユニット "ECU" | "TCU"。同時施工での取り違え防止（表示・ファイル名に使用）。

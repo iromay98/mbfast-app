@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { SlaveDownloadButton } from "@/components/slave-download-button";
-import { reportDevResult } from "@/lib/actions/dev-tree";
+import { reportDevResult, selectDevNode } from "@/lib/actions/dev-tree";
 
 // 代理店: 実車開発モードのカード。現在ノードのDL＋「良い/ダメ」報告で次のファイルが開放される。
 export function DevReportCard({
@@ -12,12 +12,19 @@ export function DevReportCard({
   nodeNote,
   hasFile,
   isEnd, // 両方の分岐が未設定（＝これが最後の候補）
+  freeChoice = false,
+  nodeOptions = [],
+  currentNodeId = null,
 }: {
   recordId: string;
   nodeLabel: string;
   nodeNote: string | null;
   hasFile: boolean;
   isEnd: boolean;
+  // 本部が許可した場合のみ: ツリー内のノードを自分で選んで切り替えられる
+  freeChoice?: boolean;
+  nodeOptions?: { id: string; label: string }[];
+  currentNodeId?: string | null;
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
@@ -49,6 +56,32 @@ export function DevReportCard({
         <span className="text-sm font-semibold">{nodeLabel}</span>
       </div>
       {nodeNote && <p className="text-xs text-ink-soft">{nodeNote}</p>}
+
+      {freeChoice && nodeOptions.length > 1 && (
+        <div className="flex flex-wrap items-center gap-2 rounded-lg border border-dashed border-line p-2">
+          <span className="text-[11px] text-ink-soft">別の候補に切り替え（本部が許可済み）:</span>
+          <select
+            value={currentNodeId ?? ""}
+            disabled={pending}
+            onChange={(e) => {
+              const id = e.target.value;
+              if (!id || id === currentNodeId) return;
+              start(async () => {
+                const r = await selectDevNode(recordId, id);
+                setMsg(r.error ?? null);
+                router.refresh();
+              });
+            }}
+            className="rounded border border-line bg-surface px-2 py-1 text-xs"
+          >
+            {nodeOptions.map((n) => (
+              <option key={n.id} value={n.id}>
+                {n.label}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
 
       {hasFile ? (
         <SlaveDownloadButton
