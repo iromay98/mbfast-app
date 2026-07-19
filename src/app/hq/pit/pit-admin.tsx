@@ -150,6 +150,7 @@ function StoreMaster({ stores, dealers }: { stores: StoreRow[]; dealers: DealerO
         </button>
       </div>
 
+      <div className="overflow-x-auto">
       <table className="w-full text-xs">
         <thead className="text-left text-[11px] text-ink-soft">
           <tr>
@@ -187,6 +188,7 @@ function StoreMaster({ stores, dealers }: { stores: StoreRow[]; dealers: DealerO
           )}
         </tbody>
       </table>
+      </div>
 
       {editing && (
         <div className="mt-3 rounded-lg border border-line bg-surface-2 p-3">
