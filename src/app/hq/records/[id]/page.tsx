@@ -7,6 +7,7 @@ import {
   requestStatusLabels,
   requestStatusColors,
   formatDate,
+  formatDateTime,
 } from "@/lib/labels";
 import { PageTitle, Card, Badge, LinkButton } from "@/components/ui";
 import { RecordDetail } from "@/components/record-detail";
@@ -23,6 +24,7 @@ import { DeleteRecordButton } from "./delete-record-button";
 import { RecordCustomerEdit } from "./record-customer-edit";
 import { RecordVehicleEdit } from "./record-vehicle-edit";
 import { RecordWorkedAtEdit } from "./record-workedat-edit";
+import { DevTreeTool, type DevNodeRow, type DevTrialRow } from "./dev-tree-tool";
 import { EcuEditForm } from "./ecu-edit-form";
 import { ReidentifyEcuButton } from "./reidentify-ecu-button";
 import { RecordTunedEdit } from "./record-tuned-edit";
@@ -90,6 +92,34 @@ export default async function HQRecordDetailPage({
       downloadedAt: true,
     },
   });
+
+  // 実車開発モード（開発ツリー）
+  const devNodes = await prisma.devNode.findMany({
+    where: { recordId: id },
+    orderBy: { sortOrder: "asc" },
+  });
+  const devTrials = await prisma.devTrial.findMany({
+    where: { recordId: id },
+    orderBy: { createdAt: "desc" },
+    take: 30,
+    include: { node: { select: { label: true } } },
+  });
+  const devNodeRows: DevNodeRow[] = devNodes.map((n) => ({
+    id: n.id,
+    label: n.label,
+    note: n.note,
+    fileName: n.fileName,
+    hasFile: !!n.filePath,
+    okNextId: n.okNextId,
+    ngNextId: n.ngNextId,
+  }));
+  const devTrialRows: DevTrialRow[] = devTrials.map((t) => ({
+    id: t.id,
+    nodeLabel: t.node.label,
+    result: t.result,
+    comment: t.comment,
+    createdAtLabel: formatDateTime(t.createdAt),
+  }));
   const recordActivity = await getRecordActivity(id);
   const serviceLogs = (
     await prisma.serviceLog.findMany({
@@ -501,6 +531,20 @@ export default async function HQRecordDetailPage({
       {/* 本部encrypt・純正に戻す(ori)のカードは廃止:
           encrypt はチャットの「slaveに変換」(マップ/bak) で、
           ori はバリエーション登録のファイル段（⬇slave=アップ時の焼ける純正 / ⬇bin=復号純正）で行う。 */}
+
+      <Card>
+        <h3 className="mb-1 text-sm font-bold text-ink">実車開発モード（開発ツリー）</h3>
+        <p className="mb-2 text-xs text-ink-soft">
+          候補ファイルをツリー状に繋ぎ、代理店の「良い/ダメ」報告で次の候補を自動開放します。配布は通常どおり .slave のみ。
+        </p>
+        <DevTreeTool
+          recordId={record.id}
+          devMode={record.devMode}
+          currentNodeId={record.devCurrentNodeId}
+          nodes={devNodeRows}
+          trials={devTrialRows}
+        />
+      </Card>
 
       <RecordThread
         recordId={record.id}

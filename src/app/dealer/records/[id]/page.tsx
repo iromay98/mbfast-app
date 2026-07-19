@@ -18,6 +18,7 @@ import { MessageNotifier } from "@/components/message-notifier";
 import { RetryDecryptButton } from "@/components/retry-decrypt-button";
 import { updateRecordSupplement } from "@/lib/actions/records";
 import { SupplementForm } from "./supplement-form";
+import { DevReportCard } from "./dev-report-card";
 import { TuningConfigurator } from "./tuning-configurator";
 import { SlaveDownloadButton } from "@/components/slave-download-button";
 import { fuelKindOf, optionTagsFor, popsAllowed, stageRank, baselineStages, tuningContentLabel } from "@/lib/catalog/options";
@@ -167,6 +168,16 @@ export default async function DealerRecordDetailPage({
     inspectionExpiry: record.inspectionExpiry,
   };
 
+  // 実車開発モード: 現在ノード（代理店にはこれだけ見せる）
+  const devNode =
+    record.devMode && record.devCurrentNodeId
+      ? await prisma.devNode.findUnique({
+          where: { id: record.devCurrentNodeId },
+          select: { id: true, recordId: true, label: true, note: true, filePath: true, okNextId: true, ngNextId: true },
+        })
+      : null;
+  const devCard = devNode && devNode.recordId === record.id ? devNode : null;
+
   return (
     <div className="space-y-4">
       <PageTitle
@@ -249,6 +260,23 @@ export default async function DealerRecordDetailPage({
               </div>
             </div>
           )}
+        </Card>
+      )}
+
+      {/* 実車開発モード: 現在の候補ファイルと結果報告 */}
+      {devCard && (
+        <Card className="border-violet-200 bg-violet-50/60">
+          <h3 className="mb-1 text-sm font-bold text-ink">実車開発（本部と共同作業中）</h3>
+          <p className="mb-2 text-xs text-ink-soft">
+            この車両は開発モードです。以下のファイルを焼いて試し、結果を報告してください。
+          </p>
+          <DevReportCard
+            recordId={record.id}
+            nodeLabel={devCard.label}
+            nodeNote={devCard.note}
+            hasFile={!!devCard.filePath}
+            isEnd={!devCard.okNextId && !devCard.ngNextId}
+          />
         </Card>
       )}
 

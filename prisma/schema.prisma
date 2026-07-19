@@ -260,6 +260,9 @@ model ServiceRecord {
   backupSupported Boolean? // ← decrypt: backup_supported（true=リアル読み→純正復元は backup / false=ヴァーチャル→ori）
   // アップしたスレーブが既にチューニング済みか。true=純正ではない（ori扱いしない・カタログ自動取込しない）。
   isTuned         Boolean  @default(false)
+  // 実車開発モード: ONのとき代理店の記録詳細に開発カード（現在ノード＋良い/ダメ報告）を表示
+  devMode          Boolean @default(false)
+  devCurrentNodeId String?
   // 対象ユニット "ECU" | "TCU"。同時施工での取り違え防止（表示・ファイル名に使用）。
   unit            String   @default("ECU")
   // チューンド車用: 本店が事前アップする純正(ori)bin。代理店はこれを ori .slave でいつでもDLできる。
@@ -319,6 +322,7 @@ model ServiceRecord {
   @@index([swNumber])
   @@index([calNumber])
   hqFiles RecordHqFile[]
+  devNodes DevNode[]
 
 }
 
@@ -733,4 +737,39 @@ model PitPost {
 
   @@index([storeId, createdAt])
   @@index([status])
+}
+
+// ── 実車開発モード（開発ツリー） ──
+// 本部が候補ファイルをツリー状に繋ぎ、代理店の「良い/ダメ」報告で次のノードを開放する。
+model DevNode {
+  id        String        @id @default(cuid())
+  recordId  String
+  record    ServiceRecord @relation(fields: [recordId], references: [id], onDelete: Cascade)
+  label     String // 「①ベース仕様」
+  note      String? // 何を変えたか・現場で見てほしい点
+  filePath  String? // チューニング済みbin（mod）。slave化はDL時に行う
+  fileName  String?
+  fileHash  String?
+  okNextId  String? // 良ければ次へ
+  ngNextId  String? // ダメなら次へ
+  sortOrder Int           @default(0)
+  createdAt DateTime      @default(now())
+
+  trials DevTrial[]
+
+  @@index([recordId, sortOrder])
+}
+
+// 試行ログ（どのノードをいつ試して結果がどうだったか）
+model DevTrial {
+  id        String   @id @default(cuid())
+  recordId  String
+  nodeId    String
+  node      DevNode  @relation(fields: [nodeId], references: [id], onDelete: Cascade)
+  result    String // ok | ng
+  comment   String?
+  byUserId  String?
+  createdAt DateTime @default(now())
+
+  @@index([recordId, createdAt])
 }
