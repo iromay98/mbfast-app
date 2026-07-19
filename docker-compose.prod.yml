@@ -44,6 +44,11 @@ services:
       ANTHROPIC_API_KEY: "${ANTHROPIC_API_KEY:-}"
       ANTHROPIC_MODEL_FAST: "${ANTHROPIC_MODEL_FAST:-claude-haiku-4-5-20251001}"
       ANTHROPIC_MODEL_STRONG: "${ANTHROPIC_MODEL_STRONG:-claude-opus-4-8}"
+      # mbPIT（施工記録→自動ブログ公開）
+      WP_BASE_URL: "${WP_BASE_URL:-https://mbfasttuning.com}"
+      WP_USER: "${WP_USER:-}"
+      WP_APP_PASSWORD: "${WP_APP_PASSWORD:-}"
+      PIT_ARTICLE_MODEL: "${PIT_ARTICLE_MODEL:-claude-opus-4-8}"
       AUTOTUNER_API_BASE: "${AUTOTUNER_API_BASE:-https://api.autotuner-tool.com/v2/api/v1/master}"
       AUTOTUNER_ID: "${AUTOTUNER_ID:-}"
       AUTOTUNER_API_KEY: "${AUTOTUNER_API_KEY:-}"
