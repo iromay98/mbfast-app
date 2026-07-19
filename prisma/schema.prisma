@@ -263,6 +263,8 @@ model ServiceRecord {
   // 実車開発モード: ONのとき代理店の記録詳細に開発カード（現在ノード＋良い/ダメ報告）を表示
   devMode          Boolean @default(false)
   devCurrentNodeId String?
+  // 左右ECU: メイン（この記録の既存フィールド）側の表示ラベル。2基目は RecordEcuSide。
+  primarySide      String  @default("左")
   // 対象ユニット "ECU" | "TCU"。同時施工での取り違え防止（表示・ファイル名に使用）。
   unit            String   @default("ECU")
   // チューンド車用: 本店が事前アップする純正(ori)bin。代理店はこれを ori .slave でいつでもDLできる。
@@ -323,6 +325,7 @@ model ServiceRecord {
   @@index([calNumber])
   hqFiles RecordHqFile[]
   devNodes DevNode[]
+  ecuSides RecordEcuSide[]
 
 }
 
@@ -772,4 +775,25 @@ model DevTrial {
   createdAt DateTime @default(now())
 
   @@index([recordId, createdAt])
+}
+
+// ── 左右ECU（1台に2基のECUがある車） ──
+// 記録は1つにまとめ、bak系（フルバックアップ）だけ側ごとに分ける。
+// キャリブレーション(.slave)は左右共通のため、既存のメインID（=primarySide側）をそのまま使う。
+model RecordEcuSide {
+  id               String        @id @default(cuid())
+  recordId         String
+  record           ServiceRecord @relation(fields: [recordId], references: [id], onDelete: Cascade)
+  side             String // 「左」「右」等の表示ラベル（primarySideと重複不可）
+  slaveFilePath    String // この側のスレーブ
+  slaveHash        String?
+  ecuType          String?
+  backupSupported  Boolean?
+  autotunerSlaveId String?
+  autotunerEcuId   Int?
+  autotunerModelId Int?
+  autotunerMcuId   String?
+  createdAt        DateTime      @default(now())
+
+  @@unique([recordId, side])
 }

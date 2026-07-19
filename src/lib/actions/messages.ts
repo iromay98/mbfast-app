@@ -144,6 +144,7 @@ export async function postRecordMessage(
           workedAt: true,
           unit: true,
           backupSupported: true,
+          primarySide: true,
           dealer: { select: { name: true } },
           matchedBaseFile: {
             select: { model: true, generation: true, calNumber: true, method: true, tool: true, },
@@ -160,7 +161,33 @@ export async function postRecordMessage(
       // 種類: maps=マップのみ（既定） / backup=ECU全内容（bak・マップスイッチ用）
       const mode =
         formData.get("encryptMode") === "backup" ? ("backup" as const) : ("maps" as const);
-      if (mode === "backup" && rec?.backupSupported === false) {
+      // 左右ECU: bak のときだけ側を選べる（encryptSide=RecordEcuSide.id）。cal(.slave)は左右共通。
+      const sideId = String(formData.get("encryptSide") ?? "").trim();
+      let encSide: { side: string; backupSupported: boolean | null; ids: { slaveId: string; ecuId: number; modelId: number; mcuId: string } } | null = null;
+      if (mode === "backup" && sideId) {
+        const sr = await prisma.recordEcuSide.findUnique({
+          where: { id: sideId },
+          select: {
+            recordId: true,
+            side: true,
+            backupSupported: true,
+            autotunerSlaveId: true,
+            autotunerEcuId: true,
+            autotunerModelId: true,
+            autotunerMcuId: true,
+          },
+        });
+        if (!sr || sr.recordId !== recordId) return { error: "側の指定が不正です" };
+        if (!sr.autotunerSlaveId || sr.autotunerEcuId == null || sr.autotunerModelId == null || !sr.autotunerMcuId) {
+          return { error: "この側には暗号化IDがありません" };
+        }
+        encSide = {
+          side: sr.side,
+          backupSupported: sr.backupSupported,
+          ids: { slaveId: sr.autotunerSlaveId, ecuId: sr.autotunerEcuId, modelId: sr.autotunerModelId, mcuId: sr.autotunerMcuId },
+        };
+      }
+      if (mode === "backup" && (encSide ? encSide.backupSupported : rec?.backupSupported) === false) {
         return { error: "このECUは backup（フル読み書き）に対応していないため bak は作れません。" };
       }
       // アップされたファイルはそのまま AutoTuner へ渡す（zipもそのまま。
@@ -169,7 +196,11 @@ export async function postRecordMessage(
       const innerName: string | null = file.name || null;
       let slaveData: Buffer;
       try {
-        const enc = await encryptSlave(tuned, { slaveId, ecuId, modelId, mcuId }, { recordId, mode });
+        const enc = await encryptSlave(
+          tuned,
+          encSide ? encSide.ids : { slaveId, ecuId, modelId, mcuId },
+          { recordId, mode },
+        );
         slaveData = enc.slaveData;
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
@@ -196,7 +227,7 @@ export async function postRecordMessage(
             cal: rec?.matchedBaseFile?.calNumber, // 本店なので Cal も付与
             method: rec?.matchedBaseFile?.method,
             tool: rec?.matchedBaseFile?.tool ?? undefined,
-            content: mode === "backup" ? `${contentBase}_bak` : contentBase,
+            content: mode === "backup" ? `${contentBase}_bak${encSide ? `_${encSide.side}` : ""}` : contentBase,
             unit: rec?.unit,
             ext: "slave",
             dealerName: rec?.dealer?.name,

@@ -18,11 +18,16 @@ export function MessageComposer({
   recordId,
   canEncrypt = false,
   backupSupported = false,
+  ecuSides = [],
+  primarySide = "左",
 }: {
   recordId: string;
   canEncrypt?: boolean;
   // このECUが backup(フル読み書き) 対応か。true のとき slave変換で bak(フル) を選べる。
   backupSupported?: boolean;
+  // 左右ECU車: 2基目側の一覧（bak変換の宛先選択に使う）。空なら従来どおり。
+  ecuSides?: { id: string; side: string }[];
+  primarySide?: string;
 }) {
   const [state, formAction, pending] = useActionState(
     postRecordMessage.bind(null, recordId),
@@ -200,6 +205,20 @@ export function MessageComposer({
               );
             })}
             <input type="hidden" name="encryptMode" value={encryptMode} />
+            {encryptMode === "backup" && ecuSides.length > 0 && (
+              <select
+                name="encryptSide"
+                className="rounded-lg border border-line bg-white px-2 py-1 text-xs font-semibold"
+                title="左右ECU車: bakをどちらのECU用に暗号化するか"
+              >
+                <option value="">{primarySide}（メイン）</option>
+                {ecuSides.map((sd) => (
+                  <option key={sd.id} value={sd.id}>
+                    {sd.side}
+                  </option>
+                ))}
+              </select>
+            )}
           </div>
           <label className="flex items-center gap-2 text-xs text-ink-soft">
             <span className="shrink-0">ファイル名（任意）</span>

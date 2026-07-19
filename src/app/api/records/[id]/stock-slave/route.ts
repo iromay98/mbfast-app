@@ -36,6 +36,8 @@ export async function GET(
       backupSupported: true,
       isTuned: true,
       unit: true,
+      primarySide: true,
+      ecuSides: { select: { id: true } },
       dealer: { select: { name: true } },
       matchedBaseFile: {
         select: { model: true, generation: true, calNumber: true, method: true, tool: true, },
@@ -51,6 +53,38 @@ export async function GET(
   // 元スレーブを decrypt(backup) してフルの純正バックアップを得て、それを encrypt(backup)。
   const mode = request.nextUrl.searchParams.get("mode") === "backup" ? "backup" : "maps";
 
+  // 左右ECU: side=<RecordEcuSide.id> で2基目のbakを指定。cal(.slave)は左右共通なので maps では不可。
+  const sideParam = request.nextUrl.searchParams.get("side");
+  let sideRow: {
+    id: string;
+    recordId: string;
+    side: string;
+    slaveFilePath: string;
+    backupSupported: boolean | null;
+    autotunerSlaveId: string | null;
+    autotunerEcuId: number | null;
+    autotunerModelId: number | null;
+    autotunerMcuId: string | null;
+  } | null = null;
+  if (sideParam) {
+    if (mode !== "backup") return new Response("側の指定は bak のみ有効です", { status: 400 });
+    sideRow = await prisma.recordEcuSide.findUnique({
+      where: { id: sideParam },
+      select: {
+        id: true,
+        recordId: true,
+        side: true,
+        slaveFilePath: true,
+        backupSupported: true,
+        autotunerSlaveId: true,
+        autotunerEcuId: true,
+        autotunerModelId: true,
+        autotunerMcuId: true,
+      },
+    });
+    if (!sideRow || sideRow.recordId !== recordId) return new Response("Not Found", { status: 404 });
+  }
+
   // ori の実体:
   //   通常（純正読み）  → 復号ファイル（その車から読んだ元の中身）
   //   チューニング済み車 → 本店が事前アップした純正bin（読んだ中身は純正でないため）
@@ -64,10 +98,11 @@ export async function GET(
       { status: 409 },
     );
   }
-  const slaveId = record.autotunerSlaveId;
-  const ecuId = record.autotunerEcuId;
-  const modelId = record.autotunerModelId;
-  const mcuId = record.autotunerMcuId;
+  const idsSrc = sideRow ?? record;
+  const slaveId = idsSrc.autotunerSlaveId;
+  const ecuId = idsSrc.autotunerEcuId;
+  const modelId = idsSrc.autotunerModelId;
+  const mcuId = idsSrc.autotunerMcuId;
   if (!slaveId || ecuId == null || modelId == null || !mcuId) {
     return new Response("この記録には暗号化に必要な情報がありません", { status: 409 });
   }
@@ -79,22 +114,24 @@ export async function GET(
         { status: 409 },
       );
     }
-    if (record.backupSupported === false) {
+    if ((sideRow ? sideRow.backupSupported : record.backupSupported) === false) {
       return new Response("このECUは backup（フル読み書き）に対応していません", { status: 412 });
     }
-    if (!record.slaveFilePath) return new Response("Not Found", { status: 404 });
+    const bakSlavePath = sideRow ? sideRow.slaveFilePath : record.slaveFilePath;
+    if (!bakSlavePath) return new Response("Not Found", { status: 404 });
     const bakCache = `records/stock-encrypted/${recordId}__${slaveId}__bak.slave`;
     let bakSlave = (await storage.read(bakCache))?.buffer ?? null;
     if (!bakSlave) {
       // 純正のフルバックアップ（decrypt mode=backup）。既存キャッシュがあれば使う。
-      let bakBin = (await storage.read(`decrypted-bak/${recordId}.bin`))?.buffer ?? null;
+      const bakBinKey = sideRow ? `decrypted-bak/${recordId}__${sideRow.id}.bin` : `decrypted-bak/${recordId}.bin`;
+      let bakBin = (await storage.read(bakBinKey))?.buffer ?? null;
       if (!bakBin) {
-        const slave = await storage.read(record.slaveFilePath);
+        const slave = await storage.read(bakSlavePath);
         if (!slave) return new Response("Not Found", { status: 404 });
         try {
           const dec = await decryptSlave(slave.buffer, { recordId, mode: "backup" });
           bakBin = dec.decryptedData;
-          await storage.save(`decrypted-bak/${recordId}.bin`, bakBin, "application/octet-stream");
+          await storage.save(bakBinKey, bakBin, "application/octet-stream");
         } catch (e) {
           const msg = e instanceof Error ? e.message : String(e);
           return new Response(`bak復号に失敗しました: ${msg}`, { status: 502 });
@@ -127,7 +164,7 @@ export async function GET(
       generation: record.matchedBaseFile?.generation,
       method: record.matchedBaseFile?.method,
       tool: record.matchedBaseFile?.tool ?? undefined,
-      content: "ori_bak",
+      content: `ori_bak${sideRow ? `_${sideRow.side}` : record.ecuSides.length > 0 ? `_${record.primarySide}` : ""}`,
       unit: record.unit,
       ext: "slave",
       dealerName: record.dealer?.name,

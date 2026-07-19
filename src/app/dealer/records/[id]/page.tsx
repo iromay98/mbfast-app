@@ -19,6 +19,7 @@ import { RetryDecryptButton } from "@/components/retry-decrypt-button";
 import { updateRecordSupplement } from "@/lib/actions/records";
 import { SupplementForm } from "./supplement-form";
 import { DevReportCard } from "./dev-report-card";
+import { EcuSidesCard, type EcuSideRow } from "@/components/ecu-sides-card";
 import { TuningConfigurator } from "./tuning-configurator";
 import { SlaveDownloadButton } from "@/components/slave-download-button";
 import { fuelKindOf, optionTagsFor, popsAllowed, stageRank, baselineStages, tuningContentLabel } from "@/lib/catalog/options";
@@ -168,6 +169,13 @@ export default async function DealerRecordDetailPage({
     inspectionExpiry: record.inspectionExpiry,
   };
 
+  // 左右ECU
+  const ecuSides: EcuSideRow[] = await prisma.recordEcuSide.findMany({
+    where: { recordId: record.id },
+    orderBy: { createdAt: "asc" },
+    select: { id: true, side: true, ecuType: true, backupSupported: true },
+  });
+
   // 実車開発モード: 現在ノード（代理店にはこれだけ見せる）
   const devNode =
     record.devMode && record.devCurrentNodeId
@@ -231,10 +239,21 @@ export default async function DealerRecordDetailPage({
                 {!record.isTuned && record.backupSupported && (
                   <SlaveDownloadButton
                     href={`/api/records/${record.id}/stock-slave?mode=backup`}
-                    label="⬇ 純正(ori) bak（フル）"
+                    label={ecuSides.length > 0 ? `⬇ 純正(ori) bak ${record.primarySide}` : "⬇ 純正(ori) bak（フル）"}
                     className="inline-flex items-center rounded-full bg-sky-600 px-3.5 py-2 text-xs font-extrabold text-white shadow-sm hover:bg-sky-700 disabled:opacity-70"
                   />
                 )}
+                {!record.isTuned &&
+                  ecuSides
+                    .filter((sd) => sd.backupSupported !== false)
+                    .map((sd) => (
+                      <SlaveDownloadButton
+                        key={sd.id}
+                        href={`/api/records/${record.id}/stock-slave?mode=backup&side=${sd.id}`}
+                        label={`⬇ 純正(ori) bak ${sd.side}`}
+                        className="inline-flex items-center rounded-full bg-sky-600 px-3.5 py-2 text-xs font-extrabold text-white shadow-sm hover:bg-sky-700 disabled:opacity-70"
+                      />
+                    ))}
               </div>
             </div>
           )}
@@ -262,6 +281,11 @@ export default async function DealerRecordDetailPage({
           )}
         </Card>
       )}
+
+      {/* 左右ECU（2基ECU車のみ意味を持つ。未設定なら折りたたみリンク） */}
+      <Card>
+        <EcuSidesCard recordId={record.id} primarySide={record.primarySide} sides={ecuSides} isHQ={false} />
+      </Card>
 
       {/* 実車開発モード: 現在の候補ファイルと結果報告 */}
       {devCard && (

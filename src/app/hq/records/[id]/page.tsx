@@ -26,6 +26,7 @@ import { RecordVehicleEdit } from "./record-vehicle-edit";
 import { RecordWorkedAtEdit } from "./record-workedat-edit";
 import { DevTreeTool, type DevNodeRow, type DevTrialRow, type DevSourceRow } from "./dev-tree-tool";
 import { composeContent } from "@/server/catalog/filename";
+import { EcuSidesCard, type EcuSideRow, type MergeCandidate } from "@/components/ecu-sides-card";
 import { EcuEditForm } from "./ecu-edit-form";
 import { ReidentifyEcuButton } from "./reidentify-ecu-button";
 import { RecordTunedEdit } from "./record-tuned-edit";
@@ -144,6 +145,29 @@ export default async function HQRecordDetailPage({
       ` v${v.version}${v.label ? `(${v.label})` : ""}` +
       `${v.variant.currentVersionId === v.id ? " [現行]" : ""}${v.variant.deletedAt ? " [アーカイブ]" : ""}`,
   }));
+
+  // 左右ECU
+  const ecuSides = await prisma.recordEcuSide.findMany({
+    where: { recordId: id },
+    orderBy: { createdAt: "asc" },
+    select: { id: true, side: true, ecuType: true, backupSupported: true },
+  });
+  const ecuSideRows: EcuSideRow[] = ecuSides;
+  // 統合候補: 同じ代理店の他記録（スレーブあり）
+  const mergeCandidatesRaw =
+    ecuSides.length === 0
+      ? await prisma.serviceRecord.findMany({
+          where: { dealerId: record.dealerId, id: { not: id }, slaveFilePath: { not: null } },
+          orderBy: { createdAt: "desc" },
+          take: 30,
+          select: { id: true, carModel: true, customerName: true, createdAt: true },
+        })
+      : [];
+  const mergeCandidates: MergeCandidate[] = mergeCandidatesRaw.map((r) => ({
+    id: r.id,
+    label: `${r.carModel ?? "車種未確定"} / ${r.customerName ?? "顧客名なし"} / ${formatDate(r.createdAt)}`,
+  }));
+
   const recordActivity = await getRecordActivity(id);
   const serviceLogs = (
     await prisma.serviceLog.findMany({
@@ -571,11 +595,23 @@ export default async function HQRecordDetailPage({
         />
       </Card>
 
+      <Card>
+        <EcuSidesCard
+          recordId={record.id}
+          primarySide={record.primarySide}
+          sides={ecuSideRows}
+          isHQ
+          mergeCandidates={mergeCandidates}
+        />
+      </Card>
+
       <RecordThread
         recordId={record.id}
         messages={messages}
         viewerRole="HQ_ADMIN"
         viewerId={viewer.id}
+        ecuSides={ecuSideRows.map((sd) => ({ id: sd.id, side: sd.side }))}
+        primarySide={record.primarySide}
         canEncrypt={
           !!record.autotunerSlaveId &&
           record.autotunerEcuId != null &&

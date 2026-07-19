@@ -25,6 +25,8 @@ export function RecordThread({
   viewerId,
   canEncrypt = false,
   backupSupported = false,
+  ecuSides = [],
+  primarySide = "左",
 }: {
   recordId: string;
   messages: ThreadMessage[];
@@ -32,6 +34,8 @@ export function RecordThread({
   viewerId: string;
   canEncrypt?: boolean;
   backupSupported?: boolean;
+  ecuSides?: { id: string; side: string }[];
+  primarySide?: string;
 }) {
   // 新しいものを上に（OLSX同様）
   const ordered = [...messages].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
@@ -50,7 +54,7 @@ export function RecordThread({
 
       {/* 入力は上（すぐ送れる） */}
       <div className="border-b border-line bg-surface-2/50 px-4 py-3">
-        <MessageComposer recordId={recordId} canEncrypt={canEncrypt} backupSupported={backupSupported} />
+        <MessageComposer recordId={recordId} canEncrypt={canEncrypt} backupSupported={backupSupported} ecuSides={ecuSides} primarySide={primarySide} />
       </div>
 
       {/* イベントカードの縦タイムライン */}
