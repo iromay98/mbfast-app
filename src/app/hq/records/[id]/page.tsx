@@ -24,7 +24,8 @@ import { DeleteRecordButton } from "./delete-record-button";
 import { RecordCustomerEdit } from "./record-customer-edit";
 import { RecordVehicleEdit } from "./record-vehicle-edit";
 import { RecordWorkedAtEdit } from "./record-workedat-edit";
-import { DevTreeTool, type DevNodeRow, type DevTrialRow } from "./dev-tree-tool";
+import { DevTreeTool, type DevNodeRow, type DevTrialRow, type DevSourceRow } from "./dev-tree-tool";
+import { composeContent } from "@/server/catalog/filename";
 import { EcuEditForm } from "./ecu-edit-form";
 import { ReidentifyEcuButton } from "./reidentify-ecu-button";
 import { RecordTunedEdit } from "./record-tuned-edit";
@@ -119,6 +120,29 @@ export default async function HQRecordDetailPage({
     result: t.result,
     comment: t.comment,
     createdAtLabel: formatDateTime(t.createdAt),
+  }));
+  // 過去のバリエーション版（この車のBaseFile配下・全バージョン）をノード候補として出す
+  const devVersionRows = record.matchedBaseFileId
+    ? await prisma.tunedVariantVersion.findMany({
+        where: { variant: { baseFileId: record.matchedBaseFileId } },
+        orderBy: [{ replacedAt: "desc" }],
+        take: 100,
+        select: {
+          id: true,
+          version: true,
+          label: true,
+          variant: {
+            select: { stage: true, popsAndBangs: true, optionTags: true, popsSport: true, deletedAt: true, currentVersionId: true },
+          },
+        },
+      })
+    : [];
+  const devSources: DevSourceRow[] = devVersionRows.map((v) => ({
+    versionId: v.id,
+    label:
+      `${composeContent(v.variant.stage, v.variant.popsAndBangs, v.variant.optionTags, v.variant.popsSport)}` +
+      ` v${v.version}${v.label ? `(${v.label})` : ""}` +
+      `${v.variant.currentVersionId === v.id ? " [現行]" : ""}${v.variant.deletedAt ? " [アーカイブ]" : ""}`,
   }));
   const recordActivity = await getRecordActivity(id);
   const serviceLogs = (
@@ -543,6 +567,7 @@ export default async function HQRecordDetailPage({
           currentNodeId={record.devCurrentNodeId}
           nodes={devNodeRows}
           trials={devTrialRows}
+          sources={devSources}
         />
       </Card>
 

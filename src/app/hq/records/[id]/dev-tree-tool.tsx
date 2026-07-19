@@ -1,9 +1,10 @@
 "use client";
 
-import { useRef, useState, useTransition } from "react";
+import { useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
   addDevNode,
+  addDevNodeFromVersion,
   deleteDevNode,
   setDevCurrent,
   setDevMode,
@@ -26,6 +27,8 @@ export type DevTrialRow = {
   comment: string | null;
   createdAtLabel: string;
 };
+// 過去のバリエーション版（この車に適合するBaseFile配下）
+export type DevSourceRow = { versionId: string; label: string };
 
 // 本部: 実車開発モードのツリー構築・進行管理
 export function DevTreeTool({
@@ -34,17 +37,18 @@ export function DevTreeTool({
   currentNodeId,
   nodes,
   trials,
+  sources,
 }: {
   recordId: string;
   devMode: boolean;
   currentNodeId: string | null;
   nodes: DevNodeRow[];
   trials: DevTrialRow[];
+  sources: DevSourceRow[];
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
   const [msg, setMsg] = useState<string | null>(null);
-  const formRef = useRef<HTMLFormElement>(null);
 
   const run = (fn: () => Promise<{ ok?: true; error?: string }>) =>
     start(async () => {
@@ -52,8 +56,6 @@ export function DevTreeTool({
       setMsg(r.error ?? null);
       router.refresh();
     });
-
-  const nodeName = (id: string | null) => nodes.find((n) => n.id === id)?.label ?? "—";
 
   return (
     <div className="space-y-3">
@@ -70,7 +72,10 @@ export function DevTreeTool({
         {msg && <span className="text-xs text-red-600">{msg}</span>}
       </div>
 
-      {/* ノード一覧 */}
+      {/* ツリー表示 */}
+      {nodes.length > 0 && <TreeView nodes={nodes} currentNodeId={currentNodeId} />}
+
+      {/* ノード一覧（編集） */}
       {nodes.length > 0 && (
         <div className="overflow-x-auto">
           <table className="w-full text-xs">
@@ -95,9 +100,7 @@ export function DevTreeTool({
                   </td>
                   <td className="max-w-[10rem] truncate font-mono text-[11px]">
                     {n.hasFile ? (
-                      <a href={`/api/records/${recordId}/dev-file?raw=1`} className={n.id === currentNodeId ? "text-sky-700 hover:underline" : "text-ink-soft"} title={n.fileName ?? ""}>
-                        {n.fileName ?? "あり"}
-                      </a>
+                      <span title={n.fileName ?? ""}>{n.fileName ?? "あり"}</span>
                     ) : (
                       <span className="text-red-600">未添付</span>
                     )}
@@ -128,29 +131,7 @@ export function DevTreeTool({
         </div>
       )}
 
-      {/* ノード追加 */}
-      <form
-        ref={formRef}
-        onSubmit={(e) => {
-          e.preventDefault();
-          const fd = new FormData(e.currentTarget);
-          run(async () => {
-            const r = await addDevNode(recordId, fd);
-            if (!r.error) formRef.current?.reset();
-            return r;
-          });
-        }}
-        className="grid gap-2 rounded-lg border border-line bg-surface-2 p-2 md:grid-cols-4"
-      >
-        <input name="label" required placeholder="ラベル（例: ②点火控えめ）" className="rounded border border-line bg-surface px-2 py-1 text-xs" />
-        <input name="note" placeholder="メモ（何を変えたか・見てほしい点）" className="rounded border border-line bg-surface px-2 py-1 text-xs md:col-span-2" />
-        <div className="flex items-center gap-2">
-          <input name="file" type="file" className="w-full text-[11px]" />
-          <button type="submit" disabled={pending} className="whitespace-nowrap rounded-lg bg-gold-500 px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50">
-            追加
-          </button>
-        </div>
-      </form>
+      <AddNodeForm recordId={recordId} sources={sources} pending={pending} onRun={run} />
 
       {/* 試行ログ */}
       {trials.length > 0 && (
@@ -170,9 +151,183 @@ export function DevTreeTool({
       )}
 
       <p className="text-[11px] text-ink-soft">
-        代理店には常に「現在」ノードのslaveだけが配信されます（先のノードは見えません）。分岐先が未設定のまま終端に達すると本部に通知が来ます。矢印の先の内容: {nodes.map((n) => `${n.label}[✅→${nodeName(n.okNextId)} / ❌→${nodeName(n.ngNextId)}]`).join("　")}
+        代理店には常に「現在」ノードのslaveだけが配信されます（先のノードは見えません）。分岐先が未設定のまま終端に達すると本部に通知が来ます。
       </p>
     </div>
+  );
+}
+
+// ── ツリー表示（開始点から ✅/❌ で枝分かれ。合流・ループは「↑既出」で打ち切り） ──
+function TreeView({ nodes, currentNodeId }: { nodes: DevNodeRow[]; currentNodeId: string | null }) {
+  const byId = useMemo(() => new Map(nodes.map((n) => [n.id, n])), [nodes]);
+  // ルート = どのノードからも参照されていないノード（無ければ現在ノード）
+  const roots = useMemo(() => {
+    const referenced = new Set<string>();
+    for (const n of nodes) {
+      if (n.okNextId) referenced.add(n.okNextId);
+      if (n.ngNextId) referenced.add(n.ngNextId);
+    }
+    const r = nodes.filter((n) => !referenced.has(n.id));
+    if (r.length > 0) return r;
+    const cur = currentNodeId ? byId.get(currentNodeId) : undefined;
+    return cur ? [cur] : nodes.slice(0, 1);
+  }, [nodes, byId, currentNodeId]);
+
+  const renderedOnce = new Set<string>();
+
+  const render = (node: DevNodeRow, path: Set<string>): React.ReactNode => {
+    const isCurrent = node.id === currentNodeId;
+    const dup = renderedOnce.has(node.id);
+    renderedOnce.add(node.id);
+    const branches: { mark: string; cls: string; id: string | null }[] = [
+      { mark: "✅", cls: "text-green-700", id: node.okNextId },
+      { mark: "❌", cls: "text-red-700", id: node.ngNextId },
+    ];
+    return (
+      <div key={`${node.id}-${path.size}`}>
+        <div
+          className={`inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-xs ${
+            isCurrent ? "border-gold-400 bg-gold-50 font-bold" : "border-line bg-surface"
+          }`}
+        >
+          {node.label}
+          {isCurrent && <span className="rounded bg-gold-500 px-1 py-0.5 text-[9px] font-bold text-white">現在</span>}
+          {!node.hasFile && <span className="text-[9px] text-red-600">未添付</span>}
+        </div>
+        {(node.okNextId || node.ngNextId) && (
+          <div className="ml-3 mt-1 space-y-1 border-l-2 border-line pl-3">
+            {branches
+              .filter((b) => b.id)
+              .map((b) => {
+                const child = byId.get(b.id!);
+                if (!child) return null;
+                const loop = path.has(child.id);
+                return (
+                  <div key={`${node.id}-${b.mark}`} className="flex items-start gap-1">
+                    <span className={`mt-1 text-[10px] font-bold ${b.cls}`}>{b.mark}→</span>
+                    {loop || (dup && renderedOnce.has(child.id)) ? (
+                      <span className="mt-0.5 text-[11px] text-ink-soft">「{child.label}」へ（↑既出）</span>
+                    ) : (
+                      render(child, new Set([...path, node.id]))
+                    )}
+                  </div>
+                );
+              })}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  return (
+    <div className="space-y-2 rounded-lg border border-line bg-surface-2 p-2">
+      {roots.map((r) => render(r, new Set()))}
+    </div>
+  );
+}
+
+// ── ノード追加（新規アップ or 過去のバリエーション版から） ──
+function AddNodeForm({
+  recordId,
+  sources,
+  pending,
+  onRun,
+}: {
+  recordId: string;
+  sources: DevSourceRow[];
+  pending: boolean;
+  onRun: (fn: () => Promise<{ ok?: true; error?: string }>) => void;
+}) {
+  const [mode, setMode] = useState<"upload" | "existing">("upload");
+  const formRef = useRef<HTMLFormElement>(null);
+
+  return (
+    <div className="rounded-lg border border-line bg-surface-2 p-2">
+      <div className="mb-2 flex gap-1">
+        <ModeBtn on={mode === "upload"} onClick={() => setMode("upload")}>
+          新しいファイルをアップ
+        </ModeBtn>
+        <ModeBtn on={mode === "existing"} onClick={() => setMode("existing")} disabled={sources.length === 0}>
+          過去のファイルから選ぶ{sources.length === 0 ? "（候補なし）" : `（${sources.length}件）`}
+        </ModeBtn>
+      </div>
+
+      <form
+        ref={formRef}
+        onSubmit={(e) => {
+          e.preventDefault();
+          const fd = new FormData(e.currentTarget);
+          onRun(async () => {
+            const r =
+              mode === "upload"
+                ? await addDevNode(recordId, fd)
+                : await addDevNodeFromVersion(
+                    recordId,
+                    String(fd.get("versionId") ?? ""),
+                    String(fd.get("label") ?? ""),
+                    String(fd.get("note") ?? ""),
+                  );
+            if (!r.error) formRef.current?.reset();
+            return r;
+          });
+        }}
+        className="grid gap-2 md:grid-cols-4"
+      >
+        {mode === "existing" && (
+          <select name="versionId" required className="rounded border border-line bg-surface px-2 py-1 text-xs md:col-span-2">
+            {sources.map((s) => (
+              <option key={s.versionId} value={s.versionId}>
+                {s.label}
+              </option>
+            ))}
+          </select>
+        )}
+        <input
+          name="label"
+          required={mode === "upload"}
+          placeholder={mode === "upload" ? "ラベル（例: ②点火控えめ）" : "ラベル（空なら自動）"}
+          className="rounded border border-line bg-surface px-2 py-1 text-xs"
+        />
+        <input
+          name="note"
+          placeholder="メモ（何を変えたか・見てほしい点）"
+          className={`rounded border border-line bg-surface px-2 py-1 text-xs ${mode === "upload" ? "md:col-span-2" : ""}`}
+        />
+        {mode === "upload" ? (
+          <div className="flex items-center gap-2">
+            <input name="file" type="file" className="w-full text-[11px]" />
+            <SubmitBtn pending={pending} />
+          </div>
+        ) : (
+          <div className="md:col-span-4 flex justify-end">
+            <SubmitBtn pending={pending} />
+          </div>
+        )}
+      </form>
+    </div>
+  );
+}
+
+function ModeBtn({ on, onClick, disabled, children }: { on: boolean; onClick: () => void; disabled?: boolean; children: React.ReactNode }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className={`rounded-lg px-2.5 py-1 text-[11px] font-semibold ${
+        on ? "bg-gold-500 text-white" : "border border-line bg-surface text-ink-soft"
+      } disabled:opacity-40`}
+    >
+      {children}
+    </button>
+  );
+}
+
+function SubmitBtn({ pending }: { pending: boolean }) {
+  return (
+    <button type="submit" disabled={pending} className="whitespace-nowrap rounded-lg bg-gold-500 px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50">
+      追加
+    </button>
   );
 }
 

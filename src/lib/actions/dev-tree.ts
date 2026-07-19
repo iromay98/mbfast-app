@@ -79,6 +79,67 @@ export async function addDevNode(
   return { ok: true };
 }
 
+// ── 本部: 過去のバリエーション版からノード追加（ファイルはコピーして独立させる） ──
+export async function addDevNodeFromVersion(
+  recordId: string,
+  versionId: string,
+  label: string,
+  note: string,
+): Promise<{ ok?: true; error?: string }> {
+  await requireHQ();
+  const rec = await prisma.serviceRecord.findUnique({
+    where: { id: recordId },
+    select: { id: true, matchedBaseFileId: true, devCurrentNodeId: true },
+  });
+  if (!rec) return { error: "記録が見つかりません" };
+  if (!rec.matchedBaseFileId) return { error: "この記録はストックに紐づいていません" };
+
+  const ver = await prisma.tunedVariantVersion.findUnique({
+    where: { id: versionId },
+    select: {
+      id: true,
+      fileRef: true,
+      fileHash: true,
+      fileName: true,
+      version: true,
+      label: true,
+      variant: { select: { baseFileId: true } },
+    },
+  });
+  if (!ver || ver.variant.baseFileId !== rec.matchedBaseFileId) {
+    return { error: "この車に適合しないファイルです" };
+  }
+  const src = await storage.read(ver.fileRef);
+  if (!src) return { error: "元ファイルが見つかりません" };
+
+  // カタログ側の削除・差し替えの影響を受けないよう、実体をコピーして持つ
+  const filePath = `records/dev/${recordId}/${Date.now()}-${ver.fileHash.slice(0, 8)}.bin`;
+  await storage.save(filePath, src.buffer, "application/octet-stream");
+
+  const finalLabel = label.trim() || `v${ver.version}${ver.label ? `(${ver.label})` : ""}`;
+  const last = await prisma.devNode.findFirst({
+    where: { recordId },
+    orderBy: { sortOrder: "desc" },
+    select: { sortOrder: true },
+  });
+  const node = await prisma.devNode.create({
+    data: {
+      recordId,
+      label: finalLabel,
+      note: note.trim() || null,
+      filePath,
+      fileName: ver.fileName ?? `v${ver.version}.bin`,
+      fileHash: ver.fileHash,
+      sortOrder: (last?.sortOrder ?? -1) + 1,
+    },
+  });
+  if (!rec.devCurrentNodeId) {
+    await prisma.serviceRecord.update({ where: { id: recordId }, data: { devCurrentNodeId: node.id } });
+  }
+  reval(recordId);
+  return { ok: true };
+}
+
 // ── 本部: ノード編集（ラベル・メモ・分岐先） ──
 export async function updateDevNode(
   nodeId: string,
