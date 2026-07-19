@@ -16,7 +16,9 @@ export type NotificationType =
   | "STOCK_CAPTURED" // 未整備ストックを自動取込（→本店・要mod登録）
   | "RECORD_MESSAGE" // 案件のメッセージ（本部⇄代理店）
   | "CANCEL_REQUESTED" // 代理店→本店 誤DL/誤リクエストのキャンセル依頼
-  | "CANCEL_RESOLVED"; // 本店→代理店 キャンセル依頼の承諾/却下
+  | "CANCEL_RESOLVED" // 本店→代理店 キャンセル依頼の承諾/却下
+  | "PIT_PUBLISHED" // mbPIT 記事公開完了（→店舗）
+  | "PIT_HELD"; // mbPIT ガード該当で自動公開を保留（→本店管理者）
 
 export type NotificationPayload = {
   type: NotificationType;

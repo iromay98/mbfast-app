@@ -218,6 +218,7 @@ model Dealer {
   fileRequests   FileRequest[]
   reads          AnnouncementRead[]
   catalogDownloads CatalogDownloadLog[]
+  pitStore         PitStore?
 }
 
 // 施工記録 / 愛車カルテ
@@ -690,4 +691,46 @@ model PriceVehicle {
 
   @@index([brandId, displayOrder])
   @@index([brandId, seriesGroup])
+}
+
+// ── mbPIT: 施工記録→自動ブログ公開 ──
+
+// 店舗マスタ（既存Dealerに1:1で紐づく）。footer等の公開ルールはDBに持ち、アプリ更新なしで変えられるようにする。
+model PitStore {
+  id           String   @id @default(cuid())
+  dealerId     String   @unique
+  dealer       Dealer   @relation(fields: [dealerId], references: [id])
+  displayName  String // 記事タイトル・フッターに使う表示名
+  slug         String   @unique // 記事slug末尾に付ける店舗slug（WPカテゴリslugと揃える）
+  wpCategoryId Int // WordPress店舗カテゴリID（親545配下）
+  footerHtml   String   @default("") // 記事末尾の店舗紹介＋CTAブロック（更家さんから受領して投入）
+  faqJson      Json     @default("[]") // AIO用FAQ: [{q,a}]（任意）
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  posts PitPost[]
+}
+
+// 投稿1件（公開ログを兼ねる）
+model PitPost {
+  id           String   @id @default(cuid())
+  storeId      String
+  store        PitStore @relation(fields: [storeId], references: [id])
+  vehicle      String // 車種（フリーテキスト）
+  category     String // ecu | coating | polish | maintenance | other
+  memo         String?
+  photoKeys    Json     @default("[]") // storage上のキー（処理済み画像）
+  status       String   @default("processing") // processing | published | held | failed
+  guardResult  String? // ガード判定の内訳（held理由・注意書き挿入等）
+  title        String?
+  wpPostId     Int?
+  publishedUrl String?
+  errorMessage String?
+  plateLog     Json     @default("[]") // ナンバー検出結果ログ（未検出画像の記録）
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([storeId, createdAt])
+  @@index([status])
 }
