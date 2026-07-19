@@ -1,0 +1,1 @@
+ALTER TABLE "DevNode" ADD COLUMN "fileIsSlave" BOOLEAN NOT NULL DEFAULT false;

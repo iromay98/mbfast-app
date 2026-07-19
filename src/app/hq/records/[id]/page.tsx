@@ -24,7 +24,7 @@ import { DeleteRecordButton } from "./delete-record-button";
 import { RecordCustomerEdit } from "./record-customer-edit";
 import { RecordVehicleEdit } from "./record-vehicle-edit";
 import { RecordWorkedAtEdit } from "./record-workedat-edit";
-import { DevTreeTool, type DevNodeRow, type DevTrialRow, type DevSourceRow } from "./dev-tree-tool";
+import { DevTreeTool, type DevNodeRow, type DevTrialRow, type DevSourceRow, type DevMsgSourceRow } from "./dev-tree-tool";
 import { composeContent } from "@/server/catalog/filename";
 import { EcuSidesCard, type EcuSideRow, type MergeCandidate } from "@/components/ecu-sides-card";
 import { EcuEditForm } from "./ecu-edit-form";
@@ -145,6 +145,14 @@ export default async function HQRecordDetailPage({
       ` v${v.version}${v.label ? `(${v.label})` : ""}` +
       `${v.variant.currentVersionId === v.id ? " [現行]" : ""}${v.variant.deletedAt ? " [アーカイブ]" : ""}`,
   }));
+
+  // 案件のやり取りに添付されたファイル（削除済みは除外）をノード候補に
+  const devMsgSources: DevMsgSourceRow[] = messages
+    .filter((m) => m.fileName && !m.deletedAt)
+    .map((m) => ({
+      messageId: m.id,
+      label: `${m.fileName ?? "ファイル"} / ${m.authorRole === "HQ_ADMIN" ? "本部" : "代理店"} / ${formatDate(m.createdAt)}`,
+    }));
 
   // 左右ECU
   const ecuSides = await prisma.recordEcuSide.findMany({
@@ -592,6 +600,7 @@ export default async function HQRecordDetailPage({
           nodes={devNodeRows}
           trials={devTrialRows}
           sources={devSources}
+          msgSources={devMsgSources}
         />
       </Card>
 

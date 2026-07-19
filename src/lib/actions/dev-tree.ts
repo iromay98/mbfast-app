@@ -140,6 +140,62 @@ export async function addDevNodeFromVersion(
   return { ok: true };
 }
 
+// ── 本部: 案件のやり取り（チャット添付）からノード追加 ──
+// 変換済み .slave はそのまま配信用として保持（fileIsSlave=true・DL時に再暗号化しない）。
+// 生bin添付なら通常ノードと同じ扱い（DL時にslave化）。
+export async function addDevNodeFromMessage(
+  recordId: string,
+  messageId: string,
+  label: string,
+  note: string,
+): Promise<{ ok?: true; error?: string }> {
+  await requireHQ();
+  const rec = await prisma.serviceRecord.findUnique({
+    where: { id: recordId },
+    select: { id: true, devCurrentNodeId: true },
+  });
+  if (!rec) return { error: "記録が見つかりません" };
+
+  const msg = await prisma.recordMessage.findUnique({
+    where: { id: messageId },
+    select: { id: true, serviceRecordId: true, filePath: true, fileName: true, deletedAt: true },
+  });
+  if (!msg || msg.serviceRecordId !== recordId) return { error: "メッセージが不正です" };
+  if (!msg.filePath || msg.deletedAt) return { error: "このメッセージにファイルがありません" };
+
+  const src = await storage.read(msg.filePath);
+  if (!src) return { error: "ファイルの実体が見つかりません" };
+
+  const isSlave = (msg.fileName ?? "").toLowerCase().endsWith(".slave");
+  const hash = createHash("sha256").update(src.buffer).digest("hex");
+  const filePath = `records/dev/${recordId}/${Date.now()}-${hash.slice(0, 8)}${isSlave ? ".slave" : ".bin"}`;
+  await storage.save(filePath, src.buffer, "application/octet-stream");
+
+  const finalLabel = label.trim() || (msg.fileName ?? "チャット添付").replace(/\.[^.]+$/, "");
+  const last = await prisma.devNode.findFirst({
+    where: { recordId },
+    orderBy: { sortOrder: "desc" },
+    select: { sortOrder: true },
+  });
+  const node = await prisma.devNode.create({
+    data: {
+      recordId,
+      label: finalLabel,
+      note: note.trim() || null,
+      filePath,
+      fileName: msg.fileName,
+      fileHash: hash,
+      fileIsSlave: isSlave,
+      sortOrder: (last?.sortOrder ?? -1) + 1,
+    },
+  });
+  if (!rec.devCurrentNodeId) {
+    await prisma.serviceRecord.update({ where: { id: recordId }, data: { devCurrentNodeId: node.id } });
+  }
+  reval(recordId);
+  return { ok: true };
+}
+
 // ── 本部: ノード編集（ラベル・メモ・分岐先） ──
 export async function updateDevNode(
   nodeId: string,

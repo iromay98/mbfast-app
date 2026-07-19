@@ -753,6 +753,8 @@ model DevNode {
   filePath  String? // チューニング済みbin（mod）。slave化はDL時に行う
   fileName  String?
   fileHash  String?
+  // true = filePath が暗号化済み .slave（チャット添付から取り込んだ場合）。DL時は再暗号化せずそのまま配信。
+  fileIsSlave Boolean @default(false)
   okNextId  String? // 良ければ次へ
   ngNextId  String? // ダメなら次へ
   sortOrder Int           @default(0)

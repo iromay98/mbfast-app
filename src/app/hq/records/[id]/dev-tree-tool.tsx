@@ -4,6 +4,7 @@ import { useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
   addDevNode,
+  addDevNodeFromMessage,
   addDevNodeFromVersion,
   deleteDevNode,
   setDevCurrent,
@@ -29,6 +30,8 @@ export type DevTrialRow = {
 };
 // 過去のバリエーション版（この車に適合するBaseFile配下）
 export type DevSourceRow = { versionId: string; label: string };
+// 案件のやり取り（チャット）に添付されたファイル
+export type DevMsgSourceRow = { messageId: string; label: string };
 
 // 本部: 実車開発モードのツリー構築・進行管理
 export function DevTreeTool({
@@ -38,6 +41,7 @@ export function DevTreeTool({
   nodes,
   trials,
   sources,
+  msgSources,
 }: {
   recordId: string;
   devMode: boolean;
@@ -45,6 +49,7 @@ export function DevTreeTool({
   nodes: DevNodeRow[];
   trials: DevTrialRow[];
   sources: DevSourceRow[];
+  msgSources: DevMsgSourceRow[];
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
@@ -131,7 +136,7 @@ export function DevTreeTool({
         </div>
       )}
 
-      <AddNodeForm recordId={recordId} sources={sources} pending={pending} onRun={run} />
+      <AddNodeForm recordId={recordId} sources={sources} msgSources={msgSources} pending={pending} onRun={run} />
 
       {/* 試行ログ */}
       {trials.length > 0 && (
@@ -230,15 +235,17 @@ function TreeView({ nodes, currentNodeId }: { nodes: DevNodeRow[]; currentNodeId
 function AddNodeForm({
   recordId,
   sources,
+  msgSources,
   pending,
   onRun,
 }: {
   recordId: string;
   sources: DevSourceRow[];
+  msgSources: DevMsgSourceRow[];
   pending: boolean;
   onRun: (fn: () => Promise<{ ok?: true; error?: string }>) => void;
 }) {
-  const [mode, setMode] = useState<"upload" | "existing">("upload");
+  const [mode, setMode] = useState<"upload" | "existing" | "chat">("upload");
   const formRef = useRef<HTMLFormElement>(null);
 
   return (
@@ -249,6 +256,9 @@ function AddNodeForm({
         </ModeBtn>
         <ModeBtn on={mode === "existing"} onClick={() => setMode("existing")} disabled={sources.length === 0}>
           過去のファイルから選ぶ{sources.length === 0 ? "（候補なし）" : `（${sources.length}件）`}
+        </ModeBtn>
+        <ModeBtn on={mode === "chat"} onClick={() => setMode("chat")} disabled={msgSources.length === 0}>
+          やり取りのファイルから{msgSources.length === 0 ? "（候補なし）" : `（${msgSources.length}件）`}
         </ModeBtn>
       </div>
 
@@ -261,12 +271,19 @@ function AddNodeForm({
             const r =
               mode === "upload"
                 ? await addDevNode(recordId, fd)
-                : await addDevNodeFromVersion(
-                    recordId,
-                    String(fd.get("versionId") ?? ""),
-                    String(fd.get("label") ?? ""),
-                    String(fd.get("note") ?? ""),
-                  );
+                : mode === "existing"
+                  ? await addDevNodeFromVersion(
+                      recordId,
+                      String(fd.get("versionId") ?? ""),
+                      String(fd.get("label") ?? ""),
+                      String(fd.get("note") ?? ""),
+                    )
+                  : await addDevNodeFromMessage(
+                      recordId,
+                      String(fd.get("messageId") ?? ""),
+                      String(fd.get("label") ?? ""),
+                      String(fd.get("note") ?? ""),
+                    );
             if (!r.error) formRef.current?.reset();
             return r;
           });
@@ -278,6 +295,15 @@ function AddNodeForm({
             {sources.map((s) => (
               <option key={s.versionId} value={s.versionId}>
                 {s.label}
+              </option>
+            ))}
+          </select>
+        )}
+        {mode === "chat" && (
+          <select name="messageId" required className="rounded border border-line bg-surface px-2 py-1 text-xs md:col-span-2">
+            {msgSources.map((m) => (
+              <option key={m.messageId} value={m.messageId}>
+                {m.label}
               </option>
             ))}
           </select>
