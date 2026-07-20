@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { SlaveDownloadButton } from "@/components/slave-download-button";
 import { reportDevResult, selectDevNode } from "@/lib/actions/dev-tree";
+import { DevTreeView, type TreeNode } from "@/components/dev-tree-view";
 
 // 代理店: 実車開発モードのカード。現在ノードのDL＋「良い/ダメ」報告で次のファイルが開放される。
 export function DevReportCard({
@@ -15,6 +16,7 @@ export function DevReportCard({
   freeChoice = false,
   nodeOptions = [],
   currentNodeId = null,
+  treeNodes = [],
 }: {
   recordId: string;
   nodeLabel: string;
@@ -25,6 +27,8 @@ export function DevReportCard({
   freeChoice?: boolean;
   nodeOptions?: { id: string; label: string }[];
   currentNodeId?: string | null;
+  // ツリー表示用（ラベルと分岐のみ。メモは含めない）
+  treeNodes?: TreeNode[];
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
@@ -55,7 +59,7 @@ export function DevReportCard({
         <span className="rounded bg-violet-600 px-1.5 py-0.5 text-[10px] font-bold text-white">開発中</span>
         <span className="text-sm font-semibold">{nodeLabel}</span>
       </div>
-      {nodeNote && <p className="text-xs text-ink-soft">{nodeNote}</p>}
+      {treeNodes.length > 0 && <DevTreeView nodes={treeNodes} currentNodeId={currentNodeId} />}
 
       {freeChoice && nodeOptions.length > 1 && (
         <div className="flex flex-wrap items-center gap-2 rounded-lg border border-dashed border-line p-2">

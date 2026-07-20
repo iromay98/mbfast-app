@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
   addDevNode,
@@ -12,6 +12,7 @@ import {
   setDevMode,
   updateDevNode,
 } from "@/lib/actions/dev-tree";
+import { DevTreeView } from "@/components/dev-tree-view";
 
 export type DevNodeRow = {
   id: string;
@@ -90,7 +91,7 @@ export function DevTreeTool({
       </div>
 
       {/* ツリー表示 */}
-      {nodes.length > 0 && <TreeView nodes={nodes} currentNodeId={currentNodeId} />}
+      {nodes.length > 0 && <DevTreeView nodes={nodes} currentNodeId={currentNodeId} showFileBadge />}
 
       {/* ノード一覧（編集） */}
       {nodes.length > 0 && (
@@ -182,75 +183,6 @@ export function DevTreeTool({
       <p className="text-[11px] text-ink-soft">
         代理店には常に「現在」ノードのslaveだけが配信されます（先のノードは見えません）。分岐先が未設定のまま終端に達すると本部に通知が来ます。
       </p>
-    </div>
-  );
-}
-
-// ── ツリー表示（開始点から ✅/❌ で枝分かれ。合流・ループは「↑既出」で打ち切り） ──
-function TreeView({ nodes, currentNodeId }: { nodes: DevNodeRow[]; currentNodeId: string | null }) {
-  const byId = useMemo(() => new Map(nodes.map((n) => [n.id, n])), [nodes]);
-  // ルート = どのノードからも参照されていないノード（無ければ現在ノード）
-  const roots = useMemo(() => {
-    const referenced = new Set<string>();
-    for (const n of nodes) {
-      if (n.okNextId) referenced.add(n.okNextId);
-      if (n.ngNextId) referenced.add(n.ngNextId);
-    }
-    const r = nodes.filter((n) => !referenced.has(n.id));
-    if (r.length > 0) return r;
-    const cur = currentNodeId ? byId.get(currentNodeId) : undefined;
-    return cur ? [cur] : nodes.slice(0, 1);
-  }, [nodes, byId, currentNodeId]);
-
-  const renderedOnce = new Set<string>();
-
-  const render = (node: DevNodeRow, path: Set<string>): React.ReactNode => {
-    const isCurrent = node.id === currentNodeId;
-    const dup = renderedOnce.has(node.id);
-    renderedOnce.add(node.id);
-    const branches: { mark: string; cls: string; id: string | null }[] = [
-      { mark: "✅", cls: "text-green-700", id: node.okNextId },
-      { mark: "❌", cls: "text-red-700", id: node.ngNextId },
-    ];
-    return (
-      <div key={`${node.id}-${path.size}`}>
-        <div
-          className={`inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-xs ${
-            isCurrent ? "border-gold-400 bg-gold-50 font-bold" : "border-line bg-surface"
-          }`}
-        >
-          {node.label}
-          {isCurrent && <span className="rounded bg-gold-500 px-1 py-0.5 text-[9px] font-bold text-white">現在</span>}
-          {!node.hasFile && <span className="text-[9px] text-red-600">未添付</span>}
-        </div>
-        {(node.okNextId || node.ngNextId) && (
-          <div className="ml-3 mt-1 space-y-1 border-l-2 border-line pl-3">
-            {branches
-              .filter((b) => b.id)
-              .map((b) => {
-                const child = byId.get(b.id!);
-                if (!child) return null;
-                const loop = path.has(child.id);
-                return (
-                  <div key={`${node.id}-${b.mark}`} className="flex items-start gap-1">
-                    <span className={`mt-1 text-[10px] font-bold ${b.cls}`}>{b.mark}→</span>
-                    {loop || (dup && renderedOnce.has(child.id)) ? (
-                      <span className="mt-0.5 text-[11px] text-ink-soft">「{child.label}」へ（↑既出）</span>
-                    ) : (
-                      render(child, new Set([...path, node.id]))
-                    )}
-                  </div>
-                );
-              })}
-          </div>
-        )}
-      </div>
-    );
-  };
-
-  return (
-    <div className="space-y-2 rounded-lg border border-line bg-surface-2 p-2">
-      {roots.map((r) => render(r, new Set()))}
     </div>
   );
 }

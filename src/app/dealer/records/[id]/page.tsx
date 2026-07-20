@@ -185,15 +185,16 @@ export default async function DealerRecordDetailPage({
         })
       : null;
   const devCard = devNode && devNode.recordId === record.id ? devNode : null;
-  // 本部が許可した場合のみ: 全ノードの選択肢（ラベルのみ）を出す
-  const devNodeOptions =
-    devCard && record.devFreeChoice
-      ? await prisma.devNode.findMany({
-          where: { recordId: record.id },
-          orderBy: { sortOrder: "asc" },
-          select: { id: true, label: true },
-        })
-      : [];
+  // ツリー表示用（ラベルと分岐のみ。メモ(note)は代理店に出さない）
+  const devTreeNodes = devCard
+    ? await prisma.devNode.findMany({
+        where: { recordId: record.id },
+        orderBy: { sortOrder: "asc" },
+        select: { id: true, label: true, okNextId: true, ngNextId: true },
+      })
+    : [];
+  // 本部が許可した場合のみ: ノードの選択肢
+  const devNodeOptions = record.devFreeChoice ? devTreeNodes.map((n) => ({ id: n.id, label: n.label })) : [];
 
   return (
     <div className="space-y-4">
@@ -306,12 +307,13 @@ export default async function DealerRecordDetailPage({
           <DevReportCard
             recordId={record.id}
             nodeLabel={devCard.label}
-            nodeNote={devCard.note}
+            nodeNote={null}
             hasFile={!!devCard.filePath}
             isEnd={!devCard.okNextId && !devCard.ngNextId}
             freeChoice={record.devFreeChoice}
             nodeOptions={devNodeOptions}
             currentNodeId={devCard.id}
+            treeNodes={devTreeNodes}
           />
         </Card>
       )}
