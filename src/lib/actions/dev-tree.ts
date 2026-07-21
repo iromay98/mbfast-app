@@ -214,9 +214,11 @@ export async function addDevNodeFromMessage(
   const src = await storage.read(msg.filePath);
   if (!src) return { error: "ファイルの実体が見つかりません" };
 
-  const isSlave = (msg.fileName ?? "").toLowerCase().endsWith(".slave");
+  const lower = (msg.fileName ?? "").toLowerCase();
+  const isSlave = lower.endsWith(".slave") || lower.endsWith(".bak"); // どちらも暗号化済み＝そのまま配信
+  const ext = lower.endsWith(".bak") ? ".bak" : isSlave ? ".slave" : ".bin";
   const hash = createHash("sha256").update(src.buffer).digest("hex");
-  const filePath = `records/dev/${recordId}/${Date.now()}-${hash.slice(0, 8)}${isSlave ? ".slave" : ".bin"}`;
+  const filePath = `records/dev/${recordId}/${Date.now()}-${hash.slice(0, 8)}${ext}`;
   await storage.save(filePath, src.buffer, "application/octet-stream");
 
   const finalLabel = label.trim() || (msg.fileName ?? "チャット添付").replace(/\.[^.]+$/, "");

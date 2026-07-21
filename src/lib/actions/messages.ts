@@ -217,10 +217,12 @@ export async function postRecordMessage(
       const fallback = (innerName || file.name || "test").replace(/\.[^.]+$/, "");
       // bak(フルバックアップ)は内容名にも bak を入れて区別する
       const contentBase = contentInput || fallback;
+      // bak(フル)は拡張子 .bak / マップのみは .slave
+      const outExt = mode === "backup" ? "bak" : "slave";
       const fileName = nameInput
-        ? nameInput.toLowerCase().endsWith(".slave")
+        ? nameInput.toLowerCase().endsWith(`.${outExt}`)
           ? nameInput
-          : `${nameInput}.slave`
+          : `${nameInput.replace(/\.(slave|bak)$/i, "")}.${outExt}`
         : buildDownloadName({
             model: rec?.matchedBaseFile?.model ?? rec?.carModel,
             generation: rec?.matchedBaseFile?.generation,
@@ -229,7 +231,7 @@ export async function postRecordMessage(
             tool: rec?.matchedBaseFile?.tool ?? undefined,
             content: mode === "backup" ? `${contentBase}_bak${encSide ? `_${encSide.side}` : ""}` : contentBase,
             unit: rec?.unit,
-            ext: "slave",
+            ext: outExt,
             dealerName: rec?.dealer?.name,
             customerName: rec?.customerName,
             dateLabel: dateLabel(rec?.workedAt),

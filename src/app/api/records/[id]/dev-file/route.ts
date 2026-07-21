@@ -45,7 +45,7 @@ export async function GET(
 
   const node = await prisma.devNode.findUnique({
     where: { id: record.devCurrentNodeId },
-    select: { id: true, recordId: true, label: true, filePath: true, fileHash: true, fileIsSlave: true },
+    select: { id: true, recordId: true, label: true, filePath: true, fileName: true, fileHash: true, fileIsSlave: true },
   });
   if (!node || node.recordId !== recordId || !node.filePath) {
     return new Response("現在のノードにファイルがありません", { status: 404 });
@@ -62,12 +62,13 @@ export async function GET(
     dateLabel: dateLabel(record.workedAt),
   };
 
-  // チャット添付から取り込んだ暗号化済み .slave ノード: 再暗号化せずそのまま配信
+  // チャット添付から取り込んだ暗号化済みノード: 再暗号化せずそのまま配信（.bak/.slaveを維持）
   if (node.fileIsSlave) {
     const f = await storage.read(node.filePath);
     if (!f) return new Response("Not Found", { status: 404 });
+    const ext = (node.fileName ?? node.filePath).toLowerCase().endsWith(".bak") ? "bak" : "slave";
     const out: StoredFile = { buffer: f.buffer, contentType: "application/octet-stream", size: f.buffer.byteLength };
-    return fileResponse(out, buildDownloadName({ ...nameBase, ext: "slave" }), out.contentType);
+    return fileResponse(out, buildDownloadName({ ...nameBase, ext }), out.contentType);
   }
 
   // MASTER形式（Powergate等）の代理店は生binのまま

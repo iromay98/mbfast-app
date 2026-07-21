@@ -166,7 +166,7 @@ export async function GET(
       tool: record.matchedBaseFile?.tool ?? undefined,
       content: `ori_bak${sideRow ? `_${sideRow.side}` : record.ecuSides.length > 0 ? `_${record.primarySide}` : ""}`,
       unit: record.unit,
-      ext: "slave",
+      ext: "bak",
       dealerName: record.dealer?.name,
       customerName: record.customerName,
       dateLabel: dateLabel(record.workedAt),
