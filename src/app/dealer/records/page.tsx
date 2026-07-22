@@ -10,7 +10,7 @@ import {
 } from "@/lib/labels";
 import { PageTitle, Card, Badge, EmptyState, LinkButton } from "@/components/ui";
 import { AutoRefresh } from "@/components/auto-refresh";
-import { vehicleLabel } from "@/lib/catalog/vehicle";
+import { vehicleLabel, engineNameOf } from "@/lib/catalog/vehicle";
 import { SlaveUpload } from "./slave-upload";
 import { MasterFileUpload } from "./master-upload";
 
@@ -121,10 +121,11 @@ export default async function DealerRecordsPage() {
         <Card className="divide-y divide-line p-0">
           {records.map((r) => {
             const pending = isPendingStatus(r.status);
+            const eng = engineNameOf(r.engineInfo);
             const title =
               (r.matchedBaseFile && vehicleLabel(r.matchedBaseFile)) ||
               (r.carMaker || r.carModel
-                ? `${r.carMaker ?? ""} ${r.carModel ?? ""}`.trim()
+                ? `${r.carMaker ?? ""} ${r.carModel ?? ""}${eng ? ` ${eng}` : ""}`.trim()
                 : r.slaveName || "（解析中…）");
             return (
               <Link

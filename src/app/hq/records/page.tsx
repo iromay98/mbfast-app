@@ -11,7 +11,7 @@ import {
 } from "@/lib/labels";
 import { PageTitle, Card, Badge, EmptyState, Button, Input, Select, Field } from "@/components/ui";
 import type { Prisma } from "@/generated/prisma/client";
-import { vehicleLabel } from "@/lib/catalog/vehicle";
+import { vehicleLabel, engineNameOf } from "@/lib/catalog/vehicle";
 import { HQSlaveUpload } from "./hq-slave-upload";
 
 // 一覧の車両名: 照合した純正(カタログ)の "メーカー 車種(世代) グレード" を優先。
@@ -19,6 +19,7 @@ function recordTitle(r: {
   carMaker: string | null;
   carModel: string | null;
   slaveName: string | null;
+  engineInfo?: unknown; // AutoTuner復号メタ（未照合時のエンジン名表示に使う）
   matchedBaseFile: {
     manufacturer: string;
     model: string;
@@ -26,12 +27,12 @@ function recordTitle(r: {
     grade: string | null;
   } | null;
 }): string {
-  return (
-    (r.matchedBaseFile && vehicleLabel(r.matchedBaseFile)) ||
-    (r.carMaker || r.carModel
-      ? `${r.carMaker ?? ""} ${r.carModel ?? ""}`.trim()
-      : r.slaveName || "（解析中…）")
-  );
+  if (r.matchedBaseFile) return vehicleLabel(r.matchedBaseFile);
+  if (r.carMaker || r.carModel) {
+    const eng = engineNameOf(r.engineInfo);
+    return `${r.carMaker ?? ""} ${r.carModel ?? ""}${eng ? ` ${eng}` : ""}`.trim();
+  }
+  return r.slaveName || "（解析中…）";
 }
 
 type SP = Record<string, string | string[] | undefined>;
