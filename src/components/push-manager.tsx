@@ -20,6 +20,7 @@ function urlBase64ToUint8Array(base64: string): Uint8Array {
 export function PushManager() {
   const [perm, setPerm] = useState<NotificationPermission | "unsupported">("default");
   const [done, setDone] = useState(false);
+  const [iosHint, setIosHint] = useState(false);
 
   const subscribe = useCallback(async () => {
     try {
@@ -54,6 +55,16 @@ export function PushManager() {
   useEffect(() => {
     if (typeof window === "undefined" || !("Notification" in window)) {
       setPerm("unsupported");
+      // iPhone/iPadのブラウザ閲覧では通知APIが無い（ホーム画面に追加したアプリでのみ使える）。
+      // その案内を一度だけ表示する。
+      const w = globalThis as unknown as { matchMedia?: (q: string) => { matches: boolean } };
+      const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+      const standalone =
+        (w.matchMedia ? w.matchMedia("(display-mode: standalone)").matches : false) ||
+        (navigator as unknown as { standalone?: boolean }).standalone === true;
+      if (isIOS && !standalone && localStorage.getItem("iosPushHintDismissed") !== "1") {
+        setIosHint(true);
+      }
       return;
     }
     setPerm(Notification.permission);
@@ -66,6 +77,28 @@ export function PushManager() {
     setPerm(p);
     if (p === "granted") void subscribe();
   };
+
+  if (iosHint) {
+    return (
+      <div className="fixed bottom-4 left-4 right-4 z-40 rounded-xl border border-gold-200 bg-white p-3 text-xs shadow-lg md:left-auto md:max-w-sm">
+        <p className="mb-1 font-bold">📱 iPhoneで通知を受け取るには</p>
+        <p className="text-ink-soft">
+          Safariの共有ボタン →「<b>ホーム画面に追加</b>」→ 追加された<b>アイコンから開いて</b>「🔔 通知をオン」を押してください。
+          （iPhoneの仕様で、ブラウザで開いたままでは通知が届きません）
+        </p>
+        <button
+          type="button"
+          onClick={() => {
+            localStorage.setItem("iosPushHintDismissed", "1");
+            setIosHint(false);
+          }}
+          className="mt-2 rounded-lg border border-line px-2 py-1 font-semibold text-ink-soft"
+        >
+          閉じる
+        </button>
+      </div>
+    );
+  }
 
   if (perm !== "default") return null; // granted=自動購読済 / denied・unsupported=非表示
 

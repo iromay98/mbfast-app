@@ -80,4 +80,26 @@ export async function notify(payload: NotificationPayload): Promise<void> {
     // 通知失敗は業務処理を止めない
     console.error("通知の送信に失敗しました", err);
   }
+
+  // Web Push も全通知で送る（宛先: dealerId指定=その代理店ユーザー / null=本店管理者）。
+  // 失敗しても業務処理を止めない。送信はバックグラウンドで行う。
+  void (async () => {
+    try {
+      const { sendPushToUsers, recipientUserIds, pushEnabled } = await import("@/server/push");
+      if (!pushEnabled()) return;
+      const recipients = await recipientUserIds({
+        toHQ: payload.dealerId == null,
+        dealerId: payload.dealerId,
+      });
+      if (recipients.length === 0) return;
+      await sendPushToUsers(recipients, {
+        title: payload.title,
+        body: payload.message,
+        url: payload.link,
+        tag: payload.type,
+      });
+    } catch (err) {
+      console.error("Web Push の送信に失敗しました", err);
+    }
+  })();
 }

@@ -7,7 +7,6 @@ import { getSessionUser } from "@/lib/authz";
 import { saveUpload, storage } from "@/server/storage";
 import { encryptSlave } from "@/server/autotuner/client";
 import { notify } from "@/server/notifications";
-import { sendPushToUsers, recipientUserIds } from "@/server/push";
 import { buildDownloadName, dateLabel } from "@/server/catalog/filename";
 import { type FormState } from "@/lib/actions/form-state";
 
@@ -277,16 +276,7 @@ export async function postRecordMessage(
     link,
   });
 
-  // Web Push（相手側へ。アプリを閉じていても届く）。レスポンス後に送信。
-  after(async () => {
-    const recipients = await recipientUserIds({ toHQ: !fromHQ, dealerId: ctx.dealerId });
-    await sendPushToUsers(recipients, {
-      title: fromHQ ? "本部からメッセージ" : "代理店からメッセージ",
-      body: previewBody,
-      url: link,
-      tag: `record-${recordId}`,
-    });
-  });
+  // Web Push は notify() が全通知共通で送るため、ここでの個別送信は廃止。
 
   revalidatePath(`/hq/records/${recordId}`);
   revalidatePath(`/dealer/records/${recordId}`);
