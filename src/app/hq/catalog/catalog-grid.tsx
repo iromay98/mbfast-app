@@ -115,6 +115,7 @@ function EditCell({
   placeholder,
   className,
   listId,
+  box, // 常に枠線を表示（空でも入力欄と分かるように）
 }: {
   value: string;
   onSave: (v: string) => void;
@@ -122,6 +123,7 @@ function EditCell({
   placeholder?: string;
   className?: string;
   listId?: string; // datalist（候補表示）を紐づける
+  box?: boolean;
 }) {
   const [v, setV] = useState(value);
   const [prev, setPrev] = useState(value);
@@ -145,7 +147,7 @@ function EditCell({
           e.currentTarget.blur();
         }
       }}
-      className={`${editInput} ${mono ? "font-mono text-xs" : ""} ${className ?? ""}`}
+      className={`${editInput} ${box ? "border-line bg-white" : ""} ${mono ? "font-mono text-xs" : ""} ${className ?? ""}`}
     />
   );
 }
@@ -447,12 +449,14 @@ function CalGroupCard({
           value={g.generation}
           onSave={(v) => onPatchBase({ generation: v })}
           placeholder="世代"
+          box
           className="w-16 text-xs"
         />
         <span className="text-xs text-ink-soft">)</span>
         {/* グレード（例 S550）。空でも編集できるよう常時表示 */}
         <EditCell
           value={g.grade}
+          box
           onSave={(v) => onPatchBase({ grade: v })}
           placeholder="グレード"
           className="w-20 text-sm font-semibold"
