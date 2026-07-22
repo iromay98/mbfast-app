@@ -93,6 +93,9 @@ export async function runDecryptJob(recordId: string): Promise<void> {
         calNumber,
         idSource,
         idConfidence,
+        // AI推定の車両情報（照合前の一覧表示・カタログ登録の下書きに使う）
+        carGrade: ai?.grade ?? null,
+        carGeneration: ai?.generation ?? null,
         ecuIdRaw: { pattern, ai } as unknown as Prisma.InputJsonValue,
       },
     });

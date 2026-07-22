@@ -18,6 +18,8 @@ import { HQSlaveUpload } from "./hq-slave-upload";
 function recordTitle(r: {
   carMaker: string | null;
   carModel: string | null;
+  carGrade?: string | null; // AI推定（未照合時のフォールバック）
+  carGeneration?: string | null;
   slaveName: string | null;
   engineInfo?: unknown; // AutoTuner復号メタ（未照合時のエンジン名表示に使う）
   matchedBaseFile: {
@@ -29,8 +31,11 @@ function recordTitle(r: {
 }): string {
   if (r.matchedBaseFile) return vehicleLabel(r.matchedBaseFile);
   if (r.carMaker || r.carModel) {
-    const eng = engineNameOf(r.engineInfo);
-    return `${r.carMaker ?? ""} ${r.carModel ?? ""}${eng ? ` ${eng}` : ""}`.trim();
+    // AI推定のグレード/世代があれば優先（例: BMW 4 Series(G22) 440i）。無ければエンジン名。
+    const gen = (r.carGeneration ?? "").trim();
+    const grade = (r.carGrade ?? "").trim();
+    const suffix = grade || (gen ? "" : engineNameOf(r.engineInfo) ?? "");
+    return `${r.carMaker ?? ""} ${r.carModel ?? ""}${gen ? `(${gen})` : ""}${suffix ? ` ${suffix}` : ""}`.trim();
   }
   return r.slaveName || "（解析中…）";
 }

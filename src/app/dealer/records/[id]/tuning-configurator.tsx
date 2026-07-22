@@ -9,7 +9,7 @@ type Stage = { value: string; label: string };
 type Selection = { stage: string; pops: boolean; popsSport: boolean; optionTags: string[] };
 type Resolved =
   | { kind: "download"; href: string }
-  | { kind: "compat"; href: string; message: string; delivered: Selection }
+  | { kind: "compat"; href: string; message: string; delivered: Selection; allowRequest?: boolean }
   | { kind: "request" };
 
 // 代理店向け施工内容コンフィギュレータ。
@@ -203,7 +203,7 @@ export function TuningConfigurator({
         ) : result?.kind === "compat" ? (
           <div className="space-y-2">
             <div className="rounded-lg border border-sky-300 bg-sky-50 p-3">
-              <p className="text-xs font-semibold text-sky-800">互換ファイルがあります</p>
+              <p className="text-xs font-semibold text-sky-800">代替ファイルがあります</p>
               <p className="mt-1 text-xs text-sky-700">{result.message}</p>
             </div>
             {/* 課金は実際に渡す内容(delivered)で判定 */}
@@ -212,6 +212,30 @@ export function TuningConfigurator({
               selection={result.delivered}
               href={result.href}
             />
+            {result.allowRequest && !requested && hasPaid && (
+              <label className="flex items-center gap-1.5 text-xs font-medium text-amber-900">
+                <input
+                  type="checkbox"
+                  checked={agreed}
+                  onChange={(e) => setAgreed(e.target.checked)}
+                  className="h-4 w-4 accent-amber-600"
+                />
+                リクエストする場合、有料オプション（{paidSelected.join("・")}）の料金発生に同意します
+              </label>
+            )}
+            {result.allowRequest &&
+              (requested ? (
+                <span className="text-xs font-semibold text-ink-soft">選択どおりの内容でリクエスト済み</span>
+              ) : (
+                <button
+                  type="button"
+                  disabled={requesting || (hasPaid && !agreed)}
+                  onClick={onRequest}
+                  className="inline-flex items-center rounded-lg border border-gold-300 bg-white px-4 py-2 text-xs font-semibold text-gold-700 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {requesting ? "送信中…" : "代替ではなく、選択どおりの内容をリクエストする"}
+                </button>
+              ))}
           </div>
         ) : result?.kind === "request" ? (
           requested ? (

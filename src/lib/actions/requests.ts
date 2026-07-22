@@ -181,6 +181,8 @@ export type ResolvedTuning =
       href: string;
       message: string;
       delivered: Required<TuningSelection>;
+      // true = 代替を案内しつつ「選択どおりの内容でリクエスト」も選べる（バブリングのモード違い等）
+      allowRequest?: boolean;
     }
   | { kind: "request" }
   | { error: string };
@@ -253,6 +255,35 @@ export async function resolveTuning(
         ? "この車種はスピードリミッターカット不可のため、リミッターカット無しの同一内容です。"
         : "スピードリミッターカット版は未提供のため、リミッターカット無しの同一内容です。",
     };
+  }
+
+  // 3) バブリングのモード（全モード⇄スポーツのみ）だけが違う代替版
+  //    代理店は「代替をDL」か「選択どおりの内容をリクエスト」かを選べる。
+  if (sel.pops) {
+    const alt = variants.find(
+      (v) =>
+        (v.stage ?? "").trim() === sel.stage &&
+        v.popsAndBangs === true &&
+        v.popsSport !== sel.popsSport &&
+        sameSet(v.optionTags, sel.optionTags),
+    );
+    if (alt && alt.fileRef && ctx.canDeliver) {
+      const delivered: Required<TuningSelection> = {
+        stage: sel.stage,
+        pops: true,
+        popsSport: alt.popsSport,
+        optionTags: sel.optionTags,
+      };
+      return {
+        kind: "compat",
+        href: `/api/match/${recordId}/variant/${alt.id}`,
+        delivered,
+        allowRequest: true,
+        message: sel.popsSport
+          ? "「スポーツモードのみ」版は未提供ですが、「全モード」版があります。代替でダウンロードするか、スポーツモードのみ版をリクエストしてください。"
+          : "「全モード」版は未提供ですが、「スポーツモードのみ」版があります。代替でダウンロードするか、全モード版をリクエストしてください。",
+      };
+    }
   }
 
   return { kind: "request" };

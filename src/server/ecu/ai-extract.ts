@@ -11,6 +11,9 @@ export type AiIds = {
   hw: string | null;
   sw: string | null;
   cal: string | null;
+  // AutoTunerメタ＋dumpから推定した車両情報（例: grade="S550", generation="W222"）
+  grade: string | null;
+  generation: string | null;
   confidence: number; // 0-1
   model: string; // "haiku" | "opus"
 };
@@ -19,6 +22,21 @@ export type AiIds = {
 const PRIMARY = process.env.ANTHROPIC_MODEL_STRONG ?? "claude-opus-4-8";
 // このファイル以外に何件で「共通の定数」とみなして候補から外すか。
 const COMMON_THRESHOLD = Number(process.env.ECU_COMMON_THRESHOLD ?? "3");
+
+// 拒否リスト（AIがCal等と誤認しがちな共通定数）。候補から無条件に除外する。
+async function filterDenied(candidates: string[]): Promise<string[]> {
+  try {
+    const deny = await prisma.ecuDenyToken.findMany({
+      where: { token: { in: candidates } },
+      select: { token: true },
+    });
+    if (deny.length === 0) return candidates;
+    const set = new Set(deny.map((d) => d.token));
+    return candidates.filter((t) => !set.has(t));
+  } catch {
+    return candidates;
+  }
+}
 
 export function aiEnabled(): boolean {
   return !!process.env.ANTHROPIC_API_KEY;
@@ -50,6 +68,19 @@ export async function recordCorrection(opts: {
   hw?: string | null;
 }): Promise<void> {
   if (opts.hash) {
+    // AIが出していた値と本店の確定値が食い違うCalは「誤認しやすい値」として拒否リストに学習
+    try {
+      const cached = await prisma.ecuAiCache.findUnique({ where: { hash: opts.hash } });
+      if (cached?.cal && opts.cal && cached.cal !== opts.cal) {
+        await prisma.ecuDenyToken.upsert({
+          where: { token: cached.cal },
+          create: { token: cached.cal, note: `本店の手修正で否定（正: ${opts.cal}）` },
+          update: {},
+        });
+      }
+    } catch {
+      /* 学習失敗は無視 */
+    }
     await prisma.ecuAiCache.deleteMany({ where: { hash: opts.hash } }).catch(() => {});
   }
   if (opts.manufacturer && (opts.cal || opts.sw || opts.hw)) {
@@ -113,6 +144,15 @@ const TOOL: Anthropic.Tool = {
         type: ["string", "null"],
         description: "Hardware part number, e.g. '07K907309C'. null if unknown.",
       },
+      grade: {
+        type: ["string", "null"],
+        description:
+          "Vehicle trim/grade inferred from manufacturer/model/engine info, e.g. 'S550', '440i', 'RS3'. null if not determinable with reasonable confidence.",
+      },
+      generation: {
+        type: ["string", "null"],
+        description: "Generation/chassis code, e.g. 'W222', 'G22', '8V'. null if unsure.",
+      },
       confidence: {
         type: "number",
         description: "Confidence 0..1 that the identifiers (especially Cal) are correct.",
@@ -155,6 +195,7 @@ function buildPrompt(
     "Guidance:",
     "- Cal is the most important. It is often the SW number followed by a version suffix (e.g. '8V0907404_0004' or '8V0907404 0004'). The version suffix may appear as a separate short token.",
     "- Prefer identifiers that appear together in the firmware identification block.",
+    "- Also infer the vehicle trim/grade (e.g. 'S550', '440i') and generation/chassis code (e.g. 'W222', 'G22') from the Manufacturer/Model/Engine information when clearly determinable (engine family + power output usually pins it down). Return null if ambiguous.",
     "",
     "CRITICAL — pick the value that identifies THIS vehicle, not a generic constant:",
     "- The Cal/SW/HW must be specific to this ECU's identifier. Some 10-digit numbers recur across many unrelated dumps (shared library/firmware constants) — they are NOT this vehicle's Cal even though they look like a part number. Candidates already had cross-file common constants removed, but stay skeptical of any value that does not fit the vehicle.",
@@ -190,6 +231,8 @@ async function callModel(
     cal?: string | null;
     sw?: string | null;
     hw?: string | null;
+    grade?: string | null;
+    generation?: string | null;
     confidence?: number;
   };
   const norm = (s?: string | null) => {
@@ -200,6 +243,8 @@ async function callModel(
     hw: norm(inp.hw),
     sw: norm(inp.sw),
     cal: norm(inp.cal),
+    grade: norm(inp.grade),
+    generation: norm(inp.generation),
     confidence: typeof inp.confidence === "number" ? Math.max(0, Math.min(1, inp.confidence)) : 0,
   };
 }
@@ -230,15 +275,19 @@ export async function aiExtractIds(
         hw: cached.hw,
         sw: cached.sw,
         cal: cached.cal,
+        grade: null, // キャッシュには車両推定を持たない（識別子のみ）
+        generation: null,
         confidence: cached.confidence ?? 0,
         model: cached.model ?? "cache",
       };
     }
   }
 
-  const candidates = extractIdCandidates(buf);
+  let candidates = extractIdCandidates(buf);
   if (candidates.length === 0) return null;
 
+  // 拒否リスト（既知の誤認定数）を無条件に除外
+  candidates = await filterDenied(candidates);
   // 複数の無関係なファイルに共通して出るトークン（＝定数。或る車のCalが別車にも出る等）を
   // AI候補から除外する。学習データはファイルを処理するほど溜まる。
   let usable = candidates;
@@ -342,7 +391,8 @@ const STOCK_TOOL: Anthropic.Tool = {
 
 // 共通の候補準備（抽出＋共通定数フィルタ＋記録）。
 async function prepCandidates(buf: Buffer, hash: string | null | undefined): Promise<string[]> {
-  const candidates = extractIdCandidates(buf);
+  let candidates = extractIdCandidates(buf);
+  candidates = await filterDenied(candidates); // 既知の誤認定数を無条件除外
   if (candidates.length === 0 || !hash) return candidates;
   let usable = candidates;
   try {

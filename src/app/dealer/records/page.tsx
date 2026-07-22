@@ -121,11 +121,13 @@ export default async function DealerRecordsPage() {
         <Card className="divide-y divide-line p-0">
           {records.map((r) => {
             const pending = isPendingStatus(r.status);
-            const eng = engineNameOf(r.engineInfo);
+            const gen = (r.carGeneration ?? "").trim();
+            const grade = (r.carGrade ?? "").trim();
+            const suffix = grade || (gen ? "" : engineNameOf(r.engineInfo) ?? "");
             const title =
               (r.matchedBaseFile && vehicleLabel(r.matchedBaseFile)) ||
               (r.carMaker || r.carModel
-                ? `${r.carMaker ?? ""} ${r.carModel ?? ""}${eng ? ` ${eng}` : ""}`.trim()
+                ? `${r.carMaker ?? ""} ${r.carModel ?? ""}${gen ? `(${gen})` : ""}${suffix ? ` ${suffix}` : ""}`.trim()
                 : r.slaveName || "（解析中…）");
             return (
               <Link

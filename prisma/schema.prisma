@@ -267,6 +267,9 @@ model ServiceRecord {
   devFreeChoice    Boolean @default(false)
   // 左右ECU: メイン（この記録の既存フィールド）側の表示ラベル。2基目は RecordEcuSide。
   primarySide      String  @default("左")
+  // AI推定の車両情報（AutoTunerメタ＋dump からの推定。照合前の表示・カタログ登録の下書きに使う）
+  carGrade         String?
+  carGeneration    String?
   // 対象ユニット "ECU" | "TCU"。同時施工での取り違え防止（表示・ファイル名に使用）。
   unit            String   @default("ECU")
   // チューンド車用: 本店が事前アップする純正(ori)bin。代理店はこれを ori .slave でいつでもDLできる。
@@ -800,4 +803,13 @@ model RecordEcuSide {
   createdAt        DateTime      @default(now())
 
   @@unique([recordId, side])
+}
+
+
+// AIのCal誤認の拒否リスト（多数のdumpに共通するライブラリ定数など）。
+// 本店がCalを手修正すると、AIが出していた誤値が自動で追加される。
+model EcuDenyToken {
+  token     String   @id
+  note      String?
+  createdAt DateTime @default(now())
 }
