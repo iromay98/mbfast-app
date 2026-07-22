@@ -414,6 +414,8 @@ export default async function HQRecordDetailPage({
             recordId={record.id}
             carMaker={record.carMaker ?? ""}
             carModel={record.carModel ?? ""}
+            generation={matched?.generation ?? ""}
+            grade={matched?.grade ?? ""}
             makerOptions={makerSuggest}
             matched={!!record.matchedBaseFileId}
           />

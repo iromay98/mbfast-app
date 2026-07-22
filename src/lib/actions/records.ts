@@ -578,7 +578,7 @@ export async function setRecordCustomerName(
 // 照合済みの記録はカタログ(BaseFile)の値が優先表示されるため、そちらも合わせて更新する。
 export async function setRecordVehicle(
   recordId: string,
-  patch: { carMaker?: string; carModel?: string },
+  patch: { carMaker?: string; carModel?: string; generation?: string; grade?: string },
 ): Promise<{ ok?: true; error?: string }> {
   await requireHQ();
   const rec = await prisma.serviceRecord.findUnique({
@@ -600,15 +600,25 @@ export async function setRecordVehicle(
     }
   }
   if ("carModel" in patch) data.carModel = String(patch.carModel ?? "").trim() || null;
-  if (Object.keys(data).length === 0) return { ok: true };
 
-  await prisma.serviceRecord.update({ where: { id: recordId }, data });
+  // 世代・グレードはカタログ(BaseFile)側にのみ存在する。照合済みの記録からのみ編集できる。
+  const wantsBaseOnly = "generation" in patch || "grade" in patch;
+  if (wantsBaseOnly && !rec.matchedBaseFileId) {
+    return { error: "世代・グレードは照合（カタログ紐づけ）後に編集できます" };
+  }
+  if (Object.keys(data).length === 0 && !wantsBaseOnly) return { ok: true };
+
+  if (Object.keys(data).length > 0) {
+    await prisma.serviceRecord.update({ where: { id: recordId }, data });
+  }
 
   // 照合済みなら表示元のカタログも合わせる（記録だけ直しても表示が変わらないため）
   if (rec.matchedBaseFileId) {
-    const baseData: { manufacturer?: string; model?: string } = {};
+    const baseData: { manufacturer?: string; model?: string; generation?: string | null; grade?: string | null } = {};
     if (data.carMaker) baseData.manufacturer = data.carMaker;
     if (data.carModel) baseData.model = data.carModel;
+    if ("generation" in patch) baseData.generation = String(patch.generation ?? "").trim() || null;
+    if ("grade" in patch) baseData.grade = String(patch.grade ?? "").trim() || null;
     if (Object.keys(baseData).length > 0) {
       await prisma.baseFile.update({ where: { id: rec.matchedBaseFileId }, data: baseData });
       revalidatePath("/hq/catalog");

@@ -10,23 +10,30 @@ export function RecordVehicleEdit({
   recordId,
   carMaker,
   carModel,
+  generation = "",
+  grade = "",
   makerOptions,
   matched,
 }: {
   recordId: string;
   carMaker: string;
   carModel: string;
+  // 世代・グレードはカタログ側の値（照合済みのときのみ編集可能）
+  generation?: string;
+  grade?: string;
   makerOptions: string[];
   matched: boolean;
 }) {
   const [maker, setMaker] = useState(carMaker);
   const [model, setModel] = useState(carModel);
+  const [gen, setGen] = useState(generation);
+  const [grd, setGrd] = useState(grade);
   const [pending, start] = useTransition();
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
 
-  const save = (patch: { carMaker?: string; carModel?: string }) =>
+  const save = (patch: { carMaker?: string; carModel?: string; generation?: string; grade?: string }) =>
     start(async () => {
       setSaved(false);
       setError(null);
@@ -72,6 +79,36 @@ export function RecordVehicleEdit({
         }}
         className={`${inp} w-28`}
       />
+      {matched && (
+        <>
+          <span className="text-ink-soft">(</span>
+          <input
+            value={gen}
+            placeholder="世代"
+            onChange={(e) => setGen(e.target.value)}
+            onBlur={() => {
+              if (gen.trim() !== generation) save({ generation: gen.trim() });
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") e.currentTarget.blur();
+            }}
+            className={`${inp} w-16`}
+          />
+          <span className="text-ink-soft">)</span>
+          <input
+            value={grd}
+            placeholder="グレード"
+            onChange={(e) => setGrd(e.target.value)}
+            onBlur={() => {
+              if (grd.trim() !== grade) save({ grade: grd.trim() });
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") e.currentTarget.blur();
+            }}
+            className={`${inp} w-20`}
+          />
+        </>
+      )}
       {pending && <span className="text-ink-soft">保存中…</span>}
       {saved && !pending && (
         <span className="font-semibold text-green-700">
