@@ -22,7 +22,7 @@ import {
 } from "@/lib/catalog/options";
 import { ModUploadForm } from "./mod-upload-form";
 import { RegisteredVariants, type StockVariantRow } from "./registered-variants";
-import { ChoiceSelect, TOOL_OPTIONS, METHOD_OPTIONS } from "./catalog-grid";
+import { ChoiceSelect, TOOL_OPTIONS, METHOD_OPTIONS, mergeOptions } from "./catalog-grid";
 
 type Analyzed = {
   ecu: string | null;
@@ -47,9 +47,13 @@ type Analyzed = {
 export function StockUploadForm({
   makerOptions,
   modelOptions,
+  usedTools = [],
+  usedMethods = [],
 }: {
   makerOptions: string[];
   modelOptions: string[];
+  usedTools?: string[];
+  usedMethods?: string[];
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -520,14 +524,14 @@ export function StockUploadForm({
               <span className="font-semibold" title="読み取りツール。ファイル名のトークンに入ります（例 PG3_OBD_ori.bin）">ツール</span>
               <ChoiceSelect
                 value={f.tool}
-                options={TOOL_OPTIONS}
+                options={mergeOptions(TOOL_OPTIONS, usedTools)}
                 onSave={(v) => setF((s) => ({ ...s, tool: v }))}
                 addPrompt="ツール名（ファイル名に入る短い表記。例: KTAG）"
               />
               <span className="font-semibold">Method</span>
               <ChoiceSelect
                 value={f.method}
-                options={METHOD_OPTIONS}
+                options={mergeOptions(METHOD_OPTIONS, usedMethods)}
                 onSave={(v) => setF((s) => ({ ...s, method: v }))}
                 addPrompt="読み方式（例: BDM）"
               />

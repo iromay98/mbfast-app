@@ -203,13 +203,27 @@ export const METHOD_OPTIONS: [string, string][] = [
   ["Boot", "Boot"],
 ];
 
+// 既定候補＋DBで使用済みの値（手入力で追加されたもの）をマージ
+export function mergeOptions(base: [string, string][], used: string[]): [string, string][] {
+  const out = [...base];
+  for (const v of used) {
+    if (v && !out.some(([x]) => x === v)) out.push([v, v]);
+  }
+  return out;
+}
+
 export function CatalogGrid({
   groups,
   makerOptions = [],
+  usedTools = [],
+  usedMethods = [],
 }: {
   groups: CalGroup[];
   // メーカー候補（既存DB値＋カノニカル）。誤登録の修正・表記ゆれ防止に使う。
   makerOptions?: string[];
+  // 使用済みツール/Method（手入力追加分を選択肢に反映）
+  usedTools?: string[];
+  usedMethods?: string[];
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -264,6 +278,8 @@ export function CatalogGrid({
 
   const renderCard = (g: CalGroup) => (
     <CalGroupCard
+      usedTools={usedTools}
+      usedMethods={usedMethods}
       key={g.baseFileId}
       group={g}
       makerOptions={makerOptions}
@@ -366,6 +382,8 @@ function CalGroupCard({
   onStatus,
   onUpload,
   onRestore,
+  usedTools = [],
+  usedMethods = [],
 }: {
   group: CalGroup;
   makerOptions: string[];
@@ -380,6 +398,9 @@ function CalGroupCard({
   onStatus: (id: string, s: string) => void;
   onUpload: (id: string, f: File) => void;
   onRestore: (id: string, versionId: string) => void;
+  usedTools?: string[];
+  usedMethods?: string[];
+
 }) {
   const g = group;
   const tags = optionTagsFor(g.fuelKind, g.manufacturer);
@@ -519,14 +540,14 @@ function CalGroupCard({
         </span>
         <ChoiceSelect
           value={g.tool}
-          options={TOOL_OPTIONS}
+          options={mergeOptions(TOOL_OPTIONS, usedTools)}
           onSave={(v) => onPatchBase({ tool: v })}
           addPrompt="ツール名（ファイル名に入る短い表記。例: KTAG）"
         />
         <span className="text-ink-soft">Method</span>
         <ChoiceSelect
           value={g.method}
-          options={METHOD_OPTIONS}
+          options={mergeOptions(METHOD_OPTIONS, usedMethods)}
           onSave={(v) => onPatchBase({ method: v })}
           addPrompt="読み方式（例: BDM）"
         />

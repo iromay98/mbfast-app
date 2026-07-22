@@ -143,6 +143,11 @@ export default async function HQCatalogPage({
     }),
   ]);
   const makerOptions = makerRows.map((m) => m.manufacturer).filter(Boolean);
+  // 使用済みツール/Method（手入力で追加されたものも次回から選択肢に出す）
+  const toolRows = await prisma.baseFile.findMany({ distinct: ["tool"], select: { tool: true } });
+  const usedTools = toolRows.map((t) => t.tool).filter(Boolean);
+  const methodRows = await prisma.baseFile.findMany({ distinct: ["method"], select: { method: true } });
+  const usedMethods = methodRows.map((m) => m.method).filter((v): v is string => !!v);
   const modelOptions = modelRows.map((m) => m.model).filter(Boolean);
   const makerSuggest = Array.from(new Set([...MANUFACTURERS, ...makerOptions])).sort((a, b) =>
     a.localeCompare(b),
@@ -267,7 +272,7 @@ export default async function HQCatalogPage({
 
       {/* このページの主目的＝純正(原本)データのアップロード。これに mod がぶら下がる。 */}
       <div className="mb-4 flex flex-wrap items-center gap-3">
-        <StockUploadForm makerOptions={makerOptions} modelOptions={modelOptions} />
+        <StockUploadForm makerOptions={makerOptions} modelOptions={modelOptions} usedTools={usedTools} usedMethods={usedMethods} />
         <BulkReidentifyButton />
       </div>
 
@@ -388,7 +393,7 @@ export default async function HQCatalogPage({
         ))}
       </datalist>
 
-      <CatalogGrid groups={groups} makerOptions={makerSuggest} />
+      <CatalogGrid groups={groups} makerOptions={makerSuggest} usedTools={usedTools} usedMethods={usedMethods} />
     </div>
   );
 }
