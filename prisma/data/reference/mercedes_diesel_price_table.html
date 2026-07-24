@@ -1,6 +1,6 @@
 <!-- ====================================================================
   メルセデス・ベンツ ディーゼル ECUチューニング価格表 - mbFAST Tuning
-  全29モデル / 独立名前空間版(mbd- prefix)
+  全29モデル / アドブルーカット・DPF/EGR/NOxカット対応
 ==================================================================== -->
 
 <script type="application/ld+json">
@@ -20,484 +20,486 @@
 </script>
 
 <!-- START: 貼り付け範囲 -->
-<div class="mbd-price-wrapper">
+<div class="mb-price-wrapper mb-diesel-wrapper">
 
-  <div class="mbd-intro">
+  <div class="mb-intro">
     <p>メルセデス・ベンツ <strong>ディーゼル全29モデル</strong>のECUチューニング・<strong>アドブルーカット</strong>・<strong>DPF/EGR/NOxカット</strong>価格表です。OM642/OM651/OM654/OM656の各エンジンに対応。アドブルー(尿素水)補充から解放されるカスタマイズや、長距離輸送でのトラブル対策に最適です。価格は全て<strong>税込JPY</strong>です。価格未掲載のグレードは<strong>「💬 LINE」ボタン</strong>からお気軽にお問い合わせください。</p>
   </div>
 
-  <div class="mbd-controls">
-    <div class="mbd-search-wrap">
-      <input type="search" id="mbdSearch" class="mbd-search" placeholder="🔍 車種・型式・エンジンで検索 (例: E220d, OM654, GLE, S400d)" autocomplete="off">
-      <button type="button" id="mbdClear" class="mbd-clear" aria-label="クリア">×</button>
+  <div class="mb-controls">
+    <div class="mb-search-wrap">
+      <input type="search" id="mbSearch" class="mb-search" 
+             placeholder="🔍 車種・型式・エンジンで検索 (例: E220d, OM654, GLE, S400d)" 
+             autocomplete="off">
+      <button type="button" id="mbClear" class="mb-clear" aria-label="クリア">×</button>
     </div>
 
-    <div class="mbd-filter-group" role="group" aria-label="シリーズで絞り込み">
-      <div class="mbd-filter-label">シリーズ:</div>
-      <button type="button" class="mbd-filter-chip mbd-active" data-mbd-filter-series="all">すべて</button>
-      <button type="button" class="mbd-filter-chip" data-mbd-filter-series="A">A</button>
-      <button type="button" class="mbd-filter-chip" data-mbd-filter-series="B">B</button>
-      <button type="button" class="mbd-filter-chip" data-mbd-filter-series="C">C</button>
-      <button type="button" class="mbd-filter-chip" data-mbd-filter-series="CLA">CLA</button>
-      <button type="button" class="mbd-filter-chip" data-mbd-filter-series="CLS">CLS</button>
-      <button type="button" class="mbd-filter-chip" data-mbd-filter-series="E">E</button>
-      <button type="button" class="mbd-filter-chip" data-mbd-filter-series="S">S</button>
-      <button type="button" class="mbd-filter-chip" data-mbd-filter-series="G">G</button>
-      <button type="button" class="mbd-filter-chip" data-mbd-filter-series="GLA">GLA</button>
-      <button type="button" class="mbd-filter-chip" data-mbd-filter-series="GLB">GLB</button>
-      <button type="button" class="mbd-filter-chip" data-mbd-filter-series="GLC">GLC</button>
-      <button type="button" class="mbd-filter-chip" data-mbd-filter-series="GLE">GLE</button>
-      <button type="button" class="mbd-filter-chip" data-mbd-filter-series="GLS">GLS</button>
-      <button type="button" class="mbd-filter-chip" data-mbd-filter-series="ML">ML</button>
-      <button type="button" class="mbd-filter-chip" data-mbd-filter-series="V">V</button>
+    <div class="mb-filter-group" role="group" aria-label="シリーズで絞り込み">
+      <div class="filter-label">シリーズ:</div>
+      <button type="button" class="filter-chip active" data-filter-series="all">すべて</button>
+      <button type="button" class="filter-chip" data-filter-series="A">A</button>
+      <button type="button" class="filter-chip" data-filter-series="B">B</button>
+      <button type="button" class="filter-chip" data-filter-series="C">C</button>
+      <button type="button" class="filter-chip" data-filter-series="CLA">CLA</button>
+      <button type="button" class="filter-chip" data-filter-series="CLS">CLS</button>
+      <button type="button" class="filter-chip" data-filter-series="E">E</button>
+      <button type="button" class="filter-chip" data-filter-series="S">S</button>
+      <button type="button" class="filter-chip" data-filter-series="G">G</button>
+      <button type="button" class="filter-chip" data-filter-series="GLA">GLA</button>
+      <button type="button" class="filter-chip" data-filter-series="GLB">GLB</button>
+      <button type="button" class="filter-chip" data-filter-series="GLC">GLC</button>
+      <button type="button" class="filter-chip" data-filter-series="GLE">GLE</button>
+      <button type="button" class="filter-chip" data-filter-series="GLS">GLS</button>
+      <button type="button" class="filter-chip" data-filter-series="ML">ML</button>
+      <button type="button" class="filter-chip" data-filter-series="V">V</button>
     </div>
 
-    <div class="mbd-result-count">
-      <span id="mbdResultCount">29</span> / 29 件表示中
+    <div class="mb-result-count">
+      <span id="mbResultCount">29</span> / 29 件表示中
     </div>
   </div>
 
-  <div class="mbd-table-wrap">
-    <table class="mbd-price-table" id="mbdTable">
+  <div class="mb-table-wrap">
+    <table class="mb-price-table" id="mbTable">
       <thead>
         <tr>
-          <th class="mbd-sortable" data-mbd-sort="car">車種 (型式)</th>
-          <th class="mbd-sortable" data-mbd-sort="grade">グレード</th>
-          <th class="mbd-sortable" data-mbd-sort="engine">エンジン</th>
-          <th class="mbd-col-price">ECU<br>チューニング</th>
-          <th class="mbd-col-price">アドブルー<br>カット</th>
-          <th class="mbd-col-price">ECU+<br>アドブルー</th>
-          <th class="mbd-col-price">DPF/EGR<br>/NOxカット</th>
-          <th>脱着・殻割<br>工賃</th>
+          <th class="sortable" data-sort="car">車種 (型式)</th>
+          <th class="sortable" data-sort="grade">グレード</th>
+          <th class="sortable" data-sort="engine">エンジン</th>
+          <th class="col-price">ECU<br>チューニング</th>
+          <th class="col-price">アドブルー<br>カット</th>
+          <th class="col-price">ECU+<br>アドブルー</th>
+          <th class="col-price">DPF/EGR<br>/NOxカット</th>
           <th>純正出力</th>
           <th>Stage1<br>最大出力</th>
+          <th>脱着・殻割<br>工賃</th>
           <th>対応店舗</th>
           <th>リモート</th>
         </tr>
       </thead>
-      <tbody id="mbdTableBody">
-<tr data-mbd-search="a(w177) *a200d om654 2.0l om654 a w177" data-mbd-series="A">
-    <td class="mbd-cell-car"><strong>A(W177)</strong></td>
-    <td class="mbd-cell-grade">*A200d</td>
-    <td class="mbd-cell-engine">OM654 2.0L <span class="mbd-badge mbd-badge-engine">OM654</span></td>
-    <td class="mbd-cell-price-stage1">¥165,000</td>
-    <td class="mbd-cell-price-adblue">¥187,000</td>
-    <td class="mbd-cell-price-ecuadblue">¥209,000</td>
-    <td class="mbd-cell-price-dpf">+¥33,000/各</td>
-    <td class="mbd-cell-labor">+¥11,000</td>
-    <td class="mbd-cell-stock">150ps/320Nm</td>
-    <td class="mbd-cell-stage1-gain">+50ps/120Nm</td>
-    <td class="mbd-cell-shops">本店・代理店・OEM</td>
-    <td class="mbd-cell-remote"><span class="mbd-badge mbd-badge-remote" title="AutoTuner">AT</span></td>
+      <tbody id="mbTableBody">
+<tr data-search="a(w177) *a200d om654 2.0l om654 a w177" data-engine-family="OM654" data-series="A">
+    <td class="cell-car"><strong>A(W177)</strong></td>
+    <td class="cell-grade">*A200d</td>
+    <td class="cell-engine">OM654 2.0L <span class="badge badge-engine">OM654</span></td>
+    <td class="cell-price-stage1">¥165,000</td>
+    <td class="cell-price-adblue">¥187,000</td>
+    <td class="cell-price-ecuadblue">¥209,000</td>
+    <td class="cell-price-dpf">+¥33,000/各</td>
+    <td class="cell-stock">150ps/320Nm</td>
+    <td class="cell-stage1-gain">+50ps/120Nm</td>
+    <td class="cell-labor">+¥11,000</td>
+    <td class="cell-shops">本店・代理店・OEM</td>
+    <td class="cell-remote"><span class="badge badge-remote" title="AutoTuner">AT</span></td>
   </tr>
-<tr data-mbd-search="b(w247) *b200d om654 2.0l om654 b w247" data-mbd-series="B">
-    <td class="mbd-cell-car"><strong>B(W247)</strong></td>
-    <td class="mbd-cell-grade">*B200d</td>
-    <td class="mbd-cell-engine">OM654 2.0L <span class="mbd-badge mbd-badge-engine">OM654</span></td>
-    <td class="mbd-cell-price-stage1">¥165,000</td>
-    <td class="mbd-cell-price-adblue">¥187,000</td>
-    <td class="mbd-cell-price-ecuadblue">¥209,000</td>
-    <td class="mbd-cell-price-dpf">+¥33,000/各</td>
-    <td class="mbd-cell-labor">+¥11,000</td>
-    <td class="mbd-cell-stock">150ps/320Nm</td>
-    <td class="mbd-cell-stage1-gain">+50ps/120Nm</td>
-    <td class="mbd-cell-shops">本店・代理店・OEM</td>
-    <td class="mbd-cell-remote"><span class="mbd-badge mbd-badge-remote" title="AutoTuner">AT</span></td>
+<tr data-search="b(w247) *b200d om654 2.0l om654 b w247" data-engine-family="OM654" data-series="B">
+    <td class="cell-car"><strong>B(W247)</strong></td>
+    <td class="cell-grade">*B200d</td>
+    <td class="cell-engine">OM654 2.0L <span class="badge badge-engine">OM654</span></td>
+    <td class="cell-price-stage1">¥165,000</td>
+    <td class="cell-price-adblue">¥187,000</td>
+    <td class="cell-price-ecuadblue">¥209,000</td>
+    <td class="cell-price-dpf">+¥33,000/各</td>
+    <td class="cell-stock">150ps/320Nm</td>
+    <td class="cell-stage1-gain">+50ps/120Nm</td>
+    <td class="cell-labor">+¥11,000</td>
+    <td class="cell-shops">本店・代理店・OEM</td>
+    <td class="cell-remote"><span class="badge badge-remote" title="AutoTuner">AT</span></td>
   </tr>
-<tr data-mbd-search="c(w205) *c220d om654 2.0l om654 c w205" data-mbd-series="C">
-    <td class="mbd-cell-car"><strong>C(W205)</strong></td>
-    <td class="mbd-cell-grade">*C220d</td>
-    <td class="mbd-cell-engine">OM654 2.0L <span class="mbd-badge mbd-badge-engine">OM654</span></td>
-    <td class="mbd-cell-price-stage1">¥165,000</td>
-    <td class="mbd-cell-price-adblue">¥187,000</td>
-    <td class="mbd-cell-price-ecuadblue">¥209,000</td>
-    <td class="mbd-cell-price-dpf">+¥33,000/各</td>
-    <td class="mbd-cell-labor">+¥11,000</td>
-    <td class="mbd-cell-stock">194ps/400Nm</td>
-    <td class="mbd-cell-stage1-gain">+26ps/60Nm</td>
-    <td class="mbd-cell-shops">本店・代理店・OEM</td>
-    <td class="mbd-cell-remote"><span class="mbd-badge mbd-badge-remote" title="AutoTuner">AT</span></td>
+<tr data-search="c(w205) *c220d om654 2.0l om654 c w205" data-engine-family="OM654" data-series="C">
+    <td class="cell-car"><strong>C(W205)</strong></td>
+    <td class="cell-grade">*C220d</td>
+    <td class="cell-engine">OM654 2.0L <span class="badge badge-engine">OM654</span></td>
+    <td class="cell-price-stage1">¥165,000</td>
+    <td class="cell-price-adblue">¥187,000</td>
+    <td class="cell-price-ecuadblue">¥209,000</td>
+    <td class="cell-price-dpf">+¥33,000/各</td>
+    <td class="cell-stock">194ps/400Nm</td>
+    <td class="cell-stage1-gain">+26ps/60Nm</td>
+    <td class="cell-labor">+¥11,000</td>
+    <td class="cell-shops">本店・代理店・OEM</td>
+    <td class="cell-remote"><span class="badge badge-remote" title="AutoTuner">AT</span></td>
   </tr>
-<tr data-mbd-search="c(w205) c220d om651 2.2l om651 c w205" data-mbd-series="C">
-    <td class="mbd-cell-car"><strong>C(W205)</strong></td>
-    <td class="mbd-cell-grade">C220d</td>
-    <td class="mbd-cell-engine">OM651 2.2L <span class="mbd-badge mbd-badge-engine">OM651</span></td>
-    <td class="mbd-cell-price-stage1">¥143,000</td>
-    <td class="mbd-cell-price-adblue">¥165,000</td>
-    <td class="mbd-cell-price-ecuadblue">¥187,000</td>
-    <td class="mbd-cell-price-dpf">+¥33,000/各</td>
-    <td class="mbd-cell-labor"><span class="mbd-muted">—</span></td>
-    <td class="mbd-cell-stock">170ps/400Nm</td>
-    <td class="mbd-cell-stage1-gain">+50ps/100Nm</td>
-    <td class="mbd-cell-shops">本店・代理店・OEM</td>
-    <td class="mbd-cell-remote"><span class="mbd-badge mbd-badge-remote" title="Powergate3">PG3</span><span class="mbd-badge mbd-badge-remote" title="IXI Flasher">Flasher</span><span class="mbd-badge mbd-badge-remote" title="AutoTuner">AT</span></td>
+<tr data-search="c(w205) c220d om651 2.2l om651 c w205" data-engine-family="OM651" data-series="C">
+    <td class="cell-car"><strong>C(W205)</strong></td>
+    <td class="cell-grade">C220d</td>
+    <td class="cell-engine">OM651 2.2L <span class="badge badge-engine">OM651</span></td>
+    <td class="cell-price-stage1">¥143,000</td>
+    <td class="cell-price-adblue">¥165,000</td>
+    <td class="cell-price-ecuadblue">¥187,000</td>
+    <td class="cell-price-dpf">+¥33,000/各</td>
+    <td class="cell-stock">170ps/400Nm</td>
+    <td class="cell-stage1-gain">+50ps/100Nm</td>
+    <td class="cell-labor"><span class="muted">—</span></td>
+    <td class="cell-shops">本店・代理店・OEM</td>
+    <td class="cell-remote"><span class="badge badge-remote" title="Powergate3">PG3</span><span class="badge badge-remote" title="IXI Flasher">Flasher</span><span class="badge badge-remote" title="AutoTuner">AT</span></td>
   </tr>
-<tr data-mbd-search="c(w206) *c220d om654 2.0l om654 c w206" data-mbd-series="C">
-    <td class="mbd-cell-car"><strong>C(W206)</strong></td>
-    <td class="mbd-cell-grade">*C220d <span class="mbd-cell-note" title="要現車確認">★</span></td>
-    <td class="mbd-cell-engine">OM654 2.0L <span class="mbd-badge mbd-badge-engine">OM654</span></td>
-    <td class="mbd-cell-price-stage1"><a href="https://lin.ee/8yOXuPJ" target="_blank" rel="noopener" class="mbd-ask-btn" data-car="C(W206)" data-grade="*C220d" data-label="ECUチューニング" title="LINEで問い合わせ:【ECUチューニング見積希望】C(W206) *C220d"><span class="mbd-ask-icon">💬</span><span class="mbd-ask-text">LINE</span></a></td>
-    <td class="mbd-cell-price-adblue"><a href="https://lin.ee/8yOXuPJ" target="_blank" rel="noopener" class="mbd-ask-btn" data-car="C(W206)" data-grade="*C220d" data-label="アドブルーカット" title="LINEで問い合わせ:【アドブルーカット見積希望】C(W206) *C220d"><span class="mbd-ask-icon">💬</span><span class="mbd-ask-text">LINE</span></a></td>
-    <td class="mbd-cell-price-ecuadblue"><a href="https://lin.ee/8yOXuPJ" target="_blank" rel="noopener" class="mbd-ask-btn" data-car="C(W206)" data-grade="*C220d" data-label="ECU+アドブルー" title="LINEで問い合わせ:【ECU+アドブルー見積希望】C(W206) *C220d"><span class="mbd-ask-icon">💬</span><span class="mbd-ask-text">LINE</span></a></td>
-    <td class="mbd-cell-price-dpf"><a href="https://lin.ee/8yOXuPJ" target="_blank" rel="noopener" class="mbd-ask-btn" data-car="C(W206)" data-grade="*C220d" data-label="DPF/EGR/NOxカット" title="LINEで問い合わせ:【DPF/EGR/NOxカット見積希望】C(W206) *C220d"><span class="mbd-ask-icon">💬</span><span class="mbd-ask-text">LINE</span></a></td>
-    <td class="mbd-cell-labor"><span class="mbd-muted">—</span></td>
-    <td class="mbd-cell-stock">200ps+20ps</td>
-    <td class="mbd-cell-stage1-gain">+52ps</td>
-    <td class="mbd-cell-shops">本店・代理店・OEM</td>
-    <td class="mbd-cell-remote"><span class="mbd-badge mbd-badge-remote" title="AutoTuner">AT</span></td>
+<tr data-search="c(w206) *c220d om654 2.0l om654 c w206" data-engine-family="OM654" data-series="C">
+    <td class="cell-car"><strong>C(W206)</strong></td>
+    <td class="cell-grade">*C220d <span class="cell-note" title="要現車確認">★</span></td>
+    <td class="cell-engine">OM654 2.0L <span class="badge badge-engine">OM654</span></td>
+    <td class="cell-price-stage1"><a href="https://lin.ee/8yOXuPJ" target="_blank" rel="noopener" class="ask-btn" data-car="C(W206)" data-grade="*C220d" data-label="ECUチューニング" title="LINEで問い合わせ:【ECUチューニング見積希望】C(W206) *C220d"><span class="ask-icon">💬</span><span class="ask-text">LINE</span></a></td>
+    <td class="cell-price-adblue"><a href="https://lin.ee/8yOXuPJ" target="_blank" rel="noopener" class="ask-btn" data-car="C(W206)" data-grade="*C220d" data-label="アドブルーカット" title="LINEで問い合わせ:【アドブルーカット見積希望】C(W206) *C220d"><span class="ask-icon">💬</span><span class="ask-text">LINE</span></a></td>
+    <td class="cell-price-ecuadblue"><a href="https://lin.ee/8yOXuPJ" target="_blank" rel="noopener" class="ask-btn" data-car="C(W206)" data-grade="*C220d" data-label="ECU+アドブルーカット" title="LINEで問い合わせ:【ECU+アドブルーカット見積希望】C(W206) *C220d"><span class="ask-icon">💬</span><span class="ask-text">LINE</span></a></td>
+    <td class="cell-price-dpf"><a href="https://lin.ee/8yOXuPJ" target="_blank" rel="noopener" class="ask-btn" data-car="C(W206)" data-grade="*C220d" data-label="DPF/EGR/NOxカット" title="LINEで問い合わせ:【DPF/EGR/NOxカット見積希望】C(W206) *C220d"><span class="ask-icon">💬</span><span class="ask-text">LINE</span></a></td>
+    <td class="cell-stock">200ps+20ps</td>
+    <td class="cell-stage1-gain">+52ps</td>
+    <td class="cell-labor"><span class="muted">—</span></td>
+    <td class="cell-shops">本店・代理店・OEM</td>
+    <td class="cell-remote"><span class="badge badge-remote" title="AutoTuner">AT</span></td>
   </tr>
-<tr data-mbd-search="cla(c118) *cla200d om654 2.0l om654 cla c118" data-mbd-series="CLA">
-    <td class="mbd-cell-car"><strong>CLA(C118)</strong></td>
-    <td class="mbd-cell-grade">*CLA200d</td>
-    <td class="mbd-cell-engine">OM654 2.0L <span class="mbd-badge mbd-badge-engine">OM654</span></td>
-    <td class="mbd-cell-price-stage1">¥165,000</td>
-    <td class="mbd-cell-price-adblue">¥187,000</td>
-    <td class="mbd-cell-price-ecuadblue">¥209,000</td>
-    <td class="mbd-cell-price-dpf">+¥33,000/各</td>
-    <td class="mbd-cell-labor">+¥11,000</td>
-    <td class="mbd-cell-stock">150ps/320Nm</td>
-    <td class="mbd-cell-stage1-gain">+50ps/120Nm</td>
-    <td class="mbd-cell-shops">本店・代理店・OEM</td>
-    <td class="mbd-cell-remote"><span class="mbd-badge mbd-badge-remote" title="AutoTuner">AT</span></td>
+<tr data-search="cla(c118) *cla200d om654 2.0l om654 cla c118" data-engine-family="OM654" data-series="CLA">
+    <td class="cell-car"><strong>CLA(C118)</strong></td>
+    <td class="cell-grade">*CLA200d</td>
+    <td class="cell-engine">OM654 2.0L <span class="badge badge-engine">OM654</span></td>
+    <td class="cell-price-stage1">¥165,000</td>
+    <td class="cell-price-adblue">¥187,000</td>
+    <td class="cell-price-ecuadblue">¥209,000</td>
+    <td class="cell-price-dpf">+¥33,000/各</td>
+    <td class="cell-stock">150ps/320Nm</td>
+    <td class="cell-stage1-gain">+50ps/120Nm</td>
+    <td class="cell-labor">+¥11,000</td>
+    <td class="cell-shops">本店・代理店・OEM</td>
+    <td class="cell-remote"><span class="badge badge-remote" title="AutoTuner">AT</span></td>
   </tr>
-<tr data-mbd-search="cls(c257) *cls220d om654 2.0l om654 cls c257" data-mbd-series="CLS">
-    <td class="mbd-cell-car"><strong>CLS(C257)</strong></td>
-    <td class="mbd-cell-grade">*CLS220d</td>
-    <td class="mbd-cell-engine">OM654 2.0L <span class="mbd-badge mbd-badge-engine">OM654</span></td>
-    <td class="mbd-cell-price-stage1">¥165,000</td>
-    <td class="mbd-cell-price-adblue">¥187,000</td>
-    <td class="mbd-cell-price-ecuadblue">¥209,000</td>
-    <td class="mbd-cell-price-dpf">+¥33,000/各</td>
-    <td class="mbd-cell-labor">+¥11,000</td>
-    <td class="mbd-cell-stock">194ps/400Nm</td>
-    <td class="mbd-cell-stage1-gain">+26ps/60Nm</td>
-    <td class="mbd-cell-shops">本店・代理店・OEM</td>
-    <td class="mbd-cell-remote"><span class="mbd-badge mbd-badge-remote" title="AutoTuner">AT</span></td>
+<tr data-search="cls(c257) *cls220d om654 2.0l om654 cls c257" data-engine-family="OM654" data-series="CLS">
+    <td class="cell-car"><strong>CLS(C257)</strong></td>
+    <td class="cell-grade">*CLS220d</td>
+    <td class="cell-engine">OM654 2.0L <span class="badge badge-engine">OM654</span></td>
+    <td class="cell-price-stage1">¥165,000</td>
+    <td class="cell-price-adblue">¥187,000</td>
+    <td class="cell-price-ecuadblue">¥209,000</td>
+    <td class="cell-price-dpf">+¥33,000/各</td>
+    <td class="cell-stock">194ps/400Nm</td>
+    <td class="cell-stage1-gain">+26ps/60Nm</td>
+    <td class="cell-labor">+¥11,000</td>
+    <td class="cell-shops">本店・代理店・OEM</td>
+    <td class="cell-remote"><span class="badge badge-remote" title="AutoTuner">AT</span></td>
   </tr>
-<tr data-mbd-search="e(w211) e320 cdi om642 3.0l om642 e w211" data-mbd-series="E">
-    <td class="mbd-cell-car"><strong>E(W211)</strong></td>
-    <td class="mbd-cell-grade">E320 CDI</td>
-    <td class="mbd-cell-engine">OM642 3.0L <span class="mbd-badge mbd-badge-engine">OM642</span></td>
-    <td class="mbd-cell-price-stage1">¥143,000</td>
-    <td class="mbd-cell-price-adblue">¥165,000</td>
-    <td class="mbd-cell-price-ecuadblue">¥187,000</td>
-    <td class="mbd-cell-price-dpf">+¥33,000/各</td>
-    <td class="mbd-cell-labor"><span class="mbd-muted">—</span></td>
-    <td class="mbd-cell-stock">211ps/540Nm</td>
-    <td class="mbd-cell-stage1-gain">+64ps/60Nm</td>
-    <td class="mbd-cell-shops">本店・代理店・OEM</td>
-    <td class="mbd-cell-remote"><span class="mbd-badge mbd-badge-remote" title="Powergate3">PG3</span><span class="mbd-badge mbd-badge-remote" title="AutoTuner">AT</span></td>
+<tr data-search="e(w211) e320 cdi om642 3.0l om642 e w211" data-engine-family="OM642" data-series="E">
+    <td class="cell-car"><strong>E(W211)</strong></td>
+    <td class="cell-grade">E320 CDI</td>
+    <td class="cell-engine">OM642 3.0L <span class="badge badge-engine">OM642</span></td>
+    <td class="cell-price-stage1">¥143,000</td>
+    <td class="cell-price-adblue">¥165,000</td>
+    <td class="cell-price-ecuadblue">¥187,000</td>
+    <td class="cell-price-dpf">+¥33,000/各</td>
+    <td class="cell-stock">211ps/540Nm</td>
+    <td class="cell-stage1-gain">+64ps/60Nm</td>
+    <td class="cell-labor"><span class="muted">—</span></td>
+    <td class="cell-shops">本店・代理店・OEM</td>
+    <td class="cell-remote"><span class="badge badge-remote" title="Powergate3">PG3</span><span class="badge badge-remote" title="AutoTuner">AT</span></td>
   </tr>
-<tr data-mbd-search="e(w212) e220 bluetec om651 2.2l om651 e w212" data-mbd-series="E">
-    <td class="mbd-cell-car"><strong>E(W212)</strong></td>
-    <td class="mbd-cell-grade">E220 BlueTec</td>
-    <td class="mbd-cell-engine">OM651 2.2L <span class="mbd-badge mbd-badge-engine">OM651</span></td>
-    <td class="mbd-cell-price-stage1">¥143,000</td>
-    <td class="mbd-cell-price-adblue">¥165,000</td>
-    <td class="mbd-cell-price-ecuadblue">¥187,000</td>
-    <td class="mbd-cell-price-dpf">+¥33,000/各</td>
-    <td class="mbd-cell-labor"><span class="mbd-muted">—</span></td>
-    <td class="mbd-cell-stock">177ps/400Nm</td>
-    <td class="mbd-cell-stage1-gain">+43ps/100Nm</td>
-    <td class="mbd-cell-shops">本店・代理店・OEM</td>
-    <td class="mbd-cell-remote"><span class="mbd-badge mbd-badge-remote" title="Powergate3">PG3</span><span class="mbd-badge mbd-badge-remote" title="IXI Flasher">Flasher</span><span class="mbd-badge mbd-badge-remote" title="AutoTuner">AT</span></td>
+<tr data-search="e(w212) e220 bluetec om651 2.2l om651 e w212" data-engine-family="OM651" data-series="E">
+    <td class="cell-car"><strong>E(W212)</strong></td>
+    <td class="cell-grade">E220 BlueTec</td>
+    <td class="cell-engine">OM651 2.2L <span class="badge badge-engine">OM651</span></td>
+    <td class="cell-price-stage1">¥143,000</td>
+    <td class="cell-price-adblue">¥165,000</td>
+    <td class="cell-price-ecuadblue">¥187,000</td>
+    <td class="cell-price-dpf">+¥33,000/各</td>
+    <td class="cell-stock">177ps/400Nm</td>
+    <td class="cell-stage1-gain">+43ps/100Nm</td>
+    <td class="cell-labor"><span class="muted">—</span></td>
+    <td class="cell-shops">本店・代理店・OEM</td>
+    <td class="cell-remote"><span class="badge badge-remote" title="Powergate3">PG3</span><span class="badge badge-remote" title="IXI Flasher">Flasher</span><span class="badge badge-remote" title="AutoTuner">AT</span></td>
   </tr>
-<tr data-mbd-search="e(w212) e350 bluetec om642 3.0l om642 e w212" data-mbd-series="E">
-    <td class="mbd-cell-car"><strong>E(W212)</strong></td>
-    <td class="mbd-cell-grade">E350 BlueTec</td>
-    <td class="mbd-cell-engine">OM642 3.0L <span class="mbd-badge mbd-badge-engine">OM642</span></td>
-    <td class="mbd-cell-price-stage1">¥143,000</td>
-    <td class="mbd-cell-price-adblue">¥165,000</td>
-    <td class="mbd-cell-price-ecuadblue">¥187,000</td>
-    <td class="mbd-cell-price-dpf">+¥33,000/各</td>
-    <td class="mbd-cell-labor"><span class="mbd-muted">—</span></td>
-    <td class="mbd-cell-stock">252ps/620Nm</td>
-    <td class="mbd-cell-stage1-gain">+38ps/70Nm</td>
-    <td class="mbd-cell-shops">本店・代理店・OEM</td>
-    <td class="mbd-cell-remote"><span class="mbd-badge mbd-badge-remote" title="Powergate3">PG3</span><span class="mbd-badge mbd-badge-remote" title="IXI Flasher">Flasher</span><span class="mbd-badge mbd-badge-remote" title="AutoTuner">AT</span></td>
+<tr data-search="e(w212) e350 bluetec om642 3.0l om642 e w212" data-engine-family="OM642" data-series="E">
+    <td class="cell-car"><strong>E(W212)</strong></td>
+    <td class="cell-grade">E350 BlueTec</td>
+    <td class="cell-engine">OM642 3.0L <span class="badge badge-engine">OM642</span></td>
+    <td class="cell-price-stage1">¥143,000</td>
+    <td class="cell-price-adblue">¥165,000</td>
+    <td class="cell-price-ecuadblue">¥187,000</td>
+    <td class="cell-price-dpf">+¥33,000/各</td>
+    <td class="cell-stock">252ps/620Nm</td>
+    <td class="cell-stage1-gain">+38ps/70Nm</td>
+    <td class="cell-labor"><span class="muted">—</span></td>
+    <td class="cell-shops">本店・代理店・OEM</td>
+    <td class="cell-remote"><span class="badge badge-remote" title="Powergate3">PG3</span><span class="badge badge-remote" title="IXI Flasher">Flasher</span><span class="badge badge-remote" title="AutoTuner">AT</span></td>
   </tr>
-<tr data-mbd-search="e(w213) *e220d om654 2.0l om654 e w213" data-mbd-series="E">
-    <td class="mbd-cell-car"><strong>E(W213)</strong></td>
-    <td class="mbd-cell-grade">*E220d</td>
-    <td class="mbd-cell-engine">OM654 2.0L <span class="mbd-badge mbd-badge-engine">OM654</span></td>
-    <td class="mbd-cell-price-stage1">¥165,000</td>
-    <td class="mbd-cell-price-adblue">¥187,000</td>
-    <td class="mbd-cell-price-ecuadblue">¥209,000</td>
-    <td class="mbd-cell-price-dpf">+¥33,000/各</td>
-    <td class="mbd-cell-labor">+¥11,000</td>
-    <td class="mbd-cell-stock">194ps/400Nm</td>
-    <td class="mbd-cell-stage1-gain">+26ps/60Nm</td>
-    <td class="mbd-cell-shops">本店・代理店・OEM</td>
-    <td class="mbd-cell-remote"><span class="mbd-badge mbd-badge-remote" title="AutoTuner">AT</span></td>
+<tr data-search="e(w213) *e220d om654 2.0l om654 e w213" data-engine-family="OM654" data-series="E">
+    <td class="cell-car"><strong>E(W213)</strong></td>
+    <td class="cell-grade">*E220d</td>
+    <td class="cell-engine">OM654 2.0L <span class="badge badge-engine">OM654</span></td>
+    <td class="cell-price-stage1">¥165,000</td>
+    <td class="cell-price-adblue">¥187,000</td>
+    <td class="cell-price-ecuadblue">¥209,000</td>
+    <td class="cell-price-dpf">+¥33,000/各</td>
+    <td class="cell-stock">194ps/400Nm</td>
+    <td class="cell-stage1-gain">+26ps/60Nm</td>
+    <td class="cell-labor">+¥11,000</td>
+    <td class="cell-shops">本店・代理店・OEM</td>
+    <td class="cell-remote"><span class="badge badge-remote" title="AutoTuner">AT</span></td>
   </tr>
-<tr data-mbd-search="s(w222) *s400d om656 2.9l om656 s w222" data-mbd-series="S">
-    <td class="mbd-cell-car"><strong>S(W222)</strong></td>
-    <td class="mbd-cell-grade">*S400d</td>
-    <td class="mbd-cell-engine">OM656 2.9L <span class="mbd-badge mbd-badge-engine">OM656</span></td>
-    <td class="mbd-cell-price-stage1">¥165,000</td>
-    <td class="mbd-cell-price-adblue">¥187,000</td>
-    <td class="mbd-cell-price-ecuadblue">¥209,000</td>
-    <td class="mbd-cell-price-dpf">+¥33,000/各</td>
-    <td class="mbd-cell-labor">+¥11,000</td>
-    <td class="mbd-cell-stock">340ps/700Nm</td>
-    <td class="mbd-cell-stage1-gain">+70ps/140Nm</td>
-    <td class="mbd-cell-shops">本店・代理店・OEM</td>
-    <td class="mbd-cell-remote"><span class="mbd-badge mbd-badge-remote" title="AutoTuner">AT</span></td>
+<tr data-search="s(w222) *s400d om656 2.9l om656 s w222" data-engine-family="OM656" data-series="S">
+    <td class="cell-car"><strong>S(W222)</strong></td>
+    <td class="cell-grade">*S400d</td>
+    <td class="cell-engine">OM656 2.9L <span class="badge badge-engine">OM656</span></td>
+    <td class="cell-price-stage1">¥165,000</td>
+    <td class="cell-price-adblue">¥187,000</td>
+    <td class="cell-price-ecuadblue">¥209,000</td>
+    <td class="cell-price-dpf">+¥33,000/各</td>
+    <td class="cell-stock">340ps/700Nm</td>
+    <td class="cell-stage1-gain">+70ps/140Nm</td>
+    <td class="cell-labor">+¥11,000</td>
+    <td class="cell-shops">本店・代理店・OEM</td>
+    <td class="cell-remote"><span class="badge badge-remote" title="AutoTuner">AT</span></td>
   </tr>
-<tr data-mbd-search="s(w222) s300 hybrid om651 2.2l om651 s w222" data-mbd-series="S">
-    <td class="mbd-cell-car"><strong>S(W222)</strong></td>
-    <td class="mbd-cell-grade">S300 Hybrid</td>
-    <td class="mbd-cell-engine">OM651 2.2L <span class="mbd-badge mbd-badge-engine">OM651</span></td>
-    <td class="mbd-cell-price-stage1">¥143,000</td>
-    <td class="mbd-cell-price-adblue">¥165,000</td>
-    <td class="mbd-cell-price-ecuadblue">¥187,000</td>
-    <td class="mbd-cell-price-dpf">+¥33,000/各</td>
-    <td class="mbd-cell-labor"><span class="mbd-muted">—</span></td>
-    <td class="mbd-cell-stock">204ps/500Nm</td>
-    <td class="mbd-cell-stage1-gain">+36ps/50Nm</td>
-    <td class="mbd-cell-shops">本店・代理店・OEM</td>
-    <td class="mbd-cell-remote"><span class="mbd-badge mbd-badge-remote" title="Powergate3">PG3</span><span class="mbd-badge mbd-badge-remote" title="IXI Flasher">Flasher</span><span class="mbd-badge mbd-badge-remote" title="AutoTuner">AT</span></td>
+<tr data-search="s(w222) s300 hybrid om651 2.2l om651 s w222" data-engine-family="OM651" data-series="S">
+    <td class="cell-car"><strong>S(W222)</strong></td>
+    <td class="cell-grade">S300 Hybrid</td>
+    <td class="cell-engine">OM651 2.2L <span class="badge badge-engine">OM651</span></td>
+    <td class="cell-price-stage1">¥143,000</td>
+    <td class="cell-price-adblue">¥165,000</td>
+    <td class="cell-price-ecuadblue">¥187,000</td>
+    <td class="cell-price-dpf">+¥33,000/各</td>
+    <td class="cell-stock">204ps/500Nm</td>
+    <td class="cell-stage1-gain">+36ps/50Nm</td>
+    <td class="cell-labor"><span class="muted">—</span></td>
+    <td class="cell-shops">本店・代理店・OEM</td>
+    <td class="cell-remote"><span class="badge badge-remote" title="Powergate3">PG3</span><span class="badge badge-remote" title="IXI Flasher">Flasher</span><span class="badge badge-remote" title="AutoTuner">AT</span></td>
   </tr>
-<tr data-mbd-search="s(w223) *s400d om656 2.9l om656 s w223" data-mbd-series="S">
-    <td class="mbd-cell-car"><strong>S(W223)</strong></td>
-    <td class="mbd-cell-grade">*S400d</td>
-    <td class="mbd-cell-engine">OM656 2.9L <span class="mbd-badge mbd-badge-engine">OM656</span></td>
-    <td class="mbd-cell-price-stage1"><a href="https://lin.ee/8yOXuPJ" target="_blank" rel="noopener" class="mbd-ask-btn" data-car="S(W223)" data-grade="*S400d" data-label="ECUチューニング" title="LINEで問い合わせ:【ECUチューニング見積希望】S(W223) *S400d"><span class="mbd-ask-icon">💬</span><span class="mbd-ask-text">LINE</span></a></td>
-    <td class="mbd-cell-price-adblue"><a href="https://lin.ee/8yOXuPJ" target="_blank" rel="noopener" class="mbd-ask-btn" data-car="S(W223)" data-grade="*S400d" data-label="アドブルーカット" title="LINEで問い合わせ:【アドブルーカット見積希望】S(W223) *S400d"><span class="mbd-ask-icon">💬</span><span class="mbd-ask-text">LINE</span></a></td>
-    <td class="mbd-cell-price-ecuadblue"><a href="https://lin.ee/8yOXuPJ" target="_blank" rel="noopener" class="mbd-ask-btn" data-car="S(W223)" data-grade="*S400d" data-label="ECU+アドブルー" title="LINEで問い合わせ:【ECU+アドブルー見積希望】S(W223) *S400d"><span class="mbd-ask-icon">💬</span><span class="mbd-ask-text">LINE</span></a></td>
-    <td class="mbd-cell-price-dpf"><a href="https://lin.ee/8yOXuPJ" target="_blank" rel="noopener" class="mbd-ask-btn" data-car="S(W223)" data-grade="*S400d" data-label="DPF/EGR/NOxカット" title="LINEで問い合わせ:【DPF/EGR/NOxカット見積希望】S(W223) *S400d"><span class="mbd-ask-icon">💬</span><span class="mbd-ask-text">LINE</span></a></td>
-    <td class="mbd-cell-labor"><span class="mbd-muted">—</span></td>
-    <td class="mbd-cell-stock">330ps/700Nm</td>
-    <td class="mbd-cell-stage1-gain">+50ps/120Nm</td>
-    <td class="mbd-cell-shops">本店・代理店・OEM</td>
-    <td class="mbd-cell-remote"><span class="mbd-badge mbd-badge-remote" title="AutoTuner">AT</span></td>
+<tr data-search="s(w223) *s400d om656 2.9l om656 s w223" data-engine-family="OM656" data-series="S">
+    <td class="cell-car"><strong>S(W223)</strong></td>
+    <td class="cell-grade">*S400d</td>
+    <td class="cell-engine">OM656 2.9L <span class="badge badge-engine">OM656</span></td>
+    <td class="cell-price-stage1"><a href="https://lin.ee/8yOXuPJ" target="_blank" rel="noopener" class="ask-btn" data-car="S(W223)" data-grade="*S400d" data-label="ECUチューニング" title="LINEで問い合わせ:【ECUチューニング見積希望】S(W223) *S400d"><span class="ask-icon">💬</span><span class="ask-text">LINE</span></a></td>
+    <td class="cell-price-adblue"><a href="https://lin.ee/8yOXuPJ" target="_blank" rel="noopener" class="ask-btn" data-car="S(W223)" data-grade="*S400d" data-label="アドブルーカット" title="LINEで問い合わせ:【アドブルーカット見積希望】S(W223) *S400d"><span class="ask-icon">💬</span><span class="ask-text">LINE</span></a></td>
+    <td class="cell-price-ecuadblue"><a href="https://lin.ee/8yOXuPJ" target="_blank" rel="noopener" class="ask-btn" data-car="S(W223)" data-grade="*S400d" data-label="ECU+アドブルーカット" title="LINEで問い合わせ:【ECU+アドブルーカット見積希望】S(W223) *S400d"><span class="ask-icon">💬</span><span class="ask-text">LINE</span></a></td>
+    <td class="cell-price-dpf"><a href="https://lin.ee/8yOXuPJ" target="_blank" rel="noopener" class="ask-btn" data-car="S(W223)" data-grade="*S400d" data-label="DPF/EGR/NOxカット" title="LINEで問い合わせ:【DPF/EGR/NOxカット見積希望】S(W223) *S400d"><span class="ask-icon">💬</span><span class="ask-text">LINE</span></a></td>
+    <td class="cell-stock">330ps/700Nm</td>
+    <td class="cell-stage1-gain">+50ps/120Nm</td>
+    <td class="cell-labor"><span class="muted">—</span></td>
+    <td class="cell-shops">本店・代理店・OEM</td>
+    <td class="cell-remote"><span class="badge badge-remote" title="AutoTuner">AT</span></td>
   </tr>
-<tr data-mbd-search="g(w463) g350 bluetec om642 3.0l om642 g w463" data-mbd-series="G">
-    <td class="mbd-cell-car"><strong>G(W463)</strong></td>
-    <td class="mbd-cell-grade">G350 BlueTec</td>
-    <td class="mbd-cell-engine">OM642 3.0L <span class="mbd-badge mbd-badge-engine">OM642</span></td>
-    <td class="mbd-cell-price-stage1">¥143,000</td>
-    <td class="mbd-cell-price-adblue">¥165,000</td>
-    <td class="mbd-cell-price-ecuadblue">¥187,000</td>
-    <td class="mbd-cell-price-dpf">+¥33,000/各</td>
-    <td class="mbd-cell-labor"><span class="mbd-muted">—</span></td>
-    <td class="mbd-cell-stock">211ps/540Nm</td>
-    <td class="mbd-cell-stage1-gain">+64ps/60Nm</td>
-    <td class="mbd-cell-shops">本店・代理店・OEM</td>
-    <td class="mbd-cell-remote"><span class="mbd-badge mbd-badge-remote" title="Powergate3">PG3</span><span class="mbd-badge mbd-badge-remote" title="IXI Flasher">Flasher</span><span class="mbd-badge mbd-badge-remote" title="AutoTuner">AT</span></td>
+<tr data-search="g(w463) g350 bluetec om642 3.0l om642 g w463" data-engine-family="OM642" data-series="G">
+    <td class="cell-car"><strong>G(W463)</strong></td>
+    <td class="cell-grade">G350 BlueTec</td>
+    <td class="cell-engine">OM642 3.0L <span class="badge badge-engine">OM642</span></td>
+    <td class="cell-price-stage1">¥143,000</td>
+    <td class="cell-price-adblue">¥165,000</td>
+    <td class="cell-price-ecuadblue">¥187,000</td>
+    <td class="cell-price-dpf">+¥33,000/各</td>
+    <td class="cell-stock">211ps/540Nm</td>
+    <td class="cell-stage1-gain">+64ps/60Nm</td>
+    <td class="cell-labor"><span class="muted">—</span></td>
+    <td class="cell-shops">本店・代理店・OEM</td>
+    <td class="cell-remote"><span class="badge badge-remote" title="Powergate3">PG3</span><span class="badge badge-remote" title="IXI Flasher">Flasher</span><span class="badge badge-remote" title="AutoTuner">AT</span></td>
   </tr>
-<tr data-mbd-search="g(w463) g350d om642 3.0l om642 g w463" data-mbd-series="G">
-    <td class="mbd-cell-car"><strong>G(W463)</strong></td>
-    <td class="mbd-cell-grade">G350d</td>
-    <td class="mbd-cell-engine">OM642 3.0L <span class="mbd-badge mbd-badge-engine">OM642</span></td>
-    <td class="mbd-cell-price-stage1">¥143,000</td>
-    <td class="mbd-cell-price-adblue">¥165,000</td>
-    <td class="mbd-cell-price-ecuadblue">¥187,000</td>
-    <td class="mbd-cell-price-dpf">+¥33,000/各</td>
-    <td class="mbd-cell-labor"><span class="mbd-muted">—</span></td>
-    <td class="mbd-cell-stock">245ps/600Nm</td>
-    <td class="mbd-cell-stage1-gain">+35ps/50Nm</td>
-    <td class="mbd-cell-shops">本店・代理店・OEM</td>
-    <td class="mbd-cell-remote"><span class="mbd-badge mbd-badge-remote" title="Powergate3">PG3</span><span class="mbd-badge mbd-badge-remote" title="IXI Flasher">Flasher</span><span class="mbd-badge mbd-badge-remote" title="AutoTuner">AT</span></td>
+<tr data-search="g(w463) g350d om642 3.0l om642 g w463" data-engine-family="OM642" data-series="G">
+    <td class="cell-car"><strong>G(W463)</strong></td>
+    <td class="cell-grade">G350d</td>
+    <td class="cell-engine">OM642 3.0L <span class="badge badge-engine">OM642</span></td>
+    <td class="cell-price-stage1">¥143,000</td>
+    <td class="cell-price-adblue">¥165,000</td>
+    <td class="cell-price-ecuadblue">¥187,000</td>
+    <td class="cell-price-dpf">+¥33,000/各</td>
+    <td class="cell-stock">245ps/600Nm</td>
+    <td class="cell-stage1-gain">+35ps/50Nm</td>
+    <td class="cell-labor"><span class="muted">—</span></td>
+    <td class="cell-shops">本店・代理店・OEM</td>
+    <td class="cell-remote"><span class="badge badge-remote" title="Powergate3">PG3</span><span class="badge badge-remote" title="IXI Flasher">Flasher</span><span class="badge badge-remote" title="AutoTuner">AT</span></td>
   </tr>
-<tr data-mbd-search="g(w463a) *g350d om656 2.9l om656 g w463a" data-mbd-series="G">
-    <td class="mbd-cell-car"><strong>G(W463a)</strong></td>
-    <td class="mbd-cell-grade">*G350d</td>
-    <td class="mbd-cell-engine">OM656 2.9L <span class="mbd-badge mbd-badge-engine">OM656</span></td>
-    <td class="mbd-cell-price-stage1">¥165,000</td>
-    <td class="mbd-cell-price-adblue">¥187,000</td>
-    <td class="mbd-cell-price-ecuadblue">¥209,000</td>
-    <td class="mbd-cell-price-dpf">+¥33,000/各</td>
-    <td class="mbd-cell-labor">+¥11,000</td>
-    <td class="mbd-cell-stock">286ps/600Nm</td>
-    <td class="mbd-cell-stage1-gain">+94ps/200Nm</td>
-    <td class="mbd-cell-shops">本店・代理店・OEM</td>
-    <td class="mbd-cell-remote"><span class="mbd-badge mbd-badge-remote" title="AutoTuner">AT</span></td>
+<tr data-search="g(w463a) *g350d om656 2.9l om656 g w463a" data-engine-family="OM656" data-series="G">
+    <td class="cell-car"><strong>G(W463a)</strong></td>
+    <td class="cell-grade">*G350d</td>
+    <td class="cell-engine">OM656 2.9L <span class="badge badge-engine">OM656</span></td>
+    <td class="cell-price-stage1">¥165,000</td>
+    <td class="cell-price-adblue">¥187,000</td>
+    <td class="cell-price-ecuadblue">¥209,000</td>
+    <td class="cell-price-dpf">+¥33,000/各</td>
+    <td class="cell-stock">286ps/600Nm</td>
+    <td class="cell-stage1-gain">+94ps/200Nm</td>
+    <td class="cell-labor">+¥11,000</td>
+    <td class="cell-shops">本店・代理店・OEM</td>
+    <td class="cell-remote"><span class="badge badge-remote" title="AutoTuner">AT</span></td>
   </tr>
-<tr data-mbd-search="gla(h247) *gla200d om654 2.0l om654 gla h247" data-mbd-series="GLA">
-    <td class="mbd-cell-car"><strong>GLA(H247)</strong></td>
-    <td class="mbd-cell-grade">*GLA200d</td>
-    <td class="mbd-cell-engine">OM654 2.0L <span class="mbd-badge mbd-badge-engine">OM654</span></td>
-    <td class="mbd-cell-price-stage1">¥165,000</td>
-    <td class="mbd-cell-price-adblue">¥187,000</td>
-    <td class="mbd-cell-price-ecuadblue">¥209,000</td>
-    <td class="mbd-cell-price-dpf">+¥33,000/各</td>
-    <td class="mbd-cell-labor">+¥11,000</td>
-    <td class="mbd-cell-stock">150ps/320Nm</td>
-    <td class="mbd-cell-stage1-gain">+50ps/120Nm</td>
-    <td class="mbd-cell-shops">本店・代理店・OEM</td>
-    <td class="mbd-cell-remote"><span class="mbd-badge mbd-badge-remote" title="AutoTuner">AT</span></td>
+<tr data-search="gla(h247) *gla200d om654 2.0l om654 gla h247" data-engine-family="OM654" data-series="GLA">
+    <td class="cell-car"><strong>GLA(H247)</strong></td>
+    <td class="cell-grade">*GLA200d</td>
+    <td class="cell-engine">OM654 2.0L <span class="badge badge-engine">OM654</span></td>
+    <td class="cell-price-stage1">¥165,000</td>
+    <td class="cell-price-adblue">¥187,000</td>
+    <td class="cell-price-ecuadblue">¥209,000</td>
+    <td class="cell-price-dpf">+¥33,000/各</td>
+    <td class="cell-stock">150ps/320Nm</td>
+    <td class="cell-stage1-gain">+50ps/120Nm</td>
+    <td class="cell-labor">+¥11,000</td>
+    <td class="cell-shops">本店・代理店・OEM</td>
+    <td class="cell-remote"><span class="badge badge-remote" title="AutoTuner">AT</span></td>
   </tr>
-<tr data-mbd-search="glb(x247) *glb200d om654 2.0l om654 glb x247" data-mbd-series="GLB">
-    <td class="mbd-cell-car"><strong>GLB(X247)</strong></td>
-    <td class="mbd-cell-grade">*GLB200d</td>
-    <td class="mbd-cell-engine">OM654 2.0L <span class="mbd-badge mbd-badge-engine">OM654</span></td>
-    <td class="mbd-cell-price-stage1">¥165,000</td>
-    <td class="mbd-cell-price-adblue">¥187,000</td>
-    <td class="mbd-cell-price-ecuadblue">¥209,000</td>
-    <td class="mbd-cell-price-dpf">+¥33,000/各</td>
-    <td class="mbd-cell-labor">+¥11,000</td>
-    <td class="mbd-cell-stock">150ps/320Nm</td>
-    <td class="mbd-cell-stage1-gain">+50ps/120Nm</td>
-    <td class="mbd-cell-shops">本店・代理店・OEM</td>
-    <td class="mbd-cell-remote"><span class="mbd-badge mbd-badge-remote" title="AutoTuner">AT</span></td>
+<tr data-search="glb(x247) *glb200d om654 2.0l om654 glb x247" data-engine-family="OM654" data-series="GLB">
+    <td class="cell-car"><strong>GLB(X247)</strong></td>
+    <td class="cell-grade">*GLB200d</td>
+    <td class="cell-engine">OM654 2.0L <span class="badge badge-engine">OM654</span></td>
+    <td class="cell-price-stage1">¥165,000</td>
+    <td class="cell-price-adblue">¥187,000</td>
+    <td class="cell-price-ecuadblue">¥209,000</td>
+    <td class="cell-price-dpf">+¥33,000/各</td>
+    <td class="cell-stock">150ps/320Nm</td>
+    <td class="cell-stage1-gain">+50ps/120Nm</td>
+    <td class="cell-labor">+¥11,000</td>
+    <td class="cell-shops">本店・代理店・OEM</td>
+    <td class="cell-remote"><span class="badge badge-remote" title="AutoTuner">AT</span></td>
   </tr>
-<tr data-mbd-search="glc *glc220d om654 2.0l om654 glc" data-mbd-series="GLC">
-    <td class="mbd-cell-car"><strong>GLC</strong></td>
-    <td class="mbd-cell-grade">*GLC220d</td>
-    <td class="mbd-cell-engine">OM654 2.0L <span class="mbd-badge mbd-badge-engine">OM654</span></td>
-    <td class="mbd-cell-price-stage1">¥165,000</td>
-    <td class="mbd-cell-price-adblue">¥187,000</td>
-    <td class="mbd-cell-price-ecuadblue">¥209,000</td>
-    <td class="mbd-cell-price-dpf">+¥33,000/各</td>
-    <td class="mbd-cell-labor">+¥11,000</td>
-    <td class="mbd-cell-stock">194ps/400Nm</td>
-    <td class="mbd-cell-stage1-gain">+26ps/60Nm</td>
-    <td class="mbd-cell-shops">本店・代理店・OEM</td>
-    <td class="mbd-cell-remote"><span class="mbd-badge mbd-badge-remote" title="AutoTuner">AT</span></td>
+<tr data-search="glc *glc220d om654 2.0l om654 glc" data-engine-family="OM654" data-series="GLC">
+    <td class="cell-car"><strong>GLC</strong></td>
+    <td class="cell-grade">*GLC220d</td>
+    <td class="cell-engine">OM654 2.0L <span class="badge badge-engine">OM654</span></td>
+    <td class="cell-price-stage1">¥165,000</td>
+    <td class="cell-price-adblue">¥187,000</td>
+    <td class="cell-price-ecuadblue">¥209,000</td>
+    <td class="cell-price-dpf">+¥33,000/各</td>
+    <td class="cell-stock">194ps/400Nm</td>
+    <td class="cell-stage1-gain">+26ps/60Nm</td>
+    <td class="cell-labor">+¥11,000</td>
+    <td class="cell-shops">本店・代理店・OEM</td>
+    <td class="cell-remote"><span class="badge badge-remote" title="AutoTuner">AT</span></td>
   </tr>
-<tr data-mbd-search="glc glc220d om651 2.2l om651 glc" data-mbd-series="GLC">
-    <td class="mbd-cell-car"><strong>GLC</strong></td>
-    <td class="mbd-cell-grade">GLC220d</td>
-    <td class="mbd-cell-engine">OM651 2.2L <span class="mbd-badge mbd-badge-engine">OM651</span></td>
-    <td class="mbd-cell-price-stage1">¥143,000</td>
-    <td class="mbd-cell-price-adblue">¥165,000</td>
-    <td class="mbd-cell-price-ecuadblue">¥187,000</td>
-    <td class="mbd-cell-price-dpf">+¥33,000/各</td>
-    <td class="mbd-cell-labor"><span class="mbd-muted">—</span></td>
-    <td class="mbd-cell-stock">170ps/400Nm</td>
-    <td class="mbd-cell-stage1-gain">+50ps/100Nm</td>
-    <td class="mbd-cell-shops">本店・代理店・OEM</td>
-    <td class="mbd-cell-remote"><span class="mbd-badge mbd-badge-remote" title="Powergate3">PG3</span><span class="mbd-badge mbd-badge-remote" title="IXI Flasher">Flasher</span><span class="mbd-badge mbd-badge-remote" title="AutoTuner">AT</span></td>
+<tr data-search="glc glc220d om651 2.2l om651 glc" data-engine-family="OM651" data-series="GLC">
+    <td class="cell-car"><strong>GLC</strong></td>
+    <td class="cell-grade">GLC220d</td>
+    <td class="cell-engine">OM651 2.2L <span class="badge badge-engine">OM651</span></td>
+    <td class="cell-price-stage1">¥143,000</td>
+    <td class="cell-price-adblue">¥165,000</td>
+    <td class="cell-price-ecuadblue">¥187,000</td>
+    <td class="cell-price-dpf">+¥33,000/各</td>
+    <td class="cell-stock">170ps/400Nm</td>
+    <td class="cell-stage1-gain">+50ps/100Nm</td>
+    <td class="cell-labor"><span class="muted">—</span></td>
+    <td class="cell-shops">本店・代理店・OEM</td>
+    <td class="cell-remote"><span class="badge badge-remote" title="Powergate3">PG3</span><span class="badge badge-remote" title="IXI Flasher">Flasher</span><span class="badge badge-remote" title="AutoTuner">AT</span></td>
   </tr>
-<tr data-mbd-search="gle(c292) gle350d om642 3.0l om642 gle c292" data-mbd-series="GLE">
-    <td class="mbd-cell-car"><strong>GLE(C292)</strong></td>
-    <td class="mbd-cell-grade">GLE350d</td>
-    <td class="mbd-cell-engine">OM642 3.0L <span class="mbd-badge mbd-badge-engine">OM642</span></td>
-    <td class="mbd-cell-price-stage1">¥143,000</td>
-    <td class="mbd-cell-price-adblue">¥165,000</td>
-    <td class="mbd-cell-price-ecuadblue">¥187,000</td>
-    <td class="mbd-cell-price-dpf">+¥33,000/各</td>
-    <td class="mbd-cell-labor"><span class="mbd-muted">—</span></td>
-    <td class="mbd-cell-stock">258ps/620Nm</td>
-    <td class="mbd-cell-stage1-gain">+32ps/70Nm</td>
-    <td class="mbd-cell-shops">本店・代理店・OEM</td>
-    <td class="mbd-cell-remote"><span class="mbd-badge mbd-badge-remote" title="Powergate3">PG3</span><span class="mbd-badge mbd-badge-remote" title="IXI Flasher">Flasher</span><span class="mbd-badge mbd-badge-remote" title="AutoTuner">AT</span></td>
+<tr data-search="gle(c292) gle350d om642 3.0l om642 gle c292" data-engine-family="OM642" data-series="GLE">
+    <td class="cell-car"><strong>GLE(C292)</strong></td>
+    <td class="cell-grade">GLE350d</td>
+    <td class="cell-engine">OM642 3.0L <span class="badge badge-engine">OM642</span></td>
+    <td class="cell-price-stage1">¥143,000</td>
+    <td class="cell-price-adblue">¥165,000</td>
+    <td class="cell-price-ecuadblue">¥187,000</td>
+    <td class="cell-price-dpf">+¥33,000/各</td>
+    <td class="cell-stock">258ps/620Nm</td>
+    <td class="cell-stage1-gain">+32ps/70Nm</td>
+    <td class="cell-labor"><span class="muted">—</span></td>
+    <td class="cell-shops">本店・代理店・OEM</td>
+    <td class="cell-remote"><span class="badge badge-remote" title="Powergate3">PG3</span><span class="badge badge-remote" title="IXI Flasher">Flasher</span><span class="badge badge-remote" title="AutoTuner">AT</span></td>
   </tr>
-<tr data-mbd-search="gle(w167) *gle300d om654 2.0l om654 gle w167" data-mbd-series="GLE">
-    <td class="mbd-cell-car"><strong>GLE(W167)</strong></td>
-    <td class="mbd-cell-grade">*GLE300d</td>
-    <td class="mbd-cell-engine">OM654 2.0L <span class="mbd-badge mbd-badge-engine">OM654</span></td>
-    <td class="mbd-cell-price-stage1">¥165,000</td>
-    <td class="mbd-cell-price-adblue">¥187,000</td>
-    <td class="mbd-cell-price-ecuadblue">¥209,000</td>
-    <td class="mbd-cell-price-dpf">+¥33,000/各</td>
-    <td class="mbd-cell-labor">+¥11,000</td>
-    <td class="mbd-cell-stock">245ps/500Nm</td>
-    <td class="mbd-cell-stage1-gain">+20ps/60Nm</td>
-    <td class="mbd-cell-shops">本店・代理店・OEM</td>
-    <td class="mbd-cell-remote"><span class="mbd-badge mbd-badge-remote" title="AutoTuner">AT</span></td>
+<tr data-search="gle(w167) *gle300d om654 2.0l om654 gle w167" data-engine-family="OM654" data-series="GLE">
+    <td class="cell-car"><strong>GLE(W167)</strong></td>
+    <td class="cell-grade">*GLE300d</td>
+    <td class="cell-engine">OM654 2.0L <span class="badge badge-engine">OM654</span></td>
+    <td class="cell-price-stage1">¥165,000</td>
+    <td class="cell-price-adblue">¥187,000</td>
+    <td class="cell-price-ecuadblue">¥209,000</td>
+    <td class="cell-price-dpf">+¥33,000/各</td>
+    <td class="cell-stock">245ps/500Nm</td>
+    <td class="cell-stage1-gain">+20ps/60Nm</td>
+    <td class="cell-labor">+¥11,000</td>
+    <td class="cell-shops">本店・代理店・OEM</td>
+    <td class="cell-remote"><span class="badge badge-remote" title="AutoTuner">AT</span></td>
   </tr>
-<tr data-mbd-search="gle(w167) *gle400d om656 2.9l om656 gle w167" data-mbd-series="GLE">
-    <td class="mbd-cell-car"><strong>GLE(W167)</strong></td>
-    <td class="mbd-cell-grade">*GLE400d</td>
-    <td class="mbd-cell-engine">OM656 2.9L <span class="mbd-badge mbd-badge-engine">OM656</span></td>
-    <td class="mbd-cell-price-stage1">¥165,000</td>
-    <td class="mbd-cell-price-adblue">¥187,000</td>
-    <td class="mbd-cell-price-ecuadblue">¥209,000</td>
-    <td class="mbd-cell-price-dpf">+¥33,000/各</td>
-    <td class="mbd-cell-labor">+¥11,000</td>
-    <td class="mbd-cell-stock">330ps/700Nm</td>
-    <td class="mbd-cell-stage1-gain">+50ps/120Nm</td>
-    <td class="mbd-cell-shops">本店・代理店・OEM</td>
-    <td class="mbd-cell-remote"><span class="mbd-badge mbd-badge-remote" title="AutoTuner">AT</span></td>
+<tr data-search="gle(w167) *gle400d om656 2.9l om656 gle w167" data-engine-family="OM656" data-series="GLE">
+    <td class="cell-car"><strong>GLE(W167)</strong></td>
+    <td class="cell-grade">*GLE400d</td>
+    <td class="cell-engine">OM656 2.9L <span class="badge badge-engine">OM656</span></td>
+    <td class="cell-price-stage1">¥165,000</td>
+    <td class="cell-price-adblue">¥187,000</td>
+    <td class="cell-price-ecuadblue">¥209,000</td>
+    <td class="cell-price-dpf">+¥33,000/各</td>
+    <td class="cell-stock">330ps/700Nm</td>
+    <td class="cell-stage1-gain">+50ps/120Nm</td>
+    <td class="cell-labor">+¥11,000</td>
+    <td class="cell-shops">本店・代理店・OEM</td>
+    <td class="cell-remote"><span class="badge badge-remote" title="AutoTuner">AT</span></td>
   </tr>
-<tr data-mbd-search="gls(x166) gls350d om642 3.0l om642 gls x166" data-mbd-series="GLS">
-    <td class="mbd-cell-car"><strong>GLS(X166)</strong></td>
-    <td class="mbd-cell-grade">GLS350d</td>
-    <td class="mbd-cell-engine">OM642 3.0L <span class="mbd-badge mbd-badge-engine">OM642</span></td>
-    <td class="mbd-cell-price-stage1">¥143,000</td>
-    <td class="mbd-cell-price-adblue">¥165,000</td>
-    <td class="mbd-cell-price-ecuadblue">¥187,000</td>
-    <td class="mbd-cell-price-dpf">+¥33,000/各</td>
-    <td class="mbd-cell-labor"><span class="mbd-muted">—</span></td>
-    <td class="mbd-cell-stock">258ps/620Nm</td>
-    <td class="mbd-cell-stage1-gain">+32ps/70Nm</td>
-    <td class="mbd-cell-shops">本店・代理店・OEM</td>
-    <td class="mbd-cell-remote"><span class="mbd-badge mbd-badge-remote" title="Powergate3">PG3</span><span class="mbd-badge mbd-badge-remote" title="IXI Flasher">Flasher</span><span class="mbd-badge mbd-badge-remote" title="AutoTuner">AT</span></td>
+<tr data-search="gls(x166) gls350d om642 3.0l om642 gls x166" data-engine-family="OM642" data-series="GLS">
+    <td class="cell-car"><strong>GLS(X166)</strong></td>
+    <td class="cell-grade">GLS350d</td>
+    <td class="cell-engine">OM642 3.0L <span class="badge badge-engine">OM642</span></td>
+    <td class="cell-price-stage1">¥143,000</td>
+    <td class="cell-price-adblue">¥165,000</td>
+    <td class="cell-price-ecuadblue">¥187,000</td>
+    <td class="cell-price-dpf">+¥33,000/各</td>
+    <td class="cell-stock">258ps/620Nm</td>
+    <td class="cell-stage1-gain">+32ps/70Nm</td>
+    <td class="cell-labor"><span class="muted">—</span></td>
+    <td class="cell-shops">本店・代理店・OEM</td>
+    <td class="cell-remote"><span class="badge badge-remote" title="Powergate3">PG3</span><span class="badge badge-remote" title="IXI Flasher">Flasher</span><span class="badge badge-remote" title="AutoTuner">AT</span></td>
   </tr>
-<tr data-mbd-search="gls(x167) *gls400d om656 2.9l om656 gls x167" data-mbd-series="GLS">
-    <td class="mbd-cell-car"><strong>GLS(X167)</strong></td>
-    <td class="mbd-cell-grade">*GLS400d</td>
-    <td class="mbd-cell-engine">OM656 2.9L <span class="mbd-badge mbd-badge-engine">OM656</span></td>
-    <td class="mbd-cell-price-stage1">¥165,000</td>
-    <td class="mbd-cell-price-adblue">¥187,000</td>
-    <td class="mbd-cell-price-ecuadblue">¥209,000</td>
-    <td class="mbd-cell-price-dpf">+¥33,000/各</td>
-    <td class="mbd-cell-labor">+¥11,000</td>
-    <td class="mbd-cell-stock">330ps/700Nm</td>
-    <td class="mbd-cell-stage1-gain">+50ps/120Nm</td>
-    <td class="mbd-cell-shops">本店・代理店・OEM</td>
-    <td class="mbd-cell-remote"><span class="mbd-badge mbd-badge-remote" title="AutoTuner">AT</span></td>
+<tr data-search="gls(x167) *gls400d om656 2.9l om656 gls x167" data-engine-family="OM656" data-series="GLS">
+    <td class="cell-car"><strong>GLS(X167)</strong></td>
+    <td class="cell-grade">*GLS400d</td>
+    <td class="cell-engine">OM656 2.9L <span class="badge badge-engine">OM656</span></td>
+    <td class="cell-price-stage1">¥165,000</td>
+    <td class="cell-price-adblue">¥187,000</td>
+    <td class="cell-price-ecuadblue">¥209,000</td>
+    <td class="cell-price-dpf">+¥33,000/各</td>
+    <td class="cell-stock">330ps/700Nm</td>
+    <td class="cell-stage1-gain">+50ps/120Nm</td>
+    <td class="cell-labor">+¥11,000</td>
+    <td class="cell-shops">本店・代理店・OEM</td>
+    <td class="cell-remote"><span class="badge badge-remote" title="AutoTuner">AT</span></td>
   </tr>
-<tr data-mbd-search="ml(w164) ml350 bluetec om642 3.0l om642 ml w164" data-mbd-series="ML">
-    <td class="mbd-cell-car"><strong>ML(W164)</strong></td>
-    <td class="mbd-cell-grade">ML350 BlueTec</td>
-    <td class="mbd-cell-engine">OM642 3.0L <span class="mbd-badge mbd-badge-engine">OM642</span></td>
-    <td class="mbd-cell-price-stage1">¥143,000</td>
-    <td class="mbd-cell-price-adblue">¥165,000</td>
-    <td class="mbd-cell-price-ecuadblue">¥187,000</td>
-    <td class="mbd-cell-price-dpf">+¥33,000/各</td>
-    <td class="mbd-cell-labor"><span class="mbd-muted">—</span></td>
-    <td class="mbd-cell-stock">211ps/540Nm</td>
-    <td class="mbd-cell-stage1-gain">+64ps/60Nm</td>
-    <td class="mbd-cell-shops">本店・代理店・OEM</td>
-    <td class="mbd-cell-remote"><span class="mbd-badge mbd-badge-remote" title="Powergate3">PG3</span><span class="mbd-badge mbd-badge-remote" title="IXI Flasher">Flasher</span><span class="mbd-badge mbd-badge-remote" title="AutoTuner">AT</span></td>
+<tr data-search="ml(w164) ml350 bluetec om642 3.0l om642 ml w164" data-engine-family="OM642" data-series="ML">
+    <td class="cell-car"><strong>ML(W164)</strong></td>
+    <td class="cell-grade">ML350 BlueTec</td>
+    <td class="cell-engine">OM642 3.0L <span class="badge badge-engine">OM642</span></td>
+    <td class="cell-price-stage1">¥143,000</td>
+    <td class="cell-price-adblue">¥165,000</td>
+    <td class="cell-price-ecuadblue">¥187,000</td>
+    <td class="cell-price-dpf">+¥33,000/各</td>
+    <td class="cell-stock">211ps/540Nm</td>
+    <td class="cell-stage1-gain">+64ps/60Nm</td>
+    <td class="cell-labor"><span class="muted">—</span></td>
+    <td class="cell-shops">本店・代理店・OEM</td>
+    <td class="cell-remote"><span class="badge badge-remote" title="Powergate3">PG3</span><span class="badge badge-remote" title="IXI Flasher">Flasher</span><span class="badge badge-remote" title="AutoTuner">AT</span></td>
   </tr>
-<tr data-mbd-search="v(w447) *v220d om654 2.0l om654 v w447" data-mbd-series="V">
-    <td class="mbd-cell-car"><strong>V(W447)</strong></td>
-    <td class="mbd-cell-grade">*V220d</td>
-    <td class="mbd-cell-engine">OM654 2.0L <span class="mbd-badge mbd-badge-engine">OM654</span></td>
-    <td class="mbd-cell-price-stage1">¥165,000</td>
-    <td class="mbd-cell-price-adblue">¥187,000</td>
-    <td class="mbd-cell-price-ecuadblue">¥209,000</td>
-    <td class="mbd-cell-price-dpf">+¥33,000/各</td>
-    <td class="mbd-cell-labor">+¥11,000</td>
-    <td class="mbd-cell-stock">163ps/380Nm</td>
-    <td class="mbd-cell-stage1-gain">+57ps/110Nm</td>
-    <td class="mbd-cell-shops">本店・代理店・OEM</td>
-    <td class="mbd-cell-remote"><span class="mbd-badge mbd-badge-remote" title="IXI Flasher">Flasher</span><span class="mbd-badge mbd-badge-remote" title="AutoTuner">AT</span></td>
+<tr data-search="v(w447) *v220d om654 2.0l om654 v w447" data-engine-family="OM654" data-series="V">
+    <td class="cell-car"><strong>V(W447)</strong></td>
+    <td class="cell-grade">*V220d</td>
+    <td class="cell-engine">OM654 2.0L <span class="badge badge-engine">OM654</span></td>
+    <td class="cell-price-stage1">¥165,000</td>
+    <td class="cell-price-adblue">¥187,000</td>
+    <td class="cell-price-ecuadblue">¥209,000</td>
+    <td class="cell-price-dpf">+¥33,000/各</td>
+    <td class="cell-stock">163ps/380Nm</td>
+    <td class="cell-stage1-gain">+57ps/110Nm</td>
+    <td class="cell-labor">+¥11,000</td>
+    <td class="cell-shops">本店・代理店・OEM</td>
+    <td class="cell-remote"><span class="badge badge-remote" title="IXI Flasher">Flasher</span><span class="badge badge-remote" title="AutoTuner">AT</span></td>
   </tr>
-<tr data-mbd-search="v(w447) v220d om651 2.2l om651 v w447" data-mbd-series="V">
-    <td class="mbd-cell-car"><strong>V(W447)</strong></td>
-    <td class="mbd-cell-grade">V220d</td>
-    <td class="mbd-cell-engine">OM651 2.2L <span class="mbd-badge mbd-badge-engine">OM651</span></td>
-    <td class="mbd-cell-price-stage1">¥143,000</td>
-    <td class="mbd-cell-price-adblue">¥165,000</td>
-    <td class="mbd-cell-price-ecuadblue">¥187,000</td>
-    <td class="mbd-cell-price-dpf">+¥33,000/各</td>
-    <td class="mbd-cell-labor"><span class="mbd-muted">—</span></td>
-    <td class="mbd-cell-stock">163ps/380Nm</td>
-    <td class="mbd-cell-stage1-gain">+52ps/110Nm</td>
-    <td class="mbd-cell-shops">本店・代理店・OEM</td>
-    <td class="mbd-cell-remote"><span class="mbd-badge mbd-badge-remote" title="Powergate3">PG3</span><span class="mbd-badge mbd-badge-remote" title="IXI Flasher">Flasher</span><span class="mbd-badge mbd-badge-remote" title="AutoTuner">AT</span></td>
+<tr data-search="v(w447) v220d om651 2.2l om651 v w447" data-engine-family="OM651" data-series="V">
+    <td class="cell-car"><strong>V(W447)</strong></td>
+    <td class="cell-grade">V220d</td>
+    <td class="cell-engine">OM651 2.2L <span class="badge badge-engine">OM651</span></td>
+    <td class="cell-price-stage1">¥143,000</td>
+    <td class="cell-price-adblue">¥165,000</td>
+    <td class="cell-price-ecuadblue">¥187,000</td>
+    <td class="cell-price-dpf">+¥33,000/各</td>
+    <td class="cell-stock">163ps/380Nm</td>
+    <td class="cell-stage1-gain">+52ps/110Nm</td>
+    <td class="cell-labor"><span class="muted">—</span></td>
+    <td class="cell-shops">本店・代理店・OEM</td>
+    <td class="cell-remote"><span class="badge badge-remote" title="Powergate3">PG3</span><span class="badge badge-remote" title="IXI Flasher">Flasher</span><span class="badge badge-remote" title="AutoTuner">AT</span></td>
   </tr>
       </tbody>
     </table>
   </div>
 
-  <div class="mbd-no-results" id="mbdNoResults" hidden>
+  <div class="mb-no-results" id="mbNoResults" hidden>
     該当する車種が見つかりませんでした。検索ワードやフィルタを変更してお試しください。
   </div>
 
-  <div class="mbd-table-note">
-    <p>📌 上記は標準施工価格です。<span class="mbd-ask-btn-inline"><span class="mbd-ask-icon">💬</span><span class="mbd-ask-text">LINE</span></span> ボタンが表示されているセルは、LINEで個別お見積りいたします。お気軽にお問い合わせください。</p>
-    <p>📌 グレード横の <span class="mbd-cell-note">★</span> マーク: マウスオーバー(タップ)で備考を表示します。</p>
+  <div class="mb-table-note">
+    <p>📌 上記は標準施工価格です。<span class="ask-btn-inline"><span class="ask-icon">💬</span><span class="ask-text">LINE</span></span> ボタンが表示されているセルは、LINEで個別お見積りいたします。お気軽にお問い合わせください。</p>
+    <p>📌 グレード横の <span class="cell-note">★</span> マーク: マウスオーバー(タップ)で備考を表示します。</p>
     <p>📌 「アドブルーカット」は尿素水(AdBlue)補充警告を解除する施工です。「DPF/EGR/NOxカット」は車種・年式により対応可否が異なります。詳細はお問い合わせください。</p>
     <p>📌 「リモート」列: 
-      <span class="mbd-badge mbd-badge-remote">PG3</span> = Powergate3, 
-      <span class="mbd-badge mbd-badge-remote">Flasher</span> = IXI Flasher, 
-      <span class="mbd-badge mbd-badge-remote">AT</span> = AutoTuner で全国どこからでも施工可能です。
+      <span class="badge badge-remote">PG3</span> = Powergate3, 
+      <span class="badge badge-remote">Flasher</span> = IXI Flasher, 
+      <span class="badge badge-remote">AT</span> = AutoTuner で全国どこからでも施工可能です。
     </p>
     <p>📌 法令に関する注意: 道路運送車両法および排ガス規制に関わる施工は、競技用車両・輸出用途・サーキット走行用途に限り承ります。公道での使用については、お客様の責任において遵法状態を維持してください。</p>
   </div>
@@ -506,311 +508,391 @@
 
 <style>
 /* ============================================================
-   mbFAST Tuning - Mercedes Diesel Price Table
-   完全独立名前空間 (mbd- prefix)
+   mbFAST Tuning - Mercedes Diesel Price Table (Light Edition)
    ============================================================ */
-.mbd-price-wrapper {
+
+.mb-price-wrapper {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Hiragino Kaku Gothic ProN", "Noto Sans JP", sans-serif;
-  color: #1a1a1a; max-width: 100%; margin: 0 0 2em 0;
-  background: #ffffff; padding: 1.8em; border-radius: 12px;
-  border: 1px solid #e5e5e5; box-shadow: 0 2px 16px rgba(0,0,0,0.05);
-  position: relative; overflow: hidden;
+  color: #1a1a1a;
+  max-width: 100%;
+  margin: 0 0 2em 0;
+  background: #ffffff;
+  padding: 1.8em;
+  border-radius: 12px;
+  border: 1px solid #e5e5e5;
+  box-shadow: 0 2px 16px rgba(0,0,0,0.05);
+  position: relative;
+  overflow: hidden;
 }
-.mbd-price-wrapper::before {
-  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+.mb-price-wrapper::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 2px;
   background: linear-gradient(90deg, transparent, #b8941f 20%, #d4af37 50%, #b8941f 80%, transparent);
 }
-.mbd-intro {
+
+.mb-intro {
   background: linear-gradient(135deg, #fafafa 0%, #f5f5f5 100%);
-  border-left: 3px solid #b8941f; padding: 1.1em 1.4em;
-  margin-bottom: 1.5em; border-radius: 2px;
+  border-left: 3px solid #b8941f;
+  padding: 1.1em 1.4em;
+  margin-bottom: 1.5em;
+  border-radius: 2px;
 }
-.mbd-intro p { margin: 0; line-height: 1.7; color: #333; font-size: 0.95rem; }
-.mbd-intro strong { color: #8a6d14; font-weight: 700; }
-.mbd-controls {
-  background: #fafafa; border: 1px solid #e5e5e5;
-  border-radius: 8px; padding: 1.2em 1.4em; margin-bottom: 1em;
+.mb-intro p { margin: 0; line-height: 1.7; color: #333; font-size: 0.95rem; }
+.mb-intro strong { color: #8a6d14; font-weight: 700; }
+
+.mb-controls {
+  background: #fafafa;
+  border: 1px solid #e5e5e5;
+  border-radius: 8px;
+  padding: 1.2em 1.4em;
+  margin-bottom: 1em;
 }
-.mbd-search-wrap { position: relative; margin-bottom: 1.2em; }
-.mbd-search {
-  width: 100%; padding: 0.85em 2.5em 0.85em 1.1em;
-  font-size: 1rem; background: #ffffff;
-  border: 1px solid #d0d0d0; border-radius: 6px;
-  box-sizing: border-box; color: #1a1a1a;
-  transition: all 0.2s; font-family: inherit;
+.mb-search-wrap { position: relative; margin-bottom: 1.2em; }
+.mb-search {
+  width: 100%;
+  padding: 0.85em 2.5em 0.85em 1.1em;
+  font-size: 1rem;
+  background: #ffffff;
+  border: 1px solid #d0d0d0;
+  border-radius: 6px;
+  box-sizing: border-box;
+  color: #1a1a1a;
+  transition: all 0.2s;
+  font-family: inherit;
 }
-.mbd-search::placeholder { color: #999; }
-.mbd-search:focus {
-  outline: none; border-color: #b8941f;
+.mb-search::placeholder { color: #999; }
+.mb-search:focus {
+  outline: none;
+  border-color: #b8941f;
   box-shadow: 0 0 0 3px rgba(184, 148, 31, 0.12);
 }
-.mbd-clear {
-  position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
+.mb-clear {
+  position: absolute; right: 10px; top: 50%;
+  transform: translateY(-50%);
   background: #ddd; border: none; color: #666;
   width: 28px; height: 28px; border-radius: 50%;
   cursor: pointer; font-size: 1rem; line-height: 1;
   display: none; transition: all 0.15s;
 }
-.mbd-clear:hover { background: #b8941f; color: #fff; }
-.mbd-search:not(:placeholder-shown) ~ .mbd-clear { display: block; }
-.mbd-filter-group {
+.mb-clear:hover { background: #b8941f; color: #fff; }
+.mb-search:not(:placeholder-shown) ~ .mb-clear { display: block; }
+
+.mb-filter-group {
   display: flex; flex-wrap: wrap; gap: 0.4em;
   align-items: center; margin-bottom: 0.7em;
 }
-.mbd-filter-label {
+.filter-label {
   font-size: 0.78rem; color: #666; font-weight: 600;
   margin-right: 0.5em; min-width: 68px;
   letter-spacing: 0.05em; text-transform: uppercase;
 }
-.mbd-filter-chip {
+.filter-chip {
   padding: 0.4em 0.95em; font-size: 0.82rem;
   background: #ffffff; border: 1px solid #d5d5d5;
   border-radius: 3px; cursor: pointer;
   transition: all 0.15s; color: #555;
   font-family: inherit; font-weight: 500;
 }
-.mbd-filter-chip:hover {
+.filter-chip:hover {
   background: #f0f0f0; border-color: #b0b0b0; color: #1a1a1a;
 }
-.mbd-filter-chip.mbd-active {
+.filter-chip.active {
   background: linear-gradient(135deg, #d4af37 0%, #b8941f 100%);
-  color: #ffffff; border-color: #b8941f; font-weight: 700;
+  color: #ffffff; border-color: #b8941f;
+  font-weight: 700;
   box-shadow: 0 2px 6px rgba(184, 148, 31, 0.25);
 }
-.mbd-result-count {
+
+.mb-result-count {
   margin-top: 1em; padding-top: 1em;
   border-top: 1px solid #e5e5e5;
   font-size: 0.82rem; color: #666;
 }
-.mbd-result-count #mbdResultCount {
+.mb-result-count #mbResultCount {
   font-weight: 700; color: #8a6d14; font-size: 1.05rem;
 }
-.mbd-table-wrap {
-  overflow-x: auto; overflow-y: auto; max-height: 70vh;
-  border: 1px solid #e0e0e0; border-radius: 6px; background: #ffffff;
+
+.mb-table-wrap {
+  overflow-x: auto;
+  overflow-y: auto;
+  max-height: 70vh;
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+  background: #ffffff;
 }
-.mbd-price-table {
-  width: 100%; border-collapse: collapse;
-  font-size: 0.88rem; min-width: 1200px; color: #1a1a1a;
+.mb-price-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.88rem;
+  min-width: 1100px;
+  color: #1a1a1a;
 }
-.mbd-price-table thead th {
+.mb-price-table thead th {
   background: linear-gradient(180deg, #2a2a2a 0%, #1a1a1a 100%);
-  color: #d4af37; padding: 1em 0.7em;
-  text-align: left; font-weight: 600;
-  font-size: 0.78rem; letter-spacing: 0.08em;
-  text-transform: uppercase; white-space: nowrap;
-  position: sticky; top: 0; z-index: 1;
+  color: #d4af37;
+  padding: 1em 0.7em;
+  text-align: left;
+  font-weight: 600;
+  font-size: 0.78rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  position: sticky;
+  top: 0;
+  z-index: 1;
   border-bottom: 2px solid #b8941f;
 }
-.mbd-price-table thead th small {
-  font-weight: 400; opacity: 0.75; font-size: 0.68rem;
-  letter-spacing: 0; text-transform: none;
-  display: block; margin-top: 2px; color: #bbb;
+.mb-price-table thead th small {
+  font-weight: 400; opacity: 0.75;
+  font-size: 0.68rem; letter-spacing: 0;
+  text-transform: none; display: block; margin-top: 2px;
+  color: #bbb;
 }
-.mbd-price-table thead th.mbd-sortable { cursor: pointer; user-select: none; }
-.mbd-price-table thead th.mbd-sortable:hover { background: #333; color: #f0c850; }
-.mbd-price-table thead th.mbd-sortable::after {
+.mb-price-table thead th.sortable { cursor: pointer; user-select: none; }
+.mb-price-table thead th.sortable:hover { background: #333; color: #f0c850; }
+.mb-price-table thead th.sortable::after {
   content: ' ⇅'; opacity: 0.5; font-size: 0.8em;
 }
-.mbd-price-table thead th.mbd-sort-asc::after { content: ' ▲'; opacity: 1; color: #d4af37; }
-.mbd-price-table thead th.mbd-sort-desc::after { content: ' ▼'; opacity: 1; color: #d4af37; }
-.mbd-price-table tbody tr:nth-child(even) { background: #fafafa; }
-.mbd-price-table tbody td {
-  padding: 0.85em 0.7em; border-bottom: 1px solid #eee;
+.mb-price-table thead th.sort-asc::after { content: ' ▲'; opacity: 1; color: #d4af37; }
+.mb-price-table thead th.sort-desc::after { content: ' ▼'; opacity: 1; color: #d4af37; }
+
+.mb-price-table tbody tr:nth-child(even) { background: #fafafa; }
+.mb-price-table tbody td {
+  padding: 0.85em 0.7em;
+  border-bottom: 1px solid #eee;
   vertical-align: middle;
 }
-.mbd-price-table tbody tr { transition: background 0.15s; }
-.mbd-price-table tbody tr:hover { background: #fff8e7; }
-.mbd-price-table tbody tr:hover .mbd-cell-grade { color: #8a6d14; }
-.mbd-price-table tbody tr.mbd-hidden { display: none; }
-.mbd-cell-car { white-space: nowrap; color: #1a1a1a; }
-.mbd-cell-car strong { font-weight: 700; }
-.mbd-cell-grade {
-  white-space: nowrap; font-weight: 700;
-  color: #a8851a; letter-spacing: 0.02em;
+.mb-price-table tbody tr { transition: background 0.15s; }
+.mb-price-table tbody tr:hover { background: #fff8e7; }
+.mb-price-table tbody tr:hover .cell-grade { color: #8a6d14; }
+.mb-price-table tbody tr.hidden { display: none; }
+
+.cell-car { white-space: nowrap; color: #1a1a1a; }
+.cell-car strong { font-weight: 700; }
+.cell-grade {
+  white-space: nowrap;
+  font-weight: 700;
+  color: #a8851a;
+  letter-spacing: 0.02em;
   transition: color 0.15s;
 }
-.mbd-cell-engine {
+.cell-engine {
   white-space: nowrap;
   font-family: 'SF Mono', 'Menlo', Consolas, monospace;
   font-size: 0.82rem; color: #555;
 }
-.mbd-cell-stock, .mbd-cell-stage1-gain {
+.cell-stock, .cell-stage1-gain {
   white-space: nowrap; font-size: 0.84rem;
 }
-.mbd-cell-stock { color: #666; }
-.mbd-cell-stage1-gain { color: #c62828; font-weight: 600; }
-.mbd-col-price, .mbd-cell-price-stage1, .mbd-cell-price-adblue, .mbd-cell-price-ecuadblue, .mbd-cell-price-dpf, .mbd-cell-labor {
+.cell-stock { color: #666; }
+.cell-stage1-gain { color: #c62828; font-weight: 600; }
+.col-price, .cell-price-stage1, .cell-price-adblue, .cell-price-ecuadblue, .cell-price-dpf, .cell-labor {
   white-space: nowrap; text-align: right;
   font-variant-numeric: tabular-nums; font-size: 0.88rem;
 }
-.mbd-cell-price-stage1 { font-weight: 700; color: #8a6d14; font-size: 0.92rem; }
-.mbd-cell-price-adblue { font-weight: 700; color: #8a6d14; font-size: 0.92rem; }
-.mbd-cell-price-ecuadblue { color: #b8941f; font-weight: 600; }
-.mbd-cell-price-dpf { color: #444; }
-.mbd-cell-labor { color: #777; font-size: 0.82rem; }
-.mbd-cell-shops { white-space: nowrap; font-size: 0.74rem; color: #666; }
-.mbd-cell-note {
-  display: inline-block; margin-left: 0.4em;
-  color: #d4af37; font-size: 0.85rem; cursor: help;
+.cell-price-stage1 { font-weight: 700; color: #8a6d14; font-size: 0.92rem; }
+.cell-price-adblue { font-weight: 700; color: #8a6d14; font-size: 0.92rem; }
+.cell-price-ecuadblue { color: #b8941f; font-weight: 600; }
+.cell-price-dpf { color: #444; }
+.cell-labor { color: #777; font-size: 0.82rem; }
+.cell-shops {
+  white-space: nowrap; font-size: 0.74rem; color: #666;
 }
-.mbd-ask-btn {
-  display: inline-flex; align-items: center; gap: 0.3em;
+
+/* 備考★マーク */
+.cell-note {
+  display: inline-block;
+  margin-left: 0.4em;
+  color: #d4af37;
+  font-size: 0.85rem;
+  cursor: help;
+}
+
+/* LINE問い合わせボタン */
+.ask-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3em;
   padding: 0.35em 0.75em;
   background: linear-gradient(135deg, #06c755 0%, #04a043 100%);
-  color: #ffffff !important; text-decoration: none !important;
-  font-size: 0.78rem; font-weight: 700;
-  letter-spacing: 0.04em; border-radius: 4px;
-  border: none; cursor: pointer; white-space: nowrap;
+  color: #ffffff !important;
+  text-decoration: none !important;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  border-radius: 4px;
+  border: none;
+  cursor: pointer;
+  white-space: nowrap;
   transition: all 0.15s;
   box-shadow: 0 1px 3px rgba(6, 199, 85, 0.3);
   font-family: inherit;
 }
-.mbd-ask-btn:hover {
+.ask-btn:hover {
   background: linear-gradient(135deg, #05b54e 0%, #03933d 100%);
   transform: translateY(-1px);
   box-shadow: 0 3px 8px rgba(6, 199, 85, 0.4);
   color: #ffffff !important;
 }
-.mbd-ask-btn:active { transform: translateY(0); box-shadow: 0 1px 2px rgba(6, 199, 85, 0.3); }
-.mbd-ask-btn .mbd-ask-icon { font-size: 0.9em; }
-.mbd-ask-btn .mbd-ask-text { letter-spacing: 0.05em; }
-.mbd-ask-btn-inline {
-  display: inline-flex; align-items: center; gap: 0.25em;
+.ask-btn:active {
+  transform: translateY(0);
+  box-shadow: 0 1px 2px rgba(6, 199, 85, 0.3);
+}
+.ask-btn .ask-icon { font-size: 0.9em; }
+.ask-btn .ask-text { letter-spacing: 0.05em; }
+.ask-btn-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25em;
   padding: 0.15em 0.5em;
   background: linear-gradient(135deg, #06c755 0%, #04a043 100%);
-  color: #ffffff; font-size: 0.72rem; font-weight: 700;
-  border-radius: 3px; vertical-align: middle;
+  color: #ffffff;
+  font-size: 0.72rem;
+  font-weight: 700;
+  border-radius: 3px;
+  vertical-align: middle;
 }
-.mbd-ask-btn-inline .mbd-ask-icon { font-size: 0.85em; }
-.mbd-badge {
-  display: inline-block; padding: 0.18em 0.5em;
-  font-size: 0.66rem; border-radius: 2px;
-  font-weight: 700; letter-spacing: 0.04em;
+.ask-btn-inline .ask-icon { font-size: 0.85em; }
+
+.badge {
+  display: inline-block;
+  padding: 0.18em 0.5em;
+  font-size: 0.66rem;
+  border-radius: 2px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
   margin-left: 0.25em;
   font-family: 'SF Mono', Menlo, Consolas, monospace;
 }
-.mbd-badge-engine {
-  background: rgba(212, 175, 55, 0.15); color: #8a6d14;
+.badge-engine {
+  background: rgba(212, 175, 55, 0.15);
+  color: #8a6d14;
   border: 1px solid rgba(184, 148, 31, 0.4);
 }
-.mbd-badge-remote {
-  background: rgba(46, 125, 50, 0.1); color: #2e7d32;
-  border: 1px solid rgba(46, 125, 50, 0.3); margin-right: 0.25em;
+.badge-remote {
+  background: rgba(46, 125, 50, 0.1);
+  color: #2e7d32;
+  border: 1px solid rgba(46, 125, 50, 0.3);
+  margin-right: 0.25em;
 }
-.mbd-muted { color: #ccc; font-size: 0.9em; }
-.mbd-no-results {
-  padding: 3em 2em; text-align: center; color: #666;
-  background: #fafafa; border: 1px solid #e5e5e5;
-  border-radius: 6px; margin-top: 1em; font-size: 0.95rem;
+.muted { color: #ccc; font-size: 0.9em; }
+
+.mb-no-results {
+  padding: 3em 2em; text-align: center;
+  color: #666; background: #fafafa;
+  border: 1px solid #e5e5e5; border-radius: 6px;
+  margin-top: 1em; font-size: 0.95rem;
 }
-.mbd-table-note {
-  margin-top: 1.2em; padding: 1.2em 1.4em;
-  background: #fafafa; border: 1px solid #e5e5e5;
-  border-left: 3px solid #b8941f; border-radius: 2px;
+
+.mb-table-note {
+  margin-top: 1.2em;
+  padding: 1.2em 1.4em;
+  background: #fafafa;
+  border: 1px solid #e5e5e5;
+  border-left: 3px solid #b8941f;
+  border-radius: 2px;
   font-size: 0.82rem; color: #555; line-height: 1.7;
 }
-.mbd-table-note p { margin: 0.35em 0; }
-.mbd-table-note strong { color: #8a6d14; }
-.mbd-table-note a {
+.mb-table-note p { margin: 0.35em 0; }
+.mb-table-note strong { color: #8a6d14; }
+.mb-table-note a {
   color: #8a6d14; text-decoration: none;
   border-bottom: 1px solid rgba(184, 148, 31, 0.4);
 }
-.mbd-table-note a:hover { border-bottom-color: #8a6d14; }
-.mbd-table-wrap::-webkit-scrollbar { height: 10px; width: 10px; background: #f5f5f5; }
-.mbd-table-wrap::-webkit-scrollbar-thumb { background: #ccc; border-radius: 5px; }
-.mbd-table-wrap::-webkit-scrollbar-thumb:hover { background: #b8941f; }
+.mb-table-note a:hover { border-bottom-color: #8a6d14; }
+
+.mb-table-wrap::-webkit-scrollbar {
+  height: 10px; width: 10px; background: #f5f5f5;
+}
+.mb-table-wrap::-webkit-scrollbar-thumb {
+  background: #ccc; border-radius: 5px;
+}
+.mb-table-wrap::-webkit-scrollbar-thumb:hover { background: #b8941f; }
+
 @media (max-width: 768px) {
-  .mbd-price-wrapper { padding: 1em; border-radius: 6px; }
-  .mbd-price-table { font-size: 0.78rem; min-width: 1050px; }
-  .mbd-price-table thead th, .mbd-price-table tbody td { padding: 0.55em 0.45em; }
-  .mbd-price-table thead th { font-size: 0.7rem; }
-  .mbd-filter-chip { font-size: 0.76rem; padding: 0.35em 0.75em; }
-  .mbd-search { font-size: 0.95rem; }
-  .mbd-intro { padding: 0.9em 1em; }
-  .mbd-intro p { font-size: 0.88rem; }
-  .mbd-ask-btn { font-size: 0.72rem; padding: 0.3em 0.6em; }
+  .mb-price-wrapper { padding: 1em; border-radius: 6px; }
+  .mb-price-table { font-size: 0.78rem; min-width: 950px; }
+  .mb-price-table thead th, .mb-price-table tbody td { padding: 0.55em 0.45em; }
+  .mb-price-table thead th { font-size: 0.7rem; }
+  .filter-chip { font-size: 0.76rem; padding: 0.35em 0.75em; }
+  .mb-search { font-size: 0.95rem; }
+  .mb-intro { padding: 0.9em 1em; }
+  .mb-intro p { font-size: 0.88rem; }
+  .ask-btn { font-size: 0.72rem; padding: 0.3em 0.6em; }
 }
 @media (max-width: 480px) {
-  .mbd-controls { padding: 0.9em; }
-  .mbd-filter-label { min-width: 52px; font-size: 0.72rem; }
-  .mbd-table-note { padding: 0.9em 1em; font-size: 0.78rem; }
+  .mb-controls { padding: 0.9em; }
+  .filter-label { min-width: 52px; font-size: 0.72rem; }
+  .mb-table-note { padding: 0.9em 1em; font-size: 0.78rem; }
 }
 </style>
 
 <script>
 (function() {
   'use strict';
-  var tbody = document.getElementById('mbdTableBody');
+  const tbody = document.getElementById('mbTableBody');
   if (!tbody) return;
-  var rows = Array.prototype.slice.call(tbody.querySelectorAll('tr'));
-  var searchInput = document.getElementById('mbdSearch');
-  var clearBtn = document.getElementById('mbdClear');
-  var countEl = document.getElementById('mbdResultCount');
-  var noResultsEl = document.getElementById('mbdNoResults');
-  var tableWrap = document.querySelector('.mbd-table-wrap');
-  var state = { query: '', series: 'all' };
-
+  const rows = Array.from(tbody.querySelectorAll('tr'));
+  const searchInput = document.getElementById('mbSearch');
+  const clearBtn = document.getElementById('mbClear');
+  const countEl = document.getElementById('mbResultCount');
+  const noResultsEl = document.getElementById('mbNoResults');
+  const tableWrap = document.querySelector('.mb-table-wrap');
+  
+  let state = { query: '', series: 'all' };
+  
   function applyFilters() {
-    var q = state.query.trim().toLowerCase();
-    var visible = 0;
-    rows.forEach(function(row) {
-      var searchText = row.getAttribute('data-mbd-search') || '';
-      var rowSeries = row.getAttribute('data-mbd-series') || '';
-      var matchSearch = !q || searchText.indexOf(q) !== -1;
-      var matchSeries = state.series === 'all' || rowSeries === state.series;
+    const q = state.query.trim().toLowerCase();
+    let visible = 0;
+    rows.forEach(row => {
+      const searchText = row.dataset.search || '';
+      const rowSeries = row.dataset.series || '';
+      const matchSearch = !q || searchText.includes(q);
+      const matchSeries = state.series === 'all' || rowSeries === state.series;
       if (matchSearch && matchSeries) {
-        row.classList.remove('mbd-hidden');
-        visible++;
+        row.classList.remove('hidden'); visible++;
       } else {
-        row.classList.add('mbd-hidden');
+        row.classList.add('hidden');
       }
     });
-    if (countEl) countEl.textContent = visible;
-    if (noResultsEl) noResultsEl.hidden = visible > 0;
-    if (tableWrap) tableWrap.style.display = visible > 0 ? '' : 'none';
+    countEl.textContent = visible;
+    noResultsEl.hidden = visible > 0;
+    tableWrap.style.display = visible > 0 ? '' : 'none';
   }
-
-  if (searchInput) {
-    searchInput.addEventListener('input', function(e) {
-      state.query = e.target.value;
-      applyFilters();
-    });
-  }
-  if (clearBtn) {
-    clearBtn.addEventListener('click', function() {
-      if (searchInput) { searchInput.value = ''; }
-      state.query = '';
-      applyFilters();
-      if (searchInput) searchInput.focus();
-    });
-  }
-
-  var filterBtns = document.querySelectorAll('[data-mbd-filter-series]');
-  filterBtns.forEach(function(btn) {
-    btn.addEventListener('click', function() {
-      filterBtns.forEach(function(b) { b.classList.remove('mbd-active'); });
-      btn.classList.add('mbd-active');
-      state.series = btn.getAttribute('data-mbd-filter-series');
+  
+  searchInput.addEventListener('input', (e) => {
+    state.query = e.target.value; applyFilters();
+  });
+  clearBtn.addEventListener('click', () => {
+    searchInput.value = ''; state.query = ''; applyFilters(); searchInput.focus();
+  });
+  
+  document.querySelectorAll('[data-filter-series]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('[data-filter-series]').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      state.series = btn.dataset.filterSeries;
       applyFilters();
     });
   });
-
-  var headers = document.querySelectorAll('.mbd-price-table th.mbd-sortable');
-  var sortState = { col: null, asc: true };
-  headers.forEach(function(th, idx) {
-    th.addEventListener('click', function() {
-      var col = th.getAttribute('data-mbd-sort');
+  
+  const headers = document.querySelectorAll('.mb-price-table th.sortable');
+  let sortState = { col: null, asc: true };
+  headers.forEach((th, idx) => {
+    th.addEventListener('click', () => {
+      const col = th.dataset.sort;
       if (sortState.col === col) { sortState.asc = !sortState.asc; }
       else { sortState.col = col; sortState.asc = true; }
-      headers.forEach(function(h) { h.classList.remove('mbd-sort-asc', 'mbd-sort-desc'); });
-      th.classList.add(sortState.asc ? 'mbd-sort-asc' : 'mbd-sort-desc');
-      var sorted = rows.slice().sort(function(a, b) {
-        var av = a.children[idx].textContent.trim();
-        var bv = b.children[idx].textContent.trim();
+      headers.forEach(h => h.classList.remove('sort-asc', 'sort-desc'));
+      th.classList.add(sortState.asc ? 'sort-asc' : 'sort-desc');
+      const sorted = [...rows].sort((a, b) => {
+        const av = a.children[idx].textContent.trim();
+        const bv = b.children[idx].textContent.trim();
         return sortState.asc ? av.localeCompare(bv, 'ja') : bv.localeCompare(av, 'ja');
       });
-      sorted.forEach(function(row) { tbody.appendChild(row); });
+      sorted.forEach(row => tbody.appendChild(row));
     });
   });
 })();

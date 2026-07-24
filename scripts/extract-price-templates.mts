@@ -15,7 +15,7 @@ const refDir = join(root, "prisma", "data", "reference");
 const BRANDS = [
   { id: "bmw", file: "bmw_price_table.html", prefix: "bmw-" },
   { id: "mercedes_gasoline", file: "mercedes_price_table.html", prefix: "mb-" },
-  { id: "mercedes_diesel", file: "mercedes_diesel_price_table.html", prefix: "mbd-" },
+  { id: "mercedes_diesel", file: "mercedes_diesel_price_table.html", prefix: "mb-" }, // ライブ改修でmbd-→mb-系に統一
   { id: "audi", file: "audi_price_table.html", prefix: "audi-" },
   { id: "lamborghini", file: "lamborghini_price_table.html", prefix: "lambo-" },
 ];

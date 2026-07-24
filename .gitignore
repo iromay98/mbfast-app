@@ -56,3 +56,4 @@ next-env.d.ts
 # Claude Code local config
 .claude/
 .verify-out/
+prisma/data/wp-live/
