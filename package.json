@@ -8,6 +8,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "check:price-templates": "tsx scripts/check-generated-templates.mts",
+    "check:price-golden": "tsx scripts/verify-price-html.mts",
     "pg:init": "bash scripts/pg.sh init",
     "pg:start": "bash scripts/pg.sh start",
     "pg:stop": "bash scripts/pg.sh stop",

@@ -1,35 +1,41 @@
-// WordPress自動反映のインターフェース雛形（Phase 2以降で実装）。
-// 現在の運用: generateBrandHtml → コピー or .htmlダウンロード → WordPressの該当固定ページに手動貼り付け。
-// 自動化する場合は WordPress REST API（POST /wp-json/wp/v2/pages/{id}）+ Application Password を想定。
+// WordPress REST API クライアント（価格表同期用）。
+// 認証: Application Password（Basic）。WP_USER / WP_APP_PASSWORD は .env のみ（コミット禁止）。
+// 更新は POST /wp-json/wp/v2/pages/{id}（このWPはPUT不可）。
 
-import type { BrandRow } from "./types";
+const BASE = process.env.WP_BASE_URL ?? "https://mbfasttuning.com";
+const API = `${BASE}/wp-json/wp/v2`;
 
-export type PublishResult =
-  | { ok: true; pageId: number; url?: string }
-  | { ok: false; error: string };
-
-export interface WordPressPublisher {
-  /** brand.wordPressPageId の固定ページ本文を html で置き換える */
-  publishBrand(brand: BrandRow, html: string): Promise<PublishResult>;
+export function wpConfigured(): boolean {
+  return !!process.env.WP_USER && !!process.env.WP_APP_PASSWORD;
 }
 
-// 未設定時のプレースホルダ実装。環境変数が揃うまではエラーを返すだけ。
-//   WORDPRESS_BASE_URL      例: https://mbfasttuning.com
-//   WORDPRESS_USER          Application Password のユーザー名
-//   WORDPRESS_APP_PASSWORD  Application Password（.env にのみ置く。コミット禁止）
-export class NotConfiguredPublisher implements WordPressPublisher {
-  async publishBrand(brand: BrandRow): Promise<PublishResult> {
-    if (!brand.wordPressPageId) {
-      return { ok: false, error: `${brand.displayName} に WordPressページID が設定されていません` };
-    }
-    return {
-      ok: false,
-      error:
-        "WordPress連携は未実装です。生成したHTMLをコピーして該当ページに貼り付けてください（自動化は WORDPRESS_BASE_URL / WORDPRESS_USER / WORDPRESS_APP_PASSWORD 設定後に実装予定）。",
-    };
+function authHeader(): string {
+  const user = process.env.WP_USER;
+  const pass = process.env.WP_APP_PASSWORD;
+  if (!user || !pass) throw new Error("WP_USER / WP_APP_PASSWORD が未設定です");
+  return `Basic ${Buffer.from(`${user}:${pass}`).toString("base64")}`;
+}
+
+export async function fetchPageRaw(pageId: number): Promise<{ id: number; slug: string; raw: string }> {
+  const res = await fetch(`${API}/pages/${pageId}?context=edit&_fields=id,slug,content.raw`, {
+    headers: { Authorization: authHeader() },
+  });
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    throw new Error(`WPページ取得(${pageId}): HTTP ${res.status} ${body.slice(0, 200)}`);
   }
+  const data = (await res.json()) as { id: number; slug: string; content: { raw: string } };
+  return { id: data.id, slug: data.slug, raw: data.content.raw };
 }
 
-export function getWordPressPublisher(): WordPressPublisher {
-  return new NotConfiguredPublisher();
+export async function updatePageContent(pageId: number, content: string): Promise<void> {
+  const res = await fetch(`${API}/pages/${pageId}`, {
+    method: "POST",
+    headers: { Authorization: authHeader(), "Content-Type": "application/json" },
+    body: JSON.stringify({ content }),
+  });
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    throw new Error(`WPページ更新(${pageId}): HTTP ${res.status} ${body.slice(0, 200)}`);
+  }
 }

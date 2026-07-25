@@ -22,10 +22,18 @@ if (!url) throw new Error("DATABASE_URL がありません");
 const c = new Client({ connectionString: url.replace(/\?schema=public$/, "") });
 await c.connect();
 
+// --replace: 全洗い替え（DELETE→INSERT）。ローカルを正として本番を完全同期するとき用。
+const replace = process.argv.includes("--replace");
+
 const out: string[] = [
-  "-- 価格表シード（scripts/dump-prices-sql.mts が生成）。空のときだけ流し込む想定。",
+  replace
+    ? "-- 価格表シード（--replace: 全洗い替え。ローカルDBを正として完全同期）"
+    : "-- 価格表シード（scripts/dump-prices-sql.mts が生成）。空のときだけ流し込む想定。",
   "BEGIN;",
 ];
+if (replace) {
+  out.push(`DELETE FROM "PriceVehicle";`, `DELETE FROM "PriceBrand";`);
+}
 
 for (const table of ["PriceBrand", "PriceVehicle"]) {
   // udt_name が "_" 始まり = Postgres配列列（例: _text）
@@ -43,8 +51,12 @@ for (const table of ["PriceBrand", "PriceVehicle"]) {
   for (const r of rows) {
     const colList = cols.map((k) => `"${k}"`).join(", ");
     const valList = cols.map((k) => lit(r[k], arrayCols.has(k))).join(", ");
-    // 既存行があれば触らない（本番の編集を壊さないため）
-    out.push(`INSERT INTO "${table}" (${colList}) VALUES (${valList}) ON CONFLICT ("id") DO NOTHING;`);
+    // 通常: 既存行があれば触らない（本番の編集を壊さないため）／ --replace: 事前DELETE済みなので素のINSERT
+    out.push(
+      replace
+        ? `INSERT INTO "${table}" (${colList}) VALUES (${valList});`
+        : `INSERT INTO "${table}" (${colList}) VALUES (${valList}) ON CONFLICT ("id") DO NOTHING;`,
+    );
   }
 }
 

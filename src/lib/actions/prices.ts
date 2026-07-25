@@ -351,3 +351,25 @@ export async function importBrandCsv(
   revalidatePath(PRICES_PATH);
   return { ok: true, updated, created };
 }
+
+// ── WordPress同期（Step C）──
+// ブランドの紐づくページ単位で同期する（mercedes 2ブランドは1ページに同居のため一括）。
+
+export async function previewWpSync(brandId: string): Promise<{ ok?: true; result?: import("@/server/prices/wp-sync").SyncResult; error?: string }> {
+  await requireHQ();
+  const b = await prisma.priceBrand.findUnique({ where: { id: brandId }, select: { wordPressPageId: true } });
+  if (!b?.wordPressPageId) return { error: "WordPressページIDが未設定です（ブランド設定で登録してください）" };
+  const { syncWpPage } = await import("@/server/prices/wp-sync");
+  const result = await syncWpPage(b.wordPressPageId, { dryRun: true });
+  return { ok: true, result };
+}
+
+export async function publishWpSync(brandId: string, force = false): Promise<{ ok?: true; result?: import("@/server/prices/wp-sync").SyncResult; error?: string }> {
+  await requireHQ();
+  const b = await prisma.priceBrand.findUnique({ where: { id: brandId }, select: { wordPressPageId: true } });
+  if (!b?.wordPressPageId) return { error: "WordPressページIDが未設定です（ブランド設定で登録してください）" };
+  const { syncWpPage } = await import("@/server/prices/wp-sync");
+  const result = await syncWpPage(b.wordPressPageId, { dryRun: false, force });
+  revalidatePath(PRICES_PATH);
+  return { ok: true, result };
+}

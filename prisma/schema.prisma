@@ -817,3 +817,18 @@ model EcuDenyToken {
   note      String?
   createdAt DateTime @default(now())
 }
+
+// WordPress同期の履歴。payloadHash が直前の成功と同じなら送信をスキップする。
+// backup には置換前のページ全文（content.raw）を保存し、iframe置換(Step D)の復旧にも使う。
+model PriceSyncLog {
+  id          String   @id @default(cuid())
+  wpPageId    Int
+  brandIds    String[] @default([])
+  payloadHash String
+  status      String // success | skipped | failed
+  error       String?
+  backup      String?
+  createdAt   DateTime @default(now())
+
+  @@index([wpPageId, createdAt])
+}

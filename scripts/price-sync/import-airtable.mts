@@ -290,7 +290,8 @@ for (const def of DEFS) {
       engine: (def.engineFields ?? []).map((e) => flat(f[e])).filter(Boolean).join(" "),
       stockOutput: def.stockField ? flat(f[def.stockField]) || null : null,
       stage1Gain: def.gainField ? flat(f[def.gainField]) || null : null,
-      labor: def.laborField ? flat(f[def.laborField]) || null : null,
+      // 工賃: ASK/空 → null（公開HTMLでは「工賃見積」LINEボタン。既存4ブランドと同じ規約）
+      labor: def.laborField ? ((t) => (!t || /^ask$/i.test(t) ? null : t))(flat(f[def.laborField])) : null,
       shops: def.shopsField ? flat(f[def.shopsField]) || null : null,
       ecuType: def.ecuField ? flat(f[def.ecuField]) || null : null,
       prices,

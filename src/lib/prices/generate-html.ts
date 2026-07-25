@@ -2,6 +2,7 @@
 // 出力は prisma/data/reference/*.html と完全同一になることを scripts/verify-price-html.mts で保証する。
 
 import { PRICE_HTML_TEMPLATES } from "./templates";
+import { askLabelFor, buildGeneratedTemplate } from "./generated-template";
 import type { BrandRow, VehicleRow, RemoteFlags } from "./types";
 
 const LINE_URL = "https://lin.ee/8yOXuPJ";
@@ -149,6 +150,40 @@ export const BRAND_HTML_SPECS: Record<string, BrandHtmlSpec> = {
   },
 };
 
+// Airtable由来ブランド: columns(Json) から行仕様を組み立てる（テンプレートは generated-template.ts）
+export function specFromColumns(brand: BrandRow): BrandHtmlSpec {
+  const hasGrade = brand.columns.some((c) => c.key === "grade");
+  const hasEcu = brand.columns.some((c) => c.type === "ecu");
+  const cells: CellSpec[] = brand.columns.map((c): CellSpec => {
+    if (c.key === "car") return { kind: "car" };
+    if (c.key === "grade") return { kind: "grade" };
+    if (c.key === "engine") return { kind: "engine" };
+    if (c.type === "price") return { kind: "price", key: c.key, askLabel: askLabelFor(c) };
+    if (c.type === "labor") return { kind: "labor" };
+    if (c.key === "stockOutput") return { kind: "stock" };
+    if (c.key === "stage1Gain") return { kind: "gain" };
+    if (c.type === "shops") return { kind: "shops" };
+    if (c.type === "remote") return { kind: "remote" };
+    if (c.type === "ecu") return { kind: "ecu" };
+    throw new Error(`未対応の列: ${brand.id}.${c.key} (${c.type})`);
+  });
+  return {
+    ns: brand.namespacePrefix,
+    searchAttr: "data-search",
+    seriesAttr: "data-series",
+    engineFamilyAttr: false,
+    askHasGrade: hasGrade,
+    searchParts: [
+      "car",
+      ...(hasGrade ? (["grade"] as const) : []),
+      "engine",
+      ...(hasEcu ? (["ecu"] as const) : []),
+      "carSplit",
+    ],
+    cells,
+  };
+}
+
 const esc = (s: string) =>
   s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
@@ -221,8 +256,8 @@ function searchValue(parts: SearchPart[], v: VehicleRow): string {
   return vals.join(" ").toLowerCase();
 }
 
-export function renderRow(brandId: string, v: VehicleRow): string {
-  const spec = BRAND_HTML_SPECS[brandId];
+export function renderRow(brandId: string, v: VehicleRow, specOverride?: BrandHtmlSpec): string {
+  const spec = specOverride ?? BRAND_HTML_SPECS[brandId];
   if (!spec) throw new Error(`未対応ブランド: ${brandId}`);
   const ns = spec.ns;
 
@@ -319,16 +354,25 @@ function priceCellClass(brandId: string, ns: string, key: string): string {
 }
 
 export function generatePriceTableHtml(brand: BrandRow, vehicles: VehicleRow[]): string {
-  const tpl = PRICE_HTML_TEMPLATES[brand.id];
-  if (!tpl) throw new Error(`テンプレート未登録: ${brand.id}`);
+  // 既存4ブランドはライブHTML抽出テンプレート（ゴールデンテスト対象）、
+  // Airtable由来ブランドは columns から機械生成する。
+  const tpl = PRICE_HTML_TEMPLATES[brand.id] ?? buildGeneratedTemplate(brand);
+  const spec = BRAND_HTML_SPECS[brand.id] ?? specFromColumns(brand);
+
+  const intro =
+    brand.intro ||
+    `<strong>${brand.displayName}</strong> 全{{TOTAL}}モデルのECUチューニング・バブリング価格表です。車種名・グレード・エンジン型式で検索、シリーズで絞り込みできます。`;
+  const jsonLd =
+    brand.jsonLdDescription ||
+    `${brand.displayName}のECUチューニング・バブリング施工。mbFAST Tuningの公式価格表。`;
 
   const chips = brand.seriesGroups.map((s) => tpl.chip.replace(/\{\{S\}\}/g, s)).join("\n");
   const head = tpl.head
-    .replace("{{JSONLD_DESCRIPTION}}", brand.jsonLdDescription)
-    .replace("{{INTRO}}", brand.intro)
+    .replace("{{JSONLD_DESCRIPTION}}", jsonLd)
+    .replace("{{INTRO}}", intro)
     .replace("{{FILTER_CHIPS}}", chips)
     .replace(/\{\{TOTAL\}\}/g, String(vehicles.length));
 
-  const rows = vehicles.map((v) => renderRow(brand.id, v)).join("\n");
+  const rows = vehicles.map((v) => renderRow(brand.id, v, spec)).join("\n");
   return head + rows + "\n" + tpl.foot;
 }
