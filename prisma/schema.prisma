@@ -684,6 +684,10 @@ model PriceVehicle {
   id           String     @id @default(cuid())
   brandId      String
   brand        PriceBrand @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  // price-sync-spec v1 準拠: 市場（JP/EN別レコード）・初期取込元・WooCommerce商品ID（EN用）
+  market       String     @default("JP")
+  source       String     @default("html") // html | airtable
+  wcProductId  Int?
   seriesGroup  String // "3-Series" 等（フィルタ用）
   carName      String // "3-Series (G20)"
   grade        String? // "340i"（Audi等は無し）

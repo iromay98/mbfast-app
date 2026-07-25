@@ -57,3 +57,4 @@ next-env.d.ts
 .claude/
 .verify-out/
 prisma/data/wp-live/
+prisma/data/airtable/
