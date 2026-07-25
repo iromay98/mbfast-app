@@ -380,7 +380,7 @@ td[class^="${p}cell-price-"] { font-weight: 700; color: #8a6d14; font-size: 0.92
   function applyFilters() {
     var q = state.query.replace(/^\\s+|\\s+$/g, '').toLowerCase();
     var visible = 0;
-    for (var i = 0; i < rows.length; i++) {
+    for (var i = 0; rows.length > i; i++) {
       var row = rows[i];
       var searchText = row.getAttribute('data-search') || '';
       var rowSeries = row.getAttribute('data-series') || '';
@@ -403,10 +403,10 @@ td[class^="${p}cell-price-"] { font-weight: 700; color: #8a6d14; font-size: 0.92
     searchInput.value = ''; state.query = ''; applyFilters(); searchInput.focus();
   };
   var chips = [].slice.call(wrapper.querySelectorAll('[data-filter-series]'));
-  for (var c = 0; c < chips.length; c++) {
+  for (var c = 0; chips.length > c; c++) {
     (function(btn) {
       btn.onclick = function() {
-        for (var j = 0; j < chips.length; j++) {
+        for (var j = 0; chips.length > j; j++) {
           chips[j].className = chips[j].className.replace(/\\s*${p}chip-on/g, '');
         }
         btn.className = btn.className + ' ${p}chip-on';
@@ -418,15 +418,15 @@ td[class^="${p}cell-price-"] { font-weight: 700; color: #8a6d14; font-size: 0.92
   var headers = [].slice.call(wrapper.querySelectorAll('th.${p}sortable'));
   var allHeads = [].slice.call(wrapper.querySelectorAll('thead th'));
   var sortState = { col: null, asc: true };
-  for (var h = 0; h < headers.length; h++) {
+  for (var h = 0; headers.length > h; h++) {
     (function(th) {
       var idx = -1;
-      for (var k = 0; k < allHeads.length; k++) { if (allHeads[k] === th) { idx = k; break; } }
+      for (var k = 0; allHeads.length > k; k++) { if (allHeads[k] === th) { idx = k; break; } }
       th.onclick = function() {
         var col = th.getAttribute('data-sort');
         if (sortState.col === col) { sortState.asc = !sortState.asc; }
         else { sortState.col = col; sortState.asc = true; }
-        for (var j = 0; j < headers.length; j++) {
+        for (var j = 0; headers.length > j; j++) {
           headers[j].className = headers[j].className.replace(/\\s*${p}sort-(asc|desc)/g, '');
         }
         th.className = th.className + (sortState.asc ? ' ${p}sort-asc' : ' ${p}sort-desc');
@@ -435,7 +435,7 @@ td[class^="${p}cell-price-"] { font-weight: 700; color: #8a6d14; font-size: 0.92
           var bv = (b.children[idx].textContent || '').replace(/^\\s+|\\s+$/g, '');
           return sortState.asc ? av.localeCompare(bv, 'ja') : bv.localeCompare(av, 'ja');
         });
-        for (var r = 0; r < sorted.length; r++) { tbody.appendChild(sorted[r]); }
+        for (var r = 0; sorted.length > r; r++) { tbody.appendChild(sorted[r]); }
       };
     })(headers[h]);
   }

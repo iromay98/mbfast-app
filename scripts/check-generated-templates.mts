@@ -51,8 +51,11 @@ const VEHICLE: VehicleRow = {
   displayOrder: 0,
 };
 
-// <script>…</script> 部分の ES5 違反パターン
+// <script>…</script> 部分の 禁止パターン（ES5違反＋WPレンダーフィルタ対策）
 const ES6_PATTERNS: [RegExp, string][] = [
+  // WPは本文レンダー時、script内でも裸の「<」をタグ開始と誤認し、以降の & を &#038; に
+  // エンティティ化してJSを破壊する（Ferrariページで実証）。比較は「length > i」形式にする。
+  [/</, "裸の <（WPレンダーフィルタがJSを破壊。比較は length > i 形式にする）"],
   [/=>/, "アロー関数"],
   [/\bconst\s/, "const"],
   [/\blet\s/, "let"],
