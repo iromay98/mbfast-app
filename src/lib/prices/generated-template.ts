@@ -24,16 +24,17 @@ export function askLabelFor(col: ColumnDefinition): string {
 }
 
 // 列順の共通ルール（Airtable由来の生成ブランドに適用。既存4ブランドのゴールデンには触れない）:
-// 工賃（脱着工賃）列は価格列（ECUチューニング等）の直後に置く。
-// 従来の生成は 価格 → 純正出力 → Stage1出力向上 → 工賃 の順で誤りだった（ライブ側は
-// 手動で並び替え済み。BMW/Mercedes の正順と同じ 価格 → 工賃 → 出力系 に揃える）。
+// 工賃（脱着工賃）列は「ECUチューニング価格列（key=stage1）」の直後に置く。
+// リミッター解除OP・O2/OPF・Stage2 等の追加価格列よりも前（ライブの手動並び替えと同じ位置）。
+// stage1 列が無いブランドは最後の価格列の直後にフォールバック。
 export function applyColumnOrderRule(cols: ColumnDefinition[]): ColumnDefinition[] {
   const labor = cols.filter((c) => c.type === "labor");
   if (labor.length === 0) return cols;
   const rest = cols.filter((c) => c.type !== "labor");
-  const lastPrice = rest.map((c) => c.type).lastIndexOf("price");
-  if (lastPrice === -1) return cols;
-  return [...rest.slice(0, lastPrice + 1), ...labor, ...rest.slice(lastPrice + 1)];
+  let anchor = rest.findIndex((c) => c.type === "price" && c.key === "stage1");
+  if (anchor === -1) anchor = rest.map((c) => c.type).lastIndexOf("price");
+  if (anchor === -1) return cols;
+  return [...rest.slice(0, anchor + 1), ...labor, ...rest.slice(anchor + 1)];
 }
 
 // 列見出し: "ECUﾁｭｰﾆﾝｸﾞ(ﾊﾞﾌﾞﾘﾝｸﾞ無料)" → "ECUﾁｭｰﾆﾝｸﾞ<br><small>(ﾊﾞﾌﾞﾘﾝｸﾞ無料)</small>"

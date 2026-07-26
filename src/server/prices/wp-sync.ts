@@ -78,6 +78,18 @@ async function loadBrandsForPage(pageId: number): Promise<{ brand: BrandRow; veh
   }));
 }
 
+// ページの生成HTML一式とpayload_hashを計算（DBのみ・WPには触れない）。
+// 自動同期の「前回の保留/失敗から内容が変わったか」の事前判定にも使う。
+export async function buildPagePayload(pageId: number) {
+  const pairs = await loadBrandsForPage(pageId);
+  const snippets = pairs.map(({ brand, vehicles }) => ({
+    brand,
+    html: generatePriceTableHtml(brand, vehicles),
+  }));
+  const payloadHash = sha256(snippets.map((s) => normalizeEntities(s.html)).join("\n<!-- ▲ -->\n"));
+  return { pairs, snippets, payloadHash };
+}
+
 // 最初の差分行の前後を短く抜き出す（プレビュー表示用）
 function firstDiffExcerpt(oldHtml: string, newHtml: string): string | undefined {
   const a = normalizeEntities(oldHtml).split("\n");
@@ -106,17 +118,10 @@ export async function syncWpPage(
     return { ok: false, status: "failed", pageId, brands: empty, payloadHash: "", error: "WP_USER / WP_APP_PASSWORD が未設定です" };
   }
 
-  const pairs = await loadBrandsForPage(pageId);
+  const { pairs, snippets, payloadHash } = await buildPagePayload(pageId);
   if (pairs.length === 0) {
     return { ok: false, status: "failed", pageId, brands: empty, payloadHash: "", error: `ページ${pageId}に紐づくブランドがありません` };
   }
-
-  // 1. 生成
-  const snippets = pairs.map(({ brand, vehicles }) => ({
-    brand,
-    html: generatePriceTableHtml(brand, vehicles),
-  }));
-  const payloadHash = sha256(snippets.map((s) => normalizeEntities(s.html)).join("\n<!-- ▲ -->\n"));
 
   const lastSuccess = await prisma.priceSyncLog.findFirst({
     where: { wpPageId: pageId, status: "success" },

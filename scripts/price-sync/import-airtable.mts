@@ -216,9 +216,15 @@ function buildColumns(def: BrandDef) {
   if (def.engineFields?.length) cols.push({ key: "engine", label: "エンジン", type: "text", order: o++ });
   for (const pk of def.priceKeys) {
     cols.push({ key: pk.key, label: pk.label, type: "price", emphasis: pk.key === "stage1" || pk.key === "babble" ? "primary" : "secondary", emptyBehavior: "line-btn", order: o++ });
+    // 列順ルール: 工賃は「ECUチューニング価格列(stage1)」の直後（applyColumnOrderRule と同じ規則）
+    if (pk.key === "stage1" && def.laborField) {
+      cols.push({ key: "labor", label: "工賃", type: "labor", order: o++ });
+    }
   }
-  // 列順ルール: 工賃は価格列の直後（出力系の前）。生成側 applyColumnOrderRule と同じ規則。
-  if (def.laborField) cols.push({ key: "labor", label: "工賃", type: "labor", order: o++ });
+  // stage1 列が無いブランドは価格列の直後にフォールバック
+  if (def.laborField && !cols.some((c) => c.key === "labor")) {
+    cols.push({ key: "labor", label: "工賃", type: "labor", order: o++ });
+  }
   if (def.stockField) cols.push({ key: "stockOutput", label: "純正出力", type: "output", order: o++ });
   if (def.gainField) cols.push({ key: "stage1Gain", label: "Stage1出力向上", type: "output", order: o++ });
   if (def.shopsField) cols.push({ key: "shops", label: "対応店舗", type: "shops", order: o++ });

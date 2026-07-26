@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/db";
 import { notify } from "@/server/notifications";
 import { wpConfigured } from "@/lib/prices/wordpress";
-import { syncWpPage } from "@/server/prices/wp-sync";
+import { buildPagePayload, syncWpPage } from "@/server/prices/wp-sync";
 
 /*
  * 価格表の自動同期。
@@ -42,6 +42,10 @@ export async function runPriceAutoSync(): Promise<void> {
     }
 
     const now = Date.now();
+    const synced: string[] = [];
+    const held: string[] = [];
+    const failed: string[] = [];
+
     for (const [pageId, page] of pages) {
       // データの最終更新時刻（ブランド設定 or 車両行）
       const vMax = await prisma.priceVehicle.aggregate({
@@ -50,43 +54,58 @@ export async function runPriceAutoSync(): Promise<void> {
       });
       const lastEdit = Math.max(page.updatedAt.getTime(), vMax._max.updatedAt?.getTime() ?? 0);
 
-      const lastSuccess = await prisma.priceSyncLog.findFirst({
-        where: { wpPageId: pageId, status: "success" },
+      // 前回の実行結果（skippedは除く）。保留/失敗の再通知抑止にも使う
+      const lastLog = await prisma.priceSyncLog.findFirst({
+        where: { wpPageId: pageId, status: { in: ["success", "guarded", "failed"] } },
         orderBy: { createdAt: "desc" },
-        select: { createdAt: true },
+        select: { createdAt: true, status: true, payloadHash: true },
       });
 
-      // 前回成功以降に編集が無ければ何もしない（WPにも触らない）
-      if (lastSuccess && lastEdit <= lastSuccess.createdAt.getTime()) continue;
-      // 編集直後は見送り（次の周期で拾う）
-      if (now - lastEdit < QUIET_MS) continue;
+      const editedSinceLast = !lastLog || lastEdit > lastLog.createdAt.getTime();
+      if (!editedSinceLast) {
+        // 編集なし: 反映済みなら何もしない。前回が保留/失敗でも、生成内容が前回と
+        // 同じなら再試行しない（同じ結果になるだけ＝10分ごとの再通知スパム防止）。
+        if (lastLog!.status === "success") continue;
+        const { payloadHash } = await buildPagePayload(pageId);
+        if (payloadHash === lastLog!.payloadHash) continue;
+        // 内容が変わっている（コード修正後など）→ 再試行する
+      } else if (now - lastEdit < QUIET_MS) {
+        continue; // 編集直後は見送り（次の周期で拾う）
+      }
 
       try {
         const res = await syncWpPage(pageId, { dryRun: false, guardThead: true });
         if (res.status === "success") {
           const changed = res.brands.filter((b) => b.changed).map((b) => b.displayName);
-          if (changed.length > 0) {
-            await notify({
-              type: "PRICE_AUTO_SYNC",
-              title: "価格表をホームページへ自動反映しました",
-              message: `${changed.join(" / ")} の価格表を更新（ページ${pageId}）`,
-              dealerId: null,
-              link: "/hq/prices",
-            });
-          }
-        } else if (res.status === "guarded" || res.status === "failed") {
-          await notify({
-            type: "PRICE_AUTO_SYNC",
-            title: res.status === "guarded" ? "価格表の自動反映を保留しました" : "価格表の自動反映に失敗しました",
-            message: res.error ?? `ページ${pageId}（${page.names.join(" / ")}）`,
-            dealerId: null,
-            link: "/hq/prices",
-          });
+          if (changed.length > 0) synced.push(...changed);
+        } else if (res.status === "guarded") {
+          held.push(`${page.names.join("/")}: ${res.error ?? "列構成不一致"}`);
+        } else if (res.status === "failed") {
+          failed.push(`${page.names.join("/")}: ${res.error ?? "エラー"}`);
         }
         // skipped（hash同一）は通知不要
       } catch (e) {
         console.error(`価格表の自動同期でエラー (page=${pageId})`, e);
+        failed.push(`${page.names.join("/")}: ${e instanceof Error ? e.message : String(e)}`);
       }
+    }
+
+    // 1回の実行につき通知は1通にまとめる（連投防止）
+    if (synced.length > 0 || held.length > 0 || failed.length > 0) {
+      const lines: string[] = [];
+      if (synced.length > 0) lines.push(`✅ 反映: ${synced.join(" / ")}`);
+      if (held.length > 0) lines.push(...held.map((h) => `⏸ 保留: ${h}`));
+      if (failed.length > 0) lines.push(...failed.map((f) => `❌ 失敗: ${f}`));
+      await notify({
+        type: "PRICE_AUTO_SYNC",
+        title:
+          held.length === 0 && failed.length === 0
+            ? "価格表をホームページへ自動反映しました"
+            : "価格表の自動反映（要確認あり）",
+        message: lines.join("\n"),
+        dealerId: null,
+        link: "/hq/prices",
+      });
     }
   } finally {
     running = false;
