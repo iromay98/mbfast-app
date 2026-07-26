@@ -102,4 +102,14 @@ export async function notify(payload: NotificationPayload): Promise<void> {
       console.error("Web Push の送信に失敗しました", err);
     }
   })();
+
+  // メールでも全通知を本部へ転送（プッシュ通知の保険。SMTP設定が無ければ no-op）。
+  void (async () => {
+    try {
+      const { sendNotificationEmail } = await import("@/server/notifications/email");
+      await sendNotificationEmail(payload);
+    } catch (err) {
+      console.error("通知メールの送信に失敗しました", err);
+    }
+  })();
 }

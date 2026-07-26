@@ -38,6 +38,13 @@ services:
       STORAGE_LOCAL_DIR: "/data/storage"
       MAX_UPLOAD_BYTES: "${MAX_UPLOAD_BYTES:-52428800}"
       NOTIFICATION_DRIVER: "${NOTIFICATION_DRIVER:-console}"
+      # メール通知（プッシュの保険。SMTP_HOST と NOTIFY_EMAIL_TO が揃うと有効）
+      SMTP_HOST: "${SMTP_HOST:-}"
+      SMTP_PORT: "${SMTP_PORT:-587}"
+      SMTP_USER: "${SMTP_USER:-}"
+      SMTP_PASS: "${SMTP_PASS:-}"
+      SMTP_FROM: "${SMTP_FROM:-}"
+      NOTIFY_EMAIL_TO: "${NOTIFY_EMAIL_TO:-}"
       VAPID_PUBLIC_KEY: "${VAPID_PUBLIC_KEY:-}"
       VAPID_PRIVATE_KEY: "${VAPID_PRIVATE_KEY:-}"
       VAPID_SUBJECT: "${VAPID_SUBJECT:-mailto:saraya@ns-inc.jp}"
