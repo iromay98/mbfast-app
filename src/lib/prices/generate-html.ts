@@ -128,6 +128,7 @@ export const BRAND_HTML_SPECS: Record<string, BrandHtmlSpec> = {
     ],
   },
   lamborghini: {
+    // 2026-07-26 ライブの手動並び替えに追随: 工賃はTCUチューニング(最後の価格列)の直後
     ns: "",
     searchAttr: "data-search",
     seriesAttr: "data-series",
@@ -140,9 +141,9 @@ export const BRAND_HTML_SPECS: Record<string, BrandHtmlSpec> = {
       { kind: "price", key: "babble", askLabel: "バブリング" },
       { kind: "price", key: "ecuTuning", askLabel: "ECUチューニング" },
       { kind: "price", key: "tcu", askLabel: "TCUチューニング" },
+      { kind: "labor" },
       { kind: "stock" },
       { kind: "gain" },
-      { kind: "labor" },
       { kind: "shops" },
       { kind: "remote" },
       { kind: "ecu" },

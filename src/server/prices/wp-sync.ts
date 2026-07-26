@@ -78,6 +78,16 @@ async function loadBrandsForPage(pageId: number): Promise<{ brand: BrandRow; veh
   }));
 }
 
+// 同期エンジンのバージョン。ブロック特定や差し替えのロジックを変更した時に上げる。
+// payload_hash に混ぜることで、データが同じでもコード修正後は保留/失敗ページが自動で再試行される。
+const SYNC_ENGINE_VERSION = "2";
+
+// 旧形式ブロックの移行マーカー。通常マーカーで見つからない場合のフォールバックとして探し、
+// 見つかったら新形式の生成HTMLで置き換える（ライブがWPリビジョン復元等で旧形式に戻った場合の自己修復）。
+const LEGACY_MARKERS: Record<string, string> = {
+  mercedes_diesel: 'class="mbd-price-wrapper"', // Step A で廃止した旧 mbd- 名前空間
+};
+
 // ページの生成HTML一式とpayload_hashを計算（DBのみ・WPには触れない）。
 // 自動同期の「前回の保留/失敗から内容が変わったか」の事前判定にも使う。
 export async function buildPagePayload(pageId: number) {
@@ -86,7 +96,9 @@ export async function buildPagePayload(pageId: number) {
     brand,
     html: generatePriceTableHtml(brand, vehicles),
   }));
-  const payloadHash = sha256(snippets.map((s) => normalizeEntities(s.html)).join("\n<!-- ▲ -->\n"));
+  const payloadHash = sha256(
+    SYNC_ENGINE_VERSION + "\n" + snippets.map((s) => normalizeEntities(s.html)).join("\n<!-- ▲ -->\n"),
+  );
   return { pairs, snippets, payloadHash };
 }
 
@@ -156,9 +168,21 @@ export async function syncWpPage(
   const diffs: BrandDiff[] = [];
   const replacements: { innerStart: number; innerEnd: number; newInner: string }[] = [];
 
+  // ブランドのブロックを特定。通常マーカーで見つからなければ旧形式マーカーで探す（移行用）
+  const findBlock = (brandId: string, marker: string) => {
+    let block = blocks.find((bl) => bl.inner.includes(marker));
+    let legacy = false;
+    const lm = LEGACY_MARKERS[brandId];
+    if (!block && lm) {
+      block = blocks.find((bl) => bl.inner.includes(lm));
+      legacy = !!block;
+    }
+    return { block, legacy };
+  };
+
   for (const { brand, html } of snippets) {
     const marker = wrapperMarker(html);
-    const block = blocks.find((bl) => bl.inner.includes(marker));
+    const { block } = findBlock(brand.id, marker);
     if (!block) {
       diffs.push({ brandId: brand.id, displayName: brand.displayName, found: false, changed: false, oldBytes: 0, newBytes: html.length });
       continue;
@@ -180,13 +204,14 @@ export async function syncWpPage(
     if (changed) replacements.push({ innerStart: block.innerStart, innerEnd: block.innerEnd, newInner });
   }
 
-  // 列構成ガード（自動同期用）: 変更があるブランドで thead がライブと違えば書き込まない
+  // 列構成ガード（自動同期用）: 変更があるブランドで thead がライブと違えば書き込まない。
+  // 旧形式ブロックの移行時は列構成が変わって当然なので比較しない。
   if (opts.guardThead) {
     const mismatched: string[] = [];
     for (const { brand, html } of snippets) {
       const marker = wrapperMarker(html);
-      const block = blocks.find((bl) => bl.inner.includes(marker));
-      if (!block) continue; // ブロック未検出は下の missing 判定に任せる
+      const { block, legacy } = findBlock(brand.id, marker);
+      if (!block || legacy) continue; // 未検出はmissing判定 / 旧形式は移行として通す
       const liveSeq = theadSequence(block.inner);
       const genSeq = theadSequence(html);
       const same = liveSeq.length === genSeq.length && genSeq.every((x, i) => x === liveSeq[i]);
