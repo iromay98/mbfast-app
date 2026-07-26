@@ -7,16 +7,32 @@ const PRIVATE = process.env.VAPID_PRIVATE_KEY ?? "";
 const SUBJECT = process.env.VAPID_SUBJECT ?? "mailto:admin@example.com";
 
 let configured = false;
+let configError: string | null = null;
 function ensureConfigured(): boolean {
   if (configured) return true;
   if (!PUBLIC || !PRIVATE) return false;
-  webpush.setVapidDetails(SUBJECT, PUBLIC, PRIVATE);
-  configured = true;
-  return true;
+  try {
+    // キーが不正（長さ違い・貼り付けミス等）でもアプリを落とさず、無効として扱う
+    webpush.setVapidDetails(SUBJECT, PUBLIC, PRIVATE);
+    configured = true;
+    configError = null;
+    return true;
+  } catch (e) {
+    configError = e instanceof Error ? e.message : String(e);
+    console.error(`VAPIDキーが不正なため Web Push は無効です: ${configError}`);
+    return false;
+  }
 }
 
 export function pushEnabled(): boolean {
   return !!PUBLIC && !!PRIVATE;
+}
+
+/** キーが設定されているのに使えない場合、その理由を返す（診断用）。正常なら null。 */
+export function pushConfigError(): string | null {
+  if (!pushEnabled()) return null;
+  ensureConfigured();
+  return configError;
 }
 
 export function vapidPublicKey(): string {

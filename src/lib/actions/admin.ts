@@ -117,14 +117,20 @@ export async function deleteEcuRule(id: string): Promise<{ ok?: true; error?: st
 // 例: 購読7件で 403 が並ぶ → 購読時と現在のVAPIDキーが不一致（購読の作り直しが必要）。
 export type TestNotifyResult = {
   ok: true;
-  push: { enabled: boolean; subs: number; sent: number; failedByStatus: Record<string, number> };
+  push: {
+    enabled: boolean;
+    configError?: string; // キーは設定されているが不正な場合の理由
+    subs: number;
+    sent: number;
+    failedByStatus: Record<string, number>;
+  };
   email: { enabled: boolean; error?: string };
   line: { enabled: boolean; error?: string };
 };
 
 export async function sendTestNotification(): Promise<TestNotifyResult> {
   await requireHQ();
-  const { pushEnabled, sendPushToUsers, recipientUserIds } = await import("@/server/push");
+  const { pushEnabled, pushConfigError, sendPushToUsers, recipientUserIds } = await import("@/server/push");
   const { emailNotifyEnabled, sendNotificationEmail } = await import("@/server/notifications/email");
   const { lineNotifyEnabled, sendNotificationLine } = await import("@/server/notifications/line");
 
@@ -165,6 +171,7 @@ export async function sendTestNotification(): Promise<TestNotifyResult> {
     ok: true,
     push: {
       enabled: pushEnabled(),
+      ...(pushConfigError() ? { configError: pushConfigError()! } : {}),
       subs: pushRes.subs,
       sent: pushRes.ok,
       failedByStatus: pushRes.failedByStatus,

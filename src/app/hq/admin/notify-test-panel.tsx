@@ -39,6 +39,10 @@ export function NotifyTestPanel() {
             Web Push:{" "}
             {!result.push.enabled ? (
               "— 未設定（VAPIDキーなし）"
+            ) : result.push.configError ? (
+              <span className="font-semibold text-red-600">
+                ⚠ VAPIDキーが不正です: {result.push.configError}（.env のキーを正しい値に差し替えてください）
+              </span>
             ) : result.push.subs === 0 ? (
               "⚠ 購読なし（本店アカウントでポータルを開き「🔔 通知をオン」を押してください）"
             ) : (

@@ -31,11 +31,25 @@ export function PushManager() {
       if (!res.ok) return;
       const { key } = (await res.json()) as { key: string | null };
       if (!key) return; // サーバ側 VAPID 未設定
+      const appKey = urlBase64ToUint8Array(key);
       let sub = await reg.pushManager.getSubscription();
+      // 既存購読がサーバーの現行VAPIDキーと違うキーで作られていたら作り直す
+      // （キー差し替え後の 403 不一致を自己修復するため）
+      if (sub) {
+        const cur = sub.options.applicationServerKey;
+        const same =
+          cur &&
+          new Uint8Array(cur).length === appKey.length &&
+          new Uint8Array(cur).every((b, i) => b === appKey[i]);
+        if (!same) {
+          await sub.unsubscribe().catch(() => {});
+          sub = null;
+        }
+      }
       if (!sub) {
         sub = await reg.pushManager.subscribe({
           userVisibleOnly: true,
-          applicationServerKey: urlBase64ToUint8Array(key) as BufferSource,
+          applicationServerKey: appKey as BufferSource,
         });
       }
       const json = sub.toJSON() as { endpoint?: string; keys?: { p256dh?: string; auth?: string } };
