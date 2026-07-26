@@ -113,28 +113,63 @@ export async function deleteEcuRule(id: string): Promise<{ ok?: true; error?: st
   return { ok: true };
 }
 
-// 通知経路の疎通テスト。全チャネル（アプリ内/Web Push/メール/LINE）へテスト通知を送り、
-// どのチャネルが設定済み（有効）かを返す。プッシュ・メール・LINEの生死確認用。
-export async function sendTestNotification(): Promise<{
+// 通知経路の疎通テスト。各チャネルへ直接送信し、結果（特にWeb Pushの成功/失敗内訳）を返す。
+// 例: 購読7件で 403 が並ぶ → 購読時と現在のVAPIDキーが不一致（購読の作り直しが必要）。
+export type TestNotifyResult = {
   ok: true;
-  channels: { push: boolean; email: boolean; line: boolean };
-}> {
-  await requireHQ();
-  const { notify } = await import("@/server/notifications");
-  const { pushEnabled } = await import("@/server/push");
-  const { emailNotifyEnabled } = await import("@/server/notifications/email");
-  const { lineNotifyEnabled } = await import("@/server/notifications/line");
+  push: { enabled: boolean; subs: number; sent: number; failedByStatus: Record<string, number> };
+  email: { enabled: boolean; error?: string };
+  line: { enabled: boolean; error?: string };
+};
 
-  await notify({
-    type: "TEST",
+export async function sendTestNotification(): Promise<TestNotifyResult> {
+  await requireHQ();
+  const { pushEnabled, sendPushToUsers, recipientUserIds } = await import("@/server/push");
+  const { emailNotifyEnabled, sendNotificationEmail } = await import("@/server/notifications/email");
+  const { lineNotifyEnabled, sendNotificationLine } = await import("@/server/notifications/line");
+
+  const payload = {
+    type: "TEST" as const,
     title: "テスト通知",
     message: `通知経路の疎通テストです（${new Intl.DateTimeFormat("ja-JP", { timeZone: "Asia/Tokyo", dateStyle: "short", timeStyle: "medium" }).format(new Date())}）`,
     dealerId: null,
     link: "/hq/admin",
-  });
+  };
+
+  // Web Push（本店管理者宛て）: 結果の内訳を取得
+  let pushRes = { subs: 0, ok: 0, failedByStatus: {} as Record<string, number> };
+  if (pushEnabled()) {
+    const recipients = await recipientUserIds({ toHQ: true });
+    pushRes = await sendPushToUsers(recipients, {
+      title: payload.title,
+      body: payload.message,
+      url: payload.link,
+      tag: "test",
+    });
+  }
+
+  let emailError: string | undefined;
+  try {
+    await sendNotificationEmail(payload);
+  } catch (e) {
+    emailError = e instanceof Error ? e.message : String(e);
+  }
+  let lineError: string | undefined;
+  try {
+    await sendNotificationLine(payload);
+  } catch (e) {
+    lineError = e instanceof Error ? e.message : String(e);
+  }
 
   return {
     ok: true,
-    channels: { push: pushEnabled(), email: emailNotifyEnabled(), line: lineNotifyEnabled() },
+    push: {
+      enabled: pushEnabled(),
+      subs: pushRes.subs,
+      sent: pushRes.ok,
+      failedByStatus: pushRes.failedByStatus,
+    },
+    email: { enabled: emailNotifyEnabled(), ...(emailError ? { error: emailError } : {}) },
+    line: { enabled: lineNotifyEnabled(), ...(lineError ? { error: lineError } : {}) },
   };
 }
