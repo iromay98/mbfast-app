@@ -84,7 +84,8 @@ export const BRAND_HTML_SPECS: Record<string, BrandHtmlSpec> = {
     ],
   },
   mercedes_diesel: {
-    // ライブ改修後の仕様: セルは無印クラス・trはガソリンと同じ属性構成・工賃列は出力の後
+    // ライブ改修後の仕様: セルは無印クラス・trはガソリンと同じ属性構成。
+    // 2026-07-26 列順ルール適用: 工賃は価格列の直後（出力の後ろだと客に分かりづらい）
     ns: "",
     searchAttr: "data-search",
     seriesAttr: "data-series",
@@ -99,9 +100,9 @@ export const BRAND_HTML_SPECS: Record<string, BrandHtmlSpec> = {
       { kind: "price", key: "adblueCut", askLabel: "アドブルーカット" },
       { kind: "price", key: "ecuAdblue", askLabel: "ECU+アドブルーカット" },
       { kind: "price", key: "dpfEgrNox", askLabel: "DPF/EGR/NOxカット" },
+      { kind: "labor" },
       { kind: "stock" },
       { kind: "gain" },
-      { kind: "labor" },
       { kind: "shops" },
       { kind: "remote" },
     ],
