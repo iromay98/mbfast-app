@@ -42,3 +42,13 @@ export function wrapperMarker(snippet: string): string {
   if (!m) throw new Error("生成HTMLに price-wrapper が見つかりません");
   return `class="${m[1]}"`;
 }
+
+// thead の th テキスト列（タグ・空白除去、実体参照を正規化）。
+// 列順の突き合わせ（自動同期のガード・verify-column-order）に使う。
+export function theadSequence(html: string): string[] {
+  const m = /<thead>([\s\S]*?)<\/thead>/.exec(html);
+  if (!m) return [];
+  return [...m[1].matchAll(/<th[^>]*>([\s\S]*?)<\/th>/g)].map((t) =>
+    t[1].replace(/<[^>]+>/g, "").replace(/\s+/g, "").replace(/&amp;/g, "&"),
+  );
+}

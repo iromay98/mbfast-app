@@ -11,7 +11,7 @@
  */
 import { Client } from "pg";
 import { generatePriceTableHtml } from "../../src/lib/prices/generate-html";
-import { parseWpHtmlBlocks, wrapperMarker } from "../../src/lib/prices/wp-blocks";
+import { parseWpHtmlBlocks, theadSequence, wrapperMarker } from "../../src/lib/prices/wp-blocks";
 import { toColumns, toPrices, toRemote, type BrandRow, type VehicleRow } from "../../src/lib/prices/types";
 
 const BASE = process.env.WP_BASE_URL ?? "https://mbfasttuning.com";
@@ -19,15 +19,6 @@ const auth = `Basic ${Buffer.from(`${process.env.WP_USER}:${process.env.WP_APP_P
 
 // ゴールデン4ブランド（既存HTML抽出・列順ルール対象外）
 const GOLDEN = new Set(["bmw", "mercedes_gasoline", "mercedes_diesel", "audi", "lamborghini"]);
-
-// thead の th テキスト列（タグ・空白除去）を取り出す
-function theadSequence(html: string): string[] {
-  const m = /<thead>([\s\S]*?)<\/thead>/.exec(html);
-  if (!m) return [];
-  return [...m[1].matchAll(/<th[^>]*>([\s\S]*?)<\/th>/g)].map((t) =>
-    t[1].replace(/<[^>]+>/g, "").replace(/\s+/g, "").replace(/&amp;/g, "&"),
-  );
-}
 
 const DB = process.env.DATABASE_URL!;
 const c = new Client({ connectionString: DB.replace(/\?schema=public$/, "") });

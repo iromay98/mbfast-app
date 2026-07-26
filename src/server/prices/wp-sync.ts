@@ -12,7 +12,7 @@
 import { createHash } from "node:crypto";
 import { prisma } from "@/lib/db";
 import { generatePriceTableHtml } from "@/lib/prices/generate-html";
-import { normalizeEntities, parseWpHtmlBlocks, wrapperMarker } from "@/lib/prices/wp-blocks";
+import { normalizeEntities, parseWpHtmlBlocks, theadSequence, wrapperMarker } from "@/lib/prices/wp-blocks";
 import { fetchPageRaw, updatePageContent, wpConfigured } from "@/lib/prices/wordpress";
 import { toColumns, toPrices, toRemote, type BrandRow, type VehicleRow } from "@/lib/prices/types";
 
@@ -30,7 +30,8 @@ export type BrandDiff = {
 
 export type SyncResult = {
   ok: boolean;
-  status: "success" | "skipped" | "failed" | "dry-run";
+  // guarded = 列構成(thead)がライブと不一致のため書き込みを保留（自動同期のガード）
+  status: "success" | "skipped" | "failed" | "dry-run" | "guarded";
   pageId: number;
   brands: BrandDiff[];
   payloadHash: string;
@@ -93,8 +94,13 @@ function firstDiffExcerpt(oldHtml: string, newHtml: string): string | undefined 
 /**
  * ページ単位の同期。dryRun=true なら差分計算のみ（WP・ログとも書き込まない）。
  * force=true は payload_hash によるスキップを無効化（手動でWPが編集されたときの復旧用）。
+ * guardThead=true は列構成(thead)がライブと不一致のブランドがあれば書き込まず "guarded" を返す
+ * （自動同期用の安全装置。ライブの手動並び替えを勝手に巻き戻さない）。
  */
-export async function syncWpPage(pageId: number, opts: { dryRun: boolean; force?: boolean }): Promise<SyncResult> {
+export async function syncWpPage(
+  pageId: number,
+  opts: { dryRun: boolean; force?: boolean; guardThead?: boolean },
+): Promise<SyncResult> {
   const empty: BrandDiff[] = [];
   if (!wpConfigured()) {
     return { ok: false, status: "failed", pageId, brands: empty, payloadHash: "", error: "WP_USER / WP_APP_PASSWORD が未設定です" };
@@ -167,6 +173,29 @@ export async function syncWpPage(pageId: number, opts: { dryRun: boolean; force?
       excerpt: changed ? firstDiffExcerpt(block.inner, newInner) : undefined,
     });
     if (changed) replacements.push({ innerStart: block.innerStart, innerEnd: block.innerEnd, newInner });
+  }
+
+  // 列構成ガード（自動同期用）: 変更があるブランドで thead がライブと違えば書き込まない
+  if (opts.guardThead) {
+    const mismatched: string[] = [];
+    for (const { brand, html } of snippets) {
+      const marker = wrapperMarker(html);
+      const block = blocks.find((bl) => bl.inner.includes(marker));
+      if (!block) continue; // ブロック未検出は下の missing 判定に任せる
+      const liveSeq = theadSequence(block.inner);
+      const genSeq = theadSequence(html);
+      const same = liveSeq.length === genSeq.length && genSeq.every((x, i) => x === liveSeq[i]);
+      if (!same) mismatched.push(brand.displayName);
+    }
+    if (mismatched.length > 0) {
+      const error = `列構成(thead)がライブと不一致のため自動同期を保留: ${mismatched.join(", ")}（WPは変更していません。/hq/prices から差分を確認して手動同期してください）`;
+      if (!opts.dryRun) {
+        await prisma.priceSyncLog.create({
+          data: { wpPageId: pageId, brandIds: pairs.map((p) => p.brand.id), payloadHash, status: "guarded", error },
+        });
+      }
+      return { ok: false, status: "guarded", pageId, brands: diffs, payloadHash, error, lastSync };
+    }
   }
 
   const missing = diffs.filter((d) => !d.found);

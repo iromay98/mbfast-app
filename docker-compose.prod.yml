@@ -38,6 +38,8 @@ services:
       STORAGE_LOCAL_DIR: "/data/storage"
       MAX_UPLOAD_BYTES: "${MAX_UPLOAD_BYTES:-52428800}"
       NOTIFICATION_DRIVER: "${NOTIFICATION_DRIVER:-console}"
+      # 価格表の自動同期（既定ON。0で無効化）
+      PRICE_AUTO_SYNC: "${PRICE_AUTO_SYNC:-1}"
       # LINE通知（プッシュの保険。トークンと宛先IDが揃うと有効）
       LINE_CHANNEL_ACCESS_TOKEN: "${LINE_CHANNEL_ACCESS_TOKEN:-}"
       LINE_NOTIFY_TO: "${LINE_NOTIFY_TO:-}"
