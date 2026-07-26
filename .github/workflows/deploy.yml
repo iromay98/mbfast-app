@@ -40,8 +40,19 @@ jobs:
           VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
         run: |
           mkdir -p ~/.ssh
-          printf '%s\n' "$VPS_SSH_KEY" > ~/.ssh/deploy_key
+          # スマホからの登録で複数行の鍵は改行が崩れやすいため、base64 1行形式も受け付ける。
+          # （VPS側で `base64 -w0 /root/.ssh/gh-deploy` した1行を Secret に貼る運用を推奨）
+          if [[ "$VPS_SSH_KEY" == "-----BEGIN"* ]]; then
+            printf '%s\n' "$VPS_SSH_KEY" > ~/.ssh/deploy_key
+          else
+            echo "$VPS_SSH_KEY" | tr -d ' \n' | base64 -d > ~/.ssh/deploy_key
+          fi
           chmod 600 ~/.ssh/deploy_key
+          # 鍵ファイルとして読めるか事前検証（壊れていればここで分かりやすく失敗させる）
+          if ! ssh-keygen -y -f ~/.ssh/deploy_key > /dev/null 2>&1; then
+            echo "::error::VPS_SSH_KEY が秘密鍵として読めません。VPSで base64 -w0 /root/.ssh/gh-deploy を実行し、出力の1行を Secret に登録し直してください。"
+            exit 1
+          fi
           ssh-keyscan -H 162.43.42.72 >> ~/.ssh/known_hosts 2>/dev/null
 
       - name: デプロイ実行
