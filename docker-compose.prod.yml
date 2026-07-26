@@ -38,6 +38,9 @@ services:
       STORAGE_LOCAL_DIR: "/data/storage"
       MAX_UPLOAD_BYTES: "${MAX_UPLOAD_BYTES:-52428800}"
       NOTIFICATION_DRIVER: "${NOTIFICATION_DRIVER:-console}"
+      # LINE通知（プッシュの保険。トークンと宛先IDが揃うと有効）
+      LINE_CHANNEL_ACCESS_TOKEN: "${LINE_CHANNEL_ACCESS_TOKEN:-}"
+      LINE_NOTIFY_TO: "${LINE_NOTIFY_TO:-}"
       # メール通知（プッシュの保険。SMTP_HOST と NOTIFY_EMAIL_TO が揃うと有効）
       SMTP_HOST: "${SMTP_HOST:-}"
       SMTP_PORT: "${SMTP_PORT:-587}"

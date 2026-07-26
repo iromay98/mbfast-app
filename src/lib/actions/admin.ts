@@ -112,3 +112,29 @@ export async function deleteEcuRule(id: string): Promise<{ ok?: true; error?: st
   revalidatePath("/hq/admin");
   return { ok: true };
 }
+
+// 通知経路の疎通テスト。全チャネル（アプリ内/Web Push/メール/LINE）へテスト通知を送り、
+// どのチャネルが設定済み（有効）かを返す。プッシュ・メール・LINEの生死確認用。
+export async function sendTestNotification(): Promise<{
+  ok: true;
+  channels: { push: boolean; email: boolean; line: boolean };
+}> {
+  await requireHQ();
+  const { notify } = await import("@/server/notifications");
+  const { pushEnabled } = await import("@/server/push");
+  const { emailNotifyEnabled } = await import("@/server/notifications/email");
+  const { lineNotifyEnabled } = await import("@/server/notifications/line");
+
+  await notify({
+    type: "TEST",
+    title: "テスト通知",
+    message: `通知経路の疎通テストです（${new Intl.DateTimeFormat("ja-JP", { timeZone: "Asia/Tokyo", dateStyle: "short", timeStyle: "medium" }).format(new Date())}）`,
+    dealerId: null,
+    link: "/hq/admin",
+  });
+
+  return {
+    ok: true,
+    channels: { push: pushEnabled(), email: emailNotifyEnabled(), line: lineNotifyEnabled() },
+  };
+}

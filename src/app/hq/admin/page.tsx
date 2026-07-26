@@ -4,6 +4,7 @@ import { PageTitle, Card } from "@/components/ui";
 import { ReextractPanel } from "./reextract-panel";
 import { ArchivePanel, type ArchivedRecord, type ArchivedVariant } from "./archive-panel";
 import { EcuRulesPanel, type RuleRow } from "./ecu-rules-panel";
+import { NotifyTestPanel } from "./notify-test-panel";
 import { tuningContentLabel } from "@/lib/catalog/options";
 import { swLabel } from "@/lib/catalog/sw";
 
@@ -103,6 +104,11 @@ export default async function HQAdminPage() {
   return (
     <div className="space-y-4">
       <PageTitle title="メンテナンス" subtitle="本店専用ツール" />
+
+      <Card>
+        <h3 className="mb-1 text-sm font-bold text-ink">通知テスト（Web Push / メール / LINE）</h3>
+        <NotifyTestPanel />
+      </Card>
 
       <Card>
         <h3 className="mb-1 text-sm font-bold text-ink">

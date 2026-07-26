@@ -19,7 +19,8 @@ export type NotificationType =
   | "CANCEL_RESOLVED" // 本店→代理店 キャンセル依頼の承諾/却下
   | "PIT_PUBLISHED" // mbPIT 記事公開完了（→店舗）
   | "PIT_HELD" // mbPIT ガード該当で自動公開を保留（→本店管理者）
-  | "DEV_RESULT"; // 実車開発モード: 代理店の良い/ダメ報告（→本店）
+  | "DEV_RESULT" // 実車開発モード: 代理店の良い/ダメ報告（→本店）
+  | "TEST"; // 通知経路の疎通テスト（管理画面から手動送信）
 
 export type NotificationPayload = {
   type: NotificationType;
@@ -110,6 +111,16 @@ export async function notify(payload: NotificationPayload): Promise<void> {
       await sendNotificationEmail(payload);
     } catch (err) {
       console.error("通知メールの送信に失敗しました", err);
+    }
+  })();
+
+  // LINE でも全通知を本部へ転送（同じく保険。トークン/宛先が無ければ no-op）。
+  void (async () => {
+    try {
+      const { sendNotificationLine } = await import("@/server/notifications/line");
+      await sendNotificationLine(payload);
+    } catch (err) {
+      console.error("LINE通知の送信に失敗しました", err);
     }
   })();
 }
