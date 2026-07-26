@@ -23,6 +23,19 @@ export function askLabelFor(col: ColumnDefinition): string {
   return ASK_LABELS[col.key] ?? col.label.replace(/<br\s*\/?>/g, "");
 }
 
+// 列順の共通ルール（Airtable由来の生成ブランドに適用。既存4ブランドのゴールデンには触れない）:
+// 工賃（脱着工賃）列は価格列（ECUチューニング等）の直後に置く。
+// 従来の生成は 価格 → 純正出力 → Stage1出力向上 → 工賃 の順で誤りだった（ライブ側は
+// 手動で並び替え済み。BMW/Mercedes の正順と同じ 価格 → 工賃 → 出力系 に揃える）。
+export function applyColumnOrderRule(cols: ColumnDefinition[]): ColumnDefinition[] {
+  const labor = cols.filter((c) => c.type === "labor");
+  if (labor.length === 0) return cols;
+  const rest = cols.filter((c) => c.type !== "labor");
+  const lastPrice = rest.map((c) => c.type).lastIndexOf("price");
+  if (lastPrice === -1) return cols;
+  return [...rest.slice(0, lastPrice + 1), ...labor, ...rest.slice(lastPrice + 1)];
+}
+
 // 列見出し: "ECUﾁｭｰﾆﾝｸﾞ(ﾊﾞﾌﾞﾘﾝｸﾞ無料)" → "ECUﾁｭｰﾆﾝｸﾞ<br><small>(ﾊﾞﾌﾞﾘﾝｸﾞ無料)</small>"
 function headerHtml(col: ColumnDefinition): string {
   if (col.labelHtml) return col.labelHtml;
@@ -39,7 +52,7 @@ export function buildGeneratedTemplate(brand: BrandRow): PriceHtmlTemplate {
   const p = brand.namespacePrefix; // "toyota-" 等
   if (!p || !/^[a-z0-9-]+-$/.test(p)) throw new Error(`namespacePrefix が不正です: "${p}"`);
   const name = brand.displayName;
-  const cols = brand.columns;
+  const cols = applyColumnOrderRule(brand.columns); // 工賃は価格列の直後（共通列順ルール）
   const hasSeries = brand.seriesGroups.length > 1;
   const hasRemote = cols.some((c) => c.type === "remote");
   const minWidth = Math.max(700, 240 + cols.length * 100);

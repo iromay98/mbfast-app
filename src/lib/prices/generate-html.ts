@@ -2,7 +2,7 @@
 // 出力は prisma/data/reference/*.html と完全同一になることを scripts/verify-price-html.mts で保証する。
 
 import { PRICE_HTML_TEMPLATES } from "./templates";
-import { askLabelFor, buildGeneratedTemplate } from "./generated-template";
+import { applyColumnOrderRule, askLabelFor, buildGeneratedTemplate } from "./generated-template";
 import type { BrandRow, VehicleRow, RemoteFlags } from "./types";
 
 const LINE_URL = "https://lin.ee/8yOXuPJ";
@@ -152,9 +152,11 @@ export const BRAND_HTML_SPECS: Record<string, BrandHtmlSpec> = {
 
 // Airtable由来ブランド: columns(Json) から行仕様を組み立てる（テンプレートは generated-template.ts）
 export function specFromColumns(brand: BrandRow): BrandHtmlSpec {
-  const hasGrade = brand.columns.some((c) => c.key === "grade");
-  const hasEcu = brand.columns.some((c) => c.type === "ecu");
-  const cells: CellSpec[] = brand.columns.map((c): CellSpec => {
+  // 列順ルール適用（工賃は価格列の直後）。thead側の buildGeneratedTemplate と必ず同じ順にする
+  const columns = applyColumnOrderRule(brand.columns);
+  const hasGrade = columns.some((c) => c.key === "grade");
+  const hasEcu = columns.some((c) => c.type === "ecu");
+  const cells: CellSpec[] = columns.map((c): CellSpec => {
     if (c.key === "car") return { kind: "car" };
     if (c.key === "grade") return { kind: "grade" };
     if (c.key === "engine") return { kind: "engine" };

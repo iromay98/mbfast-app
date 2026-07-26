@@ -217,9 +217,10 @@ function buildColumns(def: BrandDef) {
   for (const pk of def.priceKeys) {
     cols.push({ key: pk.key, label: pk.label, type: "price", emphasis: pk.key === "stage1" || pk.key === "babble" ? "primary" : "secondary", emptyBehavior: "line-btn", order: o++ });
   }
+  // 列順ルール: 工賃は価格列の直後（出力系の前）。生成側 applyColumnOrderRule と同じ規則。
+  if (def.laborField) cols.push({ key: "labor", label: "工賃", type: "labor", order: o++ });
   if (def.stockField) cols.push({ key: "stockOutput", label: "純正出力", type: "output", order: o++ });
   if (def.gainField) cols.push({ key: "stage1Gain", label: "Stage1出力向上", type: "output", order: o++ });
-  if (def.laborField) cols.push({ key: "labor", label: "工賃", type: "labor", order: o++ });
   if (def.shopsField) cols.push({ key: "shops", label: "対応店舗", type: "shops", order: o++ });
   if (def.remoteFields) cols.push({ key: "remote", label: "リモート", type: "remote", order: o++ });
   if (def.ecuField) cols.push({ key: "ecuType", label: "ECU/TCU型番", type: "ecu", order: o++ });
