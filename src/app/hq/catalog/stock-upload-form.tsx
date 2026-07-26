@@ -525,16 +525,26 @@ export function StockUploadForm({
               <ChoiceSelect
                 value={f.tool}
                 options={mergeOptions(TOOL_OPTIONS, usedTools)}
-                onSave={(v) => setF((s) => ({ ...s, tool: v }))}
+                // Powergate3 は OBD 読みのみ（機器仕様）→ ツール選択と同時に Method も揃える
+                onSave={(v) => setF((s) => ({ ...s, tool: v, ...(v === "PG3" ? { method: "OBD" } : {}) }))}
                 addPrompt="ツール名（ファイル名に入る短い表記。例: KTAG）"
               />
               <span className="font-semibold">Method</span>
-              <ChoiceSelect
-                value={f.method}
-                options={mergeOptions(METHOD_OPTIONS, usedMethods)}
-                onSave={(v) => setF((s) => ({ ...s, method: v }))}
-                addPrompt="読み方式（例: BDM）"
-              />
+              {f.tool === "PG3" ? (
+                <span
+                  className="rounded border border-line bg-surface-2 px-1.5 py-0.5 text-xs font-semibold text-ink-soft"
+                  title="Powergate3 は OBD 読みのみのため変更できません"
+                >
+                  OBD
+                </span>
+              ) : (
+                <ChoiceSelect
+                  value={f.method}
+                  options={mergeOptions(METHOD_OPTIONS, usedMethods)}
+                  onSave={(v) => setF((s) => ({ ...s, method: v }))}
+                  addPrompt="読み方式（例: BDM）"
+                />
+              )}
               <span className="font-semibold" title="ECM Titanium 等の使用Driver（本店のみ）">Driver</span>
               <input
                 className={`${inp} w-40 font-mono text-xs`}

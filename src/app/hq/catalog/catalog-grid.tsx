@@ -15,7 +15,7 @@ import {
   updateVersionMeta,
   reidentifyBaseEcuAi,
 } from "@/lib/actions/catalog";
-import { type FuelKind, optionTagsFor, popsAllowed, baselineStages } from "@/lib/catalog/options";
+import { type FuelKind, optionTagsFor, popsAllowed, baselineStages, POPS_STRONG_TAG } from "@/lib/catalog/options";
 import { swLabel } from "@/lib/catalog/sw";
 
 export type CatalogVersion = {
@@ -545,16 +545,26 @@ function CalGroupCard({
         <ChoiceSelect
           value={g.tool}
           options={mergeOptions(TOOL_OPTIONS, usedTools)}
-          onSave={(v) => onPatchBase({ tool: v })}
+          // Powergate3 は OBD 読みのみ（機器仕様）→ ツール変更と同時に Method も揃える
+          onSave={(v) => onPatchBase(v === "PG3" ? { tool: v, method: "OBD" } : { tool: v })}
           addPrompt="ツール名（ファイル名に入る短い表記。例: KTAG）"
         />
         <span className="text-ink-soft">Method</span>
-        <ChoiceSelect
-          value={g.method}
-          options={mergeOptions(METHOD_OPTIONS, usedMethods)}
-          onSave={(v) => onPatchBase({ method: v })}
-          addPrompt="読み方式（例: BDM）"
-        />
+        {g.tool === "PG3" ? (
+          <span
+            className="rounded border border-line bg-surface-2 px-1.5 py-0.5 text-xs font-semibold text-ink-soft"
+            title="Powergate3 は OBD 読みのみのため変更できません"
+          >
+            OBD
+          </span>
+        ) : (
+          <ChoiceSelect
+            value={g.method}
+            options={mergeOptions(METHOD_OPTIONS, usedMethods)}
+            onSave={(v) => onPatchBase({ method: v })}
+            addPrompt="読み方式（例: BDM）"
+          />
+        )}
         <span className="mx-1 text-line">|</span>
         <span className="font-semibold text-ink-soft" title="ECM Titanium 等の使用Driver（本店のみ）">
           Driver
@@ -836,22 +846,31 @@ function LeafRow({
             Pops{row.popsAndBangs ? (row.popsSport ? "(スポーツ)" : "(全)") : ""}
           </label>
         )}
-        {tags.map((tag) => (
-          <label key={tag} className="flex items-center gap-0.5 text-[11px] text-ink-soft">
-            <input
-              type="checkbox"
-              checked={row.optionTags.includes(tag)}
-              onChange={(e) => {
-                const next = e.target.checked
-                  ? [...row.optionTags, tag]
-                  : row.optionTags.filter((t) => t !== tag);
-                onPatch({ optionTags: next });
-              }}
-              className="h-3 w-3 accent-gold-500"
-            />
-            {tag}
-          </label>
-        ))}
+        {tags.map((tag) => {
+          // バブリング強はバブリングありの版でのみ付けられる
+          const strongLocked = tag === POPS_STRONG_TAG && !row.popsAndBangs;
+          return (
+            <label
+              key={tag}
+              className={`flex items-center gap-0.5 text-[11px] ${strongLocked ? "text-ink-soft/50" : "text-ink-soft"}`}
+              title={strongLocked ? "バブリングありの版でのみ選べます" : undefined}
+            >
+              <input
+                type="checkbox"
+                checked={row.optionTags.includes(tag)}
+                disabled={strongLocked}
+                onChange={(e) => {
+                  const next = e.target.checked
+                    ? [...row.optionTags, tag]
+                    : row.optionTags.filter((t) => t !== tag);
+                  onPatch({ optionTags: next });
+                }}
+                className="h-3 w-3 accent-gold-500 disabled:cursor-not-allowed"
+              />
+              {tag}
+            </label>
+          );
+        })}
         <select
           value={row.status}
           onChange={(e) => onStatus(e.target.value)}
