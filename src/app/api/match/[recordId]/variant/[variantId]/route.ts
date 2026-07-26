@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import { storage, type StoredFile } from "@/server/storage";
 import { encryptSlave } from "@/server/autotuner/client";
 import { fileResponse, logCatalogDownload } from "@/server/catalog/download-log";
+import { deliverOpenRequestsByDownload } from "@/server/catalog/deliver";
 import { buildDownloadName, composeContent, dateLabel } from "@/server/catalog/filename";
 
 // 代理店向けスコープ限定DL（.slave のみ）:
@@ -91,6 +92,21 @@ export async function GET(
       ip: request.headers.get("x-forwarded-for"),
     });
 
+    // 代理店の実DL＝納品成立。同一内容 or バブリングのモード違いだけの未返却依頼を納品扱いに
+    if (user.role === "DEALER") {
+      await deliverOpenRequestsByDownload({
+        recordId,
+        dealerId: record.dealerId,
+        actorUserId: user.id,
+        variant: {
+          stage: v.stage,
+          popsAndBangs: v.popsAndBangs,
+          popsSport: v.popsSport,
+          optionTags: v.optionTags,
+        },
+      });
+    }
+
     const masterName = buildDownloadName({
       model: v.baseFile.model,
       generation: v.baseFile.generation,
@@ -153,6 +169,21 @@ export async function GET(
     context: "MATCH_AUTO",
     ip: request.headers.get("x-forwarded-for"),
   });
+
+  // 代理店の実DL＝納品成立。同一内容 or バブリングのモード違いだけの未返却依頼を納品扱いに
+  if (user.role === "DEALER") {
+    await deliverOpenRequestsByDownload({
+      recordId,
+      dealerId: record.dealerId,
+      actorUserId: user.id,
+      variant: {
+        stage: v.stage,
+        popsAndBangs: v.popsAndBangs,
+        popsSport: v.popsSport,
+        optionTags: v.optionTags,
+      },
+    });
+  }
 
   const name = buildDownloadName({
     model: v.baseFile.model,
