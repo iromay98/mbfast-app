@@ -58,7 +58,12 @@ jobs:
       - name: デプロイ実行
         if: steps.check.outputs.configured == 'true'
         run: |
-          ssh -i ~/.ssh/deploy_key -o ConnectTimeout=15 root@162.43.42.72 '
+          # ビルド中の長い無音でSSHが切れる（Broken pipe）対策:
+          #  - keepalive を送り続ける
+          #  - リモート側はビルドを nohup でバックグラウンド実行し、20秒ごとに進捗行を出す
+          ssh -i ~/.ssh/deploy_key \
+              -o ConnectTimeout=15 -o ServerAliveInterval=15 -o ServerAliveCountMax=8 \
+              root@162.43.42.72 '
             set -euo pipefail
             cd /root/dev/mbfast-app
             if [ -n "$(git status --porcelain)" ]; then
@@ -68,5 +73,14 @@ jobs:
             fi
             git switch main
             git pull --ff-only origin main
-            bash scripts/deploy-vps.sh
+            nohup bash scripts/deploy-vps.sh > /root/deploy-ci.log 2>&1 &
+            pid=$!
+            while kill -0 "$pid" 2>/dev/null; do
+              echo "ビルド中… $(date +%H:%M:%S)"
+              sleep 20
+            done
+            code=0; wait "$pid" || code=$?
+            echo "== deploy-ci.log (末尾) =="
+            tail -n 30 /root/deploy-ci.log
+            exit $code
           '
