@@ -23,6 +23,7 @@
 - Macローカル: `export PATH="$HOME/.local/node/node-v22.14.0-darwin-arm64/bin:$PATH"`、DB `bash scripts/pg.sh start`、スクリプトは `set -a && . ./.env && set +a && tsx ...`。system node/docker/sudo無し
 - Macからの本番デプロイ: commit/push → `ssh 'rm -rf src prisma'` → `git archive | ssh tar xzf` →（**転送とビルドは別SSHに分ける**。まとめるとパイプ切断事故）→ `nohup docker compose -f docker-compose.prod.yml up -d --build`。migrationは起動時 `prisma migrate deploy` で自動
 - VPS上での作業: `/root/dev/mbfast-app`（gitクローン）で編集 → `bash scripts/deploy-vps.sh`。`/root/mbfast-app` はデプロイ先なので直接編集禁止
+- claude.ai/code（クラウドセッション）から: VPSへのSSHは不可。**mainへプッシュ → GitHub Actions（.github/workflows/deploy.yml）が自動デプロイ**（要 Secrets `VPS_SSH_KEY`。未設定時はスキップ）。手動なら Termius で `cd /root/dev/mbfast-app && git pull origin main && bash scripts/deploy-vps.sh`
 - スマホ遠隔: Termiusで `root@162.43.42.72` → **`mb`**（tmux+claude。切断しても継続）。**初回`claude`ログインのみ未完（ユーザー操作待ち）**
 
 ## 完了済みの主要機能（詳細は各実装とCLAUDE.md）

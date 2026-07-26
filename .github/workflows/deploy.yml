@@ -1,0 +1,61 @@
+# mainへのプッシュで本番VPSへ自動デプロイする。
+# 仕組み: GitHub Actions のランナーが VPS へ SSH し、開発クローン(/root/dev/mbfast-app)を
+# main に追従させてから既存の scripts/deploy-vps.sh を実行する（手動デプロイと同一手順）。
+#
+# 必要な一度きりの設定（リポジトリ Settings → Secrets and variables → Actions）:
+#   VPS_SSH_KEY : VPS の root で authorized_keys に登録した秘密鍵（デプロイ専用鍵を推奨）
+# 未設定の間は何もせずスキップする（失敗にはしない）。
+name: Deploy to VPS
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+# 同時に走らせない（ビルドの競合防止）。後発は待機。
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Secret 設定チェック
+        id: check
+        env:
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+        run: |
+          if [ -z "$VPS_SSH_KEY" ]; then
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::VPS_SSH_KEY が未設定のためデプロイをスキップしました。Settings → Secrets and variables → Actions で登録すると自動デプロイが有効になります。"
+          else
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: SSH 準備
+        if: steps.check.outputs.configured == 'true'
+        env:
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "$VPS_SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H 162.43.42.72 >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: デプロイ実行
+        if: steps.check.outputs.configured == 'true'
+        run: |
+          ssh -i ~/.ssh/deploy_key -o ConnectTimeout=15 root@162.43.42.72 '
+            set -euo pipefail
+            cd /root/dev/mbfast-app
+            if [ -n "$(git status --porcelain)" ]; then
+              echo "VPSの開発クローンに未コミットの変更があるため中止します（VPS側で作業中の可能性）" >&2
+              git status --short >&2
+              exit 1
+            fi
+            git switch main
+            git pull --ff-only origin main
+            bash scripts/deploy-vps.sh
+          '
