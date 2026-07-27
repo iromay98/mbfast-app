@@ -5,11 +5,13 @@ import { usePathname } from "next/navigation";
 
 export type NavItem = { href: string; label: string };
 
-export function NavBar({ items }: { items: NavItem[] }) {
+export function NavBar({ items, className }: { items: NavItem[]; className?: string }) {
   const pathname = usePathname();
 
   return (
-    <nav className="sticky top-0 z-10 border-b border-line bg-surface/95 backdrop-blur">
+    <nav
+      className={`sticky top-0 z-10 border-b border-line bg-surface/95 backdrop-blur ${className ?? ""}`}
+    >
       <div className="mx-auto flex max-w-5xl gap-1 overflow-x-auto px-2 py-1.5">
         {items.map((item) => {
           // 完全一致 or 配下パスでアクティブ判定（ホームは完全一致のみ）

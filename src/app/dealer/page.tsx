@@ -16,7 +16,7 @@ export default async function DealerDashboard() {
   const user = await requireDealer();
   const { start, end } = currentMonthRange();
 
-  const [monthRecords, openRequests, activeRequests, recentAnnouncements] =
+  const [monthRecords, openRequests, activeRequests, recentAnnouncements, pitStore] =
     await Promise.all([
       prisma.serviceRecord.count({
         where: { dealerId: user.dealerId, workedAt: { gte: start, lt: end }, deletedAt: null },
@@ -39,6 +39,10 @@ export default async function DealerDashboard() {
         orderBy: { publishedAt: "desc" },
         take: 5,
       }),
+      prisma.pitStore.findUnique({
+        where: { dealerId: user.dealerId },
+        select: { active: true },
+      }),
     ]);
 
   return (
@@ -54,6 +58,31 @@ export default async function DealerDashboard() {
           href="/dealer/requests"
           accent={openRequests > 0}
         />
+      </div>
+
+      {/* スマホは上部ナビを下タブバーに置き換えているため、タブに無いメニューはHomeから辿る */}
+      <div className="mt-3 grid grid-cols-2 gap-2 sm:hidden">
+        <Link
+          href="/dealer/showcase"
+          className="rounded-lg border border-line bg-surface px-3 py-2.5 text-center text-sm font-semibold text-ink hover:bg-surface-2"
+        >
+          施工事例
+        </Link>
+        {pitStore?.active ? (
+          <Link
+            href="/dealer/pit"
+            className="rounded-lg border border-line bg-surface px-3 py-2.5 text-center text-sm font-semibold text-ink hover:bg-surface-2"
+          >
+            施工ブログ投稿
+          </Link>
+        ) : (
+          <Link
+            href="/dealer/announcements"
+            className="rounded-lg border border-line bg-surface px-3 py-2.5 text-center text-sm font-semibold text-ink hover:bg-surface-2"
+          >
+            お知らせ一覧
+          </Link>
+        )}
       </div>
 
       <div className="mt-6 grid gap-6 sm:grid-cols-2">

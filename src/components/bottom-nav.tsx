@@ -1,0 +1,95 @@
+"use client";
+
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+
+// スマホ用の下タブバー（mbFAST HPと同じ操作感）。sm以上では非表示＝従来の上部ナビを使う。
+export type BottomNavItem = {
+  href: string;
+  label: string;
+  icon: "home" | "wrench" | "history" | "yen";
+  // このタブをアクティブ扱いにする追加パス（例: Homeにお知らせ・施工事例を含める）
+  also?: string[];
+};
+
+function Icon({ name }: { name: BottomNavItem["icon"] }) {
+  const common = {
+    width: 22,
+    height: 22,
+    viewBox: "0 0 24 24",
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: 1.8,
+    strokeLinecap: "round" as const,
+    strokeLinejoin: "round" as const,
+  };
+  switch (name) {
+    case "home":
+      return (
+        <svg {...common}>
+          <path d="M3 11.5 12 4l9 7.5" />
+          <path d="M5.5 10v10h13V10" />
+          <path d="M10 20v-5h4v5" />
+        </svg>
+      );
+    case "wrench":
+      return (
+        <svg {...common}>
+          <path d="M14.5 6.5a4.8 4.8 0 0 0-6.3 6.3L3.5 17.5V20.5h3l4.7-4.7a4.8 4.8 0 0 0 6.3-6.3l-3 3-2.3-2.3 3.3-3z" />
+        </svg>
+      );
+    case "history":
+      return (
+        <svg {...common}>
+          <circle cx="12" cy="12" r="8.5" />
+          <path d="M12 7.5V12l3 2" />
+        </svg>
+      );
+    case "yen":
+      return (
+        <svg {...common}>
+          <path d="M7 4.5l5 7 5-7" />
+          <path d="M12 11.5v8" />
+          <path d="M8.5 13.5h7" />
+          <path d="M8.5 16.5h7" />
+        </svg>
+      );
+  }
+}
+
+export function BottomNav({ items }: { items: BottomNavItem[] }) {
+  const pathname = usePathname();
+
+  return (
+    <nav
+      className="fixed inset-x-0 bottom-0 z-30 border-t border-line bg-surface/95 pb-[env(safe-area-inset-bottom)] backdrop-blur sm:hidden"
+      aria-label="モバイルナビゲーション"
+    >
+      <div
+        className="grid"
+        style={{ gridTemplateColumns: `repeat(${items.length}, 1fr)` }}
+      >
+        {items.map((item) => {
+          const isHome = item.href.split("/").length <= 2;
+          const hit = (p: string) =>
+            pathname === p || pathname.startsWith(p + "/");
+          const active =
+            (isHome ? pathname === item.href : hit(item.href)) ||
+            (item.also ?? []).some(hit);
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              className={`flex flex-col items-center gap-0.5 py-2 text-[10px] font-semibold transition ${
+                active ? "text-gold-600" : "text-ink-soft"
+              }`}
+            >
+              <Icon name={item.icon} />
+              {item.label}
+            </Link>
+          );
+        })}
+      </div>
+    </nav>
+  );
+}

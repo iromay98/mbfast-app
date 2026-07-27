@@ -3,18 +3,23 @@ import Link from "next/link";
 import { logout } from "@/lib/actions/auth";
 import { roleLabels } from "@/lib/labels";
 import { NavBar, type NavItem } from "@/components/nav-bar";
+import { BottomNav, type BottomNavItem } from "@/components/bottom-nav";
 import { PushManager } from "@/components/push-manager";
 import type { SessionUser } from "@/lib/authz";
 
 export function AppShell({
   user,
   navItems,
+  bottomNavItems,
   children,
 }: {
   user: SessionUser;
   navItems: NavItem[];
+  // 指定するとスマホでは下タブバーに切り替わる（上部ナビはsm以上のみ表示）
+  bottomNavItems?: BottomNavItem[];
   children: ReactNode;
 }) {
+  const hasBottomNav = !!bottomNavItems && bottomNavItems.length > 0;
   return (
     <div className="flex min-h-dvh flex-col">
       <header className="border-b border-line bg-surface">
@@ -49,14 +54,18 @@ export function AppShell({
         </div>
       </header>
 
-      <NavBar items={navItems} />
+      <NavBar items={navItems} className={hasBottomNav ? "hidden sm:block" : undefined} />
 
-      <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-5">
+      <main
+        className={`mx-auto w-full max-w-5xl flex-1 px-4 py-5 ${hasBottomNav ? "pb-24 sm:pb-5" : ""}`}
+      >
         {children}
       </main>
 
       {/* Web Push 購読管理（通知許可済みなら自動購読） */}
-      <PushManager />
+      <PushManager raised={hasBottomNav} />
+
+      {hasBottomNav && <BottomNav items={bottomNavItems} />}
     </div>
   );
 }
