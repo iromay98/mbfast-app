@@ -27,6 +27,12 @@ export const authConfig = {
         path.startsWith("/api/auth") ||
         path === "/showcase" ||
         path.startsWith("/showcase/") ||
+        // マイカーページ（車のお薬手帳）: 車検証QR所持が実質の認証。ログイン不要
+        path === "/mycar" ||
+        path.startsWith("/mycar/") ||
+        path.startsWith("/api/mycar") ||
+        // 施工証明書の第三者検証（買取店・保険会社向け・ログイン不要）
+        path.startsWith("/verify/") ||
         path === "/manifest.webmanifest" ||
         path === "/sw.js";
       if (isPublic) return true;

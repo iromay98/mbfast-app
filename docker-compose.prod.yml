@@ -63,6 +63,7 @@ services:
       PIT_ARTICLE_MODEL: "${PIT_ARTICLE_MODEL:-claude-sonnet-5}"
       AUTO_PUBLISH: "${AUTO_PUBLISH:-true}"
       STEALTH_MODE: "${STEALTH_MODE:-true}"
+      SERVER_SECRET: "${SERVER_SECRET:-}"
       AUTOTUNER_API_BASE: "${AUTOTUNER_API_BASE:-https://api.autotuner-tool.com/v2/api/v1/master}"
       AUTOTUNER_ID: "${AUTOTUNER_ID:-}"
       AUTOTUNER_API_KEY: "${AUTOTUNER_API_KEY:-}"

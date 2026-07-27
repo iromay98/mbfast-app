@@ -29,6 +29,7 @@ export async function runPitPipeline(opts: {
   category: string; // ecu | coating | polish | maintenance | other
   memo: string | null;
   photos: { buffer: Buffer }[];
+  vehicleId?: string | null; // 車検証QRで紐づけた車両（お薬手帳）
 }): Promise<PitPublishResult> {
   const { store } = opts;
 
@@ -58,6 +59,7 @@ export async function runPitPipeline(opts: {
       memo: opts.memo,
       photoKeys,
       plateLog,
+      vehicleId: opts.vehicleId ?? null,
       status: "processing",
       guardResult: [
         ...guard.blockReasons.map((r) => `ブロック: ${r}`),

@@ -3,6 +3,40 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { FileDropZone } from "@/components/file-drop-zone";
+import { ShakenQrScanner, chassisFromQrText } from "@/components/shaken-qr-scanner";
+
+// 投稿成功時に返るゲーミフィケーション統計
+type PitStats = {
+  total: number;
+  month: number;
+  lastMonth: number;
+  streakWeeks: number;
+  badge: { name: string; emoji: string } | null;
+  next: { name: string; remaining: number } | null;
+  rank: number | null;
+  storeCount: number;
+};
+
+// ゴールドのカウントアップ演出
+function CountUp({ to }: { to: number }) {
+  const [n, setN] = useState(0);
+  useEffect(() => {
+    if (to <= 0) return;
+    const steps = Math.min(to, 24);
+    let i = 0;
+    const iv = setInterval(() => {
+      i++;
+      if (i >= steps) {
+        setN(to);
+        clearInterval(iv);
+      } else {
+        setN(Math.round((to * i) / steps));
+      }
+    }, 45);
+    return () => clearInterval(iv);
+  }, [to]);
+  return <>{n}</>;
+}
 
 // Web Speech API の最小型（TS標準libに無いため。Chrome/Edge/Android は webkitSpeechRecognition）
 type SpeechRecognitionLike = {
@@ -51,8 +85,21 @@ export function PitPostForm() {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [done, setDone] = useState<{ kind: "published"; url: string; title: string } | { kind: "held"; message: string } | null>(null);
+  const [done, setDone] = useState<
+    | { kind: "published"; url: string; title: string; stats: PitStats | null; vehicleLinked: boolean }
+    | { kind: "held"; message: string }
+    | null
+  >(null);
   const formRef = useRef<HTMLFormElement>(null);
+
+  // ── 車検証QR（お薬手帳への車両紐づけ・任意） ──
+  const [scanning, setScanning] = useState(false);
+  const [qrText, setQrText] = useState<string | null>(null);
+  const [chassisManual, setChassisManual] = useState("");
+  const [showManualChassis, setShowManualChassis] = useState(false);
+  const chassisValue = qrText ?? (chassisManual.trim() || "");
+  const chassisDisplay = qrText ? chassisFromQrText(qrText) : chassisManual.trim() || null;
+  const chassisLast3 = chassisDisplay ? chassisDisplay.replace(/[^0-9]/g, "").slice(-3) : null;
 
   // ── 音声入力（Web Speech API・対応ブラウザのみマイクボタンを表示） ──
   const [memo, setMemo] = useState("");
@@ -130,11 +177,21 @@ export function PitPostForm() {
         title?: string;
         message?: string;
         error?: string;
+        stats?: PitStats | null;
+        vehicleLinked?: boolean;
       };
       if (data.status === "published" && data.url) {
-        setDone({ kind: "published", url: data.url, title: data.title ?? "" });
+        setDone({
+          kind: "published",
+          url: data.url,
+          title: data.title ?? "",
+          stats: data.stats ?? null,
+          vehicleLinked: !!data.vehicleLinked,
+        });
         formRef.current?.reset();
         setMemo("");
+        setQrText(null);
+        setChassisManual("");
         router.refresh();
       } else if (data.status === "held") {
         setDone({ kind: "held", message: data.message ?? "本部確認となりました。" });
@@ -167,6 +224,55 @@ export function PitPostForm() {
             >
               記事を見る
             </a>
+
+            {/* ゴールド演出: +1記録 と カウントアップ */}
+            {done.stats && (
+              <div className="mx-auto mt-3 max-w-sm rounded-2xl border border-gold-200 bg-gold-50 p-4 text-center">
+                <p className="text-[11px] font-extrabold tracking-widest text-gold-600">＋1 記録</p>
+                <div className="mt-2 flex items-end justify-center gap-8">
+                  <div>
+                    <div className="text-3xl font-black text-gold-600">
+                      <CountUp to={done.stats.total} />
+                    </div>
+                    <div className="text-[10px] font-semibold text-ink-soft">通算記録</div>
+                  </div>
+                  <div>
+                    <div className="text-3xl font-black text-ink">
+                      <CountUp to={done.stats.month} />
+                    </div>
+                    <div className="text-[10px] font-semibold text-ink-soft">今月</div>
+                  </div>
+                </div>
+                <div className="mt-2 flex flex-wrap items-center justify-center gap-2 text-[11px] font-bold">
+                  {done.stats.streakWeeks > 0 && (
+                    <span className="rounded-full bg-orange-100 px-2.5 py-1 text-orange-700">
+                      🔥 {done.stats.streakWeeks}週連続投稿中
+                    </span>
+                  )}
+                  {done.stats.badge && (
+                    <span className="rounded-full bg-gold-100 px-2.5 py-1 text-gold-700">
+                      {done.stats.badge.emoji} {done.stats.badge.name}店
+                    </span>
+                  )}
+                  {done.vehicleLinked && (
+                    <span className="rounded-full bg-sky-100 px-2.5 py-1 text-sky-700">
+                      🚗 お薬手帳に記録
+                    </span>
+                  )}
+                </div>
+                {done.stats.next && (
+                  <p className="mt-2 text-[10px] text-ink-soft">
+                    次の称号「{done.stats.next.name}」まで あと{done.stats.next.remaining}件
+                  </p>
+                )}
+                <p className="mt-1 text-[10px] text-ink-soft">
+                  先月{done.stats.lastMonth}件 → 今月{done.stats.month}件
+                  {done.stats.rank && done.stats.storeCount > 1
+                    ? `（今月の投稿数: 加盟${done.stats.storeCount}店中 ${done.stats.rank}位）`
+                    : ""}
+                </p>
+              </div>
+            )}
           </>
         ) : (
           <>
@@ -299,6 +405,49 @@ export function PitPostForm() {
           </div>
         </div>
 
+        {/* ── 車検証QR（お薬手帳・任意） ── */}
+        <div className="rounded-xl border border-line bg-surface-2 p-3">
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-semibold">🚗 車のお薬手帳に記録（任意）</p>
+            {chassisLast3 && (
+              <span className="rounded-full bg-green-100 px-2 py-0.5 text-[10px] font-bold text-green-700">
+                ✓ 車台番号 下3桁 ***{chassisLast3}
+              </span>
+            )}
+          </div>
+          <p className="mt-1 text-[11px] leading-relaxed text-ink-soft">
+            車検証のQRを読み取ると、この記録がお客様のマイカーページ（施工履歴・施工証明書）に紐づきます。
+          </p>
+          <div className="mt-2 flex gap-2">
+            <button
+              type="button"
+              onClick={() => setScanning(true)}
+              className="rounded-lg border border-gold-300 bg-white px-3 py-1.5 text-xs font-bold text-gold-700"
+            >
+              📄 車検証QRをスキャン
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowManualChassis((v) => !v)}
+              className="rounded-lg border border-line px-3 py-1.5 text-xs text-ink-soft"
+            >
+              手入力
+            </button>
+          </div>
+          {showManualChassis && (
+            <input
+              value={chassisManual}
+              onChange={(e) => {
+                setChassisManual(e.target.value);
+                setQrText(null);
+              }}
+              placeholder="車台番号（例: ZC33S-123456）"
+              className="mt-2 w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm"
+            />
+          )}
+          <input type="hidden" name="chassisNo" value={chassisValue} />
+        </div>
+
         {error && <p className="text-xs font-semibold text-red-600">{error}</p>}
 
         <button
@@ -308,6 +457,20 @@ export function PitPostForm() {
           AIにおまかせしてブログ公開 →
         </button>
       </form>
+
+      {scanning && (
+        <ShakenQrScanner
+          onText={(text) => {
+            if (chassisFromQrText(text)) {
+              setQrText(text);
+              setScanning(false);
+              return true;
+            }
+            return false;
+          }}
+          onClose={() => setScanning(false)}
+        />
+      )}
     </>
   );
 }

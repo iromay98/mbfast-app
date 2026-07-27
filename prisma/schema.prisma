@@ -728,27 +728,46 @@ model PitStore {
   posts PitPost[]
 }
 
+// 車両（車のお薬手帳）。車検証QRの車台番号から HMAC-SHA256(SERVER_SECRET) で導出した
+// vehicleKey で一意化する。車台番号の平文はDBに保存しない（PII保護）。
+model PitVehicle {
+  id               String    @id @default(cuid())
+  vehicleKey       String    @unique // HMAC-SHA256(車台番号, SERVER_SECRET) hex
+  chassisLast3     String? // 証明書表示用（車台番号の下3桁のみ）
+  vehicleName      String? // 車種表示（最初に紐づいた記録の車種）
+  modelCode        String? // 型式（QRから取得できた場合）
+  inspectionExpiry DateTime? // 車検有効期限（リマインド用）
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  posts PitPost[]
+}
+
 // 投稿1件（公開ログを兼ねる）
 model PitPost {
-  id           String   @id @default(cuid())
-  storeId      String
-  store        PitStore @relation(fields: [storeId], references: [id])
-  vehicle      String // 車種（フリーテキスト）
-  category     String // ecu | coating | polish | maintenance | other
-  memo         String?
-  photoKeys    Json     @default("[]") // storage上のキー（処理済み画像）
-  status       String   @default("processing") // processing | published | held | failed
-  guardResult  String? // ガード判定の内訳（held理由・注意書き挿入等）
-  title        String?
-  wpPostId     Int?
-  publishedUrl String?
-  errorMessage String?
-  plateLog     Json     @default("[]") // ナンバー検出結果ログ（未検出画像の記録）
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id            String      @id @default(cuid())
+  storeId       String
+  store         PitStore    @relation(fields: [storeId], references: [id])
+  vehicle       String // 車種（フリーテキスト）
+  category      String // ecu | coating | polish | maintenance | other
+  memo          String?
+  photoKeys     Json        @default("[]") // storage上のキー（処理済み画像）
+  status        String      @default("processing") // processing | published | held | failed
+  guardResult   String? // ガード判定の内訳（held理由・注意書き挿入等）
+  title         String?
+  wpPostId      Int?
+  publishedUrl  String?
+  errorMessage  String?
+  plateLog      Json        @default("[]") // ナンバー検出結果ログ（未検出画像の記録）
+  vehicleId     String? // 車検証QRで紐づけた車両（任意）
+  vehicleRef    PitVehicle? @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
+  externalProof Json? // 施工証明の外部連携スロット {provider, tx_id, url}（Ledra等、現状は未使用）
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
 
   @@index([storeId, createdAt])
   @@index([status])
+  @@index([vehicleId])
 }
 
 // ── 実車開発モード（開発ツリー） ──

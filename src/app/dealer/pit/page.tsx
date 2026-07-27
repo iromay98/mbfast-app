@@ -2,6 +2,7 @@ import { requireDealer } from "@/lib/authz";
 import { prisma } from "@/lib/db";
 import { formatDateTime } from "@/lib/labels";
 import { PageTitle, Card } from "@/components/ui";
+import { storeStats } from "@/server/pit/gamification";
 import { PitPostForm } from "./pit-post-form";
 
 export const dynamic = "force-dynamic";
@@ -43,12 +44,47 @@ export default async function DealerPitPage() {
     },
   });
 
+  const stats = await storeStats(store.id);
+
   return (
     <div className="space-y-4">
       <PageTitle
         title="施工ブログ投稿"
         subtitle={`${store.displayName} — 写真を送ると数分でブログ記事になります`}
       />
+
+      {/* ゲーミフィケーション: 主表示は「先月の自分」との比較。順位は副次表示 */}
+      <div className="grid grid-cols-3 gap-2">
+        <Card className="p-3 text-center">
+          <div className="text-xl font-black text-gold-600">{stats.total}</div>
+          <div className="text-[10px] font-semibold text-ink-soft">通算記録</div>
+          {stats.badge && (
+            <div className="mt-1 text-[10px] font-bold text-gold-700">
+              {stats.badge.emoji} {stats.badge.name}店
+            </div>
+          )}
+        </Card>
+        <Card className="p-3 text-center">
+          <div className="text-xl font-black text-ink">{stats.month}</div>
+          <div className="text-[10px] font-semibold text-ink-soft">今月（先月{stats.lastMonth}件）</div>
+          {stats.rank && stats.storeCount > 1 && (
+            <div className="mt-1 text-[10px] text-ink-soft">
+              加盟{stats.storeCount}店中 {stats.rank}位
+            </div>
+          )}
+        </Card>
+        <Card className="p-3 text-center">
+          <div className="text-xl font-black text-orange-600">
+            {stats.streakWeeks > 0 ? `🔥${stats.streakWeeks}` : "—"}
+          </div>
+          <div className="text-[10px] font-semibold text-ink-soft">週連続投稿</div>
+          {stats.next && (
+            <div className="mt-1 text-[10px] text-ink-soft">
+              {stats.next.name}まで{stats.next.remaining}件
+            </div>
+          )}
+        </Card>
+      </div>
 
       <Card>
         <PitPostForm />

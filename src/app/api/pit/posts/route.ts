@@ -4,6 +4,8 @@ import { prisma } from "@/lib/db";
 import { runPitPipeline } from "@/server/pit/pipeline";
 import { pitAiEnabled } from "@/server/pit/generate";
 import { wpConfigured } from "@/server/pit/wordpress";
+import { upsertVehicle, vehicleFeatureEnabled } from "@/server/pit/vehicle";
+import { notifyBadgeIfReached, storeStats } from "@/server/pit/gamification";
 
 // mbPIT 施工記録の投稿 → AI記事化 → WordPress自動公開。
 // 店舗IDは認証セッションから解決する（クライアントの申告値は信用しない）。
@@ -69,17 +71,51 @@ export async function POST(request: NextRequest) {
     photos.push({ buffer: Buffer.from(await f.arrayBuffer()) });
   }
 
+  // 車検証QR（または手入力の車台番号）が付いていれば車両に紐づけ（お薬手帳）。
+  // 失敗しても投稿自体は続行する（車両紐づけは任意機能）。
+  let vehicleId: string | null = null;
+  const chassisRaw = String(form.get("chassisNo") ?? "").trim();
+  if (chassisRaw && vehicleFeatureEnabled()) {
+    try {
+      const expiryRaw = String(form.get("inspectionExpiry") ?? "").trim();
+      const v = await upsertVehicle({
+        chassisOrQr: chassisRaw,
+        vehicleName: vehicle,
+        inspectionExpiry: /^\d{4}-\d{2}-\d{2}$/.test(expiryRaw) ? new Date(`${expiryRaw}T00:00:00+09:00`) : null,
+      });
+      vehicleId = v?.id ?? null;
+    } catch (e) {
+      console.error("mbPIT: 車両紐づけに失敗（投稿は続行）", e);
+    }
+  }
+
   const result = await runPitPipeline({
     store,
     vehicle,
     category,
     memo: memoRaw || null,
     photos,
+    vehicleId,
   });
 
   switch (result.status) {
-    case "published":
-      return json(200, { status: "published", url: result.url, title: result.title });
+    case "published": {
+      // ゲーミフィケーション: 最新の通算/今月/ストリーク/バッジを返し、称号到達なら本部へ通知
+      let stats = null;
+      try {
+        stats = await storeStats(store.id);
+        await notifyBadgeIfReached(store.id, store.displayName, stats.total);
+      } catch (e) {
+        console.error("mbPIT: 統計計算に失敗", e);
+      }
+      return json(200, {
+        status: "published",
+        url: result.url,
+        title: result.title,
+        stats,
+        vehicleLinked: !!vehicleId,
+      });
+    }
     case "held":
       // 理由の詳細（規制関連ワード）は店舗にそのまま返さず、確認中である旨のみ伝える
       return json(200, {
