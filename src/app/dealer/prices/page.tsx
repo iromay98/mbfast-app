@@ -19,9 +19,12 @@ export default async function DealerPricesPage({
   const { brand: brandParam } = await searchParams;
 
   const brands = await prisma.priceBrand.findMany({
-    orderBy: { displayOrder: "asc" },
     select: { id: true, displayName: true },
   });
+  // メーカーも車種もアルファベット順。numeric指定で 3-Series < 30-Series のような数値順にする
+  const collator = new Intl.Collator("ja", { numeric: true, sensitivity: "base" });
+  brands.sort((a, b) => collator.compare(a.displayName, b.displayName));
+
   const selectedId = brands.some((b) => b.id === brandParam)
     ? brandParam!
     : brands[0]?.id;
@@ -32,9 +35,6 @@ export default async function DealerPricesPage({
         include: { vehicles: true },
       })
     : null;
-
-  // 車種のアルファベット順（同名はグレード順）。numeric指定で 3-Series < 30-Series のような数値順にする
-  const collator = new Intl.Collator("ja", { numeric: true, sensitivity: "base" });
   selected?.vehicles.sort(
     (a, b) => collator.compare(a.carName, b.carName) || collator.compare(a.grade ?? "", b.grade ?? ""),
   );
