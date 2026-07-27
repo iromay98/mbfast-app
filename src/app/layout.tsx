@@ -17,6 +17,8 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   themeColor: "#b8862b",
+  // iPhoneで env(safe-area-inset-*) を有効にする（下タブバーをホームバーと被らせない）
+  viewportFit: "cover",
 };
 
 export default function RootLayout({

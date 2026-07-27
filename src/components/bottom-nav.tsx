@@ -62,7 +62,8 @@ export function BottomNav({ items }: { items: BottomNavItem[] }) {
 
   return (
     <nav
-      className="fixed inset-x-0 bottom-0 z-30 border-t border-line bg-surface/95 pb-[env(safe-area-inset-bottom)] backdrop-blur sm:hidden"
+      // iPhoneのホームバーと被らないよう safe-area 分＋最低10pxの余白を下に取る
+      className="fixed inset-x-0 bottom-0 z-30 border-t border-line bg-surface/95 pb-[max(env(safe-area-inset-bottom),10px)] backdrop-blur sm:hidden"
       aria-label="モバイルナビゲーション"
     >
       <div
