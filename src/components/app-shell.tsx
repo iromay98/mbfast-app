@@ -21,7 +21,9 @@ export function AppShell({
 }) {
   const hasBottomNav = !!bottomNavItems && bottomNavItems.length > 0;
   return (
-    <div className="flex min-h-dvh flex-col">
+    // overflow-x-clip: どれか1要素が幅を突き破ってもページ全体が横スクロールにならない保険
+    // （clipはhiddenと違いstickyナビを壊さない。表などは各自のoverflow-x-autoで横スクロール可能なまま）
+    <div className={`flex min-h-dvh flex-col ${hasBottomNav ? "overflow-x-clip" : ""}`}>
       <header className="border-b border-line bg-surface">
         <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-2.5">
           <div className="flex items-baseline gap-2">
@@ -56,8 +58,9 @@ export function AppShell({
 
       <NavBar items={navItems} className={hasBottomNav ? "hidden sm:block" : undefined} />
 
+      {/* break-words: 長いURL・VIN・ファイル名などの折り返し不能文字列が幅を押し広げるのを防ぐ */}
       <main
-        className={`mx-auto w-full max-w-5xl flex-1 px-4 py-5 ${hasBottomNav ? "pb-24 sm:pb-5" : ""}`}
+        className={`mx-auto w-full max-w-5xl flex-1 break-words px-4 py-5 ${hasBottomNav ? "pb-24 sm:pb-5" : ""}`}
       >
         {children}
       </main>
