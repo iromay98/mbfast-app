@@ -24,7 +24,10 @@ export function AppShell({
     // overflow-x-clip: どれか1要素が幅を突き破ってもページ全体が横スクロールにならない保険
     // （clipはhiddenと違いstickyナビを壊さない。表などは各自のoverflow-x-autoで横スクロール可能なまま）
     <div className={`flex min-h-dvh flex-col ${hasBottomNav ? "overflow-x-clip" : ""}`}>
-      <header className="border-b border-line bg-surface">
+      {/* スマホ（下タブバー使用時）はヘッダーを上部に固定してスクロールしても残す */}
+      <header
+        className={`border-b border-line bg-surface ${hasBottomNav ? "max-sm:sticky max-sm:top-0 max-sm:z-30" : ""}`}
+      >
         <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-2.5">
           <div className="flex items-baseline gap-2">
             <span className="text-lg font-black tracking-tight text-ink">

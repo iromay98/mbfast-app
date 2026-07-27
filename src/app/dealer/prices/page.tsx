@@ -29,9 +29,15 @@ export default async function DealerPricesPage({
   const selected = selectedId
     ? await prisma.priceBrand.findUnique({
         where: { id: selectedId },
-        include: { vehicles: { orderBy: { displayOrder: "asc" } } },
+        include: { vehicles: true },
       })
     : null;
+
+  // 車種のアルファベット順（同名はグレード順）。numeric指定で 3-Series < 30-Series のような数値順にする
+  const collator = new Intl.Collator("ja", { numeric: true, sensitivity: "base" });
+  selected?.vehicles.sort(
+    (a, b) => collator.compare(a.carName, b.carName) || collator.compare(a.grade ?? "", b.grade ?? ""),
+  );
 
   const viewerBrand: ViewerBrand | null = selected
     ? {
@@ -70,8 +76,8 @@ export default async function DealerPricesPage({
         </Card>
       ) : (
         <div className="space-y-3">
-          {/* ブランド切替チップ（スマホは横スクロール） */}
-          <div className="-mx-4 flex gap-1.5 overflow-x-auto px-4 pb-1 sm:mx-0 sm:flex-wrap sm:px-0">
+          {/* ブランド切替チップ（スマホは横スクロール＋上部に固定＝スクロール中もメーカーを切替できる） */}
+          <div className="-mx-4 flex gap-1.5 overflow-x-auto px-4 py-2 max-sm:sticky max-sm:top-[49px] max-sm:z-20 max-sm:bg-surface-2 sm:mx-0 sm:flex-wrap sm:px-0 sm:py-0 sm:pb-1">
             {brands.map((b) => (
               <Link
                 key={b.id}
