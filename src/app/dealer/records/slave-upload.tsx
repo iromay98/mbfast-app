@@ -3,6 +3,7 @@
 import { useActionState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Button, Card, FormError } from "@/components/ui";
+import { FileDropZone } from "@/components/file-drop-zone";
 import { emptyFormState } from "@/lib/actions/form-state";
 import { uploadSlaveRecord } from "@/lib/actions/records";
 
@@ -42,12 +43,7 @@ export function SlaveUpload() {
             className="block w-full rounded-lg border border-line px-3 py-2 text-sm text-ink"
           />
         </label>
-        <input
-          type="file"
-          name="slaveFile"
-          required
-          className="block w-full text-sm text-ink file:mr-3 file:min-h-11 file:rounded-lg file:border-0 file:bg-gold-500 file:px-4 file:text-sm file:font-semibold file:text-white"
-        />
+        <FileDropZone name="slaveFile" required />
         {/* 対象ユニット（ECU/TCU）— 同時施工の取り違え防止。表示・ファイル名に入る */}
         <div className="flex items-center gap-3 text-xs text-ink-soft">
           <span className="font-semibold">対象ユニット</span>
