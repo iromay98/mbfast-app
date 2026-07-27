@@ -8,25 +8,30 @@ export function FileDropZone({
   name,
   required,
   accept,
+  multiple,
+  prompt,
 }: {
   name: string;
   required?: boolean;
   accept?: string;
+  multiple?: boolean; // 写真複数枚など
+  prompt?: string; // 未選択時の見出し（省略時は汎用文言）
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
-  const [file, setFile] = useState<{ name: string; size: number } | null>(null);
+  const [files, setFiles] = useState<{ name: string; size: number }[]>([]);
   const [over, setOver] = useState(false);
+  const file = files[0] ?? null;
 
   const sync = () => {
-    const f = inputRef.current?.files?.[0];
-    setFile(f ? { name: f.name, size: f.size } : null);
+    const list = inputRef.current?.files;
+    setFiles(list ? Array.from(list).map((f) => ({ name: f.name, size: f.size })) : []);
   };
 
   // form.reset()（アップロード成功時）で表示も消す
   useEffect(() => {
     const form = inputRef.current?.form;
     if (!form) return;
-    const h = () => setFile(null);
+    const h = () => setFiles([]);
     form.addEventListener("reset", h);
     return () => form.removeEventListener("reset", h);
   }, []);
@@ -37,7 +42,8 @@ export function FileDropZone({
     const dropped = e.dataTransfer?.files;
     if (dropped && dropped.length > 0 && inputRef.current) {
       const dt = new DataTransfer();
-      dt.items.add(dropped[0]); // 1ファイルのみ受け付ける
+      const take = multiple ? Array.from(dropped) : [dropped[0]];
+      for (const f of take) dt.items.add(f);
       inputRef.current.files = dt.files;
       sync();
     }
@@ -75,18 +81,33 @@ export function FileDropZone({
         name={name}
         required={required}
         accept={accept}
+        multiple={multiple}
         onChange={sync}
         className="sr-only"
       />
       {file ? (
-        <>
-          <span className="text-2xl" aria-hidden>
-            📄
-          </span>
-          <span className="max-w-full break-all text-sm font-semibold text-ink">{file.name}</span>
-          <span className="text-xs text-ink-soft">{fmtSize(file.size)}</span>
-          <span className="text-[11px] text-gold-600 underline">別のファイルを選ぶ</span>
-        </>
+        multiple ? (
+          <>
+            <span className="text-2xl" aria-hidden>
+              📷
+            </span>
+            <span className="text-sm font-semibold text-ink">{files.length}枚選択中</span>
+            <span className="max-w-full break-all text-[11px] text-ink-soft">
+              {files.slice(0, 3).map((f) => f.name).join(" / ")}
+              {files.length > 3 ? ` ほか${files.length - 3}枚` : ""}
+            </span>
+            <span className="text-[11px] text-gold-600 underline">選び直す</span>
+          </>
+        ) : (
+          <>
+            <span className="text-2xl" aria-hidden>
+              📄
+            </span>
+            <span className="max-w-full break-all text-sm font-semibold text-ink">{file.name}</span>
+            <span className="text-xs text-ink-soft">{fmtSize(file.size)}</span>
+            <span className="text-[11px] text-gold-600 underline">別のファイルを選ぶ</span>
+          </>
+        )
       ) : (
         <>
           <span
@@ -95,7 +116,9 @@ export function FileDropZone({
           >
             ⬆
           </span>
-          <span className="text-sm font-bold text-ink">ファイルをここにドラッグ＆ドロップ</span>
+          <span className="text-sm font-bold text-ink">
+            {prompt ?? "ファイルをここにドラッグ＆ドロップ"}
+          </span>
           <span className="text-xs text-ink-soft">またはこの枠をタップして選択</span>
         </>
       )}
