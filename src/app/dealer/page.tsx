@@ -85,8 +85,9 @@ export default async function DealerDashboard() {
         )}
       </div>
 
-      <div className="mt-6 grid gap-6 sm:grid-cols-2">
-        <section>
+      {/* grid-cols-1(=minmax(0,1fr)) と min-w-0 が無いと、長いタイトルで列幅が画面を突き破り truncate が効かない */}
+      <div className="mt-6 grid grid-cols-1 gap-6 sm:grid-cols-2">
+        <section className="min-w-0">
           <div className="mb-2 flex items-center justify-between">
             <h2 className="text-sm font-bold text-ink">依頼の進捗</h2>
             <Link href="/dealer/requests" className="text-sm text-gold-600 hover:underline">
@@ -115,7 +116,7 @@ export default async function DealerDashboard() {
           )}
         </section>
 
-        <section>
+        <section className="min-w-0">
           <div className="mb-2 flex items-center justify-between">
             <h2 className="text-sm font-bold text-ink">新着お知らせ</h2>
             <Link
