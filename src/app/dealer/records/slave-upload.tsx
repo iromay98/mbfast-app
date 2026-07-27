@@ -28,7 +28,7 @@ export function SlaveUpload() {
 
   return (
     <Card className="border-gold-200 bg-gold-50">
-      <h2 className="text-sm font-bold text-ink">スレーブファイルをアップロード</h2>
+      <h2 className="text-sm font-bold text-ink">ECU・TCUファイルをアップロード</h2>
       <p className="mt-0.5 text-xs text-ink-soft">
         アップロードすると自動で復号・照合まで完了し、そのまま依頼内容を選んでダウンロード／リクエストできます。
       </p>
