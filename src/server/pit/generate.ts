@@ -3,7 +3,14 @@
 
 import Anthropic from "@anthropic-ai/sdk";
 
-const MODEL = process.env.PIT_ARTICLE_MODEL ?? "claude-opus-4-8";
+// コスト重視でsonnetを既定に（本部仕様）。PIT_ARTICLE_MODEL で上書き可能
+const MODEL = process.env.PIT_ARTICLE_MODEL ?? "claude-sonnet-5";
+
+// 店舗ページ・mbPITハブ（記事末尾の内部リンクと車両情報テーブルで使用）
+export const MBPIT_HUB_URL = "https://mbfasttuning.com/mbpit/";
+export function storePageUrl(storeSlug: string): string {
+  return `${MBPIT_HUB_URL}${storeSlug}/`;
+}
 
 export function pitAiEnabled(): boolean {
   return !!process.env.ANTHROPIC_API_KEY;
@@ -31,7 +38,7 @@ export type GeneratedArticle = {
 const SCHEMA = {
   type: "object",
   properties: {
-    title: { type: "string", description: "SEOタイトル。基本形: {車種} {施工内容}｜{店舗名}" },
+    title: { type: "string", description: "タイトル。厳守形式: 【施工記録】{車種} {施工内容}｜{店舗名}" },
     slug: { type: "string", description: "英小文字とハイフンのみ。{車種ローマ字}-{施工slug}-{店舗slug}-{YYYYMMDD}" },
     body_html: {
       type: "string",
@@ -56,24 +63,44 @@ export type GenerateInput = {
   storeSlug: string;
   vehicle: string;
   categoryLabel: string;
-  memo: string; // ガード後のクリーン済みテキスト
-  photos: Buffer[]; // 処理済みJPEG
+  memo: string; // ガード後のクリーン済みテキスト（音声書き起こし含む）
+  photos: Buffer[]; // 処理済みWebP
   dateYmd: string; // "20260719"
+  dateJa: string; // "2026年7月19日"（車両情報テーブル用）
+  faqReference?: { q: string; a: string }[]; // 店舗マスタのFAQ（あればFAQ生成の素材にする）
 };
 
 const SYSTEM = `あなたは自動車チューニング・ディテイリング企業「mbFAST Tuning」のブログ編集者です。
-加盟店(mbPIT)の施工報告を、公式ブログ記事に仕上げます。
+加盟店(mbPIT)の施工報告（音声書き起こし＋写真）を、公式ブログ記事に仕上げます。
 
-記事の型（厳守）:
-- 文体: です・ます調。短文中心。施工事例アーク（お預かり → 施工内容 → 仕上がり → 問い合わせの誘い）
+文体（厳守）:
+- です・ます調。短文中心。事実ベース。宣伝臭・誇張は禁止
 - 分量: 800〜1200字
-- 冒頭2〜3文で「車種＋施工内容＋結果」を完結に要約する（AI検索の引用に拾われやすい形）
-- 写真は本文中に分散配置する。写真の位置には {{IMAGE_1}} {{IMAGE_2}} … のプレースホルダを、それぞれ独立したブロックとして置く（渡された写真の枚数分すべて使う）
-- 本文はGutenbergブロック互換HTML: 段落は <!-- wp:paragraph --><p>…</p><!-- /wp:paragraph -->、見出しは <!-- wp:heading --><h2>…</h2><!-- /wp:heading -->
-- 具体的なセッティング値・使用薬剤の製品名などの企業秘密レベルの詳細は書かない（「詳しいセッティングの中身は企業秘密です」型のぼかしでよい）
+- 音声・メモに含まれない情報を捏造しない（具体的な数値・作業時間・価格など根拠のない情報は書かない。不明な項目は書かない）
+- 具体的なマップ名・セッティング値・使用薬剤の製品名など企業秘密レベルの技術詳細は書かない（「詳しい中身は企業秘密です」型のぼかしでよい）
 - 個人名・電話番号・ナンバープレートの数字は絶対に書かない
-- 店舗紹介・問い合わせボタンはサーバー側で末尾に結合するので本文には書かない（「お気軽にお問い合わせください」程度の締めの一文はOK）
-- メモが空でも写真と車種・施工カテゴリから自然な記事を書く。事実の捏造（具体的な数値・作業時間・価格など根拠のない情報）はしない`;
+
+構成（統一フォーマット厳守・この順番）:
+1. 冒頭1〜2文（店舗名・車種・作業内容の要約。AI検索の引用に拾われやすい形）
+2. <!-- wp:heading --><h2>車両情報</h2><!-- /wp:heading --> の直後に、次の形のテーブルを置く（th のstyle属性はこのまま使う。値が不明な行は行ごと省く）:
+<!-- wp:table -->
+<figure class="wp-block-table"><table><tbody>
+<tr><th style="background-color:#1a1a1a;color:#d4af37;">車種</th><td>{車種}</td></tr>
+<tr><th style="background-color:#1a1a1a;color:#d4af37;">作業内容</th><td>{作業内容}</td></tr>
+<tr><th style="background-color:#1a1a1a;color:#d4af37;">作業日</th><td>{作業日}</td></tr>
+<tr><th style="background-color:#1a1a1a;color:#d4af37;">施工店</th><td><a href="{店舗ページURL}">{店舗名}</a></td></tr>
+</tbody></table></figure>
+<!-- /wp:table -->
+3. <h2>作業内容</h2> — 2〜3段落
+4. <h2>作業のポイント</h2> — 1〜2段落
+5. <h2>よくあるご質問</h2> — Q&Aを2件。各QはH3見出し（<!-- wp:heading {"level":3} --><h3>Q. …</h3><!-- /wp:heading -->）＋回答段落。参考FAQが渡されていればそれを優先的に素材にする
+
+その他:
+- 写真は本文中（主に「作業内容」以降）に分散配置する。写真の位置には {{IMAGE_1}} {{IMAGE_2}} … のプレースホルダを、それぞれ独立したブロックとして置く（渡された写真の枚数分すべて使う）
+- 本文はGutenbergブロック互換HTML: 段落は <!-- wp:paragraph --><p>…</p><!-- /wp:paragraph -->、見出しは <!-- wp:heading --><h2>…</h2><!-- /wp:heading -->
+- 店舗紹介・問い合わせボタン・末尾の内部リンクはサーバー側で結合するので本文には書かない（「お気軽にお問い合わせください」程度の締めの一文はOK）
+- タイトルは必ず「【施工記録】{車種} {作業内容}｜{店舗名}」の形式にする
+- メモが空でも写真と車種・施工カテゴリから自然な記事を書く`;
 
 export async function generateArticle(input: GenerateInput): Promise<GeneratedArticle> {
   const client = new Anthropic();
@@ -82,20 +109,26 @@ export async function generateArticle(input: GenerateInput): Promise<GeneratedAr
     type: "image" as const,
     source: {
       type: "base64" as const,
-      media_type: "image/jpeg" as const,
+      media_type: "image/webp" as const,
       data: buf.toString("base64"),
     },
   }));
+
+  const faqRef = (input.faqReference ?? [])
+    .map((f) => `Q. ${f.q}\nA. ${f.a}`)
+    .join("\n");
 
   const prompt = [
     `以下の施工情報と写真${input.photos.length}枚からブログ記事を生成してください。`,
     ``,
     `店舗名: ${input.storeName}`,
     `店舗slug: ${input.storeSlug}`,
+    `店舗ページURL: ${storePageUrl(input.storeSlug)}`,
     `車種: ${input.vehicle}`,
     `施工カテゴリ: ${input.categoryLabel}`,
-    `施工メモ: ${input.memo || "（なし）"}`,
-    `公開日: ${input.dateYmd}`,
+    `施工メモ（音声書き起こし含む）: ${input.memo || "（なし）"}`,
+    `作業日: ${input.dateJa}`,
+    faqRef ? `参考FAQ（FAQセクションの素材に使ってよい）:\n${faqRef}` : ``,
     ``,
     `slugは {車種ローマ字}-{施工slug}-${input.storeSlug}-${input.dateYmd} の形式にすること。`,
     `image_alts は写真と同じ ${input.photos.length} 件にすること。`,

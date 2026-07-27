@@ -13,7 +13,7 @@ export const maxDuration = 300;
 const CATEGORIES = new Set(["ecu", "coating", "polish", "maintenance", "other"]);
 const MAX_PHOTOS = 10;
 const MAX_PHOTO_BYTES = 10 * 1024 * 1024; // 10MB/枚
-const MAX_MEMO_LEN = 500;
+const MAX_MEMO_LEN = 1000; // 音声書き起こし対応で拡張（30秒×数回分）
 
 export async function POST(request: NextRequest) {
   const user = await getSessionUser();

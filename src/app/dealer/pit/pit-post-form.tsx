@@ -1,7 +1,32 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+
+// Web Speech API の最小型（TS標準libに無いため。Chrome/Edge/Android は webkitSpeechRecognition）
+type SpeechRecognitionLike = {
+  lang: string;
+  continuous: boolean;
+  interimResults: boolean;
+  onresult:
+    | ((e: {
+        resultIndex: number;
+        results: { length: number; [i: number]: { isFinal: boolean; 0: { transcript: string } } };
+      }) => void)
+    | null;
+  onend: (() => void) | null;
+  onerror: ((e: { error?: string }) => void) | null;
+  start(): void;
+  stop(): void;
+};
+
+function getSpeechRecognition(): (new () => SpeechRecognitionLike) | null {
+  if (typeof window === "undefined") return null;
+  const w = window as unknown as Record<string, unknown>;
+  return (w.SpeechRecognition ?? w.webkitSpeechRecognition ?? null) as
+    | (new () => SpeechRecognitionLike)
+    | null;
+}
 
 const CATEGORIES: { value: string; label: string }[] = [
   { value: "ecu", label: "ECUチューニング" },
@@ -20,6 +45,54 @@ export function PitPostForm() {
   const [done, setDone] = useState<{ kind: "published"; url: string; title: string } | { kind: "held"; message: string } | null>(null);
   const [photoCount, setPhotoCount] = useState(0);
   const formRef = useRef<HTMLFormElement>(null);
+
+  // ── 音声入力（Web Speech API・対応ブラウザのみマイクボタンを表示） ──
+  const [memo, setMemo] = useState("");
+  const [interim, setInterim] = useState("");
+  const [recording, setRecording] = useState(false);
+  const [speechOk, setSpeechOk] = useState(false);
+  const recRef = useRef<SpeechRecognitionLike | null>(null);
+
+  useEffect(() => {
+    setSpeechOk(getSpeechRecognition() !== null);
+    return () => recRef.current?.stop();
+  }, []);
+
+  const toggleVoice = () => {
+    if (recording) {
+      recRef.current?.stop();
+      return;
+    }
+    const Ctor = getSpeechRecognition();
+    if (!Ctor) return;
+    const rec = new Ctor();
+    rec.lang = "ja-JP";
+    rec.continuous = true;
+    rec.interimResults = true;
+    rec.onresult = (e) => {
+      let interimText = "";
+      let finalText = "";
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        const r = e.results[i];
+        if (r.isFinal) finalText += r[0].transcript;
+        else interimText += r[0].transcript;
+      }
+      if (finalText) setMemo((m) => (m + finalText).slice(0, 1000));
+      setInterim(interimText);
+    };
+    rec.onend = () => {
+      setRecording(false);
+      setInterim("");
+      recRef.current = null;
+    };
+    rec.onerror = () => {
+      setRecording(false);
+      setInterim("");
+    };
+    recRef.current = rec;
+    setRecording(true);
+    rec.start();
+  };
 
   const submit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -45,11 +118,13 @@ export function PitPostForm() {
         setDone({ kind: "published", url: data.url, title: data.title ?? "" });
         formRef.current?.reset();
         setPhotoCount(0);
+        setMemo("");
         router.refresh();
       } else if (data.status === "held") {
         setDone({ kind: "held", message: data.message ?? "本部確認となりました。" });
         formRef.current?.reset();
         setPhotoCount(0);
+        setMemo("");
         router.refresh();
       } else {
         setError(data.error ?? "送信に失敗しました。時間をおいて再度お試しください。");
@@ -143,15 +218,41 @@ export function PitPostForm() {
       </div>
 
       <div>
-        <label className="mb-1 block text-xs font-semibold">メモ（任意・500文字まで）</label>
+        <div className="mb-1 flex items-center justify-between">
+          <label className="block text-xs font-semibold">作業の説明（任意・1000文字まで）</label>
+          {speechOk && (
+            <button
+              type="button"
+              onClick={toggleVoice}
+              disabled={busy}
+              className={`rounded-full px-3 py-1 text-xs font-bold text-white shadow-sm transition ${
+                recording ? "animate-pulse bg-red-600" : "bg-gold-500 hover:bg-gold-600"
+              }`}
+            >
+              {recording ? "⏹ 停止（録音中…）" : "🎤 音声で入力"}
+            </button>
+          )}
+        </div>
         <textarea
           name="memo"
-          rows={3}
-          maxLength={500}
+          rows={4}
+          maxLength={1000}
           disabled={busy}
-          placeholder="施工のポイントや仕上がりの様子など（書かなくてもOK。AIが写真から記事を作ります）"
-          className="w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm"
+          value={memo + interim}
+          onChange={(e) => {
+            setMemo(e.target.value);
+            setInterim("");
+          }}
+          placeholder="🎤ボタンを押して、作業内容を30秒ほど話すだけでOK（書かなくてもOK。AIが写真から記事を作ります）"
+          className={`w-full rounded-lg border bg-surface px-3 py-2 text-sm ${
+            recording ? "border-red-400" : "border-line"
+          }`}
         />
+        {!speechOk && (
+          <p className="mt-1 text-[11px] text-ink-soft">
+            ※ スマホのキーボードのマイク（音声入力）も使えます。
+          </p>
+        )}
       </div>
 
       {error && <p className="text-xs font-semibold text-red-600">{error}</p>}

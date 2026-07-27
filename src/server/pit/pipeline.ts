@@ -4,9 +4,9 @@
 import { prisma } from "@/lib/db";
 import { storage } from "@/server/storage";
 import { notify } from "@/server/notifications";
-import { processPhoto, seoFilename } from "./images";
+import { processPhoto, seoFilename, PIT_IMAGE_MIME } from "./images";
 import { runGuard, CAUTION_HTML } from "./guard";
-import { generateArticle, CATEGORY_LABELS } from "./generate";
+import { generateArticle, CATEGORY_LABELS, MBPIT_HUB_URL, storePageUrl } from "./generate";
 import { uploadMedia, publishPost, MBPIT_PARENT_CATEGORY_ID, type WpMedia } from "./wordpress";
 
 export type PitPublishResult =
@@ -32,7 +32,7 @@ export async function runPitPipeline(opts: {
 }): Promise<PitPublishResult> {
   const { store } = opts;
 
-  // 1. 画像処理（リサイズ・JPEG化。プレートぼかしはPhase 4でここに入る）
+  // 1. 画像処理（リサイズ・WebP化・EXIF除去。プレートぼかしはPhase 4でここに入る）
   const processed = [];
   for (const p of opts.photos) {
     processed.push(await processPhoto(p.buffer));
@@ -45,8 +45,8 @@ export async function runPitPipeline(opts: {
   // 投稿レコード（写真はストレージへ保存して監査可能に）
   const photoKeys: string[] = [];
   for (let i = 0; i < processed.length; i++) {
-    const key = `pit/${store.id}/${Date.now()}-${i}.jpg`;
-    await storage.save(key, processed[i].buffer, "image/jpeg");
+    const key = `pit/${store.id}/${Date.now()}-${i}.webp`;
+    await storage.save(key, processed[i].buffer, PIT_IMAGE_MIME);
     photoKeys.push(key);
   }
 
@@ -82,7 +82,15 @@ export async function runPitPipeline(opts: {
 
   try {
     // 3. AI記事生成
-    const dateYmd = new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Tokyo" }).replace(/-/g, "");
+    const isoDate = new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Tokyo" }); // "2026-07-19"
+    const dateYmd = isoDate.replace(/-/g, "");
+    const [y, m, d] = isoDate.split("-").map(Number);
+    const faqItems = Array.isArray(store.faqJson)
+      ? (store.faqJson as unknown[]).filter(
+          (x): x is { q: string; a: string } =>
+            !!x && typeof x === "object" && typeof (x as { q?: unknown }).q === "string" && typeof (x as { a?: unknown }).a === "string",
+        )
+      : [];
     const article = await generateArticle({
       storeName: store.displayName,
       storeSlug: store.slug,
@@ -91,9 +99,11 @@ export async function runPitPipeline(opts: {
       memo: guard.cleanedMemo,
       photos: processed.map((p) => p.buffer),
       dateYmd,
+      dateJa: `${y}年${m}月${d}日`,
+      faqReference: faqItems,
     });
 
-    // 4. 画像アップロード（SEOファイル名: {車種ローマ字}-{施工slug}-{連番}.jpg）
+    // 4. 画像アップロード（WebP。SEOファイル名: {車種ローマ字}-{施工slug}-{連番}.webp）
     const baseSlug = `${article.vehicle_romaji}-${article.treatment_slug}`;
     const medias: WpMedia[] = [];
     for (let i = 0; i < processed.length; i++) {
@@ -117,7 +127,10 @@ export async function runPitPipeline(opts: {
       if (!used.has(i)) body += `\n${imageBlock(medias[i])}`;
     }
     if (guard.cautionNeeded) body += `\n<!-- wp:paragraph -->${CAUTION_HTML}<!-- /wp:paragraph -->`;
-    body += renderFaq(store.faqJson);
+    // FAQはAIが本文内に生成（統一フォーマット）。末尾に内部リンク（店舗ページ＋mbPITハブ）→店舗フッター
+    body +=
+      `\n<!-- wp:paragraph --><p>施工店: <a href="${storePageUrl(store.slug)}">${escapeHtml(store.displayName)}</a>` +
+      `　/　<a href="${MBPIT_HUB_URL}">mbPIT施工記録一覧</a></p><!-- /wp:paragraph -->`;
     if (store.footerHtml.trim()) body += `\n${store.footerHtml}`;
 
     // 6. 公開（店舗カテゴリ＋親カテゴリ545。既存の「代理店」カテゴリツリーには絶対に触れない）
@@ -160,23 +173,6 @@ function imageBlock(m: WpMedia): string {
     `<figure class="wp-block-image size-large"><img src="${m.sourceUrl}" alt="" class="wp-image-${m.id}"/></figure>` +
     `<!-- /wp:image -->`
   );
-}
-
-// 店舗マスタのFAQ（[{q,a}]）→ 末尾FAQブロック（AIO対策）。無ければ何も出さない。
-function renderFaq(faqJson: unknown): string {
-  if (!Array.isArray(faqJson)) return "";
-  const items = faqJson.filter(
-    (x): x is { q: string; a: string } =>
-      !!x && typeof x === "object" && typeof (x as { q?: unknown }).q === "string" && typeof (x as { a?: unknown }).a === "string",
-  );
-  if (items.length === 0) return "";
-  const rows = items
-    .map(
-      (f) =>
-        `<!-- wp:paragraph --><p><strong>Q. ${escapeHtml(f.q)}</strong><br>A. ${escapeHtml(f.a)}</p><!-- /wp:paragraph -->`,
-    )
-    .join("\n");
-  return `\n<!-- wp:heading --><h2>よくあるご質問</h2><!-- /wp:heading -->\n${rows}`;
 }
 
 function escapeHtml(s: string): string {

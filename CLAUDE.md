@@ -33,7 +33,7 @@ HQ（mbFAST Tuning本店）⇄ 代理店のポータル。Next.js 16 App Router 
 
 ## 進行中・未完タスク
 
-- mbPIT: テスト記事の品質確認 → 店舗用投稿画面（Phase3）→ ナンバープレート自動ぼかし（Phase4, `src/server/pit/images.ts` に差し込み口あり）
+- mbPIT: テスト記事の品質確認（Phase3完了: 音声投稿UI・WebP変換・統一フォーマット・AUTO_PUBLISH/STEALTH_MODE(noindex)対応済み）→ ナンバープレート自動ぼかし（Phase4, `src/server/pit/images.ts` に差し込み口あり）
 - 価格表: WordPress自動反映（`src/lib/prices/wordpress.ts` は雛形のみ）
 - 通知のLINE実装（`NotificationService` の line ドライバ）
 

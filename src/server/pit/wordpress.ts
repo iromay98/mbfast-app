@@ -7,6 +7,17 @@ const API = `${BASE}/wp-json/wp/v2`;
 // mbPIT 親カテゴリ（確定ID）
 export const MBPIT_PARENT_CATEGORY_ID = 545;
 
+// AUTO_PUBLISH=false で下書き投稿（既定は即公開）
+function autoPublish(): boolean {
+  return process.env.AUTO_PUBLISH !== "false";
+}
+
+// STEALTH_MODE: mbPITセクションがURL限定公開の間は記事に noindex を付ける。
+// 未設定なら true（誤ってインデックスさせない安全側）。公開解禁時に .env で false にする。
+function stealthMode(): boolean {
+  return process.env.STEALTH_MODE !== "false";
+}
+
 export function wpConfigured(): boolean {
   return !!process.env.WP_USER && !!process.env.WP_APP_PASSWORD;
 }
@@ -37,11 +48,12 @@ export async function uploadMedia(
   buffer: Buffer,
   filename: string,
   alt: string,
+  contentType = "image/webp",
 ): Promise<WpMedia> {
   const res = await wpFetch(`/media`, {
     method: "POST",
     headers: {
-      "Content-Type": "image/jpeg",
+      "Content-Type": contentType,
       "Content-Disposition": `attachment; filename="${filename.replace(/[^\w.\-]/g, "_")}"`,
     },
     body: new Uint8Array(buffer),
@@ -70,27 +82,42 @@ export type WpPostInput = {
 
 export type WpPost = { id: number; link: string };
 
-// 記事公開（status=publish）＋ AIOSEO メタ同時設定
+// 記事公開（AUTO_PUBLISH=falseならdraft）＋ AIOSEO メタ同時設定＋ STEALTH_MODE時はnoindex
 export async function publishPost(input: WpPostInput): Promise<WpPost> {
+  const stealth = stealthMode();
   const body: Record<string, unknown> = {
     title: input.title,
     slug: input.slug,
     content: input.contentHtml,
-    status: "publish",
+    status: autoPublish() ? "publish" : "draft",
     categories: input.categoryIds,
   };
   if (input.featuredMediaId) body.featured_media = input.featuredMediaId;
-  if (input.metaDescription || input.focusKeyword) {
-    body.aioseo_meta_data = {
-      ...(input.metaDescription ? { description: input.metaDescription } : {}),
-      ...(input.focusKeyword ? { focus_keyphrase: input.focusKeyword } : {}),
-    };
-  }
+  body.aioseo_meta_data = {
+    ...(input.metaDescription ? { description: input.metaDescription } : {}),
+    ...(input.focusKeyword ? { focus_keyphrase: input.focusKeyword } : {}),
+    // noindex（robotsのデフォルト設定を外して個別指定）
+    ...(stealth ? { robots_default: false, robots_noindex: true } : {}),
+  };
   const res = await wpFetch(`/posts`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
   const post = (await res.json()) as { id: number; link: string };
+
+  // AIOSEOのバージョンによって aioseo_meta_data が無視されることがあるため、
+  // ステルス運用中は専用エンドポイントでも noindex を適用（失敗しても公開は続行し、ログのみ）
+  if (stealth) {
+    try {
+      await fetch(`${BASE}/wp-json/aioseo/v1/post`, {
+        method: "POST",
+        headers: { Authorization: authHeader(), "Content-Type": "application/json" },
+        body: JSON.stringify({ id: post.id, default: false, noindex: true }),
+      });
+    } catch (e) {
+      console.error(`mbPIT: noindex適用に失敗 (post=${post.id})`, e);
+    }
+  }
   return { id: post.id, link: post.link };
 }
