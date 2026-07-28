@@ -11,13 +11,17 @@ export function FileDropZone({
   multiple,
   prompt,
   onFiles,
+  clearAfterSelect,
 }: {
   name: string;
   required?: boolean;
   accept?: string;
   multiple?: boolean; // 写真複数枚など
   prompt?: string; // 未選択時の見出し（省略時は汎用文言）
-  onFiles?: (files: File[]) => void; // 選択・ドロップ時に親へ通知（モザイク前処理など）
+  onFiles?: (files: File[]) => void; // 選択・ドロップ時に親へ通知（ぼかし前処理など）
+  // 選択を親に渡したら input を即クリアする（親が「追加方式」でリストを管理する場合。
+  // 送信は親が組み立てるため、この場合フォームには input の値は乗らない）
+  clearAfterSelect?: boolean;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [files, setFiles] = useState<{ name: string; size: number }[]>([]);
@@ -27,8 +31,13 @@ export function FileDropZone({
   const sync = () => {
     const list = inputRef.current?.files;
     const arr = list ? Array.from(list) : [];
-    setFiles(arr.map((f) => ({ name: f.name, size: f.size })));
     onFiles?.(arr);
+    if (clearAfterSelect) {
+      if (inputRef.current) inputRef.current.value = "";
+      setFiles([]);
+      return;
+    }
+    setFiles(arr.map((f) => ({ name: f.name, size: f.size })));
   };
 
   // form.reset()（アップロード成功時）で表示も消す

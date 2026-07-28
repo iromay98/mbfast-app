@@ -154,21 +154,27 @@ export function PitPostForm({ storeId }: { storeId?: string } = {}) {
     void preloadPlateModel().then((l) => setModelReady(!!l));
   }, []);
 
+  const MAX_PHOTOS = 10;
+
+  // 追加方式: 選んだ写真は既存リストに「追加」する（置き換えない）。
+  // 既にかけたぼかしはそのまま維持され、あとから写真を足してもやり直し不要。
   const handleFiles = (files: File[]) => {
-    setPhotoItems((old) => {
-      old.forEach((o) => URL.revokeObjectURL(o.url));
-      return files
-        .filter((f) => f.type.startsWith("image/"))
-        .map((f) => ({
-          file: f,
-          url: URL.createObjectURL(f),
-          boxes: [],
-          previewUrl: null,
-          detecting: true,
-        }));
-    });
-    // 各写真を自動検出（モデルがあれば）→ サムネイル生成
-    files.forEach((f, idx) => {
+    const imgs = files.filter((f) => f.type.startsWith("image/"));
+    // 同じ写真（名前＋サイズ一致）の二重追加は除外し、上限10枚まで
+    const fresh = imgs
+      .filter((f) => !photoItems.some((o) => o.file.name === f.name && o.file.size === f.size))
+      .slice(0, Math.max(0, MAX_PHOTOS - photoItems.length));
+    if (fresh.length === 0) return;
+    const added: PhotoItem[] = fresh.map((f) => ({
+      file: f,
+      url: URL.createObjectURL(f),
+      boxes: [],
+      previewUrl: null,
+      detecting: true,
+    }));
+    setPhotoItems((old) => [...old, ...added]);
+    // 追加分だけ自動検出（モデルがあれば）→ サムネイル生成。位置はファイル同一性で引き直す
+    for (const f of fresh) {
       void (async () => {
         let boxes: PlateBox[] = [];
         try {
@@ -181,20 +187,31 @@ export function PitPostForm({ storeId }: { storeId?: string } = {}) {
           boxes = [];
         }
         setPhotoItems((items) => {
-          if (!items[idx] || items[idx].file !== f) return items;
+          const i = items.findIndex((it) => it.file === f);
+          if (i < 0) return items;
           const next = [...items];
-          next[idx] = { ...next[idx], boxes, detecting: false };
-          void makePreview(next[idx]).then((p) =>
+          next[i] = { ...next[i], boxes, detecting: false };
+          void makePreview(next[i]).then((p) =>
             setPhotoItems((cur) => {
-              if (!cur[idx] || cur[idx].file !== f) return cur;
+              const j = cur.findIndex((it) => it.file === f);
+              if (j < 0) return cur;
               const n2 = [...cur];
-              n2[idx] = { ...n2[idx], previewUrl: p };
+              n2[j] = { ...n2[j], previewUrl: p };
               return n2;
             }),
           );
           return next;
         });
       })();
+    }
+  };
+
+  // 1枚だけ削除（✕ボタン）
+  const removePhoto = (idx: number) => {
+    setPhotoItems((items) => {
+      const target = items[idx];
+      if (target) URL.revokeObjectURL(target.url);
+      return items.filter((_, i) => i !== idx);
     });
   };
 
@@ -518,13 +535,18 @@ export function PitPostForm({ storeId }: { storeId?: string } = {}) {
           </label>
           <FileDropZone
             name="photos"
-            required
             multiple
             accept="image/*"
-            prompt="写真をここにドラッグ＆ドロップ"
+            clearAfterSelect
+            prompt={photoItems.length > 0 ? "＋ 写真を追加する" : "写真をここにドラッグ＆ドロップ"}
             onFiles={handleFiles}
           />
           <p className="mt-1 text-[11px] text-ink-soft">
+            {photoItems.length > 0 && (
+              <b>
+                {photoItems.length}枚選択中（あと{MAX_PHOTOS - photoItems.length}枚追加できます）。
+              </b>
+            )}{" "}
             お客様のお顔や書類が写り込んでいない写真を選んでください。
           </p>
 
@@ -536,32 +558,42 @@ export function PitPostForm({ storeId }: { storeId?: string } = {}) {
                 ナンバーが写っている写真は、<b>写真をタップ → 隠したい場所を指でなぞる</b>だけでぼかせます。
                 {modelReady === false && "（自動検出は準備中のため手動でお願いします）"}
               </p>
-              <div className="mt-2 flex gap-2 overflow-x-auto pb-1">
+              <div className="mt-2 flex gap-2 overflow-x-auto p-1">
                 {photoItems.map((item, i) => (
-                  <button
-                    key={item.url}
-                    type="button"
-                    onClick={() => setEditorIdx(i)}
-                    className="relative shrink-0 overflow-hidden rounded-lg border border-line"
-                  >
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={item.previewUrl ?? item.url}
-                      alt=""
-                      className="h-24 w-24 object-cover"
-                    />
-                    <span
-                      className={`absolute inset-x-0 bottom-0 py-1 text-center text-[10px] font-bold text-white ${
-                        item.detecting
-                          ? "bg-sky-600/90"
-                          : item.boxes.length > 0
-                            ? "bg-green-600/90"
-                            : "bg-amber-500/95"
-                      }`}
+                  <div key={item.url} className="relative shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => setEditorIdx(i)}
+                      className="relative block overflow-hidden rounded-lg border border-line"
                     >
-                      {item.detecting ? "検出中…" : item.boxes.length > 0 ? `✓ ぼかし${item.boxes.length}箇所` : "タップしてぼかす"}
-                    </span>
-                  </button>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={item.previewUrl ?? item.url}
+                        alt=""
+                        className="h-24 w-24 object-cover"
+                      />
+                      <span
+                        className={`absolute inset-x-0 bottom-0 py-1 text-center text-[10px] font-bold text-white ${
+                          item.detecting
+                            ? "bg-sky-600/90"
+                            : item.boxes.length > 0
+                              ? "bg-green-600/90"
+                              : "bg-amber-500/95"
+                        }`}
+                      >
+                        {item.detecting ? "検出中…" : item.boxes.length > 0 ? `✓ ぼかし${item.boxes.length}箇所` : "タップしてぼかす"}
+                      </span>
+                    </button>
+                    {/* 1枚だけ削除 */}
+                    <button
+                      type="button"
+                      onClick={() => removePhoto(i)}
+                      aria-label="この写真を削除"
+                      className="absolute -right-1.5 -top-1.5 flex h-6 w-6 items-center justify-center rounded-full bg-black/70 text-xs font-bold text-white"
+                    >
+                      ✕
+                    </button>
+                  </div>
                 ))}
               </div>
               <p className="mt-1 text-[10px] leading-relaxed text-ink-soft">
