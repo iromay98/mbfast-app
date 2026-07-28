@@ -10,6 +10,7 @@ import {
 } from "@/lib/labels";
 import { PageTitle, Card, Badge, EmptyState, LinkButton } from "@/components/ui";
 import { AutoRefresh } from "@/components/auto-refresh";
+import { ActivityFeed, getActivity } from "@/components/activity-feed";
 import { vehicleLabel, engineNameOf } from "@/lib/catalog/vehicle";
 import { SlaveUpload } from "./slave-upload";
 import { MasterFileUpload } from "./master-upload";
@@ -32,6 +33,9 @@ export default async function DealerRecordsPage() {
   });
 
   const hasPending = records.some((r) => isPendingStatus(r.status));
+
+  // DL・依頼履歴（このページに統合。直近分のみ表示し、全件は /dealer/activity）
+  const activity = (await getActivity(user.dealerId)).slice(0, 10);
 
   // 本部が用意してくれたファイル（納品済みリクエスト・直近30日）を目立つ場所に出す
   const delivered = await prisma.fileRequest.findMany({
@@ -66,6 +70,11 @@ export default async function DealerRecordsPage() {
 
       {/* 解析中の行がある間は自動更新 */}
       <AutoRefresh active={hasPending} />
+
+      {/* アップロードは最上部（一番使う機能） */}
+      <div className="mb-4">
+        {isMaster ? <MasterFileUpload /> : <SlaveUpload />}
+      </div>
 
       {/* 本部からの納品（届いたファイル）— 通知を見逃してもここで気づける */}
       {delivered.length > 0 && (
@@ -110,10 +119,6 @@ export default async function DealerRecordsPage() {
           </div>
         </Card>
       )}
-
-      <div className="mb-4">
-        {isMaster ? <MasterFileUpload /> : <SlaveUpload />}
-      </div>
 
       {records.length === 0 ? (
         <EmptyState message="施工記録がまだありません。スレーブをアップロードすると自動で作成されます。" />
@@ -161,6 +166,21 @@ export default async function DealerRecordsPage() {
           })}
         </Card>
       )}
+
+      {/* DL・依頼履歴（統合表示・直近10件） */}
+      <div className="mt-6">
+        <div className="mb-2 flex items-center justify-between">
+          <h2 className="text-sm font-bold text-ink">ダウンロード・リクエスト履歴</h2>
+          <Link href="/dealer/activity" className="text-sm text-gold-600 hover:underline">
+            すべて →
+          </Link>
+        </div>
+        {activity.length === 0 ? (
+          <EmptyState message="履歴はまだありません。" />
+        ) : (
+          <ActivityFeed items={activity} showDealer={false} />
+        )}
+      </div>
     </div>
   );
 }

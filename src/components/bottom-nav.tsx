@@ -7,7 +7,7 @@ import { usePathname } from "next/navigation";
 export type BottomNavItem = {
   href: string;
   label: string;
-  icon: "home" | "wrench" | "history" | "yen";
+  icon: "home" | "wrench" | "history" | "yen" | "camera" | "mic";
   // このタブをアクティブ扱いにする追加パス（例: Homeにお知らせ・施工事例を含める）
   also?: string[];
 };
@@ -52,6 +52,21 @@ function Icon({ name }: { name: BottomNavItem["icon"] }) {
           <path d="M12 11.5v8" />
           <path d="M8.5 13.5h7" />
           <path d="M8.5 16.5h7" />
+        </svg>
+      );
+    case "camera":
+      return (
+        <svg {...common}>
+          <path d="M4 8h3l2-2.5h6L17 8h3v11H4z" />
+          <circle cx="12" cy="13" r="3.5" />
+        </svg>
+      );
+    case "mic":
+      return (
+        <svg {...common}>
+          <rect x="9" y="3.5" width="6" height="11" rx="3" />
+          <path d="M5.5 11.5a6.5 6.5 0 0 0 13 0" />
+          <path d="M12 18v2.5" />
         </svg>
       );
   }

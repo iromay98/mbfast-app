@@ -60,30 +60,17 @@ export default async function DealerDashboard() {
         />
       </div>
 
-      {/* スマホは上部ナビを下タブバーに置き換えているため、タブに無いメニューはHomeから辿る */}
-      <div className="mt-3 grid grid-cols-2 gap-2 sm:hidden">
-        <Link
-          href="/dealer/showcase"
-          className="rounded-lg border border-line bg-surface px-3 py-2.5 text-center text-sm font-semibold text-ink hover:bg-surface-2"
-        >
-          施工事例
-        </Link>
-        {pitStore?.active ? (
+      {/* スマホ: タブに入っていないメニューへの入り口（加盟店はブログ投稿がタブ化→施工事例をここから） */}
+      {pitStore?.active && (
+        <div className="mt-3 sm:hidden">
           <Link
-            href="/dealer/pit"
-            className="rounded-lg border border-line bg-surface px-3 py-2.5 text-center text-sm font-semibold text-ink hover:bg-surface-2"
+            href="/dealer/showcase"
+            className="block rounded-lg border border-line bg-surface px-3 py-2.5 text-center text-sm font-semibold text-ink hover:bg-surface-2"
           >
-            施工ブログ投稿
+            📷 施工事例を見る
           </Link>
-        ) : (
-          <Link
-            href="/dealer/announcements"
-            className="rounded-lg border border-line bg-surface px-3 py-2.5 text-center text-sm font-semibold text-ink hover:bg-surface-2"
-          >
-            お知らせ一覧
-          </Link>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* grid-cols-1(=minmax(0,1fr)) と min-w-0 が無いと、長いタイトルで列幅が画面を突き破り truncate が効かない */}
       <div className="mt-6 grid grid-cols-1 gap-6 sm:grid-cols-2">

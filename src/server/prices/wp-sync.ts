@@ -80,7 +80,7 @@ async function loadBrandsForPage(pageId: number): Promise<{ brand: BrandRow; veh
 
 // 同期エンジンのバージョン。ブロック特定や差し替えのロジックを変更した時に上げる。
 // payload_hash に混ぜることで、データが同じでもコード修正後は保留/失敗ページが自動で再試行される。
-const SYNC_ENGINE_VERSION = "2";
+const SYNC_ENGINE_VERSION = "3"; // v3: 列順のみの差分はガードを通過（列順はコードの共通ルールが正）
 
 // 旧形式ブロックの移行マーカー。通常マーカーで見つからない場合のフォールバックとして探し、
 // 見つかったら新形式の生成HTMLで置き換える（ライブがWPリビジョン復元等で旧形式に戻った場合の自己修復）。
@@ -215,7 +215,20 @@ export async function syncWpPage(
       const liveSeq = theadSequence(block.inner);
       const genSeq = theadSequence(html);
       const same = liveSeq.length === genSeq.length && genSeq.every((x, i) => x === liveSeq[i]);
-      if (!same) mismatched.push(brand.displayName);
+      if (!same) {
+        // 列の「集合」が同じで並び順だけ違う場合は保留しない。
+        // 並び順はコード側の共通ルール（工賃はチューニング価格列の直後）が正であり、
+        // ライブが旧配置のままのブランド（例: Lexus）へルール順を配信するための通過条件。
+        // 列の増減・見出し変更（集合の不一致）は従来どおり保留して人間が確認する。
+        const orderOnly =
+          liveSeq.length === genSeq.length &&
+          [...liveSeq].sort().join(" ") === [...genSeq].sort().join(" ");
+        if (orderOnly) {
+          console.log(`価格表: ${brand.displayName} は列順のみの差分のため共通ルール順で更新します`);
+        } else {
+          mismatched.push(brand.displayName);
+        }
+      }
     }
     if (mismatched.length > 0) {
       const error = `列構成(thead)がライブと不一致のため自動同期を保留: ${mismatched.join(", ")}（WPは変更していません。/hq/prices から差分を確認して手動同期してください）`;

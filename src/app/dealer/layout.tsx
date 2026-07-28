@@ -14,18 +14,28 @@ const dealerNav: NavItem[] = [
   { href: "/dealer/announcements", label: "お知らせ" },
 ];
 
-// スマホの下タブバー（HPと同じ4ボタン構成）。お知らせ・施工事例・ブログ投稿はHome配下扱い
-const dealerBottomNav: BottomNavItem[] = [
-  {
-    href: "/dealer",
-    label: "Home",
-    icon: "home",
-    also: ["/dealer/announcements", "/dealer/showcase", "/dealer/pit"],
-  },
-  { href: "/dealer/records", label: "施工依頼", icon: "wrench", also: ["/dealer/requests"] },
-  { href: "/dealer/activity", label: "履歴", icon: "history" },
-  { href: "/dealer/prices", label: "価格表", icon: "yen" },
-];
+// スマホの下タブバー（HPと同じ4ボタン構成）。履歴は施工依頼ページ内に統合済み。
+// 3枠目は mbPIT加盟店なら「ブログ投稿」、未加盟なら「施工事例」（動的に切替）
+function dealerBottomNav(pitMember: boolean): BottomNavItem[] {
+  return [
+    {
+      href: "/dealer",
+      label: "Home",
+      icon: "home",
+      also: ["/dealer/announcements", ...(pitMember ? ["/dealer/showcase"] : [])],
+    },
+    {
+      href: "/dealer/records",
+      label: "施工依頼",
+      icon: "wrench",
+      also: ["/dealer/requests", "/dealer/activity"],
+    },
+    pitMember
+      ? { href: "/dealer/pit", label: "ブログ投稿", icon: "mic" }
+      : { href: "/dealer/showcase", label: "施工事例", icon: "camera" },
+    { href: "/dealer/prices", label: "価格表", icon: "yen" },
+  ];
+}
 
 export default async function DealerLayout({
   children,
@@ -42,7 +52,7 @@ export default async function DealerLayout({
     ? [...dealerNav.slice(0, 2), { href: "/dealer/pit", label: "施工ブログ投稿" }, ...dealerNav.slice(2)]
     : dealerNav;
   return (
-    <AppShell user={user} navItems={navItems} bottomNavItems={dealerBottomNav}>
+    <AppShell user={user} navItems={navItems} bottomNavItems={dealerBottomNav(!!pitStore?.active)}>
       {children}
     </AppShell>
   );
