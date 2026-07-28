@@ -53,6 +53,34 @@ export function StoreInfoEditor({
 
   const set = (field: StoreMetaField, v: string) => setInfo((old) => ({ ...old, [field]: v }));
 
+  // 郵便番号 → エリア・所在地の自動入力（zipcloudをサーバー経由で検索）
+  const [zip, setZip] = useState("");
+  const [zipBusy, setZipBusy] = useState(false);
+  const [zipMsg, setZipMsg] = useState<string | null>(null);
+  const doZipLookup = async () => {
+    setZipBusy(true);
+    setZipMsg(null);
+    try {
+      const res = await fetch(`/api/zip?code=${encodeURIComponent(zip)}`);
+      const d = (await res.json()) as { prefecture?: string; city?: string; town?: string; error?: string };
+      if (!res.ok || !d.prefecture) {
+        setZipMsg(d.error ?? "住所が見つかりませんでした");
+        return;
+      }
+      setInfo((old) => ({
+        ...old,
+        area: `${d.prefecture}${d.city ?? ""}`,
+        // 所在地は空のときだけ前半を自動入力（入力済みの番地を消さない）
+        address: old.address.trim() ? old.address : `${d.prefecture}${d.city ?? ""}${d.town ?? ""}`,
+      }));
+      setZipMsg("✓ エリアと所在地に反映しました（番地はご自身で追記してください）");
+    } catch {
+      setZipMsg("検索に失敗しました。手入力してください");
+    } finally {
+      setZipBusy(false);
+    }
+  };
+
   const doPreview = async () => {
     const errs = validateStoreInfo(info);
     setErrors(errs);
@@ -136,6 +164,30 @@ export function StoreInfoEditor({
       {!store.active && (
         <p className="mb-2 text-[11px] text-amber-700">この店舗は停止中のため、保存してもWordPressへは同期されません。</p>
       )}
+      {/* 郵便番号 → エリア・所在地の自動入力（表記統一のため。エリア絞り込みの基盤になる） */}
+      <div className="mb-2 flex flex-wrap items-end gap-2 rounded-lg border border-line bg-surface p-2">
+        <label className="block text-[11px] text-ink-soft">
+          郵便番号（ハイフン不要）
+          <input
+            value={zip}
+            onChange={(e) => setZip(e.target.value)}
+            inputMode="numeric"
+            maxLength={8}
+            placeholder="5300001"
+            className="mt-0.5 block w-32 rounded border border-line bg-surface px-2 py-1 text-xs font-mono"
+          />
+        </label>
+        <button
+          type="button"
+          disabled={busy || zipBusy}
+          onClick={doZipLookup}
+          className="rounded-lg border border-line px-3 py-1.5 text-xs font-semibold hover:bg-surface-2 disabled:opacity-50"
+        >
+          {zipBusy ? "検索中…" : "住所を自動入力"}
+        </button>
+        {zipMsg && <span className="text-[11px] text-ink-soft">{zipMsg}</span>}
+      </div>
+
       <div className="grid gap-2 md:grid-cols-2">
         {STORE_META_FIELDS.map(({ field, label, maxLen, placeholder }) => (
           <label key={field} className={`block text-[11px] text-ink-soft ${field === "intro" ? "md:col-span-2" : ""}`}>
