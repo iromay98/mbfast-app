@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getSessionUser, isSessionLive } from "@/lib/authz";
 import { LoginForm } from "./login-form";
@@ -25,7 +26,16 @@ export default async function LoginPage() {
         </div>
         <LoginForm />
         <p className="mt-6 text-center text-xs text-ink-soft">
-          アカウントは本店が発行します
+          代理店アカウントは本店が発行します
+        </p>
+        {/* mbPIT加盟店は自己登録できる（公開ページ）。ログイン画面が入口になる */}
+        <p className="mt-3 text-center text-xs">
+          <Link
+            href="/pit/join"
+            className="font-semibold text-gold-600 hover:underline"
+          >
+            mbPIT加盟店の新規登録はこちら →
+          </Link>
         </p>
       </div>
     </main>

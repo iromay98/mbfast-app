@@ -78,6 +78,17 @@ export function JoinForm() {
         >
           ログイン画面へ
         </a>
+        {/* PWA: ホーム画面に追加すればアプリとして使える（ストア配布不要） */}
+        <div className="mt-4 rounded-lg border border-neutral-700 bg-neutral-800/60 p-3 text-left">
+          <p className="text-xs font-bold text-white">📱 アプリとして使う</p>
+          <p className="mt-1 text-[11px] leading-relaxed text-neutral-300">
+            ログイン後、このサイトをホーム画面に追加すると毎回アプリのように開けます。
+            <br />
+            <span className="text-neutral-400">iPhone:</span> Safariの共有ボタン →「ホーム画面に追加」
+            <br />
+            <span className="text-neutral-400">Android:</span> Chromeのメニュー（⋮）→「アプリをインストール」
+          </p>
+        </div>
       </div>
     );
   }
