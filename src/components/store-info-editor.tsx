@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   STORE_META_FIELDS,
@@ -8,6 +8,7 @@ import {
   type StoreInfo,
   type StoreMetaField,
 } from "@/server/pit/store-meta";
+import { PREFECTURES, splitArea } from "@/lib/jp-geo";
 import {
   previewStoreInfo,
   commitStoreInfo,
@@ -16,6 +17,77 @@ import {
   commitMyStoreInfo,
   type StorePreview,
 } from "@/lib/actions/pit";
+
+// エリア（都道府県＋市区町村）の2段プルダウン。保存値は従来どおり1文字列（例: 大阪府堺市北区）
+// なのでWP連携（mbpit_area）の契約は変わらない。市区町村一覧が取得できない環境では手入力に落ちる。
+function AreaSelect({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const { pref, city } = splitArea(value);
+  const [cities, setCities] = useState<string[] | null>(null); // null=未取得
+  const [cityFailed, setCityFailed] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    setCities(null);
+    setCityFailed(false);
+    if (!pref) return;
+    void fetch(`/api/cities?pref=${encodeURIComponent(pref)}`)
+      .then((r) => r.json())
+      .then((d: { cities?: string[] }) => {
+        if (cancelled) return;
+        if (d.cities && d.cities.length > 0) setCities(d.cities);
+        else setCityFailed(true);
+      })
+      .catch(() => {
+        if (!cancelled) setCityFailed(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [pref]);
+
+  const sel = "mt-0.5 w-full rounded border border-line bg-surface px-2 py-1.5 text-xs";
+  return (
+    <div className="grid grid-cols-2 gap-1.5">
+      <select value={pref} onChange={(e) => onChange(e.target.value)} className={sel}>
+        <option value="">都道府県を選択</option>
+        {PREFECTURES.map((p) => (
+          <option key={p} value={p}>
+            {p}
+          </option>
+        ))}
+      </select>
+      {!pref ? (
+        <select disabled className={sel}>
+          <option>市区町村</option>
+        </select>
+      ) : cityFailed ? (
+        // 一覧が取れない環境（オフライン等）では手入力にフォールバック
+        <input
+          value={city}
+          placeholder="市区町村を入力"
+          onChange={(e) => onChange(`${pref}${e.target.value}`)}
+          className={sel}
+        />
+      ) : (
+        <select
+          value={city}
+          onChange={(e) => onChange(`${pref}${e.target.value}`)}
+          disabled={cities === null}
+          className={sel}
+        >
+          <option value="">{cities === null ? "読み込み中…" : "市区町村を選択"}</option>
+          {/* 現在値が一覧に無い場合（旧表記など）も選択肢として残す */}
+          {city && cities !== null && !cities.includes(city) && <option value={city}>{city}</option>}
+          {(cities ?? []).map((c) => (
+            <option key={c} value={c}>
+              {c}
+            </option>
+          ))}
+        </select>
+      )}
+    </div>
+  );
+}
 
 export type StoreInfoTarget = {
   id: string;
@@ -192,7 +264,9 @@ export function StoreInfoEditor({
         {STORE_META_FIELDS.map(({ field, label, maxLen, placeholder }) => (
           <label key={field} className={`block text-[11px] text-ink-soft ${field === "intro" ? "md:col-span-2" : ""}`}>
             {label}
-            {field === "intro" ? (
+            {field === "area" ? (
+              <AreaSelect value={info.area} onChange={(v) => set("area", v)} />
+            ) : field === "intro" ? (
               <textarea
                 value={info[field]}
                 rows={3}
