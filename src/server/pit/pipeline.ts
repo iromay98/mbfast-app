@@ -8,6 +8,7 @@ import { processPhoto, seoFilename, PIT_IMAGE_MIME } from "./images";
 import { runGuard, CAUTION_HTML } from "./guard";
 import { generateArticle, CATEGORY_LABELS, MBPIT_HUB_URL, storePageUrl } from "./generate";
 import { uploadMedia, publishPost, MBPIT_PARENT_CATEGORY_ID, type WpMedia } from "./wordpress";
+import { parseVideoUrl, videoEmbedHtml } from "./video-embed";
 
 export type PitPublishResult =
   | { status: "published"; postId: string; url: string; title: string }
@@ -32,6 +33,8 @@ export async function runPitPipeline(opts: {
   // 施工動画（任意・1本）。バブリング等のサウンド系で効果大。
   // ぼかし加工は行わない（映り込みは投稿者の確認責任・フォームに注意書きあり）
   video?: { buffer: Buffer; type: string } | null;
+  // 動画URL（YouTube等）。容量を食わないので推奨経路。指定時はファイルより優先
+  videoUrl?: string | null;
   // 施工日（YYYY-MM-DD・JST）。まとめて投稿するとき実際の作業日を記事に出すため。
   // 未指定は当日。記事の作業日表記とslugの日付に使う（WPの公開日時は投稿時刻のまま）
   workDate?: string | null;
@@ -121,9 +124,13 @@ export async function runPitPipeline(opts: {
       );
     }
 
-    // 4b. 動画アップロード（任意・1本。変換なしでWPメディアへそのまま上げる）
+    // 4b. 動画（任意）。URL指定（YouTube等）があればそれを優先し、ファイルは上げない
+    //     （自前サーバーの容量を使わない・スマホ回線でも再生が軽い）
+    const parsedVideoUrl = opts.videoUrl ? parseVideoUrl(opts.videoUrl) : null;
+    const embedHtml =
+      parsedVideoUrl && parsedVideoUrl.kind !== "unsupported" ? videoEmbedHtml(parsedVideoUrl) : "";
     let videoMedia: WpMedia | null = null;
-    if (opts.video) {
+    if (!embedHtml && opts.video) {
       const ext =
         { "video/mp4": "mp4", "video/quicktime": "mov", "video/webm": "webm" }[opts.video.type] ?? "mp4";
       videoMedia = await uploadMedia(
@@ -148,7 +155,9 @@ export async function runPitPipeline(opts: {
     for (let i = 0; i < medias.length; i++) {
       if (!used.has(i)) body += `\n${imageBlock(medias[i])}`;
     }
-    if (videoMedia) {
+    if (embedHtml) {
+      body += `\n${embedHtml}`;
+    } else if (videoMedia) {
       body +=
         `\n<!-- wp:heading {"level":2} --><h2>施工動画</h2><!-- /wp:heading -->` +
         `\n<!-- wp:video --><figure class="wp-block-video"><video controls preload="metadata" src="${videoMedia.sourceUrl}"></video></figure><!-- /wp:video -->`;

@@ -605,18 +605,33 @@ export function PitPostForm({ storeId }: { storeId?: string } = {}) {
           )}
         </div>
 
-        {/* ── 動画（任意・1本）: バブリング等のサウンド系はここが効く ── */}
-        <div>
-          <label className="mb-1 block text-xs font-semibold">動画（任意・1本）</label>
-          <FileDropZone
-            name="video"
-            accept="video/*"
-            prompt="🎬 施工動画をここにドラッグ＆ドロップ"
+        {/* ── 動画（任意）: バブリング等のサウンド系はここが効く。URL貼付けを主経路にする ── */}
+        <div className="rounded-xl border border-line bg-surface-2 p-3">
+          <label className="mb-1 block text-xs font-semibold">🎬 動画（任意）</label>
+          <input
+            name="videoUrl"
+            type="url"
+            inputMode="url"
+            placeholder="https://youtu.be/xxxxxxxxxxx"
+            className="w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm font-semibold text-ink"
           />
-          <p className="mt-1 text-[11px] text-ink-soft">
-            80MBまで。記事の末尾に動画プレイヤーとして埋め込まれます。
-            <b>動画にはぼかし加工が入りません</b> — ナンバーやお客様の映り込みがないかご確認ください。
+          <p className="mt-1 text-[11px] leading-relaxed text-ink-soft">
+            <b>おすすめ</b>: YouTubeに「限定公開」でアップしてURLを貼るだけ。記事に再生プレイヤーが埋め込まれます（TikTok・Instagram・VimeoのURLも可）。
+            <br />
+            ※ Googleフォト・iCloud・ドライブの共有リンクは記事に埋め込めません。
           </p>
+          <details className="mt-2">
+            <summary className="cursor-pointer text-[11px] font-semibold text-ink-soft">
+              動画ファイルを直接アップする（80MBまで）
+            </summary>
+            <div className="mt-2">
+              <FileDropZone name="video" accept="video/*" prompt="🎬 動画ファイルを選ぶ" />
+              <p className="mt-1 text-[11px] text-ink-soft">
+                URLを入れた場合はURL側が使われます。<b>動画にはぼかし加工が入りません</b> —
+                ナンバーやお客様の映り込みがないかご確認ください。
+              </p>
+            </div>
+          </details>
         </div>
 
         {/* ── 車種・施工内容 ── */}

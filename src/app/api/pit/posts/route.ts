@@ -5,6 +5,7 @@ import { runPitPipeline } from "@/server/pit/pipeline";
 import { pitAiEnabled } from "@/server/pit/generate";
 import { wpConfigured } from "@/server/pit/wordpress";
 import { upsertVehicle, vehicleFeatureEnabled } from "@/server/pit/vehicle";
+import { parseVideoUrl } from "@/server/pit/video-embed";
 import { notifyBadgeIfReached, storeStats } from "@/server/pit/gamification";
 
 // mbPIT 施工記録の投稿 → AI記事化 → WordPress自動公開。
@@ -105,7 +106,18 @@ export async function POST(request: NextRequest) {
     workDate = workDateRaw;
   }
 
-  // 動画（任意・1本）。ぼかし加工なし＝映り込みは投稿者確認（フォームに注意書きあり）
+  // 動画URL（任意・推奨経路）。YouTube等に置いてもらえばサーバー容量を使わない
+  let videoUrl: string | null = null;
+  const videoUrlRaw = String(form.get("videoUrl") ?? "").trim();
+  if (videoUrlRaw) {
+    const parsed = parseVideoUrl(videoUrlRaw);
+    if (!parsed || parsed.kind === "unsupported") {
+      return json(400, { error: parsed?.kind === "unsupported" ? parsed.reason : "動画URLが正しくありません" });
+    }
+    videoUrl = videoUrlRaw;
+  }
+
+  // 動画ファイル（任意・1本）。ぼかし加工なし＝映り込みは投稿者確認（フォームに注意書きあり）
   let video: { buffer: Buffer; type: string } | null = null;
   const videoFile = form.get("video");
   if (videoFile instanceof File && videoFile.size > 0) {
@@ -141,6 +153,7 @@ export async function POST(request: NextRequest) {
     memo: memoRaw || null,
     photos,
     video,
+    videoUrl,
     workDate,
     vehicleId,
   });
