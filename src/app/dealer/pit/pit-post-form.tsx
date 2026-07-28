@@ -7,17 +7,17 @@ import { ShakenQrScanner, chassisFromQrText } from "@/components/shaken-qr-scann
 import { PlateMosaicEditor } from "@/components/plate-mosaic-editor";
 import {
   detectPlates,
-  drawWithMosaic,
+  drawWithBlur,
   preloadPlateModel,
   type PlateBox,
 } from "@/lib/plate-detect";
 
-// 写真1枚分のモザイク編集状態
+// 写真1枚分のぼかし編集状態
 type PhotoItem = {
   file: File;
   url: string; // objectURL（端末内のみ）
   boxes: PlateBox[];
-  previewUrl: string | null; // モザイク適用後のサムネイル
+  previewUrl: string | null; // ぼかし適用後のサムネイル
   detecting: boolean;
 };
 
@@ -30,7 +30,7 @@ function loadImage(url: string): Promise<HTMLImageElement> {
   });
 }
 
-// モザイク適用後のサムネイル（240px）を生成
+// ぼかし適用後のサムネイル（240px）を生成
 async function makePreview(item: PhotoItem): Promise<string> {
   const img = await loadImage(item.url);
   const scale = Math.min(1, 240 / img.naturalWidth);
@@ -39,18 +39,18 @@ async function makePreview(item: PhotoItem): Promise<string> {
   c.height = Math.round(img.naturalHeight * scale);
   const ctx = c.getContext("2d")!;
   ctx.scale(scale, scale);
-  drawWithMosaic(ctx, img, img.naturalWidth, img.naturalHeight, item.boxes);
+  drawWithBlur(ctx, img, img.naturalWidth, img.naturalHeight, item.boxes);
   return c.toDataURL("image/jpeg", 0.8);
 }
 
-// モザイク適用済みのフル解像度JPEGを書き出す（これだけがサーバーへ送られる）
+// ぼかし適用済みのフル解像度JPEGを書き出す（これだけがサーバーへ送られる）
 async function exportMosaicked(item: PhotoItem): Promise<Blob> {
   const img = await loadImage(item.url);
   const c = document.createElement("canvas");
   c.width = img.naturalWidth;
   c.height = img.naturalHeight;
   const ctx = c.getContext("2d")!;
-  drawWithMosaic(ctx, img, img.naturalWidth, img.naturalHeight, item.boxes);
+  drawWithBlur(ctx, img, img.naturalWidth, img.naturalHeight, item.boxes);
   return new Promise((resolve, reject) =>
     c.toBlob((b) => (b ? resolve(b) : reject(new Error("export failed"))), "image/jpeg", 0.92),
   );
@@ -144,7 +144,7 @@ export function PitPostForm({ storeId }: { storeId?: string } = {}) {
   >(null);
   const formRef = useRef<HTMLFormElement>(null);
 
-  // ── ナンバープレートモザイク（ブラウザ内処理・生画像はサーバーに送らない） ──
+  // ── ナンバープレートぼかし（ブラウザ内処理・生画像はサーバーに送らない） ──
   const [photoItems, setPhotoItems] = useState<PhotoItem[]>([]);
   const [editorIdx, setEditorIdx] = useState<number | null>(null);
   const [modelReady, setModelReady] = useState<boolean | null>(null); // null=判定中
@@ -291,14 +291,14 @@ export function PitPostForm({ storeId }: { storeId?: string } = {}) {
       return;
     }
     setBusy(true);
-    // モザイク適用済み画像に差し替えてから送信（未加工のナンバーをサーバーに送らない）
+    // ぼかし適用済み画像に差し替えてから送信（未加工のナンバーをサーバーに送らない）
     try {
       if (photoItems.length > 0) {
         form.delete("photos");
         for (const item of photoItems) {
           if (item.boxes.length > 0) {
             const blob = await exportMosaicked(item);
-            form.append("photos", blob, item.file.name.replace(/\.[^.]+$/, "") + "-mosaic.jpg");
+            form.append("photos", blob, item.file.name.replace(/\.[^.]+$/, "") + "-blur.jpg");
           } else {
             form.append("photos", item.file);
           }
@@ -523,12 +523,12 @@ export function PitPostForm({ storeId }: { storeId?: string } = {}) {
             お客様のお顔や書類が写り込んでいない写真を選んでください。
           </p>
 
-          {/* ナンバーモザイク: サムネイルをタップして確認・修正 */}
+          {/* ナンバーぼかし: サムネイルをタップして確認・修正 */}
           {photoItems.length > 0 && (
             <div className="mt-2 rounded-xl border border-line bg-surface-2 p-2.5">
               <div className="flex items-center justify-between">
                 <p className="text-[11px] font-semibold">
-                  🖌 ナンバープレートのモザイク
+                  🖌 ナンバープレートのぼかし
                   {modelReady === false && (
                     <span className="ml-1 font-normal text-ink-soft">（自動検出は準備中・手動で指定できます）</span>
                   )}
@@ -563,7 +563,7 @@ export function PitPostForm({ storeId }: { storeId?: string } = {}) {
                 ))}
               </div>
               <p className="mt-1 text-[10px] leading-relaxed text-ink-soft">
-                モザイクは送信前にこの端末内で合成されます（未加工の写真はサーバーに送られません）。サムネイルをタップすると追加・解除できます。
+                ぼかしは送信前にこの端末内で合成されます（未加工の写真はサーバーに送られません）。サムネイルをタップすると追加・解除できます。
               </p>
             </div>
           )}

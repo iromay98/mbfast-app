@@ -1,12 +1,12 @@
 "use client";
 
-// ナンバープレートモザイクの手動修正エディタ。
-//  - 指でなぞった矩形にモザイク追加
-//  - 既存のモザイク領域をタップで解除
+// ナンバープレートぼかしの手動修正エディタ。
+//  - 指でなぞった矩形にぼかし追加
+//  - 既存のぼかし領域をタップで解除
 // すべてブラウザ内のcanvas処理（画像は端末外に出ない）。
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { drawWithMosaic, type PlateBox } from "@/lib/plate-detect";
+import { drawWithBlur, type PlateBox } from "@/lib/plate-detect";
 
 export function PlateMosaicEditor({
   src,
@@ -45,8 +45,8 @@ export function PlateMosaicEditor({
     const img = imgRef.current;
     if (!c || !img || !ready) return;
     const ctx = c.getContext("2d")!;
-    drawWithMosaic(ctx, img, c.width, c.height, boxes);
-    // モザイク領域の枠線（見つけやすく）
+    drawWithBlur(ctx, img, c.width, c.height, boxes);
+    // ぼかし領域の枠線（見つけやすく）
     ctx.save();
     ctx.strokeStyle = "#F2B01E";
     ctx.setLineDash([8, 6]);
@@ -78,7 +78,7 @@ export function PlateMosaicEditor({
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-black/95">
       <div className="flex items-center justify-between px-4 py-3 text-white">
-        <p className="text-sm font-bold">🖌 ナンバーモザイク編集</p>
+        <p className="text-sm font-bold">🖌 ナンバーぼかし編集</p>
         <button type="button" onClick={onClose} className="rounded-full bg-white/20 px-3 py-1 text-sm">
           キャンセル
         </button>
@@ -102,13 +102,13 @@ export function PlateMosaicEditor({
             const w = Math.abs(drag.x1 - drag.x0);
             const h = Math.abs(drag.y1 - drag.y0);
             if (w > minDrag() && h > minDrag() / 2) {
-              // なぞった矩形にモザイク追加
+              // なぞった矩形にぼかし追加
               setBoxes((bs) => [
                 ...bs,
                 { x: Math.min(drag.x0, drag.x1), y: Math.min(drag.y0, drag.y1), w, h },
               ]);
             } else {
-              // タップ: その位置のモザイクを解除
+              // タップ: その位置のぼかしを解除
               const px = drag.x1;
               const py = drag.y1;
               setBoxes((bs) => {
@@ -124,7 +124,7 @@ export function PlateMosaicEditor({
       </div>
       <div className="space-y-2 px-4 py-3">
         <p className="text-center text-[11px] leading-relaxed text-white/80">
-          隠したい場所を<b>指でなぞる</b>とモザイク追加、モザイクを<b>タップ</b>で解除できます。
+          隠したい場所を<b>指でなぞる</b>とぼかし追加、ぼかしを<b>タップ</b>で解除できます。
         </p>
         <div className="flex gap-2">
           <button

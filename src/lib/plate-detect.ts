@@ -2,8 +2,8 @@
 
 // ナンバープレート自動検出（ブラウザ内・onnxruntime-web/WASM）。
 // モデルは /models/plate-detect.onnx（YOLOv5/v8系・1クラス・640x640）を想定し、
-// 未設置・非対応端末では null を返して手動モザイクのみにフォールバックする。
-// 生画像はブラウザ外に出さない（検出もモザイクもすべて端末内で完結）。
+// 未設置・非対応端末では null を返して手動ぼかしのみにフォールバックする。
+// 生画像はブラウザ外に出さない（検出もぼかしもすべて端末内で完結）。
 
 export type PlateBox = { x: number; y: number; w: number; h: number };
 
@@ -26,7 +26,7 @@ async function load(): Promise<Loaded | null> {
     });
     return { ort, session };
   } catch {
-    return null; // 旧端末・モデル未設置 → 手動モザイクのみ
+    return null; // 旧端末・モデル未設置 → 手動ぼかしのみ
   }
 }
 
@@ -147,8 +147,10 @@ export async function detectPlates(
   });
 }
 
-// 指定領域をピクセルモザイク化して描画（判読不能になる粒度）
-export function drawWithMosaic(
+// 指定領域を強くぼかして描画（ブラー表現・判読不能）。
+// canvas の filter:blur() は古いiOS Safariで無視され「素通しのまま送信」される事故になるため使わない。
+// 「大幅縮小（情報破壊・復元不能）→ 中間サイズ経由のなめらか拡大（ぼかしの見た目）」で全端末確実に効かせる。
+export function drawWithBlur(
   ctx: CanvasRenderingContext2D,
   img: CanvasImageSource,
   natW: number,
@@ -160,17 +162,23 @@ export function drawWithMosaic(
   for (const b of boxes) {
     const w = Math.max(2, Math.round(b.w));
     const h = Math.max(2, Math.round(b.h));
-    // 横方向を最大10セルに落とす＝1文字未満の解像度で判読不能
+    // 横方向を最大10サンプルまで落とす＝1文字未満の解像度（ここで判読情報が消える）
     const sw = Math.max(1, Math.min(10, Math.round(w / 24)));
     const sh = Math.max(1, Math.round((h / w) * sw) || 1);
-    const off = document.createElement("canvas");
-    off.width = sw;
-    off.height = sh;
-    const octx = off.getContext("2d")!;
-    octx.imageSmoothingEnabled = true;
-    octx.drawImage(img, b.x, b.y, w, h, 0, 0, sw, sh);
-    ctx.imageSmoothingEnabled = false;
-    ctx.drawImage(off, 0, 0, sw, sh, b.x, b.y, w, h);
+    const small = document.createElement("canvas");
+    small.width = sw;
+    small.height = sh;
+    const sctx = small.getContext("2d")!;
+    sctx.imageSmoothingEnabled = true;
+    sctx.drawImage(img, b.x, b.y, w, h, 0, 0, sw, sh);
+    // 中間サイズを経由して2段階で拡大すると補間が滑らかになり、ブロックではなく「ぼかし」に見える
+    const mid = document.createElement("canvas");
+    mid.width = Math.max(2, Math.round(w / 4));
+    mid.height = Math.max(2, Math.round(h / 4));
+    const mctx = mid.getContext("2d")!;
+    mctx.imageSmoothingEnabled = true;
+    mctx.drawImage(small, 0, 0, sw, sh, 0, 0, mid.width, mid.height);
     ctx.imageSmoothingEnabled = true;
+    ctx.drawImage(mid, 0, 0, mid.width, mid.height, b.x, b.y, w, h);
   }
 }
