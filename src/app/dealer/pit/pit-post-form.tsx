@@ -661,10 +661,10 @@ export function PitPostForm({ storeId }: { storeId?: string } = {}) {
                 <button
                   type="button"
                   onClick={toggleVoice}
-                  className={`relative h-24 w-24 rounded-full text-4xl shadow-lg transition ${
+                  className={`relative h-24 w-24 rounded-full text-4xl text-white shadow-lg transition ${
                     recording
-                      ? "bg-red-500 text-white ring-4 ring-red-200"
-                      : "border-2 border-gold-500 bg-gradient-to-br from-[#d33a2f] to-[#9e2019] text-white hover:from-[#e04434] hover:to-[#b3241c]"
+                      ? "bg-red-600"
+                      : "bg-gradient-to-br from-gold-400 to-gold-600 hover:from-gold-500 hover:to-gold-700"
                   }`}
                   aria-label={recording ? "録音停止" : "音声入力を開始"}
                 >
