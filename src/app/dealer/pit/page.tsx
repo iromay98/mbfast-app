@@ -7,6 +7,7 @@ import { PageTitle, Card } from "@/components/ui";
 import { storeStats } from "@/server/pit/gamification";
 import { StoreInfoEditor } from "@/components/store-info-editor";
 import { PitPostForm } from "./pit-post-form";
+import { PostList } from "./post-list";
 
 export const dynamic = "force-dynamic";
 
@@ -69,6 +70,7 @@ export default async function DealerPitPage() {
       category: true,
       status: true,
       title: true,
+      editNote: true,
       publishedUrl: true,
       createdAt: true,
     },
@@ -160,41 +162,18 @@ export default async function DealerPitPage() {
 
       <Card>
         <h3 className="mb-2 text-sm font-bold text-ink">これまでの投稿（直近{posts.length}件）</h3>
-        {posts.length === 0 ? (
-          <p className="text-xs text-ink-soft">まだ投稿がありません。</p>
-        ) : (
-          <div className="divide-y divide-line">
-            {posts.map((p) => (
-              <div key={p.id} className="flex flex-wrap items-center gap-2 py-2 text-xs">
-                <span className="text-ink-soft">{formatDateTime(p.createdAt)}</span>
-                <span className="font-semibold">{p.vehicle}</span>
-                <StatusBadge status={p.status} />
-                {p.publishedUrl ? (
-                  <a
-                    href={p.publishedUrl}
-                    target="_blank"
-                    rel="noopener"
-                    className="max-w-[16rem] truncate text-sky-700 hover:underline"
-                  >
-                    {p.title ?? "記事を見る"}
-                  </a>
-                ) : null}
-              </div>
-            ))}
-          </div>
-        )}
+        <PostList
+          posts={posts.map((p) => ({
+            id: p.id,
+            vehicle: p.vehicle,
+            status: p.status,
+            title: p.title,
+            editNote: p.editNote,
+            publishedUrl: p.publishedUrl,
+            createdAtLabel: formatDateTime(p.createdAt),
+          }))}
+        />
       </Card>
     </div>
   );
-}
-
-function StatusBadge({ status }: { status: string }) {
-  const map: Record<string, { label: string; cls: string }> = {
-    published: { label: "公開済み", cls: "bg-green-100 text-green-800" },
-    held: { label: "本部確認中", cls: "bg-amber-100 text-amber-800" },
-    failed: { label: "失敗", cls: "bg-surface-2 text-ink-soft" },
-    processing: { label: "処理中", cls: "bg-sky-100 text-sky-800" },
-  };
-  const st = map[status] ?? { label: status, cls: "bg-surface-2" };
-  return <span className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${st.cls}`}>{st.label}</span>;
 }

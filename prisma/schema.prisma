@@ -816,7 +816,8 @@ model PitPost {
   category      String // ecu | coating | polish | maintenance | other
   memo          String?
   photoKeys     Json        @default("[]") // storage上のキー（処理済み画像）
-  status        String      @default("processing") // processing | published | held | failed
+  status        String      @default("processing") // processing | published | held | failed | deleted
+  editNote      String      @default("") // 公開後の追記（訂正・補足）。記事末尾に反映する
   guardResult   String? // ガード判定の内訳（held理由・注意書き挿入等）
   title         String?
   wpPostId      Int?

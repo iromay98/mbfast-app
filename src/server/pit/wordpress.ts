@@ -119,6 +119,39 @@ export async function createStoreCategory(name: string, slug: string): Promise<n
   );
 }
 
+// 公開済み記事の本文・タイトルを取得（公開後の編集で、画像ブロック等を壊さずに差し替えるため）
+export async function fetchPostContent(
+  postId: number,
+): Promise<{ title: string; contentRaw: string }> {
+  const res = await wpFetch(`/posts/${postId}?context=edit&_fields=title,content`, { method: "GET" });
+  const p = (await res.json()) as {
+    title?: { raw?: string; rendered?: string };
+    content?: { raw?: string };
+  };
+  return { title: p.title?.raw ?? p.title?.rendered ?? "", contentRaw: p.content?.raw ?? "" };
+}
+
+// 公開済み記事の更新（タイトル・本文の部分更新）
+export async function updatePost(
+  postId: number,
+  fields: { title?: string; content?: string },
+): Promise<void> {
+  await wpFetch(`/posts/${postId}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(fields),
+  });
+}
+
+// 記事をゴミ箱へ（完全削除しない＝誤操作から復元できるようにする）
+export async function trashPost(postId: number): Promise<void> {
+  await wpFetch(`/posts/${postId}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ status: "trash" }),
+  });
+}
+
 export type WpMedia = { id: number; sourceUrl: string };
 
 // 画像アップロード（Content-Disposition 必須）→ alt を PATCH で設定
