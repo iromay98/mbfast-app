@@ -39,8 +39,13 @@ export async function POST(request: NextRequest) {
   let form: FormData;
   try {
     form = await request.formData();
-  } catch {
-    return json(400, { error: "multipart/form-data で送信してください" });
+  } catch (e) {
+    // 大きすぎる添付（動画など）で本体の読み取りに失敗するケースがあるため、原因をログに残す
+    console.error("mbPIT: リクエスト本体の解析に失敗", e);
+    return json(413, {
+      error:
+        "送信データが大きすぎて受け取れませんでした。動画を短くする（または外す）か、写真の枚数を減らしてお試しください。",
+    });
   }
 
   // ── 投稿先店舗の解決 ──

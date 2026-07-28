@@ -26,6 +26,28 @@
     "Noto Sans JP", Meiryo, sans-serif;
 }
 
+/*
+  mbPIT加盟店エリアの配色（HP https://mbfasttuning.com/mbpit/ と統一: 黒 × ゴールド）。
+  @themeのトークンだけをこのスコープで差し替えるので、Card・PageTitle・EmptyState等の
+  既存コンポーネントがそのまま暗色になる（コンポーネント側にダーク分岐を持たせない）。
+*/
+.mbpit-theme {
+  --color-ink: #edf1f7; /* 本文（暗背景なので明色） */
+  --color-ink-soft: #98a2b0; /* 補助テキスト */
+  --color-surface: #161b22; /* カード */
+  --color-surface-2: #0f1218; /* ページ背景 */
+  --color-line: #2b313b; /* 罫線 */
+  --color-gold-500: #c9a227; /* mbPITブランドゴールド */
+  --color-gold-600: #d9b85a; /* リンク等は暗背景で明るめに */
+  --color-gold-700: #e7d18d;
+  background: var(--color-surface-2);
+  color: var(--color-ink);
+}
+/* ゴールド地のボタンは黒文字（HPのmbPITボタンと同じ見え方・白文字だと沈む） */
+.mbpit-theme .bg-gold-500 {
+  color: #0d0d0d;
+}
+
 html {
   height: 100%;
 }

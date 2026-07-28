@@ -43,32 +43,32 @@ export default async function PitHomePage() {
     <div className="space-y-4">
       <PageTitle title="ホーム" subtitle={store.displayName} />
 
-      {/* 実績（群青×ゴールドのブランドカード） */}
-      <div className="rounded-2xl bg-[#1e3577] p-4 text-white">
+      {/* 実績（HPと同じ黒×ゴールドのブランドカード） */}
+      <div className="rounded-2xl border border-[#c9a227]/30 bg-[#0d0d0d] p-4 text-white">
         <div className="grid grid-cols-3 gap-2 text-center">
           <div>
-            <div className="text-2xl font-black text-gold-300">{stats.total}</div>
-            <div className="text-[10px] font-semibold text-white/70">通算記録</div>
+            <div className="text-2xl font-black text-[#e7d18d]">{stats.total}</div>
+            <div className="text-[10px] font-semibold text-white/60">通算記録</div>
             {stats.badge && (
-              <div className="mt-0.5 text-[10px] font-bold text-gold-300">
+              <div className="mt-0.5 text-[10px] font-bold text-[#e7d18d]">
                 {stats.badge.emoji} {stats.badge.name}店
               </div>
             )}
           </div>
           <div>
             <div className="text-2xl font-black">{stats.month}</div>
-            <div className="text-[10px] font-semibold text-white/70">今月（先月{stats.lastMonth}件）</div>
+            <div className="text-[10px] font-semibold text-white/60">今月（先月{stats.lastMonth}件）</div>
           </div>
           <div>
             <div className="text-2xl font-black text-orange-300">
               {stats.streakWeeks > 0 ? `🔥${stats.streakWeeks}` : "—"}
             </div>
-            <div className="text-[10px] font-semibold text-white/70">週連続投稿</div>
+            <div className="text-[10px] font-semibold text-white/60">週連続投稿</div>
           </div>
         </div>
         <Link
           href="/dealer/pit"
-          className="mt-3 block rounded-xl bg-gold-500 py-2.5 text-center text-sm font-bold text-white"
+          className="mt-3 block rounded-xl bg-[#c9a227] py-2.5 text-center text-sm font-bold text-[#0d0d0d]"
         >
           🎤 施工を記録する
         </Link>

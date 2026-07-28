@@ -27,12 +27,17 @@ export function AppShell({
   return (
     // overflow-x-clip: どれか1要素が幅を突き破ってもページ全体が横スクロールにならない保険
     // （clipはhiddenと違いstickyナビを壊さない。表などは各自のoverflow-x-autoで横スクロール可能なまま）
-    <div className={`flex min-h-dvh flex-col ${hasBottomNav ? "overflow-x-clip" : ""}`}>
+    <div
+      className={`flex min-h-dvh flex-col ${hasBottomNav ? "overflow-x-clip" : ""} ${
+        isPit ? "mbpit-theme" : ""
+      }`}
+    >
       {/* ヘッダー: mbPITは群青×ゴールドで常時固定。mbFASTは下タブ使用時のみスマホで固定 */}
       <header
         className={
           isPit
-            ? "sticky top-0 z-30 border-b border-gold-500/40 bg-[#1e3577]"
+            ? // HPのmbPIT記事トップバーと同じ見た目（黒地＋ゴールドの下線）
+              "sticky top-0 z-30 border-b-2 border-gold-500 bg-[#0d0d0d]"
             : `border-b border-line bg-surface ${hasBottomNav ? "max-sm:sticky max-sm:top-0 max-sm:z-30" : ""}`
         }
       >

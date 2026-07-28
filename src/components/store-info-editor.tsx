@@ -45,7 +45,7 @@ function AreaSelect({ value, onChange }: { value: string; onChange: (v: string) 
     };
   }, [pref]);
 
-  const sel = "mt-0.5 w-full rounded border border-line bg-surface px-2 py-1.5 text-xs";
+  const sel = "mt-0.5 w-full rounded border border-line bg-surface px-2 py-1.5 text-xs font-semibold text-ink";
   return (
     <div className="grid grid-cols-2 gap-1.5">
       <select value={pref} onChange={(e) => onChange(e.target.value)} className={sel}>
@@ -246,7 +246,7 @@ export function StoreInfoEditor({
             inputMode="numeric"
             maxLength={8}
             placeholder="5300001"
-            className="mt-0.5 block w-32 rounded border border-line bg-surface px-2 py-1 text-xs font-mono"
+            className="mt-0.5 block w-32 rounded border border-line bg-surface px-2 py-1 font-mono text-xs font-semibold text-ink"
           />
         </label>
         <button
@@ -272,7 +272,7 @@ export function StoreInfoEditor({
                 rows={3}
                 maxLength={maxLen}
                 onChange={(e) => set(field, e.target.value)}
-                className="mt-0.5 w-full rounded border border-line bg-surface px-2 py-1 text-xs"
+                className="mt-0.5 w-full rounded border border-line bg-surface px-2 py-1 text-xs font-semibold text-ink"
               />
             ) : (
               <input
@@ -280,7 +280,7 @@ export function StoreInfoEditor({
                 maxLength={maxLen}
                 placeholder={placeholder}
                 onChange={(e) => set(field, e.target.value)}
-                className="mt-0.5 w-full rounded border border-line bg-surface px-2 py-1 text-xs"
+                className="mt-0.5 w-full rounded border border-line bg-surface px-2 py-1 text-xs font-semibold text-ink"
               />
             )}
             {errors[field] && <span className="mt-0.5 block text-red-600">{errors[field]}</span>}
@@ -293,7 +293,7 @@ export function StoreInfoEditor({
               <input
                 value={contactPerson}
                 onChange={(e) => setContactPerson(e.target.value)}
-                className="mt-0.5 w-full rounded border border-line bg-surface px-2 py-1 text-xs"
+                className="mt-0.5 w-full rounded border border-line bg-surface px-2 py-1 text-xs font-semibold text-ink"
               />
             </label>
             <label className="block text-[11px] text-ink-soft">
@@ -302,7 +302,7 @@ export function StoreInfoEditor({
                 value={internalNote}
                 rows={2}
                 onChange={(e) => setInternalNote(e.target.value)}
-                className="mt-0.5 w-full rounded border border-line bg-surface px-2 py-1 text-xs"
+                className="mt-0.5 w-full rounded border border-line bg-surface px-2 py-1 text-xs font-semibold text-ink"
               />
             </label>
           </>

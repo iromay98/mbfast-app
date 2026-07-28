@@ -15,7 +15,7 @@ export type CustomerRow = {
   note: string;
 };
 
-const input = "mt-0.5 w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm";
+const input = "mt-0.5 w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm font-semibold text-ink";
 const label = "block text-[11px] font-semibold text-ink-soft";
 
 function daysLeft(ymd: string): number | null {
