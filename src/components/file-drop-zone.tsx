@@ -10,12 +10,14 @@ export function FileDropZone({
   accept,
   multiple,
   prompt,
+  onFiles,
 }: {
   name: string;
   required?: boolean;
   accept?: string;
   multiple?: boolean; // 写真複数枚など
   prompt?: string; // 未選択時の見出し（省略時は汎用文言）
+  onFiles?: (files: File[]) => void; // 選択・ドロップ時に親へ通知（モザイク前処理など）
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [files, setFiles] = useState<{ name: string; size: number }[]>([]);
@@ -24,7 +26,9 @@ export function FileDropZone({
 
   const sync = () => {
     const list = inputRef.current?.files;
-    setFiles(list ? Array.from(list).map((f) => ({ name: f.name, size: f.size })) : []);
+    const arr = list ? Array.from(list) : [];
+    setFiles(arr.map((f) => ({ name: f.name, size: f.size })));
+    onFiles?.(arr);
   };
 
   // form.reset()（アップロード成功時）で表示も消す

@@ -4,6 +4,57 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { FileDropZone } from "@/components/file-drop-zone";
 import { ShakenQrScanner, chassisFromQrText } from "@/components/shaken-qr-scanner";
+import { PlateMosaicEditor } from "@/components/plate-mosaic-editor";
+import {
+  detectPlates,
+  drawWithMosaic,
+  preloadPlateModel,
+  type PlateBox,
+} from "@/lib/plate-detect";
+
+// 写真1枚分のモザイク編集状態
+type PhotoItem = {
+  file: File;
+  url: string; // objectURL（端末内のみ）
+  boxes: PlateBox[];
+  previewUrl: string | null; // モザイク適用後のサムネイル
+  detecting: boolean;
+};
+
+function loadImage(url: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = reject;
+    img.src = url;
+  });
+}
+
+// モザイク適用後のサムネイル（240px）を生成
+async function makePreview(item: PhotoItem): Promise<string> {
+  const img = await loadImage(item.url);
+  const scale = Math.min(1, 240 / img.naturalWidth);
+  const c = document.createElement("canvas");
+  c.width = Math.round(img.naturalWidth * scale);
+  c.height = Math.round(img.naturalHeight * scale);
+  const ctx = c.getContext("2d")!;
+  ctx.scale(scale, scale);
+  drawWithMosaic(ctx, img, img.naturalWidth, img.naturalHeight, item.boxes);
+  return c.toDataURL("image/jpeg", 0.8);
+}
+
+// モザイク適用済みのフル解像度JPEGを書き出す（これだけがサーバーへ送られる）
+async function exportMosaicked(item: PhotoItem): Promise<Blob> {
+  const img = await loadImage(item.url);
+  const c = document.createElement("canvas");
+  c.width = img.naturalWidth;
+  c.height = img.naturalHeight;
+  const ctx = c.getContext("2d")!;
+  drawWithMosaic(ctx, img, img.naturalWidth, img.naturalHeight, item.boxes);
+  return new Promise((resolve, reject) =>
+    c.toBlob((b) => (b ? resolve(b) : reject(new Error("export failed"))), "image/jpeg", 0.92),
+  );
+}
 
 // 投稿成功時に返るゲーミフィケーション統計
 type PitStats = {
@@ -92,6 +143,76 @@ export function PitPostForm() {
   >(null);
   const formRef = useRef<HTMLFormElement>(null);
 
+  // ── ナンバープレートモザイク（ブラウザ内処理・生画像はサーバーに送らない） ──
+  const [photoItems, setPhotoItems] = useState<PhotoItem[]>([]);
+  const [editorIdx, setEditorIdx] = useState<number | null>(null);
+  const [modelReady, setModelReady] = useState<boolean | null>(null); // null=判定中
+
+  useEffect(() => {
+    // 投稿UI表示時に検出モデルを非同期プリロード（未設置ならmanualのみ）
+    void preloadPlateModel().then((l) => setModelReady(!!l));
+  }, []);
+
+  const handleFiles = (files: File[]) => {
+    setPhotoItems((old) => {
+      old.forEach((o) => URL.revokeObjectURL(o.url));
+      return files
+        .filter((f) => f.type.startsWith("image/"))
+        .map((f) => ({
+          file: f,
+          url: URL.createObjectURL(f),
+          boxes: [],
+          previewUrl: null,
+          detecting: true,
+        }));
+    });
+    // 各写真を自動検出（モデルがあれば）→ サムネイル生成
+    files.forEach((f, idx) => {
+      void (async () => {
+        let boxes: PlateBox[] = [];
+        try {
+          const url = URL.createObjectURL(f);
+          const img = await loadImage(url);
+          const det = await detectPlates(img, img.naturalWidth, img.naturalHeight);
+          boxes = det ?? [];
+          URL.revokeObjectURL(url);
+        } catch {
+          boxes = [];
+        }
+        setPhotoItems((items) => {
+          if (!items[idx] || items[idx].file !== f) return items;
+          const next = [...items];
+          next[idx] = { ...next[idx], boxes, detecting: false };
+          void makePreview(next[idx]).then((p) =>
+            setPhotoItems((cur) => {
+              if (!cur[idx] || cur[idx].file !== f) return cur;
+              const n2 = [...cur];
+              n2[idx] = { ...n2[idx], previewUrl: p };
+              return n2;
+            }),
+          );
+          return next;
+        });
+      })();
+    });
+  };
+
+  const saveBoxes = (idx: number, boxes: PlateBox[]) => {
+    setPhotoItems((items) => {
+      const next = [...items];
+      next[idx] = { ...next[idx], boxes };
+      void makePreview(next[idx]).then((p) =>
+        setPhotoItems((cur) => {
+          const n2 = [...cur];
+          if (n2[idx]) n2[idx] = { ...n2[idx], previewUrl: p };
+          return n2;
+        }),
+      );
+      return next;
+    });
+    setEditorIdx(null);
+  };
+
   // ── 車検証QR（お薬手帳への車両紐づけ・任意） ──
   const [scanning, setScanning] = useState(false);
   const [qrText, setQrText] = useState<string | null>(null);
@@ -164,11 +285,29 @@ export function PitPostForm() {
     setDone(null);
     const form = new FormData(e.currentTarget);
     const photos = form.getAll("photos").filter((f) => f instanceof File && f.size > 0);
-    if (photos.length === 0) {
+    if (photos.length === 0 && photoItems.length === 0) {
       setError("写真を1枚以上追加してください");
       return;
     }
     setBusy(true);
+    // モザイク適用済み画像に差し替えてから送信（未加工のナンバーをサーバーに送らない）
+    try {
+      if (photoItems.length > 0) {
+        form.delete("photos");
+        for (const item of photoItems) {
+          if (item.boxes.length > 0) {
+            const blob = await exportMosaicked(item);
+            form.append("photos", blob, item.file.name.replace(/\.[^.]+$/, "") + "-mosaic.jpg");
+          } else {
+            form.append("photos", item.file);
+          }
+        }
+      }
+    } catch {
+      setBusy(false);
+      setError("画像の処理に失敗しました。もう一度お試しください。");
+      return;
+    }
     try {
       const res = await fetch("/api/pit/posts", { method: "POST", body: form });
       const data = (await res.json().catch(() => ({}))) as {
@@ -192,11 +331,15 @@ export function PitPostForm() {
         setMemo("");
         setQrText(null);
         setChassisManual("");
+        photoItems.forEach((it) => URL.revokeObjectURL(it.url));
+        setPhotoItems([]);
         router.refresh();
       } else if (data.status === "held") {
         setDone({ kind: "held", message: data.message ?? "本部確認となりました。" });
         formRef.current?.reset();
         setMemo("");
+        photoItems.forEach((it) => URL.revokeObjectURL(it.url));
+        setPhotoItems([]);
         router.refresh();
       } else {
         setError(data.error ?? "送信に失敗しました。時間をおいて再度お試しください。");
@@ -372,10 +515,56 @@ export function PitPostForm() {
             multiple
             accept="image/*"
             prompt="写真をここにドラッグ＆ドロップ"
+            onFiles={handleFiles}
           />
           <p className="mt-1 text-[11px] text-ink-soft">
             お客様のお顔や書類が写り込んでいない写真を選んでください。
           </p>
+
+          {/* ナンバーモザイク: サムネイルをタップして確認・修正 */}
+          {photoItems.length > 0 && (
+            <div className="mt-2 rounded-xl border border-line bg-surface-2 p-2.5">
+              <div className="flex items-center justify-between">
+                <p className="text-[11px] font-semibold">
+                  🖌 ナンバープレートのモザイク
+                  {modelReady === false && (
+                    <span className="ml-1 font-normal text-ink-soft">（自動検出は準備中・手動で指定できます）</span>
+                  )}
+                </p>
+              </div>
+              <div className="mt-2 flex gap-2 overflow-x-auto pb-1">
+                {photoItems.map((item, i) => (
+                  <button
+                    key={item.url}
+                    type="button"
+                    onClick={() => setEditorIdx(i)}
+                    className="relative shrink-0"
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={item.previewUrl ?? item.url}
+                      alt=""
+                      className="h-20 w-20 rounded-lg border border-line object-cover"
+                    />
+                    <span
+                      className={`absolute bottom-1 right-1 rounded-full px-1.5 py-0.5 text-[9px] font-bold text-white ${
+                        item.detecting
+                          ? "bg-sky-600"
+                          : item.boxes.length > 0
+                            ? "bg-green-600"
+                            : "bg-black/60"
+                      }`}
+                    >
+                      {item.detecting ? "検出中…" : item.boxes.length > 0 ? `🖌 ${item.boxes.length}` : "編集"}
+                    </span>
+                  </button>
+                ))}
+              </div>
+              <p className="mt-1 text-[10px] leading-relaxed text-ink-soft">
+                モザイクは送信前にこの端末内で合成されます（未加工の写真はサーバーに送られません）。サムネイルをタップすると追加・解除できます。
+              </p>
+            </div>
+          )}
         </div>
 
         {/* ── 車種・施工内容 ── */}
@@ -469,6 +658,15 @@ export function PitPostForm() {
             return false;
           }}
           onClose={() => setScanning(false)}
+        />
+      )}
+
+      {editorIdx !== null && photoItems[editorIdx] && (
+        <PlateMosaicEditor
+          src={photoItems[editorIdx].url}
+          initialBoxes={photoItems[editorIdx].boxes}
+          onSave={(boxes) => saveBoxes(editorIdx, boxes)}
+          onClose={() => setEditorIdx(null)}
         />
       )}
     </>
