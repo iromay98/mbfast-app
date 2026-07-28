@@ -1,0 +1,151 @@
+import type { Metadata } from "next";
+import { pitMetadata } from "@/lib/pit-metadata";
+import Link from "next/link";
+import { redirect } from "next/navigation";
+import { requireDealer } from "@/lib/authz";
+import { prisma } from "@/lib/db";
+import { formatDate, formatDateTime } from "@/lib/labels";
+import { PageTitle, Card } from "@/components/ui";
+import { storeStats } from "@/server/pit/gamification";
+
+export const dynamic = "force-dynamic";
+export const metadata: Metadata = pitMetadata("mbPIT 加盟店ポータル");
+
+// 加盟店ホーム: 実績サマリー＋車検が近いお客様（声かけ営業のきっかけ）＋最近の投稿
+export default async function PitHomePage() {
+  const user = await requireDealer();
+  const store = await prisma.pitStore.findUnique({
+    where: { dealerId: user.dealerId },
+    select: { id: true, displayName: true, active: true },
+  });
+  if (!store) redirect("/dealer/pit"); // 未登録店舗は投稿ページ側の案内へ
+
+  const now = new Date();
+  const soon = new Date(now.getTime() + 60 * 24 * 60 * 60 * 1000); // 60日以内
+  const [stats, upcoming, recentPosts] = await Promise.all([
+    storeStats(store.id),
+    prisma.pitCustomer.findMany({
+      where: { storeId: store.id, inspectionExpiry: { not: null, lte: soon } },
+      orderBy: { inspectionExpiry: "asc" },
+      take: 10,
+    }),
+    prisma.pitPost.findMany({
+      where: { storeId: store.id },
+      orderBy: { createdAt: "desc" },
+      take: 5,
+      select: { id: true, vehicle: true, status: true, title: true, publishedUrl: true, createdAt: true },
+    }),
+  ]);
+
+  const daysLeft = (d: Date) => Math.ceil((d.getTime() - now.getTime()) / (24 * 60 * 60 * 1000));
+
+  return (
+    <div className="space-y-4">
+      <PageTitle title="ホーム" subtitle={store.displayName} />
+
+      {/* 実績（群青×ゴールドのブランドカード） */}
+      <div className="rounded-2xl bg-[#1e3577] p-4 text-white">
+        <div className="grid grid-cols-3 gap-2 text-center">
+          <div>
+            <div className="text-2xl font-black text-gold-300">{stats.total}</div>
+            <div className="text-[10px] font-semibold text-white/70">通算記録</div>
+            {stats.badge && (
+              <div className="mt-0.5 text-[10px] font-bold text-gold-300">
+                {stats.badge.emoji} {stats.badge.name}店
+              </div>
+            )}
+          </div>
+          <div>
+            <div className="text-2xl font-black">{stats.month}</div>
+            <div className="text-[10px] font-semibold text-white/70">今月（先月{stats.lastMonth}件）</div>
+          </div>
+          <div>
+            <div className="text-2xl font-black text-orange-300">
+              {stats.streakWeeks > 0 ? `🔥${stats.streakWeeks}` : "—"}
+            </div>
+            <div className="text-[10px] font-semibold text-white/70">週連続投稿</div>
+          </div>
+        </div>
+        <Link
+          href="/dealer/pit"
+          className="mt-3 block rounded-xl bg-gold-500 py-2.5 text-center text-sm font-bold text-white"
+        >
+          🎤 施工を記録する
+        </Link>
+      </div>
+
+      {/* 車検が近いお客様 */}
+      <Card>
+        <div className="mb-2 flex items-center justify-between">
+          <h3 className="text-sm font-bold text-ink">🚗 車検が近いお客様</h3>
+          <Link href="/dealer/pit/customers" className="text-sm text-gold-600 hover:underline">
+            顧客カルテ →
+          </Link>
+        </div>
+        {upcoming.length === 0 ? (
+          <p className="text-xs text-ink-soft">
+            60日以内に車検を迎えるお客様はいません。顧客カルテに車検満了日を入れておくと、ここでお知らせします。
+          </p>
+        ) : (
+          <div className="divide-y divide-line">
+            {upcoming.map((c) => {
+              const left = daysLeft(c.inspectionExpiry!);
+              return (
+                <div key={c.id} className="flex items-center gap-2 py-2 text-sm">
+                  <div className="min-w-0">
+                    <div className="truncate font-semibold">{c.name} 様</div>
+                    {c.vehicleName && (
+                      <div className="truncate text-xs text-ink-soft">{c.vehicleName}</div>
+                    )}
+                  </div>
+                  <span
+                    className={`ml-auto shrink-0 whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-bold ${
+                      left <= 30 ? "bg-red-100 text-red-700" : "bg-amber-100 text-amber-800"
+                    }`}
+                  >
+                    {left < 0 ? "車検切れ" : `あと${left}日`}
+                    <span className="ml-1 font-normal">{formatDate(c.inspectionExpiry!)}</span>
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </Card>
+
+      {/* 最近の投稿 */}
+      <Card>
+        <div className="mb-2 flex items-center justify-between">
+          <h3 className="text-sm font-bold text-ink">最近の投稿</h3>
+          <Link href="/dealer/pit" className="text-sm text-gold-600 hover:underline">
+            投稿する →
+          </Link>
+        </div>
+        {recentPosts.length === 0 ? (
+          <p className="text-xs text-ink-soft">まだ投稿がありません。最初の施工を記録してみましょう。</p>
+        ) : (
+          <div className="divide-y divide-line">
+            {recentPosts.map((p) => (
+              <div key={p.id} className="flex flex-wrap items-center gap-2 py-2 text-xs">
+                <span className="text-ink-soft">{formatDateTime(p.createdAt)}</span>
+                <span className="font-semibold">{p.vehicle}</span>
+                {p.publishedUrl ? (
+                  <a
+                    href={p.publishedUrl}
+                    target="_blank"
+                    rel="noopener"
+                    className="max-w-[14rem] truncate text-sky-700 hover:underline"
+                  >
+                    {p.title ?? "記事を見る"}
+                  </a>
+                ) : (
+                  <span className="text-ink-soft">{p.status === "held" ? "確認中" : p.status}</span>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
+    </div>
+  );
+}

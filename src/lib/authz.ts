@@ -88,7 +88,7 @@ export async function requireFullDealer(): Promise<SessionUser & { dealerId: str
     where: { id: user.dealerId },
     select: { pitOnly: true },
   });
-  if (dealer?.pitOnly) redirect("/dealer/pit");
+  if (dealer?.pitOnly) redirect("/dealer/pit/home");
   return user;
 }
 

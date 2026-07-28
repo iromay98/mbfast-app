@@ -7,9 +7,11 @@ import { usePathname } from "next/navigation";
 export type BottomNavItem = {
   href: string;
   label: string;
-  icon: "home" | "wrench" | "history" | "yen" | "camera" | "mic";
+  icon: "home" | "wrench" | "history" | "yen" | "camera" | "mic" | "user" | "shop";
   // このタブをアクティブ扱いにする追加パス（例: Homeにお知らせ・施工事例を含める）
   also?: string[];
+  // 完全一致のみアクティブ（例: /dealer/pit タブが /dealer/pit/* を拾わないように）
+  exact?: boolean;
 };
 
 function Icon({ name }: { name: BottomNavItem["icon"] }) {
@@ -69,16 +71,34 @@ function Icon({ name }: { name: BottomNavItem["icon"] }) {
           <path d="M12 18v2.5" />
         </svg>
       );
+    case "user":
+      return (
+        <svg {...common}>
+          <circle cx="12" cy="8" r="3.5" />
+          <path d="M5 20a7 7 0 0 1 14 0" />
+        </svg>
+      );
+    case "shop":
+      return (
+        <svg {...common}>
+          <path d="M4 9.5 5.5 4h13L20 9.5" />
+          <path d="M5 9.5V20h14V9.5" />
+          <path d="M9.5 20v-6h5v6" />
+        </svg>
+      );
   }
 }
 
-export function BottomNav({ items }: { items: BottomNavItem[] }) {
+export function BottomNav({ items, dark }: { items: BottomNavItem[]; dark?: boolean }) {
   const pathname = usePathname();
 
   return (
     <nav
       // iPhoneのホームバーと被らないよう safe-area 分＋最低10pxの余白を下に取る
-      className="fixed inset-x-0 bottom-0 z-30 border-t border-line bg-surface/95 pb-[max(env(safe-area-inset-bottom),10px)] backdrop-blur sm:hidden"
+      // dark: mbPIT加盟店向け（群青×ゴールド）
+      className={`fixed inset-x-0 bottom-0 z-30 border-t pb-[max(env(safe-area-inset-bottom),10px)] backdrop-blur sm:hidden ${
+        dark ? "border-gold-500/40 bg-[#1e3577]/95" : "border-line bg-surface/95"
+      }`}
       aria-label="モバイルナビゲーション"
     >
       <div
@@ -90,14 +110,20 @@ export function BottomNav({ items }: { items: BottomNavItem[] }) {
           const hit = (p: string) =>
             pathname === p || pathname.startsWith(p + "/");
           const active =
-            (isHome ? pathname === item.href : hit(item.href)) ||
+            (isHome || item.exact ? pathname === item.href : hit(item.href)) ||
             (item.also ?? []).some(hit);
           return (
             <Link
               key={item.href}
               href={item.href}
               className={`flex flex-col items-center gap-0.5 py-2 text-[10px] font-semibold transition ${
-                active ? "text-gold-600" : "text-ink-soft"
+                active
+                  ? dark
+                    ? "text-gold-300"
+                    : "text-gold-600"
+                  : dark
+                    ? "text-white/60"
+                    : "text-ink-soft"
               }`}
             >
               <Icon name={item.icon} />

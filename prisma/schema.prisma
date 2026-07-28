@@ -745,7 +745,27 @@ model PitStore {
   wpPageId       Int? // 店舗固定ページID（/mbpit/{slug}/）
   lastSyncedAt   DateTime? // 店舗情報の最終WP同期時刻
 
-  posts PitPost[]
+  posts     PitPost[]
+  customers PitCustomer[]
+}
+
+// 加盟店の顧客カルテ（店舗ごとの顧客台帳）。車検満了日で「そろそろ車検」の声かけができる。
+// 個人情報のためHQ画面には出さない（自店のみ・requireDealerで強制）
+model PitCustomer {
+  id               String    @id @default(cuid())
+  storeId          String
+  store            PitStore  @relation(fields: [storeId], references: [id])
+  name             String // 顧客名
+  kana             String    @default("") // ふりがな（並び・検索用）
+  tel              String    @default("")
+  vehicleName      String    @default("") // 車両（例: アルファード 30系）
+  inspectionExpiry DateTime? // 車検満了日
+  note             String    @default("") // カルテメモ（施工内容・好み・注意点など）
+  vehicleId        String? // 車検証QR連携（PitVehicle）との紐づけ（将来: 施工履歴の自動表示）
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  @@index([storeId, inspectionExpiry])
 }
 
 // 店舗情報→WP term meta 同期のログ（価格同期 PriceSyncLog と同じ思想）

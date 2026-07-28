@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { pitMetadata } from "@/lib/pit-metadata";
 import { requireDealer, getSessionUser } from "@/lib/authz";
 import { prisma } from "@/lib/db";
 import { formatDateTime } from "@/lib/labels";
@@ -17,13 +18,7 @@ export async function generateMetadata(): Promise<Metadata> {
       where: { id: user.dealerId },
       select: { pitOnly: true },
     });
-    if (d?.pitOnly) {
-      return {
-        title: "mbPIT 加盟店ポータル",
-        description: "mbPIT 施工記録の投稿",
-        appleWebApp: { title: "mbPIT" },
-      };
-    }
+    if (d?.pitOnly) return pitMetadata("mbPIT 施工記録の投稿");
   }
   return {};
 }
@@ -80,6 +75,13 @@ export default async function DealerPitPage() {
   });
 
   const stats = await storeStats(store.id);
+  // mbPIT専用アカウントは下タブに「ホーム」「店舗」があるので、この画面では投稿に集中させる
+  // （実績サマリー・店舗情報編集はそれぞれのタブに置いてある）
+  const dealer = await prisma.dealer.findUnique({
+    where: { id: user.dealerId },
+    select: { pitOnly: true },
+  });
+  const pitOnly = !!dealer?.pitOnly;
 
   return (
     <div className="space-y-4">
@@ -89,7 +91,7 @@ export default async function DealerPitPage() {
       />
 
       {/* ゲーミフィケーション: 主表示は「先月の自分」との比較。順位は副次表示 */}
-      <div className="grid grid-cols-3 gap-2">
+      <div className={`grid grid-cols-3 gap-2 ${pitOnly ? "hidden" : ""}`}>
         <Card className="p-3 text-center">
           <div className="text-xl font-black text-gold-600">{stats.total}</div>
           <div className="text-[10px] font-semibold text-ink-soft">通算記録</div>
@@ -125,8 +127,8 @@ export default async function DealerPitPage() {
         <PitPostForm />
       </Card>
 
-      {/* 店舗情報の自己編集（HPの店舗ページ・カードに表示される内容。保存→差分確認→即反映） */}
-      <Card>
+      {/* 店舗情報の自己編集（mbPIT専用アカウントは「店舗」タブに独立ページがあるので出さない） */}
+      <Card className={pitOnly ? "hidden" : ""}>
         <details>
           <summary className="cursor-pointer text-sm font-bold text-ink">
             🏪 店舗情報を編集（所在地・営業時間などHPに表示される内容）

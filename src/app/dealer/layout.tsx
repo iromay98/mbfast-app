@@ -54,11 +54,23 @@ export default async function DealerLayout({
       select: { pitOnly: true },
     }),
   ]);
-  // mbPIT専用アカウント（外部店舗）: mbFASTブランド・ECU系メニューを一切出さない。
-  // 行き先はブログ投稿ページだけなのでナビ自体を消し、ヘッダーはmbPITロゴにする（別ブランド運用）
+  // mbPIT専用アカウント（外部店舗）: mbFASTブランド・ECU系メニューを一切出さない（別ブランド運用）。
+  // 群青×ゴールドの専用シェル＋下タブ4つ（ホーム/投稿/顧客/店舗）
   if (dealer?.pitOnly) {
+    const pitTabs: BottomNavItem[] = [
+      { href: "/dealer/pit/home", label: "ホーム", icon: "home" },
+      { href: "/dealer/pit", label: "投稿", icon: "mic", exact: true },
+      { href: "/dealer/pit/customers", label: "顧客", icon: "user" },
+      { href: "/dealer/pit/store", label: "店舗", icon: "shop" },
+    ];
+    const pitNav: NavItem[] = [
+      { href: "/dealer/pit/home", label: "ホーム" },
+      { href: "/dealer/pit", label: "投稿" },
+      { href: "/dealer/pit/customers", label: "顧客カルテ" },
+      { href: "/dealer/pit/store", label: "店舗情報" },
+    ];
     return (
-      <AppShell user={user} navItems={[]} brand="mbpit">
+      <AppShell user={user} navItems={pitNav} bottomNavItems={pitTabs} brand="mbpit">
         {children}
       </AppShell>
     );
