@@ -1,9 +1,9 @@
-import { requireDealer } from "@/lib/authz";
+import { requireFullDealer } from "@/lib/authz";
 import { PageTitle } from "@/components/ui";
 import { ActivityFeed, getActivity } from "@/components/activity-feed";
 
 export default async function DealerActivityPage() {
-  const user = await requireDealer();
+  const user = await requireFullDealer();
   const items = await getActivity(user.dealerId);
   return (
     <div>

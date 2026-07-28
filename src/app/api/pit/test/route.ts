@@ -28,6 +28,9 @@ export async function POST(request: NextRequest) {
     select: { id: true, displayName: true, slug: true, wpCategoryId: true, footerHtml: true, faqJson: true },
   });
   if (!store) return Response.json({ error: "店舗が見つかりません" }, { status: 404 });
+  if (store.wpCategoryId <= 0) {
+    return Response.json({ error: "この店舗のWordPressカテゴリが未作成です（店舗を承認してください）" }, { status: 409 });
+  }
   if (!vehicle) return Response.json({ error: "車種を入力してください" }, { status: 400 });
 
   const files = form.getAll("photos").filter((f): f is File => f instanceof File && f.size > 0);

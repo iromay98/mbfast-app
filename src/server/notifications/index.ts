@@ -19,6 +19,7 @@ export type NotificationType =
   | "CANCEL_RESOLVED" // 本店→代理店 キャンセル依頼の承諾/却下
   | "PIT_PUBLISHED" // mbPIT 記事公開完了（→店舗）
   | "PIT_HELD" // mbPIT ガード該当で自動公開を保留（→本店管理者）
+  | "PIT_STORE_APPLIED" // mbPIT 招待リンクから新規店舗が登録（承認待ち →本店管理者）
   | "DEV_RESULT" // 実車開発モード: 代理店の良い/ダメ報告（→本店）
   | "PRICE_AUTO_SYNC" // 価格表の自動同期の結果（反映/保留/失敗 →本店）
   | "TEST"; // 通知経路の疎通テスト（管理画面から手動送信）

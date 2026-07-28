@@ -1,4 +1,4 @@
-import { requireDealer } from "@/lib/authz";
+import { requireFullDealer } from "@/lib/authz";
 import { prisma } from "@/lib/db";
 import { formatDate } from "@/lib/labels";
 import { PageTitle } from "@/components/ui";
@@ -6,7 +6,7 @@ import { ShowcaseGallery, type ShowcaseEntry } from "@/components/showcase-galle
 
 // 代理店向け施工事例。一般公開＋代理店限定の両方を車両でドリルダウン閲覧。
 export default async function DealerShowcasePage() {
-  await requireDealer();
+  await requireFullDealer();
   const rows = await prisma.showcase.findMany({
     orderBy: { publishedAt: "desc" },
   });

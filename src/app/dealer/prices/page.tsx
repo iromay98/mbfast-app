@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { requireDealer } from "@/lib/authz";
+import { requireFullDealer } from "@/lib/authz";
 import { prisma } from "@/lib/db";
 import { PageTitle, Card } from "@/components/ui";
 import { toColumns, toPrices, toRemote, type VehicleRow } from "@/lib/prices/types";
@@ -15,7 +15,7 @@ export default async function DealerPricesPage({
 }: {
   searchParams: Promise<{ brand?: string }>;
 }) {
-  await requireDealer();
+  await requireFullDealer();
   const { brand: brandParam } = await searchParams;
 
   const brands = await prisma.priceBrand.findMany({

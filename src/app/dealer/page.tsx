@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { requireDealer } from "@/lib/authz";
+import { requireFullDealer } from "@/lib/authz";
 import { prisma } from "@/lib/db";
 import { currentMonthRange } from "@/lib/dates";
 import {
@@ -13,7 +13,7 @@ import { PageTitle, Card, Badge, EmptyState } from "@/components/ui";
 import { StatCard } from "@/components/stat-card";
 
 export default async function DealerDashboard() {
-  const user = await requireDealer();
+  const user = await requireFullDealer();
   const { start, end } = currentMonthRange();
 
   const [monthRecords, openRequests, activeRequests, recentAnnouncements, pitStore] =

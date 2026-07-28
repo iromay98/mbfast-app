@@ -1,9 +1,9 @@
-import { requireDealer } from "@/lib/authz";
+import { requireFullDealer } from "@/lib/authz";
 import { PageTitle, LinkButton } from "@/components/ui";
 import { RequestForm } from "../request-form";
 
 export default async function NewRequestPage() {
-  await requireDealer();
+  await requireFullDealer();
   return (
     <div>
       <PageTitle

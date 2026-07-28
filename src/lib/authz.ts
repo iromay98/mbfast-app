@@ -77,6 +77,21 @@ export async function requireDealer(): Promise<SessionUser & { dealerId: string 
   return { ...user, dealerId: user.dealerId };
 }
 
+/**
+ * ECU系機能（施工記録・依頼・価格表・お知らせ等）を使える通常代理店のみ。
+ * mbPIT専用アカウント（pitOnly=true・招待リンクから自己登録した外部店舗）は
+ * ブログ投稿だけが使えるため /dealer/pit へ寄せる。
+ */
+export async function requireFullDealer(): Promise<SessionUser & { dealerId: string }> {
+  const user = await requireDealer();
+  const dealer = await prisma.dealer.findUnique({
+    where: { id: user.dealerId },
+    select: { pitOnly: true },
+  });
+  if (dealer?.pitOnly) redirect("/dealer/pit");
+  return user;
+}
+
 /** 代理店が自店リソースのみ操作できることを保証する。 */
 export function assertOwnsDealer(user: SessionUser, dealerId: string): void {
   if (user.role === "HQ_ADMIN") return; // 本店は全代理店アクセス可

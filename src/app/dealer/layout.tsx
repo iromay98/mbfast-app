@@ -44,10 +44,29 @@ export default async function DealerLayout({
 }) {
   const user = await requireDealer(); // 代理店のみ
   // mbPIT加盟店（店舗マスタ登録済み・有効）だけに投稿メニューを出す
-  const pitStore = await prisma.pitStore.findUnique({
-    where: { dealerId: user.dealerId },
-    select: { active: true },
-  });
+  const [pitStore, dealer] = await Promise.all([
+    prisma.pitStore.findUnique({
+      where: { dealerId: user.dealerId },
+      select: { active: true },
+    }),
+    prisma.dealer.findUnique({
+      where: { id: user.dealerId },
+      select: { pitOnly: true },
+    }),
+  ]);
+  // mbPIT専用アカウント（外部店舗）はブログ投稿のみ。ECU系メニューは出さない
+  if (dealer?.pitOnly) {
+    const pitNav: NavItem[] = [{ href: "/dealer/pit", label: "施工ブログ投稿" }];
+    return (
+      <AppShell
+        user={user}
+        navItems={pitNav}
+        bottomNavItems={[{ href: "/dealer/pit", label: "ブログ投稿", icon: "mic" }]}
+      >
+        {children}
+      </AppShell>
+    );
+  }
   const navItems: NavItem[] = pitStore?.active
     ? [...dealerNav.slice(0, 2), { href: "/dealer/pit", label: "施工ブログ投稿" }, ...dealerNav.slice(2)]
     : dealerNav;

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { requireDealer } from "@/lib/authz";
+import { requireFullDealer } from "@/lib/authz";
 import { prisma } from "@/lib/db";
 import {
   announcementCategoryLabels,
@@ -9,7 +9,7 @@ import {
 import { PageTitle, Card, Badge, EmptyState } from "@/components/ui";
 
 export default async function DealerAnnouncementsPage() {
-  const user = await requireDealer();
+  const user = await requireFullDealer();
   const announcements = await prisma.announcement.findMany({
     orderBy: { publishedAt: "desc" },
     include: { reads: { where: { dealerId: user.dealerId }, select: { readAt: true } } },

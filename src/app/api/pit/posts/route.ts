@@ -58,6 +58,10 @@ export async function POST(request: NextRequest) {
   if (!store || (user.role !== "HQ_ADMIN" && !store.active)) {
     return json(403, { error: "この店舗はmbPIT投稿の対象になっていません（本部にお問い合わせください）" });
   }
+  // 自己登録直後などWPカテゴリ未作成の店舗（承認時に自動作成される）
+  if (store.wpCategoryId <= 0) {
+    return json(409, { error: "この店舗のWordPressカテゴリが未作成です。管理画面から店舗を承認してください" });
+  }
 
   const vehicle = String(form.get("vehicle") ?? "").trim();
   const category = String(form.get("category") ?? "").trim();

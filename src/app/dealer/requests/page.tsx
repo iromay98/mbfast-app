@@ -1,11 +1,11 @@
-import { requireDealer } from "@/lib/authz";
+import { requireFullDealer } from "@/lib/authz";
 import { prisma } from "@/lib/db";
 import { formatDate } from "@/lib/labels";
 import { PageTitle, LinkButton } from "@/components/ui";
 import { RequestTable, type RequestRow } from "@/components/request-table";
 
 export default async function DealerRequestsPage() {
-  const user = await requireDealer();
+  const user = await requireFullDealer();
   const requests = await prisma.fileRequest.findMany({
     where: { dealerId: user.dealerId },
     orderBy: { updatedAt: "desc" },

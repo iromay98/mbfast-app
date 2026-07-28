@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { requireDealer } from "@/lib/authz";
+import { requireFullDealer } from "@/lib/authz";
 import { prisma } from "@/lib/db";
 import { PageTitle, Card, LinkButton } from "@/components/ui";
 import { RequestInfo } from "@/components/request-info";
@@ -10,7 +10,7 @@ export default async function DealerRequestDetailPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const user = await requireDealer();
+  const user = await requireFullDealer();
   const { id } = await params;
 
   const request = await prisma.fileRequest.findUnique({

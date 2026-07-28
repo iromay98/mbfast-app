@@ -210,6 +210,9 @@ model Dealer {
   // やり取りするファイル形式。SLAVE=AutoTunerスレーブ（既定）/ MASTER=Powergate3のMaster File(生bin)。
   // 子会社OBLY(Rig Tuning)等、Powergateでやり取りする代理店は MASTER。
   fileFormat      String       @default("SLAVE")
+  // mbPIT専用アカウント（招待リンクから自己登録した外部店舗）。
+  // true の場合はブログ投稿機能のみ利用可能で、ECU系の画面（施工記録・依頼・価格表等）は見せない。
+  pitOnly         Boolean      @default(false)
   note            String?
   createdAt       DateTime     @default(now())
 
@@ -726,6 +729,17 @@ model PitStore {
   updatedAt    DateTime @updatedAt
 
   posts PitPost[]
+}
+
+// mbPIT加盟店の招待（自己登録用）。本部が発行した推測不能トークンのURLを店舗に渡し、
+// 店舗が自分でアカウント＋店舗情報（店舗名・slug）を登録する。登録後は本部の承認待ち。
+model PitInvite {
+  id        String    @id @default(cuid())
+  token     String    @unique // URL に含める推測不能トークン（base64url 24bytes）
+  note      String    @default("") // 本部用メモ（どの店に渡したか）
+  usedAt    DateTime? // 使用済み日時（単回使用）
+  storeId   String? // 登録で作成された PitStore.id
+  createdAt DateTime  @default(now())
 }
 
 // 車両（車のお薬手帳）。車検証QRの車台番号から HMAC-SHA256(SERVER_SECRET) で導出した

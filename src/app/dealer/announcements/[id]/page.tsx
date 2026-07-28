@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { requireDealer } from "@/lib/authz";
+import { requireFullDealer } from "@/lib/authz";
 import { prisma } from "@/lib/db";
 import {
   announcementCategoryLabels,
@@ -15,7 +15,7 @@ export default async function DealerAnnouncementDetailPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  await requireDealer();
+  await requireFullDealer();
   const { id } = await params;
   const announcement = await prisma.announcement.findUnique({ where: { id } });
   if (!announcement) notFound();

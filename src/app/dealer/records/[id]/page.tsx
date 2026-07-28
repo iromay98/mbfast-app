@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { requireDealer } from "@/lib/authz";
+import { requireFullDealer } from "@/lib/authz";
 import { prisma } from "@/lib/db";
 import {
   isPendingStatus,
@@ -30,7 +30,7 @@ export default async function DealerRecordDetailPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const user = await requireDealer();
+  const user = await requireFullDealer();
   const { id } = await params;
 
   const record = await prisma.serviceRecord.findUnique({ where: { id } });

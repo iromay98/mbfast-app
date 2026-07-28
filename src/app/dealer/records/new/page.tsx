@@ -1,9 +1,9 @@
-import { requireDealer } from "@/lib/authz";
+import { requireFullDealer } from "@/lib/authz";
 import { PageTitle, LinkButton } from "@/components/ui";
 import { RecordForm } from "../record-form";
 
 export default async function NewRecordPage() {
-  await requireDealer();
+  await requireFullDealer();
   // 施工日のデフォルト＝今日（YYYY-MM-DD）
   const today = new Intl.DateTimeFormat("sv-SE", {
     timeZone: "Asia/Tokyo",

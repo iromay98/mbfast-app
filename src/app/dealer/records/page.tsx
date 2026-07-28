@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { requireDealer } from "@/lib/authz";
+import { requireFullDealer } from "@/lib/authz";
 import { prisma } from "@/lib/db";
 import {
   workTypeLabels,
@@ -16,7 +16,7 @@ import { SlaveUpload } from "./slave-upload";
 import { MasterFileUpload } from "./master-upload";
 
 export default async function DealerRecordsPage() {
-  const user = await requireDealer();
+  const user = await requireFullDealer();
   const dealer = await prisma.dealer.findUnique({
     where: { id: user.dealerId },
     select: { fileFormat: true },
