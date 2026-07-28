@@ -290,6 +290,11 @@ export function PitPostForm({ storeId }: { storeId?: string } = {}) {
       setError("写真を1枚以上追加してください");
       return;
     }
+    const videoF = form.get("video");
+    if (videoF instanceof File && videoF.size > 80 * 1024 * 1024) {
+      setError("動画は80MB以下にしてください（長い場合は短く切り出してください）");
+      return;
+    }
     setBusy(true);
     // ぼかし適用済み画像に差し替えてから送信（未加工のナンバーをサーバーに送らない）
     try {
@@ -567,6 +572,20 @@ export function PitPostForm({ storeId }: { storeId?: string } = {}) {
               </p>
             </div>
           )}
+        </div>
+
+        {/* ── 動画（任意・1本）: バブリング等のサウンド系はここが効く ── */}
+        <div>
+          <label className="mb-1 block text-xs font-semibold">動画（任意・1本）</label>
+          <FileDropZone
+            name="video"
+            accept="video/*"
+            prompt="🎬 施工動画をここにドラッグ＆ドロップ"
+          />
+          <p className="mt-1 text-[11px] text-ink-soft">
+            80MBまで。記事の末尾に動画プレイヤーとして埋め込まれます。
+            <b>動画にはぼかし加工が入りません</b> — ナンバーやお客様の映り込みがないかご確認ください。
+          </p>
         </div>
 
         {/* ── 車種・施工内容 ── */}

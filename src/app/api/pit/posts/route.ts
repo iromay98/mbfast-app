@@ -15,6 +15,7 @@ export const maxDuration = 300;
 const CATEGORIES = new Set(["ecu", "coating", "polish", "maintenance", "other"]);
 const MAX_PHOTOS = 10;
 const MAX_PHOTO_BYTES = 10 * 1024 * 1024; // 10MB/枚
+const MAX_VIDEO_BYTES = 80 * 1024 * 1024; // 動画は1本80MBまで（バブリング等のサウンド系向け）
 const MAX_MEMO_LEN = 1000; // 音声書き起こし対応で拡張（30秒×数回分）
 
 const STORE_SELECT = {
@@ -84,6 +85,17 @@ export async function POST(request: NextRequest) {
     photos.push({ buffer: Buffer.from(await f.arrayBuffer()) });
   }
 
+  // 動画（任意・1本）。ぼかし加工なし＝映り込みは投稿者確認（フォームに注意書きあり）
+  let video: { buffer: Buffer; type: string } | null = null;
+  const videoFile = form.get("video");
+  if (videoFile instanceof File && videoFile.size > 0) {
+    if (!videoFile.type.startsWith("video/")) return json(400, { error: "動画ファイルを選択してください" });
+    if (videoFile.size > MAX_VIDEO_BYTES) {
+      return json(400, { error: "動画は80MB以下にしてください（長い場合は短く切り出してください）" });
+    }
+    video = { buffer: Buffer.from(await videoFile.arrayBuffer()), type: videoFile.type };
+  }
+
   // 車検証QR（または手入力の車台番号）が付いていれば車両に紐づけ（お薬手帳）。
   // 失敗しても投稿自体は続行する（車両紐づけは任意機能）。
   let vehicleId: string | null = null;
@@ -108,6 +120,7 @@ export async function POST(request: NextRequest) {
     category,
     memo: memoRaw || null,
     photos,
+    video,
     vehicleId,
   });
 

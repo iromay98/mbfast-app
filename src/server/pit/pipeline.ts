@@ -29,6 +29,9 @@ export async function runPitPipeline(opts: {
   category: string; // ecu | coating | polish | maintenance | other
   memo: string | null;
   photos: { buffer: Buffer }[];
+  // 施工動画（任意・1本）。バブリング等のサウンド系で効果大。
+  // ぼかし加工は行わない（映り込みは投稿者の確認責任・フォームに注意書きあり）
+  video?: { buffer: Buffer; type: string } | null;
   vehicleId?: string | null; // 車検証QRで紐づけた車両（お薬手帳）
 }): Promise<PitPublishResult> {
   const { store } = opts;
@@ -114,7 +117,20 @@ export async function runPitPipeline(opts: {
       );
     }
 
-    // 5. 本文合成: プレースホルダ→実画像、未使用画像は末尾に追加、注意書き・FAQ・店舗フッターを結合
+    // 4b. 動画アップロード（任意・1本。変換なしでWPメディアへそのまま上げる）
+    let videoMedia: WpMedia | null = null;
+    if (opts.video) {
+      const ext =
+        { "video/mp4": "mp4", "video/quicktime": "mov", "video/webm": "webm" }[opts.video.type] ?? "mp4";
+      videoMedia = await uploadMedia(
+        opts.video.buffer,
+        `${baseSlug}-video.${ext}`,
+        `${opts.vehicle} 施工動画`,
+        opts.video.type || "video/mp4",
+      );
+    }
+
+    // 5. 本文合成: プレースホルダ→実画像、未使用画像は末尾に追加、動画・注意書き・FAQ・店舗フッターを結合
     let body = article.body_html;
     const used = new Set<number>();
     for (let i = 0; i < medias.length; i++) {
@@ -127,6 +143,11 @@ export async function runPitPipeline(opts: {
     body = body.replace(/\{\{\s*IMAGE_\d+\s*\}\}/g, ""); // 余ったプレースホルダは除去
     for (let i = 0; i < medias.length; i++) {
       if (!used.has(i)) body += `\n${imageBlock(medias[i])}`;
+    }
+    if (videoMedia) {
+      body +=
+        `\n<!-- wp:heading {"level":2} --><h2>施工動画</h2><!-- /wp:heading -->` +
+        `\n<!-- wp:video --><figure class="wp-block-video"><video controls preload="metadata" src="${videoMedia.sourceUrl}"></video></figure><!-- /wp:video -->`;
     }
     if (guard.cautionNeeded) body += `\n<!-- wp:paragraph -->${CAUTION_HTML}<!-- /wp:paragraph -->`;
     // FAQはAIが本文内に生成（統一フォーマット）。末尾に内部リンク（店舗ページ＋mbPITハブ）→店舗フッター
