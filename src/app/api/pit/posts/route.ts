@@ -16,7 +16,7 @@ export const maxDuration = 300;
 const CATEGORIES = new Set(["ecu", "coating", "polish", "maintenance", "other"]);
 const MAX_PHOTOS = 10;
 const MAX_PHOTO_BYTES = 10 * 1024 * 1024; // 10MB/枚
-const MAX_VIDEO_BYTES = 80 * 1024 * 1024; // 動画は1本80MBまで（バブリング等のサウンド系向け）
+const MAX_VIDEO_BYTES = 100 * 1024 * 1024; // 動画は1本100MBまで（受信後にサーバーで720pへ圧縮する）
 const MAX_MEMO_LEN = 1000; // 音声書き起こし対応で拡張（30秒×数回分）
 
 const STORE_SELECT = {
@@ -123,7 +123,7 @@ export async function POST(request: NextRequest) {
   if (videoFile instanceof File && videoFile.size > 0) {
     if (!videoFile.type.startsWith("video/")) return json(400, { error: "動画ファイルを選択してください" });
     if (videoFile.size > MAX_VIDEO_BYTES) {
-      return json(400, { error: "動画は80MB以下にしてください（長い場合は短く切り出してください）" });
+      return json(400, { error: "動画は100MB以下にしてください（長い場合は短く切り出すか、YouTubeのURLを貼ってください）" });
     }
     video = { buffer: Buffer.from(await videoFile.arrayBuffer()), type: videoFile.type };
   }

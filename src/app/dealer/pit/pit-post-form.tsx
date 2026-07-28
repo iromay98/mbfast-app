@@ -310,8 +310,8 @@ export function PitPostForm({ storeId }: { storeId?: string } = {}) {
       return;
     }
     const videoF = form.get("video");
-    if (videoF instanceof File && videoF.size > 80 * 1024 * 1024) {
-      setError("動画は80MB以下にしてください（長い場合は短く切り出してください）");
+    if (videoF instanceof File && videoF.size > 100 * 1024 * 1024) {
+      setError("動画は100MB以下にしてください（長い場合は短く切り出すか、YouTubeのURLを貼ってください）");
       return;
     }
     setBusy(true);
@@ -622,12 +622,12 @@ export function PitPostForm({ storeId }: { storeId?: string } = {}) {
           </p>
           <details className="mt-2">
             <summary className="cursor-pointer text-[11px] font-semibold text-ink-soft">
-              動画ファイルを直接アップする（80MBまで）
+              動画ファイルを直接アップする（100MBまで）
             </summary>
             <div className="mt-2">
               <FileDropZone name="video" accept="video/*" prompt="🎬 動画ファイルを選ぶ" />
               <p className="mt-1 text-[11px] text-ink-soft">
-                URLを入れた場合はURL側が使われます。<b>動画にはぼかし加工が入りません</b> —
+                アップ後にサーバーで自動圧縮されます（720p）。URLを入れた場合はURL側が使われます。<b>動画にはぼかし加工が入りません</b> —
                 ナンバーやお客様の映り込みがないかご確認ください。
               </p>
             </div>

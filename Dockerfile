@@ -22,6 +22,11 @@ RUN npm run build
 
 # 実行
 FROM base AS run
+# ffmpeg: mbPITの施工動画を720p/H.264に圧縮する（スマホの生動画は毎分90MB前後あり、
+# 無圧縮ではWordPressの容量と再生の重さが問題になる）。未インストールでもアプリは動く
+# （src/server/pit/video.ts が無圧縮フォールバックする）。
+RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg \
+  && rm -rf /var/lib/apt/lists/*
 ENV NODE_ENV=production
 ENV PORT=3000
 COPY --from=build /app ./

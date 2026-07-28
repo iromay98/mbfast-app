@@ -9,6 +9,7 @@ import { runGuard, CAUTION_HTML } from "./guard";
 import { generateArticle, CATEGORY_LABELS, MBPIT_HUB_URL, storePageUrl } from "./generate";
 import { uploadMedia, publishPost, MBPIT_PARENT_CATEGORY_ID, type WpMedia } from "./wordpress";
 import { parseVideoUrl, videoEmbedHtml } from "./video-embed";
+import { compressVideo } from "./video";
 
 export type PitPublishResult =
   | { status: "published"; postId: string; url: string; title: string }
@@ -131,13 +132,13 @@ export async function runPitPipeline(opts: {
       parsedVideoUrl && parsedVideoUrl.kind !== "unsupported" ? videoEmbedHtml(parsedVideoUrl) : "";
     let videoMedia: WpMedia | null = null;
     if (!embedHtml && opts.video) {
-      const ext =
-        { "video/mp4": "mp4", "video/quicktime": "mov", "video/webm": "webm" }[opts.video.type] ?? "mp4";
+      // 720p/H.264へ圧縮してからWPへ（失敗時は無圧縮のまま上がる）
+      const v = await compressVideo(opts.video.buffer, opts.video.type);
       videoMedia = await uploadMedia(
-        opts.video.buffer,
-        `${baseSlug}-video.${ext}`,
+        v.buffer,
+        `${baseSlug}-video.${v.ext}`,
         `${opts.vehicle} 施工動画`,
-        opts.video.type || "video/mp4",
+        v.mime,
       );
     }
 

@@ -27,19 +27,15 @@
 }
 
 /*
-  mbPIT加盟店エリアの配色（HP https://mbfasttuning.com/mbpit/ と統一: 黒 × ゴールド）。
-  @themeのトークンだけをこのスコープで差し替えるので、Card・PageTitle・EmptyState等の
-  既存コンポーネントがそのまま暗色になる（コンポーネント側にダーク分岐を持たせない）。
+  mbPIT加盟店エリアの配色。ヘッダー・下タブ・実績カードは黒×ゴールド（HPのmbPITと統一）、
+  本文エリアは白基調（mbFASTより少し暗いグレー）で長文・入力の可読性を優先する。
+  @themeのトークンをこのスコープで差し替えるだけなので、Card等の既存コンポーネントは無改造。
 */
 .mbpit-theme {
-  --color-ink: #edf1f7; /* 本文（暗背景なので明色） */
-  --color-ink-soft: #98a2b0; /* 補助テキスト */
-  --color-surface: #161b22; /* カード */
-  --color-surface-2: #0f1218; /* ページ背景 */
-  --color-line: #2b313b; /* 罫線 */
+  --color-surface: #ffffff; /* カード */
+  --color-surface-2: #edeff2; /* ページ背景（白より少し暗め） */
+  --color-line: #dcdfe4; /* 罫線 */
   --color-gold-500: #c9a227; /* mbPITブランドゴールド */
-  --color-gold-600: #d9b85a; /* リンク等は暗背景で明るめに */
-  --color-gold-700: #e7d18d;
   background: var(--color-surface-2);
   color: var(--color-ink);
 }
