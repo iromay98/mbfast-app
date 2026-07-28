@@ -12,6 +12,8 @@ import {
   previewStoreInfo,
   commitStoreInfo,
   runStoreSync,
+  previewMyStoreInfo,
+  commitMyStoreInfo,
   type StorePreview,
 } from "@/lib/actions/pit";
 
@@ -28,7 +30,18 @@ export type StoreInfoTarget = {
 // 店舗情報（HP表示内容）の編集フォーム。
 // 保存 → 差分プレビュー（WP現在値→新値・反映先URL・送信ペイロード）→ 確定で即時同期。
 // フォーム項目は STORE_META_FIELDS（マッピング定義）から生成 = 定義と画面が絶対にズレない。
-export function StoreInfoEditor({ store, onClose }: { store: StoreInfoTarget; onClose: () => void }) {
+// scope="hq": 本部（任意店舗・アプリ専用項目・dry-run/再同期あり）
+// scope="self": 加盟店（自分の店舗のみ・9項目だけ・slug/店舗名は変更不可）
+export function StoreInfoEditor({
+  store,
+  onClose,
+  scope = "hq",
+}: {
+  store: StoreInfoTarget;
+  onClose?: () => void;
+  scope?: "hq" | "self";
+}) {
+  const isHq = scope === "hq";
   const router = useRouter();
   const [info, setInfo] = useState<StoreInfo>(store.info);
   const [contactPerson, setContactPerson] = useState(store.contactPerson);
@@ -47,7 +60,7 @@ export function StoreInfoEditor({ store, onClose }: { store: StoreInfoTarget; on
     setBusy(true);
     setResult(null);
     try {
-      const p = await previewStoreInfo(store.id, info);
+      const p = isHq ? await previewStoreInfo(store.id, info) : await previewMyStoreInfo(info);
       if (p.error) {
         setErrors(p.fieldErrors ?? {});
         setResult(`エラー: ${p.error}`);
@@ -64,7 +77,9 @@ export function StoreInfoEditor({ store, onClose }: { store: StoreInfoTarget; on
   const doCommit = async () => {
     setBusy(true);
     try {
-      const r = await commitStoreInfo(store.id, info, { contactPerson, internalNote });
+      const r = isHq
+        ? await commitStoreInfo(store.id, info, { contactPerson, internalNote })
+        : await commitMyStoreInfo(info);
       setPreview(null);
       if (r.error) setResult(`エラー: ${r.error}`);
       else if (r.sync?.status === "success") setResult("✓ 保存し、WordPressへ反映しました");
@@ -112,9 +127,11 @@ export function StoreInfoEditor({ store, onClose }: { store: StoreInfoTarget; on
         <h4 className="text-xs font-semibold">
           店舗情報（HP表示）: {store.displayName} <span className="font-mono text-ink-soft">/mbpit/{store.slug}/</span>
         </h4>
-        <button type="button" onClick={onClose} className="ml-auto text-xs text-ink-soft hover:underline">
-          閉じる
-        </button>
+        {onClose && (
+          <button type="button" onClick={onClose} className="ml-auto text-xs text-ink-soft hover:underline">
+            閉じる
+          </button>
+        )}
       </div>
       {!store.active && (
         <p className="mb-2 text-[11px] text-amber-700">この店舗は停止中のため、保存してもWordPressへは同期されません。</p>
@@ -143,23 +160,27 @@ export function StoreInfoEditor({ store, onClose }: { store: StoreInfoTarget; on
             {errors[field] && <span className="mt-0.5 block text-red-600">{errors[field]}</span>}
           </label>
         ))}
-        <label className="block text-[11px] text-ink-soft">
-          担当者名（アプリ内のみ・WPへ送信しない）
-          <input
-            value={contactPerson}
-            onChange={(e) => setContactPerson(e.target.value)}
-            className="mt-0.5 w-full rounded border border-line bg-surface px-2 py-1 text-xs"
-          />
-        </label>
-        <label className="block text-[11px] text-ink-soft">
-          社内メモ（アプリ内のみ・WPへ送信しない）
-          <textarea
-            value={internalNote}
-            rows={2}
-            onChange={(e) => setInternalNote(e.target.value)}
-            className="mt-0.5 w-full rounded border border-line bg-surface px-2 py-1 text-xs"
-          />
-        </label>
+        {isHq && (
+          <>
+            <label className="block text-[11px] text-ink-soft">
+              担当者名（アプリ内のみ・WPへ送信しない）
+              <input
+                value={contactPerson}
+                onChange={(e) => setContactPerson(e.target.value)}
+                className="mt-0.5 w-full rounded border border-line bg-surface px-2 py-1 text-xs"
+              />
+            </label>
+            <label className="block text-[11px] text-ink-soft">
+              社内メモ（アプリ内のみ・WPへ送信しない）
+              <textarea
+                value={internalNote}
+                rows={2}
+                onChange={(e) => setInternalNote(e.target.value)}
+                className="mt-0.5 w-full rounded border border-line bg-surface px-2 py-1 text-xs"
+              />
+            </label>
+          </>
+        )}
       </div>
       <div className="mt-2 flex flex-wrap items-center gap-2">
         <button
@@ -170,22 +191,26 @@ export function StoreInfoEditor({ store, onClose }: { store: StoreInfoTarget; on
         >
           保存（差分プレビュー）
         </button>
-        <button
-          type="button"
-          disabled={busy}
-          onClick={doDryRun}
-          className="rounded-lg border border-line px-3 py-1.5 text-xs font-semibold hover:bg-surface disabled:opacity-50"
-        >
-          dry-run（保存済みデータで差分確認）
-        </button>
-        <button
-          type="button"
-          disabled={busy}
-          onClick={doResync}
-          className="rounded-lg border border-line px-3 py-1.5 text-xs font-semibold hover:bg-surface disabled:opacity-50"
-        >
-          再同期
-        </button>
+        {isHq && (
+          <>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={doDryRun}
+              className="rounded-lg border border-line px-3 py-1.5 text-xs font-semibold hover:bg-surface disabled:opacity-50"
+            >
+              dry-run（保存済みデータで差分確認）
+            </button>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={doResync}
+              className="rounded-lg border border-line px-3 py-1.5 text-xs font-semibold hover:bg-surface disabled:opacity-50"
+            >
+              再同期
+            </button>
+          </>
+        )}
         {result && <span className="text-xs">{result}</span>}
       </div>
 

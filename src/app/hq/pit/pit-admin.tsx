@@ -14,7 +14,7 @@ import {
   type RoundtripRow,
 } from "@/lib/actions/pit";
 import type { StoreInfo } from "@/server/pit/store-meta";
-import { StoreInfoEditor } from "./store-info-editor";
+import { StoreInfoEditor } from "@/components/store-info-editor";
 
 export type StoreRow = {
   id: string;

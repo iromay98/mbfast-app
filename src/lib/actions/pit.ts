@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/db";
-import { requireHQ } from "@/lib/authz";
+import { requireHQ, requireDealer } from "@/lib/authz";
 import { createStoreCategory, wpConfigured, fetchMbpitCategories } from "@/server/pit/wordpress";
 import {
   KNOWN_WP_STORES,
@@ -389,6 +389,10 @@ export type StorePreview = {
 // 差分は「WP側の現在値 → 編集後の値」。確定時は commitStoreInfo を呼ぶ。
 export async function previewStoreInfo(storeId: string, info: StoreInfo): Promise<StorePreview> {
   await requireHQ();
+  return previewCore(storeId, info);
+}
+
+async function previewCore(storeId: string, info: StoreInfo): Promise<StorePreview> {
   const fieldErrors = validateStoreInfo(info);
   if (Object.keys(fieldErrors).length > 0) return { error: "入力内容を確認してください", fieldErrors };
 
@@ -418,30 +422,77 @@ export async function previewStoreInfo(storeId: string, info: StoreInfo): Promis
 }
 
 // 確定: アプリDBへ保存（原本更新）→ WPへ即時同期。
-// appOnly はWPへ送らないアプリ専用項目。
+// appOnly はWPへ送らないアプリ専用項目（本部のみ編集可。null = 変更しない）。
 export async function commitStoreInfo(
   storeId: string,
   info: StoreInfo,
   appOnly: { contactPerson: string; internalNote: string },
 ): Promise<{ ok?: true; error?: string; sync?: { status: string; error?: string } }> {
   await requireHQ();
+  return commitCore(storeId, info, appOnly);
+}
+
+async function commitCore(
+  storeId: string,
+  info: StoreInfo,
+  appOnly: { contactPerson: string; internalNote: string } | null,
+): Promise<{ ok?: true; error?: string; sync?: { status: string; error?: string }; diffs?: StoreDiff[] }> {
   const fieldErrors = validateStoreInfo(info);
   if (Object.keys(fieldErrors).length > 0) return { error: "入力内容を確認してください" };
 
   const store = await prisma.pitStore.findUnique({ where: { id: storeId }, select: { id: true } });
   if (!store) return { error: "店舗が見つかりません" };
 
-  const data: Record<string, string> = {
-    contactPerson: appOnly.contactPerson.trim(),
-    internalNote: appOnly.internalNote.trim(),
-  };
+  const data: Record<string, string> = appOnly
+    ? { contactPerson: appOnly.contactPerson.trim(), internalNote: appOnly.internalNote.trim() }
+    : {};
   for (const { field } of STORE_META_FIELDS) data[field] = (info[field] ?? "").trim();
   await prisma.pitStore.update({ where: { id: storeId }, data });
 
   // 即時同期（cron待ちなし）。失敗しても保存自体は成功（リトライは同期ボタンから）
   const r = await syncStoreInfo(storeId, {});
   revalidatePath(PIT_PATH);
-  return { ok: true, sync: { status: r.status, error: r.error } };
+  return { ok: true, sync: { status: r.status, error: r.error }, diffs: r.diffs };
+}
+
+// ── 加盟店による自己編集（自分の店舗のみ・slug/店舗名は変更不可） ──────
+
+async function ownStoreId(): Promise<{ storeId?: string; storeName?: string; error?: string }> {
+  const user = await requireDealer();
+  const store = await prisma.pitStore.findUnique({
+    where: { dealerId: user.dealerId },
+    select: { id: true, displayName: true },
+  });
+  if (!store) return { error: "この店舗はmbPITに登録されていません" };
+  return { storeId: store.id, storeName: store.displayName };
+}
+
+export async function previewMyStoreInfo(info: StoreInfo): Promise<StorePreview> {
+  const own = await ownStoreId();
+  if (!own.storeId) return { error: own.error };
+  return previewCore(own.storeId, info);
+}
+
+export async function commitMyStoreInfo(
+  info: StoreInfo,
+): Promise<{ ok?: true; error?: string; sync?: { status: string; error?: string } }> {
+  const own = await ownStoreId();
+  if (!own.storeId) return { error: own.error };
+  const r = await commitCore(own.storeId, info, null); // アプリ専用項目（担当者・社内メモ）は本部のみ
+  if (r.ok) {
+    // 本部へ差分付きで通知（事後モデレーション: 変な変更は /hq/pit から停止 or 上書き）
+    const changed = (r.diffs ?? [])
+      .map((d) => `${d.label}: ${d.oldValue || "（未設定）"} → ${d.newValue || "（削除）"}`)
+      .join(" / ");
+    await notify({
+      type: "PIT_STORE_INFO_CHANGED",
+      title: "mbPIT 店舗情報が変更されました",
+      message: `${own.storeName} が店舗情報を変更しました。${changed || "（WP側との差分なし）"}`,
+      link: PIT_PATH,
+    });
+    revalidatePath("/dealer/pit");
+  }
+  return { ok: r.ok, error: r.error, sync: r.sync };
 }
 
 // 単店舗の再同期/dry-run（失敗時のリトライ・送信ペイロード確認用）

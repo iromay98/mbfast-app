@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { formatDateTime } from "@/lib/labels";
 import { PageTitle, Card } from "@/components/ui";
 import { storeStats } from "@/server/pit/gamification";
+import { StoreInfoEditor } from "@/components/store-info-editor";
 import { PitPostForm } from "./pit-post-form";
 
 export const dynamic = "force-dynamic";
@@ -13,7 +14,21 @@ export default async function DealerPitPage() {
 
   const store = await prisma.pitStore.findUnique({
     where: { dealerId: user.dealerId },
-    select: { id: true, displayName: true, active: true },
+    select: {
+      id: true,
+      displayName: true,
+      slug: true,
+      active: true,
+      area: true,
+      address: true,
+      hours: true,
+      closedDays: true,
+      tel: true,
+      email: true,
+      website: true,
+      serviceTags: true,
+      intro: true,
+    },
   });
 
   if (!store || !store.active) {
@@ -88,6 +103,37 @@ export default async function DealerPitPage() {
 
       <Card>
         <PitPostForm />
+      </Card>
+
+      {/* 店舗情報の自己編集（HPの店舗ページ・カードに表示される内容。保存→差分確認→即反映） */}
+      <Card>
+        <details>
+          <summary className="cursor-pointer text-sm font-bold text-ink">
+            🏪 店舗情報を編集（所在地・営業時間などHPに表示される内容）
+          </summary>
+          <StoreInfoEditor
+            scope="self"
+            store={{
+              id: store.id,
+              displayName: store.displayName,
+              slug: store.slug,
+              active: store.active,
+              info: {
+                area: store.area,
+                address: store.address,
+                hours: store.hours,
+                closedDays: store.closedDays,
+                tel: store.tel,
+                email: store.email,
+                website: store.website,
+                serviceTags: store.serviceTags,
+                intro: store.intro,
+              },
+              contactPerson: "",
+              internalNote: "",
+            }}
+          />
+        </details>
       </Card>
 
       <Card>
