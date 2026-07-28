@@ -25,11 +25,8 @@ export default async function LoginPage() {
           <p className="text-sm text-ink-soft">本店⇄代理店 連携アプリ</p>
         </div>
         <LoginForm />
-        <p className="mt-6 text-center text-xs text-ink-soft">
-          代理店アカウントは本店が発行します
-        </p>
         {/* mbPIT加盟店は自己登録できる（公開ページ）。ログイン画面が入口になる */}
-        <p className="mt-3 text-center text-xs">
+        <p className="mt-6 text-center text-xs">
           <Link
             href="/pit/join"
             className="font-semibold text-gold-600 hover:underline"

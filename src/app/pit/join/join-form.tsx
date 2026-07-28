@@ -113,7 +113,7 @@ export function JoinForm() {
         />
       </label>
       <label className={label}>
-        URL名（半角英小文字・数字・ハイフン）
+        店舗名の英数字表記（すべて小文字）
         <input
           value={slug}
           onChange={(e) => {
@@ -128,7 +128,7 @@ export function JoinForm() {
           className={`${input} font-mono`}
         />
         <span className="mt-1 block text-[10px] font-normal text-neutral-500">
-          ブログ記事のURLに使われます（後から変更できません）
+          スペースはハイフン（-）に。ブログのURLに使われます（後から変更できません）
         </span>
       </label>
       <label className={label}>

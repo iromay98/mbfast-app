@@ -189,7 +189,7 @@ export async function registerPitStore(input: {
   if (!input.agreed) return { error: "利用規約への同意が必要です" };
   if (!storeName) return { error: "店舗名を入力してください" };
   if (!/^[a-z0-9-]{3,40}$/.test(slug)) {
-    return { error: "URL名（slug）は英小文字・数字・ハイフンの3〜40文字にしてください" };
+    return { error: "店舗名の英数字表記は、英小文字・数字・ハイフンの3〜40文字にしてください" };
   }
   if (!contactName) return { error: "担当者名を入力してください" };
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return { error: "メールアドレスの形式が正しくありません" };
@@ -207,7 +207,7 @@ export async function registerPitStore(input: {
     prisma.pitStore.findUnique({ where: { slug }, select: { id: true } }),
     prisma.user.findUnique({ where: { email }, select: { id: true } }),
   ]);
-  if (slugTaken) return { error: "このURL名（slug）は既に使われています。別の名前にしてください" };
+  if (slugTaken) return { error: "この英数字表記は既に使われています。少し変えてみてください（例: 末尾に地名を追加）" };
   if (emailTaken) return { error: "このメールアドレスは既に登録されています" };
 
   const passwordHash = await bcrypt.hash(input.password, 10);
