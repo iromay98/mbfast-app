@@ -720,7 +720,7 @@ model PitStore {
   dealerId     String?  @unique // null = 本店直営（代理店に紐づかない店舗。本部が直接投稿する）
   dealer       Dealer?  @relation(fields: [dealerId], references: [id])
   displayName  String // 記事タイトル・フッターに使う表示名
-  slug         String   @unique // 記事slug末尾に付ける店舗slug（WPカテゴリslugと揃える）
+  slug         String   @unique // 店舗短slug（/mbpit/{slug}/ と記事slug末尾に使用。WPカテゴリslugから -mbpit を除去した値。確定後は変更禁止）
   wpCategoryId Int // WordPress店舗カテゴリID（親545配下）
   footerHtml   String   @default("") // 記事末尾の店舗紹介＋CTAブロック（更家さんから受領して投入）
   faqJson      Json     @default("[]") // AIO用FAQ: [{q,a}]（任意）
@@ -728,7 +728,37 @@ model PitStore {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
+  // ── 店舗マスター（アプリが原本・WP term meta へ投影。マッピングは src/server/pit/store-meta.ts に集約） ──
+  area           String    @default("") // → mbpit_area
+  address        String    @default("") // → mbpit_address
+  hours          String    @default("") // → mbpit_hours
+  closedDays     String    @default("") // → mbpit_closed
+  tel            String    @default("") // → mbpit_tel
+  email          String    @default("") // → mbpit_email
+  website        String    @default("") // → mbpit_website
+  serviceTags    String    @default("") // → mbpit_tags（読点区切り）
+  intro          String    @default("") // → mbpit_intro（1〜3文）
+  contactPerson  String    @default("") // 担当者名（WPへは同期しない）
+  internalNote   String    @default("") // 社内メモ（WPへは同期しない）
+  plan           String    @default("record") // record/grow/brand（将来の課金プラン・現在未使用）
+  wpCategorySlug String    @default("") // WP側category slugの実値（-mbpit接尾辞を含む）
+  wpPageId       Int? // 店舗固定ページID（/mbpit/{slug}/）
+  lastSyncedAt   DateTime? // 店舗情報の最終WP同期時刻
+
   posts PitPost[]
+}
+
+// 店舗情報→WP term meta 同期のログ（価格同期 PriceSyncLog と同じ思想）
+model PitStoreSyncLog {
+  id          String   @id @default(cuid())
+  storeId     String
+  payloadHash String
+  status      String // success | skipped | failed | dry-run | ingest
+  error       String?
+  prevMeta    Json? // 書き込み直前のWP側meta（失敗時の復旧確認用）
+  createdAt   DateTime @default(now())
+
+  @@index([storeId, createdAt])
 }
 
 // mbPIT加盟店の招待（自己登録用）。本部が発行した推測不能トークンのURLを店舗に渡し、

@@ -8,6 +8,8 @@ import {
   resolvePitHeld,
   approvePitStore,
   suspendPitStore,
+  ingestPitStoreInfo,
+  type IngestRow,
 } from "@/lib/actions/pit";
 
 export type StoreRow = {
@@ -75,6 +77,7 @@ export function PitAdmin({
       {held.length > 0 && <HeldQueue posts={held} />}
       {pending.length > 0 && <PendingStores stores={pending} />}
       <StoreMaster stores={stores} dealers={dealers} />
+      <StoreInfoIngest />
       <TestPublish stores={stores} />
       <PostLog posts={posts} />
       {monthly.length > 0 && <MonthlyStats monthly={monthly} />}
@@ -353,6 +356,93 @@ function StoreMaster({ stores, dealers }: { stores: StoreRow[]; dealers: DealerO
             カテゴリIDを空欄にすると、保存時にWordPressへ親545配下のカテゴリ（名前=表示名・slug=slug）を自動作成します。
             確定済みカテゴリID: {KNOWN_CATEGORIES.map((k) => `${k.name}=${k.id}(${k.slug})`).join(" / ")}（親: mbPIT施工記録=545）
           </div>
+        </div>
+      )}
+    </Card>
+  );
+}
+
+// ── 店舗マスター Step A: WPの店舗情報（term meta）をアプリへ初期取込 ──
+function StoreInfoIngest() {
+  const router = useRouter();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [rows, setRows] = useState<IngestRow[] | null>(null);
+  const [unmatched, setUnmatched] = useState<string[]>([]);
+
+  const run = async () => {
+    if (!window.confirm("WordPressの現在の店舗情報（所在地・営業時間等）をアプリに取り込みます。アプリ側の店舗情報は上書きされます。実行しますか？")) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const r = await ingestPitStoreInfo();
+      if (r.error) setError(r.error);
+      else {
+        setRows(r.rows ?? []);
+        setUnmatched(r.unmatchedTerms ?? []);
+        router.refresh();
+      }
+    } catch {
+      setError("通信エラーが発生しました");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Card>
+      <div className="flex items-center gap-2">
+        <h3 className="text-sm font-semibold">店舗情報の取込（WP→アプリ・初回のみ）</h3>
+        <button
+          type="button"
+          disabled={busy}
+          onClick={run}
+          className="ml-auto rounded-lg border border-line px-3 py-1.5 text-xs font-semibold hover:bg-surface-2 disabled:opacity-50"
+        >
+          {busy ? "取込中…" : "WPから取り込む"}
+        </button>
+      </div>
+      <p className="mt-1 text-[11px] text-ink-soft">
+        WordPress側で管理していた店舗情報（所在地・営業時間・TEL等の term meta）をアプリへ吸い上げます。
+        取込後はアプリが原本になります（編集フォームと自動反映は次ステップで実装）。
+      </p>
+      {error && <p className="mt-2 text-xs text-red-600">{error}</p>}
+      {rows && (
+        <div className="mt-2 overflow-x-auto">
+          <table className="w-full text-xs">
+            <thead className="text-left text-[11px] text-ink-soft">
+              <tr>
+                <th className="py-1">店舗</th>
+                <th>term_id</th>
+                <th>WPカテゴリslug</th>
+                <th>短slug</th>
+                <th>店舗ページID</th>
+                <th>取込項目</th>
+                <th>結果</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-line">
+              {rows.map((r, i) => (
+                <tr key={i}>
+                  <td className="py-1 font-semibold">{r.storeName}</td>
+                  <td className="font-mono">{r.termId}</td>
+                  <td className="font-mono">{r.categorySlug || "—"}</td>
+                  <td className="font-mono">
+                    {r.shortSlug}
+                    {r.slugChanged && <span className="ml-1 rounded bg-amber-100 px-1 text-[10px] font-bold text-amber-800">変更</span>}
+                  </td>
+                  <td className="font-mono">{r.wpPageId ?? "—"}</td>
+                  <td>{r.filledFields}/9</td>
+                  <td>{r.error ? <span className="text-red-600">{r.error}</span> : "✓ 取込済み"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {unmatched.length > 0 && (
+            <p className="mt-2 text-[11px] text-amber-700">
+              WP側にあるがアプリに店舗が無いカテゴリ: {unmatched.join(" / ")}
+            </p>
+          )}
         </div>
       )}
     </Card>

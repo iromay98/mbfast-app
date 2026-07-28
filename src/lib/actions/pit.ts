@@ -4,7 +4,14 @@ import { revalidatePath } from "next/cache";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/db";
 import { requireHQ } from "@/lib/authz";
-import { createStoreCategory, wpConfigured } from "@/server/pit/wordpress";
+import { createStoreCategory, wpConfigured, fetchMbpitCategories } from "@/server/pit/wordpress";
+import {
+  KNOWN_WP_STORES,
+  shortSlugOf,
+  metaToStoreInfo,
+  storeMetaHash,
+  buildMetaPayload,
+} from "@/server/pit/store-meta";
 import { notify } from "@/server/notifications";
 
 const PIT_PATH = "/hq/pit";
@@ -242,4 +249,115 @@ export async function registerPitStore(input: {
   // 注意: ここで revalidatePath は呼ばない（登録ページ自体が再レンダリングされ完了画面が消えるため。
   // /hq/pit は force-dynamic なので不要）。
   return { ok: true, approved };
+}
+
+// ── 店舗マスター Step A: WordPress現在値の初期取込（WP→アプリ・1回だけ実行） ──────
+// 既存店舗の term meta を読み取り、アプリの PitStore に吸い上げる。
+// 以後はアプリが原本になり、WPは投影先（同期エンジンは Step C で実装）。
+
+export type IngestRow = {
+  storeName: string;
+  termId: number;
+  categorySlug: string;
+  shortSlug: string;
+  slugChanged: boolean;
+  wpPageId: number | null;
+  filledFields: number; // 取り込めた項目数（9項目中）
+  error?: string;
+};
+
+export async function ingestPitStoreInfo(): Promise<{
+  ok?: true;
+  error?: string;
+  rows?: IngestRow[];
+  unmatchedTerms?: string[]; // 545配下にあるがアプリに店舗が無いカテゴリ
+}> {
+  await requireHQ();
+  if (!wpConfigured()) return { error: "WP_USER / WP_APP_PASSWORD が未設定です" };
+
+  let cats: Awaited<ReturnType<typeof fetchMbpitCategories>>;
+  try {
+    cats = await fetchMbpitCategories();
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "WordPressカテゴリの取得に失敗しました" };
+  }
+
+  const stores = await prisma.pitStore.findMany({
+    where: { wpCategoryId: { gt: 0 } },
+    select: { id: true, displayName: true, slug: true, wpCategoryId: true },
+  });
+
+  const rows: IngestRow[] = [];
+  const matchedTermIds = new Set<number>();
+  for (const store of stores) {
+    const term = cats.find((c) => c.id === store.wpCategoryId);
+    if (!term) {
+      rows.push({
+        storeName: store.displayName,
+        termId: store.wpCategoryId,
+        categorySlug: "",
+        shortSlug: store.slug,
+        slugChanged: false,
+        wpPageId: null,
+        filledFields: 0,
+        error: "WP側の545配下にこのカテゴリIDが見つかりません",
+      });
+      continue;
+    }
+    matchedTermIds.add(term.id);
+    const known = KNOWN_WP_STORES.find((k) => k.termId === term.id);
+    const shortSlug = shortSlugOf(term.slug);
+    const info = metaToStoreInfo(term.meta);
+    const filledFields = Object.values(info).filter((v) => v !== "").length;
+    try {
+      await prisma.pitStore.update({
+        where: { id: store.id },
+        data: {
+          slug: shortSlug,
+          wpCategorySlug: term.slug,
+          wpPageId: known?.pageId ?? undefined,
+          ...info,
+          lastSyncedAt: new Date(), // 取込直後はアプリ==WP
+        },
+      });
+      await prisma.pitStoreSyncLog.create({
+        data: {
+          storeId: store.id,
+          payloadHash: storeMetaHash(info),
+          status: "ingest",
+          prevMeta: buildMetaPayload(info),
+        },
+      });
+      rows.push({
+        storeName: store.displayName,
+        termId: term.id,
+        categorySlug: term.slug,
+        shortSlug,
+        slugChanged: store.slug !== shortSlug,
+        wpPageId: known?.pageId ?? null,
+        filledFields,
+      });
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "";
+      rows.push({
+        storeName: store.displayName,
+        termId: term.id,
+        categorySlug: term.slug,
+        shortSlug,
+        slugChanged: store.slug !== shortSlug,
+        wpPageId: known?.pageId ?? null,
+        filledFields,
+        error: msg.includes("Unique constraint")
+          ? `短slug「${shortSlug}」が他店舗と重複しています`
+          : "保存に失敗しました",
+      });
+    }
+  }
+
+  const unmatchedTerms = cats
+    .filter((c) => !matchedTermIds.has(c.id))
+    .map((c) => `${c.name}（term ${c.id} / ${c.slug}）`);
+
+  revalidatePath(PIT_PATH);
+  return { ok: true, rows, unmatchedTerms };
 }

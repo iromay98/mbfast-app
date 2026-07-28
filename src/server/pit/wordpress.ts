@@ -61,6 +61,36 @@ async function wpFetch(path: string, init: RequestInit): Promise<Response> {
   return res;
 }
 
+export type WpCategory = {
+  id: number;
+  name: string;
+  slug: string;
+  count: number;
+  parent: number;
+  meta: Record<string, unknown>;
+};
+
+// mbPIT親カテゴリ(545)直下の店舗カテゴリ一覧（term meta 付き）。
+// parent=545 で問い合わせるため、返るtermは構造上すべて545配下（誤書き込み防止の第一の壁）。
+export async function fetchMbpitCategories(): Promise<WpCategory[]> {
+  const res = await wpFetch(
+    `/categories?parent=${MBPIT_PARENT_CATEGORY_ID}&per_page=100&_fields=id,name,slug,count,parent,meta`,
+    { method: "GET" },
+  );
+  return (await res.json()) as WpCategory[];
+}
+
+// 店舗term metaの書き込み前に必ず呼ぶ安全弁: 対象termが545直下であることをWP側に確認する。
+// （店舗マスター同期は既存の代理店カテゴリツリーに絶対に触れない）
+export async function assertTermUnderMbpit(termId: number): Promise<WpCategory> {
+  const res = await wpFetch(`/categories/${termId}?_fields=id,name,slug,count,parent,meta`, { method: "GET" });
+  const term = (await res.json()) as WpCategory;
+  if (term.parent !== MBPIT_PARENT_CATEGORY_ID) {
+    throw new Error(`term ${termId} は mbPIT親カテゴリ(545)配下ではありません（parent=${term.parent}）。書き込みを中止しました`);
+  }
+  return term;
+}
+
 // 新規加盟店の店舗カテゴリを mbPIT親カテゴリ(545)配下に作成してIDを返す。
 // 同名/同slugのカテゴリが既にある場合（term_exists）は既存IDを再利用する。
 // 既存の代理店カテゴリツリーには一切触れない（新規作成のみ・親は必ず545）。
