@@ -22,7 +22,7 @@ export function JoinForm({ token }: { token: string }) {
   const [slugTouched, setSlugTouched] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [done, setDone] = useState(false);
+  const [done, setDone] = useState<{ approved: boolean } | null>(null);
 
   const submit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -44,7 +44,7 @@ export function JoinForm({ token }: { token: string }) {
         password,
       });
       if (r.error) setError(r.error);
-      else setDone(true);
+      else setDone({ approved: !!r.approved });
     } catch {
       setError("通信エラーが発生しました。もう一度お試しください");
     } finally {
@@ -58,9 +58,19 @@ export function JoinForm({ token }: { token: string }) {
         <div className="text-3xl">🎉</div>
         <h2 className="mt-2 text-base font-bold text-white">登録が完了しました</h2>
         <p className="mt-2 text-xs leading-relaxed text-neutral-300">
-          本部が内容を確認し、承認するとブログ投稿が使えるようになります。
-          <br />
-          承認までしばらくお待ちください。
+          {done.approved ? (
+            <>
+              登録したメールアドレスとパスワードでログインすると、
+              <br />
+              今すぐ施工記録の投稿を始められます。
+            </>
+          ) : (
+            <>
+              本部が内容を確認し、承認するとブログ投稿が使えるようになります。
+              <br />
+              承認までしばらくお待ちください。
+            </>
+          )}
         </p>
         <a
           href="/login"
@@ -76,7 +86,7 @@ export function JoinForm({ token }: { token: string }) {
     <form onSubmit={submit} className="space-y-3 rounded-xl border border-neutral-700 bg-neutral-900 p-5">
       <h1 className="text-sm font-bold text-white">加盟店登録</h1>
       <p className="text-[11px] leading-relaxed text-neutral-400">
-        登録後、本部の承認を経てブログ投稿が利用できます。
+        登録が完了すると、ブログ投稿が利用できるようになります。
       </p>
       <label className={label}>
         店舗名

@@ -202,7 +202,7 @@ function InviteSection({ invites }: { invites: InviteRow[] }) {
     <Card>
       <h3 className="mb-2 text-sm font-semibold">新規加盟店の招待リンク</h3>
       <p className="mb-2 text-[11px] text-ink-soft">
-        リンクを渡すと、店舗が自分でアカウントと店舗情報（店舗名・slug）を登録します。登録後は上の「承認待ち」に出るので、承認すると投稿できるようになります（WPカテゴリは承認時に自動作成）。
+        リンクを渡すと、店舗が自分でアカウントと店舗情報（店舗名・slug）を登録し、そのまま自動承認されて投稿できるようになります（WPカテゴリも自動作成）。WP接続エラー時のみ「承認待ち」に残るので手動で承認してください。登録されたらWordPress側の店舗ページ（/mbpit/店舗slug/）の作成をお忘れなく。
       </p>
       <div className="flex flex-wrap items-center gap-2">
         <input

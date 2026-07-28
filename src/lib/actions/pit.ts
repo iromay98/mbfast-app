@@ -151,7 +151,7 @@ export async function registerPitStore(input: {
   contactName: string;
   email: string;
   password: string;
-}): Promise<{ ok?: true; error?: string }> {
+}): Promise<{ ok?: true; error?: string; approved?: boolean }> {
   const token = input.token.trim();
   const storeName = input.storeName.trim();
   const slug = input.slug.trim().toLowerCase();
@@ -178,6 +178,7 @@ export async function registerPitStore(input: {
   if (emailTaken) return { error: "このメールアドレスは既に登録されています" };
 
   const passwordHash = await bcrypt.hash(input.password, 10);
+  let storeId: string | null = null;
   try {
     await prisma.$transaction(async (tx) => {
       // 招待の使用マークを先に取り合う（二重送信・同時使用のガード）
@@ -195,6 +196,7 @@ export async function registerPitStore(input: {
       const store = await tx.pitStore.create({
         data: { dealerId: dealer.id, displayName: storeName, slug, wpCategoryId: 0, active: false },
       });
+      storeId = store.id;
       await tx.pitInvite.update({ where: { id: invite.id }, data: { storeId: store.id } });
     });
   } catch (e) {
@@ -207,13 +209,31 @@ export async function registerPitStore(input: {
     return { error: "登録に失敗しました。時間をおいて再度お試しください" };
   }
 
+  // 自動承認: 招待リンク自体が本部発行（＝信頼の担保）なので、登録と同時に
+  // WPカテゴリを作成して有効化する。WP接続エラー時のみ従来の「承認待ち」に落とす。
+  let approved = false;
+  if (storeId && wpConfigured()) {
+    try {
+      const catId = await createStoreCategory(storeName, slug);
+      await prisma.pitStore.update({
+        where: { id: storeId },
+        data: { wpCategoryId: catId, active: true },
+      });
+      approved = true;
+    } catch (e) {
+      console.error("mbPIT: 自動承認（WPカテゴリ作成）に失敗。承認待ちのままにします", e);
+    }
+  }
+
   await notify({
     type: "PIT_STORE_APPLIED",
-    title: "mbPIT 新規加盟店の登録（承認待ち）",
-    message: `${storeName}（slug: ${slug} / 担当: ${contactName}）が招待リンクから登録しました。管理画面から承認してください。`,
+    title: approved ? "mbPIT 新規加盟店が登録されました（自動承認済み）" : "mbPIT 新規加盟店の登録（承認待ち）",
+    message: approved
+      ? `${storeName}（slug: ${slug} / 担当: ${contactName}）が招待リンクから登録し、自動承認されました。WordPress側の店舗ページ（/mbpit/${slug}/）の作成を忘れずに。`
+      : `${storeName}（slug: ${slug} / 担当: ${contactName}）が招待リンクから登録しました。WPカテゴリ自動作成に失敗したため、管理画面から承認してください。`,
     link: PIT_PATH,
   });
   // 注意: ここで revalidatePath を呼ぶと登録ページ自体が再レンダリングされ、
   // トークンが使用済み→「無効」画面に変わって完了画面が消える。/hq/pit は force-dynamic なので不要。
-  return { ok: true };
+  return { ok: true, approved };
 }

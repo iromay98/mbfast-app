@@ -27,7 +27,7 @@ HQ（mbFAST Tuning本店）⇄ 代理店のポータル。Next.js 16 App Router 
 
 - 施工記録・依頼: `src/app/{hq,dealer}/records` — スレーブ復号(AutoTuner Master API)・コンフィギュレータ・バリエーション表・依頼ワークフロー・OLSXカード型チャット（送信取り消し/備考/再DL制御）
 - カタログ: BaseFile→TunedVariant。本店専用。ニコイチ(splice)ツールあり
-- mbPIT: 施工記録→AI記事化→WordPress自動公開。`src/server/pit/`（pipeline/generate/guard/wordpress/images/vehicle/gamification）＋ `/hq/pit` 管理画面。本部投稿は `/hq/pit/post`（店舗選択・本店直営店舗=PitStore.dealerId null 可）。店舗マスタでカテゴリID空欄なら親545配下にWPカテゴリ自動作成。新規加盟店は本部発行の招待リンク `/pit/join/[token]` から自己登録（Dealer.pitOnly=true＝ブログ投稿以外のECU系画面は一切見せない・requireFullDealerで強制）→本部がワンタップ承認（承認時にWPカテゴリ自動作成）。ガード: 排ガスデバイス無効化=held、音量系=注意書き。WPカテゴリ: 親545 / Charism=547 / On's=549 / Anubis=551 / プレジャー=553 / Glanzcoat=555。**既存の代理店カテゴリツリーには触れない**。記事はBRAND_BLOCK挿入＋本文にmbFAST禁止（mbPIT別ブランド運用）。顧客向け: `/mycar`（車検証QR→HMAC vehicle_key・車台番号は平文非保存）＋施工証明書 `/verify/[postId]?h=`（SERVER_SECRET必須・変更禁止）
+- mbPIT: 施工記録→AI記事化→WordPress自動公開。`src/server/pit/`（pipeline/generate/guard/wordpress/images/vehicle/gamification）＋ `/hq/pit` 管理画面。本部投稿は `/hq/pit/post`（店舗選択・本店直営店舗=PitStore.dealerId null 可）。店舗マスタでカテゴリID空欄なら親545配下にWPカテゴリ自動作成。新規加盟店は本部発行の招待リンク `/pit/join/[token]` から自己登録（Dealer.pitOnly=true＝ブログ投稿以外のECU系画面は一切見せない・requireFullDealerで強制）→登録と同時に自動承認（WPカテゴリ自動作成。WP接続エラー時のみ承認待ち→/hq/pitからワンタップ承認）。ガード: 排ガスデバイス無効化=held、音量系=注意書き。WPカテゴリ: 親545 / Charism=547 / On's=549 / Anubis=551 / プレジャー=553 / Glanzcoat=555。**既存の代理店カテゴリツリーには触れない**。記事はBRAND_BLOCK挿入＋本文にmbFAST禁止（mbPIT別ブランド運用）。顧客向け: `/mycar`（車検証QR→HMAC vehicle_key・車台番号は平文非保存）＋施工証明書 `/verify/[postId]?h=`（SERVER_SECRET必須・変更禁止）
 - 価格表: `/hq/prices`（5ブランド870モデル・インライン編集）＋公開HTML生成（`src/lib/prices/generate-html.ts`、`prisma/data/reference/*.html` とバイト一致を `scripts/verify-price-html.mts` で保証）
 - 通知: `src/server/notifications`（console スタブ）＋ Web Push(VAPID)
 
