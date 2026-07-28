@@ -621,27 +621,26 @@ export function PitPostForm({ storeId }: { storeId?: string } = {}) {
                 <button
                   type="button"
                   onClick={toggleVoice}
-                  className={`relative h-24 w-24 rounded-full text-4xl text-white shadow-lg transition ${
+                  className={`relative h-24 w-24 rounded-full text-4xl shadow-lg transition ${
                     recording
-                      ? "bg-red-600"
-                      : "bg-gradient-to-br from-gold-400 to-gold-600 hover:from-gold-500 hover:to-gold-700"
+                      ? "bg-red-600 text-white"
+                      : "border-2 border-gold-500 bg-[#0d0d0d] text-white hover:bg-[#1a1a1a]"
                   }`}
                   aria-label={recording ? "録音停止" : "音声入力を開始"}
                 >
                   {recording ? "■" : "🎤"}
                 </button>
               </div>
-              <p className="mt-3 text-[11px] leading-relaxed text-ink-soft">
-                {recording ? (
-                  "録音中… もう一度タップで停止"
-                ) : (
-                  <>
-                    タップして話す（30秒でOK）
-                    <br />
+              {recording ? (
+                <p className="mt-3 text-xs font-bold text-red-600">録音中… もう一度タップで停止</p>
+              ) : (
+                <>
+                  <p className="mt-3 text-sm font-extrabold text-ink">タップして話す（30秒でOK）</p>
+                  <p className="mt-1 text-[11px] leading-relaxed text-ink-soft">
                     例:「アルファードのコーティング施工。撥水がしっかり出る仕上がりです」
-                  </>
-                )}
-              </p>
+                  </p>
+                </>
+              )}
             </>
           ) : (
             <p className="mt-2 text-[11px] leading-relaxed text-ink-soft">
@@ -662,8 +661,8 @@ export function PitPostForm({ storeId }: { storeId?: string } = {}) {
             setInterim("");
           }}
           placeholder="音声認識の結果がここに入ります。手入力・修正もOK（任意。空でもAIが写真から記事を作ります）"
-          className={`w-full rounded-xl border bg-surface px-3 py-2.5 text-sm leading-relaxed ${
-            recording ? "border-red-400" : "border-line"
+          className={`w-full rounded-xl border-2 bg-surface px-3 py-2.5 text-sm leading-relaxed text-ink ${
+            recording ? "border-red-400" : "border-gold-500"
           }`}
         />
 
