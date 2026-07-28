@@ -35,6 +35,7 @@ HQ（mbFAST Tuning本店）⇄ 代理店のポータル。Next.js 16 App Router 
 
 - mbPIT: テスト記事の品質確認（Phase3完了: 音声投稿UI・WebP変換・統一フォーマット・AUTO_PUBLISH/STEALTH_MODE(noindex)対応済み）→ ナンバープレート自動ぼかし（Phase4, `src/server/pit/images.ts` に差し込み口あり）
 - 価格表: WordPress自動反映（`src/lib/prices/wordpress.ts` は雛形のみ）
+- 価格表: golden参照HTMLの再基準化が必要（表示順共通化=アルファベット順で行順が変わったため。VPS上で prod DB に対し `npm run check:price-golden` → `.verify-out/*.html` を `prisma/data/reference/` にコピー。ローカルDBは価格編集が入っていて基準にできない）
 - 通知のLINE実装（`NotificationService` の line ドライバ）
 
 ## 検証の作法

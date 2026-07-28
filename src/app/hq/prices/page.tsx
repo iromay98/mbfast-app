@@ -1,7 +1,15 @@
 import { requireHQ } from "@/lib/authz";
 import { prisma } from "@/lib/db";
 import { PageTitle, Card } from "@/components/ui";
-import { toColumns, toPrices, toRemote, type BrandRow, type VehicleRow } from "@/lib/prices/types";
+import {
+  toColumns,
+  toPrices,
+  toRemote,
+  sortBrandsForDisplay,
+  sortVehiclesForDisplay,
+  type BrandRow,
+  type VehicleRow,
+} from "@/lib/prices/types";
 import { PriceBoard } from "./price-board";
 
 export const dynamic = "force-dynamic";
@@ -10,12 +18,14 @@ export const dynamic = "force-dynamic";
 export default async function HqPricesPage() {
   await requireHQ();
 
-  const brands = await prisma.priceBrand.findMany({
-    orderBy: { displayOrder: "asc" },
-    include: {
-      vehicles: { orderBy: { displayOrder: "asc" } },
-    },
-  });
+  // 並びは代理店画面・公開HP生成と同じ共通ルール（src/lib/prices/types.ts）で揃える
+  const brands = sortBrandsForDisplay(
+    await prisma.priceBrand.findMany({
+      include: {
+        vehicles: { orderBy: { displayOrder: "asc" } },
+      },
+    }),
+  );
 
   const data = brands.map((b) => {
     const brand: BrandRow = {
@@ -30,7 +40,7 @@ export default async function HqPricesPage() {
       wordPressPageId: b.wordPressPageId,
       vehicleCount: b.vehicles.length,
     };
-    const vehicles: VehicleRow[] = b.vehicles.map((v) => ({
+    const vehicles: VehicleRow[] = sortVehiclesForDisplay(b.vehicles).map((v) => ({
       id: v.id,
       seriesGroup: v.seriesGroup,
       carName: v.carName,

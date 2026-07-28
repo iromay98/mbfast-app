@@ -3,7 +3,7 @@
 
 import { PRICE_HTML_TEMPLATES } from "./templates";
 import { applyColumnOrderRule, askLabelFor, buildGeneratedTemplate } from "./generated-template";
-import type { BrandRow, VehicleRow, RemoteFlags } from "./types";
+import { sortVehiclesForDisplay, type BrandRow, type VehicleRow, type RemoteFlags } from "./types";
 
 const LINE_URL = "https://lin.ee/8yOXuPJ";
 
@@ -362,6 +362,10 @@ export function generatePriceTableHtml(brand: BrandRow, vehicles: VehicleRow[]):
   // Airtable由来ブランドは columns から機械生成する。
   const tpl = PRICE_HTML_TEMPLATES[brand.id] ?? buildGeneratedTemplate(brand);
   const spec = BRAND_HTML_SPECS[brand.id] ?? specFromColumns(brand);
+
+  // 行順はアプリ（本店/代理店の価格表画面）と同じ共通ルールで揃える。
+  // 呼び出し側の orderBy に依存しない（アプリとHPの並び不一致の再発防止）
+  vehicles = sortVehiclesForDisplay(vehicles);
 
   const intro =
     brand.intro ||

@@ -2,7 +2,14 @@ import Link from "next/link";
 import { requireFullDealer } from "@/lib/authz";
 import { prisma } from "@/lib/db";
 import { PageTitle, Card } from "@/components/ui";
-import { toColumns, toPrices, toRemote, type VehicleRow } from "@/lib/prices/types";
+import {
+  toColumns,
+  toPrices,
+  toRemote,
+  sortBrandsForDisplay,
+  sortVehiclesForDisplay,
+  type VehicleRow,
+} from "@/lib/prices/types";
 import { PriceViewer, type ViewerBrand } from "./price-viewer";
 
 export const dynamic = "force-dynamic";
@@ -18,12 +25,12 @@ export default async function DealerPricesPage({
   await requireFullDealer();
   const { brand: brandParam } = await searchParams;
 
-  const brands = await prisma.priceBrand.findMany({
-    select: { id: true, displayName: true },
-  });
-  // メーカーも車種もアルファベット順。numeric指定で 3-Series < 30-Series のような数値順にする
-  const collator = new Intl.Collator("ja", { numeric: true, sensitivity: "base" });
-  brands.sort((a, b) => collator.compare(a.displayName, b.displayName));
+  // メーカーも車種もアルファベット順（HP生成と同じ共通ルール src/lib/prices/types.ts）
+  const brands = sortBrandsForDisplay(
+    await prisma.priceBrand.findMany({
+      select: { id: true, displayName: true },
+    }),
+  );
 
   const selectedId = brands.some((b) => b.id === brandParam)
     ? brandParam!
@@ -35,9 +42,7 @@ export default async function DealerPricesPage({
         include: { vehicles: true },
       })
     : null;
-  selected?.vehicles.sort(
-    (a, b) => collator.compare(a.carName, b.carName) || collator.compare(a.grade ?? "", b.grade ?? ""),
-  );
+  if (selected) selected.vehicles = sortVehiclesForDisplay(selected.vehicles);
 
   const viewerBrand: ViewerBrand | null = selected
     ? {

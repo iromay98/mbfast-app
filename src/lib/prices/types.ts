@@ -93,3 +93,25 @@ export function toRemote(v: unknown): RemoteFlags {
     atOne: !!o.atOne,
   };
 }
+
+// ── 表示順の共通ルール ──────────────────────────────
+// アプリ（本店/代理店）と公開HP生成の「並び」はここだけで決める。
+// displayOrder はDB上の挿入順の管理用で、表示には使わない
+// （二重の並びロジックがあると「アプリとHPで並びが違う」事故が再発する）。
+const displayCollator = new Intl.Collator("ja", { numeric: true, sensitivity: "base" });
+
+/** 車種の表示順: 車名→グレードのアルファベット順（数値は数値順: 3-Series < 30-Series） */
+export function sortVehiclesForDisplay<T extends { carName: string; grade: string | null }>(
+  vehicles: T[],
+): T[] {
+  return [...vehicles].sort(
+    (a, b) =>
+      displayCollator.compare(a.carName, b.carName) ||
+      displayCollator.compare(a.grade ?? "", b.grade ?? ""),
+  );
+}
+
+/** メーカーの表示順: 表示名のアルファベット順 */
+export function sortBrandsForDisplay<T extends { displayName: string }>(brands: T[]): T[] {
+  return [...brands].sort((a, b) => displayCollator.compare(a.displayName, b.displayName));
+}
