@@ -11,15 +11,19 @@ export function AppShell({
   user,
   navItems,
   bottomNavItems,
+  brand = "mbfast",
   children,
 }: {
   user: SessionUser;
   navItems: NavItem[];
   // 指定するとスマホでは下タブバーに切り替わる（上部ナビはsm以上のみ表示）
   bottomNavItems?: BottomNavItem[];
+  // mbpit: mbPIT専用アカウント向け表示（mbFASTブランドを出さない・別ブランド運用）
+  brand?: "mbfast" | "mbpit";
   children: ReactNode;
 }) {
   const hasBottomNav = !!bottomNavItems && bottomNavItems.length > 0;
+  const isPit = brand === "mbpit";
   return (
     // overflow-x-clip: どれか1要素が幅を突き破ってもページ全体が横スクロールにならない保険
     // （clipはhiddenと違いstickyナビを壊さない。表などは各自のoverflow-x-autoで横スクロール可能なまま）
@@ -31,10 +35,18 @@ export function AppShell({
         <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-2.5">
           <div className="flex items-baseline gap-2">
             <span className="text-lg font-black tracking-tight text-ink">
-              mb<span className="text-gold-500">FAST</span>
+              {isPit ? (
+                <>
+                  mb<span className="text-gold-500">PIT</span>
+                </>
+              ) : (
+                <>
+                  mb<span className="text-gold-500">FAST</span>
+                </>
+              )}
             </span>
             <span className="rounded bg-surface-2 px-1.5 py-0.5 text-[11px] font-medium text-ink-soft">
-              {roleLabels[user.role]}
+              {isPit ? "加盟店" : roleLabels[user.role]}
             </span>
           </div>
           <div className="flex items-center gap-3">
@@ -59,7 +71,9 @@ export function AppShell({
         </div>
       </header>
 
-      <NavBar items={navItems} className={hasBottomNav ? "hidden sm:block" : undefined} />
+      {navItems.length > 0 && (
+        <NavBar items={navItems} className={hasBottomNav ? "hidden sm:block" : undefined} />
+      )}
 
       {/* break-words: 長いURL・VIN・ファイル名などの折り返し不能文字列が幅を押し広げるのを防ぐ */}
       <main

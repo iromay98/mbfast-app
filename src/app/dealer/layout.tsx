@@ -54,15 +54,11 @@ export default async function DealerLayout({
       select: { pitOnly: true },
     }),
   ]);
-  // mbPIT専用アカウント（外部店舗）はブログ投稿のみ。ECU系メニューは出さない
+  // mbPIT専用アカウント（外部店舗）: mbFASTブランド・ECU系メニューを一切出さない。
+  // 行き先はブログ投稿ページだけなのでナビ自体を消し、ヘッダーはmbPITロゴにする（別ブランド運用）
   if (dealer?.pitOnly) {
-    const pitNav: NavItem[] = [{ href: "/dealer/pit", label: "施工ブログ投稿" }];
     return (
-      <AppShell
-        user={user}
-        navItems={pitNav}
-        bottomNavItems={[{ href: "/dealer/pit", label: "ブログ投稿", icon: "mic" }]}
-      >
+      <AppShell user={user} navItems={[]} brand="mbpit">
         {children}
       </AppShell>
     );

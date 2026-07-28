@@ -1,4 +1,5 @@
-import { requireDealer } from "@/lib/authz";
+import type { Metadata } from "next";
+import { requireDealer, getSessionUser } from "@/lib/authz";
 import { prisma } from "@/lib/db";
 import { formatDateTime } from "@/lib/labels";
 import { PageTitle, Card } from "@/components/ui";
@@ -7,6 +8,25 @@ import { StoreInfoEditor } from "@/components/store-info-editor";
 import { PitPostForm } from "./pit-post-form";
 
 export const dynamic = "force-dynamic";
+
+// mbPIT専用アカウントにはタブタイトルにもmbFASTを出さない（別ブランド運用）
+export async function generateMetadata(): Promise<Metadata> {
+  const user = await getSessionUser();
+  if (user?.dealerId) {
+    const d = await prisma.dealer.findUnique({
+      where: { id: user.dealerId },
+      select: { pitOnly: true },
+    });
+    if (d?.pitOnly) {
+      return {
+        title: "mbPIT 加盟店ポータル",
+        description: "mbPIT 施工記録の投稿",
+        appleWebApp: { title: "mbPIT" },
+      };
+    }
+  }
+  return {};
+}
 
 // 店舗（mbPIT加盟店）: 施工記録の投稿 → AIが記事化して mbfasttuning.com に自動公開。
 export default async function DealerPitPage() {
