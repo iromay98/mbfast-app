@@ -11,6 +11,15 @@ import {
   preloadPlateModel,
   type PlateBox,
 } from "@/lib/plate-detect";
+import {
+  draftKey,
+  saveDraftText,
+  loadDraftText,
+  clearDraftText,
+  saveDraftPhotos,
+  loadDraftPhotos,
+  clearDraftPhotos,
+} from "@/lib/pit-draft";
 
 // 写真1枚分のぼかし編集状態
 type PhotoItem = {
@@ -242,6 +251,12 @@ export function PitPostForm({ storeId }: { storeId?: string } = {}) {
   const chassisDisplay = qrText ? chassisFromQrText(qrText) : chassisManual.trim() || null;
   const chassisLast3 = chassisDisplay ? chassisDisplay.replace(/[^0-9]/g, "").slice(-3) : null;
 
+  // ── 下書き対象の入力（stateで持ち、localStorage/IndexedDBへ自動保存する） ──
+  const [vehicle, setVehicle] = useState("");
+  const [category, setCategory] = useState(CATEGORIES[0].value);
+  const [workDate, setWorkDate] = useState(todayStr);
+  const [videoUrl, setVideoUrl] = useState("");
+
   // ── 音声入力（Web Speech API・対応ブラウザのみマイクボタンを表示） ──
   const [memo, setMemo] = useState("");
   const [interim, setInterim] = useState("");
@@ -253,6 +268,102 @@ export function PitPostForm({ storeId }: { storeId?: string } = {}) {
     setSpeechOk(getSpeechRecognition() !== null);
     return () => recRef.current?.stop();
   }, []);
+
+  // ── 下書き（端末内保存）: 入力途中でアプリが閉じても消えないようにする ──
+  const dkey = draftKey(storeId);
+  const [restored, setRestored] = useState(false); // 復元しました表示
+  const draftReady = useRef(false); // 復元完了までは保存しない（空で上書きしないため）
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      const t = loadDraftText(dkey);
+      if (t && !cancelled) {
+        setMemo(t.memo);
+        setVehicle(t.vehicle);
+        if (t.category) setCategory(t.category);
+        if (t.workDate) setWorkDate(t.workDate);
+        setVideoUrl(t.videoUrl);
+        if (t.chassisManual) {
+          setChassisManual(t.chassisManual);
+          setShowManualChassis(true);
+        }
+      }
+      // 写真（ぼかし枠つき）も復元。失敗しても文字の復元は生かす
+      try {
+        const ps = await loadDraftPhotos(dkey);
+        if (ps.length > 0 && !cancelled) {
+          const items: PhotoItem[] = ps.map((p) => ({
+            file: p.file,
+            url: URL.createObjectURL(p.file),
+            boxes: p.boxes ?? [],
+            previewUrl: null,
+            detecting: false,
+          }));
+          setPhotoItems(items);
+          items.forEach((it, i) => {
+            void makePreview(it).then((prev) =>
+              setPhotoItems((cur) => {
+                if (!cur[i] || cur[i].file !== it.file) return cur;
+                const n = [...cur];
+                n[i] = { ...n[i], previewUrl: prev };
+                return n;
+              }),
+            );
+          });
+        }
+      } catch {
+        /* 写真の復元は諦める */
+      }
+      if (!cancelled && (t || true)) setRestored(!!t);
+      draftReady.current = true;
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // dkey が変わる（本部が店舗を切替）ときは再読込
+  }, [dkey]);
+
+  // 文字入力の自動保存（打つたびではなく600ms止まってから）
+  useEffect(() => {
+    if (!draftReady.current) return;
+    const t = setTimeout(() => {
+      saveDraftText(dkey, { memo, vehicle, category, workDate, videoUrl, chassisManual });
+    }, 600);
+    return () => clearTimeout(t);
+  }, [dkey, memo, vehicle, category, workDate, videoUrl, chassisManual]);
+
+  // 写真とぼかし枠の自動保存（枚数・枠が変わったとき）
+  useEffect(() => {
+    if (!draftReady.current) return;
+    const t = setTimeout(() => {
+      if (photoItems.length === 0) {
+        void clearDraftPhotos(dkey);
+        return;
+      }
+      void saveDraftPhotos(
+        dkey,
+        photoItems.map((p) => ({ file: p.file, boxes: p.boxes })),
+      );
+    }, 800);
+    return () => clearTimeout(t);
+  }, [dkey, photoItems]);
+
+  const discardDraft = () => {
+    clearDraftText(dkey);
+    void clearDraftPhotos(dkey);
+    setMemo("");
+    setVehicle("");
+    setCategory(CATEGORIES[0].value);
+    setWorkDate(todayStr);
+    setVideoUrl("");
+    setChassisManual("");
+    setQrText(null);
+    photoItems.forEach((it) => URL.revokeObjectURL(it.url));
+    setPhotoItems([]);
+    setRestored(false);
+    formRef.current?.reset();
+  };
 
   // 送信中の進捗メッセージを順送り
   const [loadStep, setLoadStep] = useState(0);
@@ -355,17 +466,28 @@ export function PitPostForm({ storeId }: { storeId?: string } = {}) {
         });
         formRef.current?.reset();
         setMemo("");
+        setVehicle("");
+        setVideoUrl("");
         setQrText(null);
         setChassisManual("");
         photoItems.forEach((it) => URL.revokeObjectURL(it.url));
         setPhotoItems([]);
+        // 公開できたので下書きは破棄（残すと二重投稿の元になる）
+        clearDraftText(dkey);
+        void clearDraftPhotos(dkey);
+        setRestored(false);
         router.refresh();
       } else if (data.status === "held") {
         setDone({ kind: "held", message: data.message ?? "本部確認となりました。" });
         formRef.current?.reset();
         setMemo("");
+        setVehicle("");
+        setVideoUrl("");
         photoItems.forEach((it) => URL.revokeObjectURL(it.url));
         setPhotoItems([]);
+        clearDraftText(dkey);
+        void clearDraftPhotos(dkey);
+        setRestored(false);
         router.refresh();
       } else {
         setError(data.error ?? "送信に失敗しました。時間をおいて再度お試しください。");
@@ -472,6 +594,21 @@ export function PitPostForm({ storeId }: { storeId?: string } = {}) {
       )}
 
       <form ref={formRef} onSubmit={submit} className={busy ? "hidden" : "space-y-4"}>
+        {/* 下書きの復元通知（自動保存なので、勝手に文字が入っている理由を明示する） */}
+        {restored && (
+          <div className="flex flex-wrap items-center gap-2 rounded-xl border border-gold-300 bg-gold-50 px-3 py-2">
+            <span className="text-xs font-semibold text-ink">
+              📝 前回の下書きを復元しました
+            </span>
+            <button
+              type="button"
+              onClick={discardDraft}
+              className="ml-auto text-xs font-semibold text-red-600 hover:underline"
+            >
+              下書きを破棄して最初から
+            </button>
+          </div>
+        )}
         {/* ── 音声入力ゾーン（大きなマイクボタン） ── */}
         <div className="pt-1 text-center">
           <p className="text-sm font-extrabold text-ink">🎤 今日の作業を話してください</p>
@@ -612,6 +749,8 @@ export function PitPostForm({ storeId }: { storeId?: string } = {}) {
             name="videoUrl"
             type="url"
             inputMode="url"
+            value={videoUrl}
+            onChange={(e) => setVideoUrl(e.target.value)}
             placeholder="https://youtu.be/xxxxxxxxxxx"
             className="w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm font-semibold text-ink"
           />
@@ -643,6 +782,8 @@ export function PitPostForm({ storeId }: { storeId?: string } = {}) {
             <input
               name="vehicle"
               required
+              value={vehicle}
+              onChange={(e) => setVehicle(e.target.value)}
               placeholder="例: アルファード 30系"
               className="w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm"
             />
@@ -651,7 +792,12 @@ export function PitPostForm({ storeId }: { storeId?: string } = {}) {
             <label className="mb-1 block text-xs font-semibold">
               施工内容 <span className="text-red-600">必須</span>
             </label>
-            <select name="category" className="w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm">
+            <select
+              name="category"
+              value={category}
+              onChange={(e) => setCategory(e.target.value)}
+              className="w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm"
+            >
               {CATEGORIES.map((c) => (
                 <option key={c.value} value={c.value}>
                   {c.label}
@@ -664,7 +810,8 @@ export function PitPostForm({ storeId }: { storeId?: string } = {}) {
             <input
               name="workDate"
               type="date"
-              defaultValue={todayStr}
+              value={workDate}
+              onChange={(e) => setWorkDate(e.target.value)}
               max={todayStr}
               className="w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm"
             />
