@@ -714,8 +714,8 @@ model PriceVehicle {
 // 店舗マスタ（既存Dealerに1:1で紐づく）。footer等の公開ルールはDBに持ち、アプリ更新なしで変えられるようにする。
 model PitStore {
   id           String   @id @default(cuid())
-  dealerId     String   @unique
-  dealer       Dealer   @relation(fields: [dealerId], references: [id])
+  dealerId     String?  @unique // null = 本店直営（代理店に紐づかない店舗。本部が直接投稿する）
+  dealer       Dealer?  @relation(fields: [dealerId], references: [id])
   displayName  String // 記事タイトル・フッターに使う表示名
   slug         String   @unique // 記事slug末尾に付ける店舗slug（WPカテゴリslugと揃える）
   wpCategoryId Int // WordPress店舗カテゴリID（親545配下）

@@ -7,7 +7,7 @@ import { upsertPitStore, resolvePitHeld } from "@/lib/actions/pit";
 
 export type StoreRow = {
   id: string;
-  dealerId: string;
+  dealerId: string | null; // null = 本店直営（代理店に紐づかない）
   dealerName: string;
   displayName: string;
   slug: string;
@@ -131,7 +131,10 @@ function StoreMaster({ stores, dealers }: { stores: StoreRow[]; dealers: DealerO
         footerHtml: editing.footerHtml ?? "",
         active: editing.active ?? true,
       });
-      setMsg(r.error ?? null);
+      setMsg(
+        r.error ??
+          (r.createdCategoryId ? `保存しました（WPカテゴリID ${r.createdCategoryId} を自動作成）` : null),
+      );
       if (!r.error) setEditing(null);
       router.refresh();
     });
@@ -190,6 +193,9 @@ function StoreMaster({ stores, dealers }: { stores: StoreRow[]; dealers: DealerO
       </table>
       </div>
 
+      {/* 保存成功時のメッセージ（編集フォームは閉じるのでここに出す） */}
+      {!editing && msg && <p className="mt-2 text-xs text-green-700">{msg}</p>}
+
       {editing && (
         <div className="mt-3 rounded-lg border border-line bg-surface-2 p-3">
           <h4 className="mb-2 text-xs font-semibold">{editing.id ? "店舗を編集" : "店舗を追加"}</h4>
@@ -201,7 +207,7 @@ function StoreMaster({ stores, dealers }: { stores: StoreRow[]; dealers: DealerO
                 onChange={(e) => setEditing({ ...editing, dealerId: e.target.value })}
                 className="mt-0.5 w-full rounded border border-line bg-surface px-2 py-1 text-xs"
               >
-                <option value="">選択してください</option>
+                <option value="">本店直営（代理店に紐づけない）</option>
                 {dealers.map((d) => (
                   <option key={d.id} value={d.id}>
                     {d.name}
@@ -227,11 +233,12 @@ function StoreMaster({ stores, dealers }: { stores: StoreRow[]; dealers: DealerO
               />
             </label>
             <label className="block text-[11px] text-ink-soft">
-              WordPressカテゴリID
+              WordPressカテゴリID（空欄で保存すると親545配下に自動作成）
               <input
-                value={editing.wpCategoryId ?? ""}
+                value={editing.wpCategoryId || ""}
                 inputMode="numeric"
-                onChange={(e) => setEditing({ ...editing, wpCategoryId: Number(e.target.value) })}
+                placeholder="空欄 = 自動作成"
+                onChange={(e) => setEditing({ ...editing, wpCategoryId: Number(e.target.value) || 0 })}
                 className="mt-0.5 w-full rounded border border-line bg-surface px-2 py-1 text-xs font-mono"
               />
             </label>
@@ -268,6 +275,7 @@ function StoreMaster({ stores, dealers }: { stores: StoreRow[]; dealers: DealerO
             {msg && <span className="text-xs text-red-600">{msg}</span>}
           </div>
           <div className="mt-2 text-[11px] text-ink-soft">
+            カテゴリIDを空欄にすると、保存時にWordPressへ親545配下のカテゴリ（名前=表示名・slug=slug）を自動作成します。
             確定済みカテゴリID: {KNOWN_CATEGORIES.map((k) => `${k.name}=${k.id}(${k.slug})`).join(" / ")}（親: mbPIT施工記録=545）
           </div>
         </div>

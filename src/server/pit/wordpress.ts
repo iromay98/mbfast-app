@@ -61,6 +61,34 @@ async function wpFetch(path: string, init: RequestInit): Promise<Response> {
   return res;
 }
 
+// 新規加盟店の店舗カテゴリを mbPIT親カテゴリ(545)配下に作成してIDを返す。
+// 同名/同slugのカテゴリが既にある場合（term_exists）は既存IDを再利用する。
+// 既存の代理店カテゴリツリーには一切触れない（新規作成のみ・親は必ず545）。
+export async function createStoreCategory(name: string, slug: string): Promise<number> {
+  const res = await fetch(`${API}/categories`, {
+    method: "POST",
+    headers: { Authorization: authHeader(), "Content-Type": "application/json" },
+    body: JSON.stringify({ name, slug, parent: MBPIT_PARENT_CATEGORY_ID }),
+  });
+  const data = (await res.json().catch(() => null)) as
+    | { id?: number; code?: string; message?: string; data?: { term_id?: number } }
+    | null;
+  if (res.ok && typeof data?.id === "number") return data.id;
+  if (data?.code === "term_exists" && typeof data.data?.term_id === "number") {
+    // 既存カテゴリが545配下なら再利用。別ツリー（既存の代理店カテゴリ等）なら誤流用しない
+    const existing = await wpFetch(`/categories/${data.data.term_id}`, { method: "GET" })
+      .then((r) => r.json() as Promise<{ id: number; parent: number }>)
+      .catch(() => null);
+    if (existing?.parent === MBPIT_PARENT_CATEGORY_ID) return existing.id;
+    throw new Error(
+      `同名/同slugのカテゴリがmbPIT外に既に存在します（ID:${data.data.term_id}）。slugを変えるかカテゴリIDを手入力してください`,
+    );
+  }
+  throw new Error(
+    `WordPressカテゴリ作成に失敗 (${res.status}): ${data?.message ?? JSON.stringify(data)?.slice(0, 200) ?? ""}`,
+  );
+}
+
 export type WpMedia = { id: number; sourceUrl: string };
 
 // 画像アップロード（Content-Disposition 必須）→ alt を PATCH で設定

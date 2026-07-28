@@ -1,7 +1,7 @@
 import { requireHQ } from "@/lib/authz";
 import { prisma } from "@/lib/db";
 import { formatDateTime } from "@/lib/labels";
-import { PageTitle, Card } from "@/components/ui";
+import { PageTitle, Card, LinkButton } from "@/components/ui";
 import { pitAiEnabled } from "@/server/pit/generate";
 import { wpConfigured } from "@/server/pit/wordpress";
 import { PitAdmin, type StoreRow, type PostRow, type DealerOption } from "./pit-admin";
@@ -25,7 +25,7 @@ export default async function HqPitPage() {
   const storeRows: StoreRow[] = stores.map((s) => ({
     id: s.id,
     dealerId: s.dealerId,
-    dealerName: s.dealer.name,
+    dealerName: s.dealer?.name ?? "本店直営",
     displayName: s.displayName,
     slug: s.slug,
     wpCategoryId: s.wpCategoryId,
@@ -56,7 +56,11 @@ export default async function HqPitPage() {
 
   return (
     <div>
-      <PageTitle title="mbPIT 施工記録ブログ" subtitle={`${stores.length} 店舗 / 直近 ${posts.length} 件`} />
+      <PageTitle
+        title="mbPIT 施工記録ブログ"
+        subtitle={`${stores.length} 店舗 / 直近 ${posts.length} 件`}
+        action={<LinkButton href="/hq/pit/post">🎤 本部から投稿</LinkButton>}
+      />
       {(!envOk.ai || !envOk.wp) && (
         <Card className="mb-3 border-red-200 bg-red-50">
           <p className="text-xs text-red-700">

@@ -132,7 +132,8 @@ const CATEGORIES: { value: string; label: string }[] = [
 
 // 店舗の投稿フォーム。入力は最小限（写真・車種・カテゴリ・任意メモ）。
 // 送信 → サーバーでAI記事化＋WordPress公開 → 完了画面で公開URLを表示。
-export function PitPostForm() {
+// storeId: 本部が任意の店舗として投稿する場合のみ指定（代理店はセッションから解決されるので不要）
+export function PitPostForm({ storeId }: { storeId?: string } = {}) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -309,6 +310,7 @@ export function PitPostForm() {
       return;
     }
     try {
+      if (storeId) form.set("storeId", storeId);
       const res = await fetch("/api/pit/posts", { method: "POST", body: form });
       const data = (await res.json().catch(() => ({}))) as {
         status?: string;

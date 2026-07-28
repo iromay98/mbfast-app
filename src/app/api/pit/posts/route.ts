@@ -17,27 +17,19 @@ const MAX_PHOTOS = 10;
 const MAX_PHOTO_BYTES = 10 * 1024 * 1024; // 10MB/枚
 const MAX_MEMO_LEN = 1000; // 音声書き起こし対応で拡張（30秒×数回分）
 
+const STORE_SELECT = {
+  id: true,
+  displayName: true,
+  slug: true,
+  wpCategoryId: true,
+  footerHtml: true,
+  faqJson: true,
+  active: true,
+} as const;
+
 export async function POST(request: NextRequest) {
   const user = await getSessionUser();
   if (!user) return json(401, { error: "ログインしてください" });
-  if (!user.dealerId) return json(403, { error: "店舗アカウントでログインしてください" });
-
-  // 店舗マスタ（PitStore）に登録済みの代理店のみ投稿できる
-  const store = await prisma.pitStore.findUnique({
-    where: { dealerId: user.dealerId },
-    select: {
-      id: true,
-      displayName: true,
-      slug: true,
-      wpCategoryId: true,
-      footerHtml: true,
-      faqJson: true,
-      active: true,
-    },
-  });
-  if (!store || !store.active) {
-    return json(403, { error: "この店舗はmbPIT投稿の対象になっていません（本部にお問い合わせください）" });
-  }
 
   if (!pitAiEnabled()) return json(503, { error: "記事生成AIが未設定です（本部にお問い合わせください）" });
   if (!wpConfigured()) return json(503, { error: "ブログ公開の設定が未完了です（本部にお問い合わせください）" });
@@ -48,6 +40,23 @@ export async function POST(request: NextRequest) {
     form = await request.formData();
   } catch {
     return json(400, { error: "multipart/form-data で送信してください" });
+  }
+
+  // ── 投稿先店舗の解決 ──
+  // 代理店: セッションの dealerId から解決（クライアントの申告値は信用しない）。
+  // 本部(HQ_ADMIN): フォームの storeId で任意の店舗として投稿できる（本店直営・停止中も可）。
+  let storeKey: { id: string } | { dealerId: string };
+  if (user.role === "HQ_ADMIN") {
+    const storeId = String(form.get("storeId") ?? "").trim();
+    if (!storeId) return json(400, { error: "投稿先の店舗を選択してください" });
+    storeKey = { id: storeId };
+  } else {
+    if (!user.dealerId) return json(403, { error: "店舗アカウントでログインしてください" });
+    storeKey = { dealerId: user.dealerId };
+  }
+  const store = await prisma.pitStore.findUnique({ where: storeKey, select: STORE_SELECT });
+  if (!store || (user.role !== "HQ_ADMIN" && !store.active)) {
+    return json(403, { error: "この店舗はmbPIT投稿の対象になっていません（本部にお問い合わせください）" });
   }
 
   const vehicle = String(form.get("vehicle") ?? "").trim();
