@@ -272,6 +272,7 @@ export function PitPostForm({ storeId }: { storeId?: string } = {}) {
   // ── 下書き（端末内保存）: 入力途中でアプリが閉じても消えないようにする ──
   const dkey = draftKey(storeId);
   const [restored, setRestored] = useState(false); // 復元しました表示
+  const [draftStatus, setDraftStatus] = useState<string | null>(null); // 「保存しました」表示
   const draftReady = useRef(false); // 復元完了までは保存しない（空で上書きしないため）
 
   useEffect(() => {
@@ -329,6 +330,8 @@ export function PitPostForm({ storeId }: { storeId?: string } = {}) {
     if (!draftReady.current) return;
     const t = setTimeout(() => {
       saveDraftText(dkey, { memo, vehicle, category, workDate, videoUrl, chassisManual });
+      const has = memo || vehicle || videoUrl || chassisManual;
+      if (has) setDraftStatus(`自動保存 ${new Date().toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" })}`);
     }, 600);
     return () => clearTimeout(t);
   }, [dkey, memo, vehicle, category, workDate, videoUrl, chassisManual]);
@@ -349,6 +352,28 @@ export function PitPostForm({ storeId }: { storeId?: string } = {}) {
     return () => clearTimeout(t);
   }, [dkey, photoItems]);
 
+  // 明示的な下書き保存（自動保存に任せず、押したら確実に保存されたと分かるように）
+  const [saving, setSaving] = useState(false);
+  const saveDraftNow = async () => {
+    setSaving(true);
+    try {
+      saveDraftText(dkey, { memo, vehicle, category, workDate, videoUrl, chassisManual });
+      if (photoItems.length > 0) {
+        await saveDraftPhotos(
+          dkey,
+          photoItems.map((p) => ({ file: p.file, boxes: p.boxes })),
+        );
+      } else {
+        await clearDraftPhotos(dkey);
+      }
+      setDraftStatus(`✓ ${new Date().toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" })} に保存しました`);
+    } catch {
+      setDraftStatus("保存に失敗しました（端末の空き容量をご確認ください）");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const discardDraft = () => {
     clearDraftText(dkey);
     void clearDraftPhotos(dkey);
@@ -362,6 +387,7 @@ export function PitPostForm({ storeId }: { storeId?: string } = {}) {
     photoItems.forEach((it) => URL.revokeObjectURL(it.url));
     setPhotoItems([]);
     setRestored(false);
+    setDraftStatus(null);
     formRef.current?.reset();
   };
 
@@ -594,6 +620,20 @@ export function PitPostForm({ storeId }: { storeId?: string } = {}) {
       )}
 
       <form ref={formRef} onSubmit={submit} className={busy ? "hidden" : "space-y-4"}>
+        {/* 下書き: 自動保存に加えて明示的な保存ボタンを置く（保存された確信が持てるように） */}
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            disabled={saving}
+            onClick={saveDraftNow}
+            className="rounded-lg border-2 border-gold-500 bg-surface px-3 py-1.5 text-xs font-bold text-ink disabled:opacity-50"
+          >
+            {saving ? "保存中…" : "💾 下書きを保存"}
+          </button>
+          {draftStatus && <span className="text-[11px] font-semibold text-ink-soft">{draftStatus}</span>}
+          <span className="ml-auto text-[10px] text-ink-soft">この端末に保存されます</span>
+        </div>
+
         {/* 下書きの復元通知（自動保存なので、勝手に文字が入っている理由を明示する） */}
         {restored && (
           <div className="flex flex-wrap items-center gap-2 rounded-xl border border-gold-300 bg-gold-50 px-3 py-2">
@@ -864,6 +904,16 @@ export function PitPostForm({ storeId }: { storeId?: string } = {}) {
         </div>
 
         {error && <p className="text-xs font-semibold text-red-600">{error}</p>}
+
+        {/* 下まで書いたところで中断される場合に備え、送信ボタンの手前にも保存を置く */}
+        <button
+          type="button"
+          disabled={saving}
+          onClick={saveDraftNow}
+          className="w-full rounded-xl border-2 border-gold-500 bg-surface py-2.5 text-sm font-bold text-ink disabled:opacity-50"
+        >
+          {saving ? "保存中…" : "💾 下書きを保存して後で続ける"}
+        </button>
 
         <button
           type="submit"
