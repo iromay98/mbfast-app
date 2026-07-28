@@ -6,9 +6,8 @@ import { Card } from "@/components/ui";
 import {
   upsertPitStore,
   resolvePitHeld,
-  createPitInvite,
-  deletePitInvite,
   approvePitStore,
+  suspendPitStore,
 } from "@/lib/actions/pit";
 
 export type StoreRow = {
@@ -34,14 +33,6 @@ export type PostRow = {
   createdAtLabel: string;
 };
 export type DealerOption = { id: string; name: string };
-export type InviteRow = {
-  id: string;
-  token: string;
-  note: string;
-  used: boolean;
-  usedByStore: string | null;
-  createdAtLabel: string;
-};
 
 const CATEGORY_LABELS: Record<string, string> = {
   ecu: "ECUチューニング",
@@ -70,13 +61,11 @@ export function PitAdmin({
   stores,
   posts,
   dealers,
-  invites,
   monthly,
 }: {
   stores: StoreRow[];
   posts: PostRow[];
   dealers: DealerOption[];
-  invites: InviteRow[];
   monthly: { store: string; ym: string; count: number }[];
 }) {
   const held = posts.filter((p) => p.status === "held");
@@ -86,7 +75,6 @@ export function PitAdmin({
       {held.length > 0 && <HeldQueue posts={held} />}
       {pending.length > 0 && <PendingStores stores={pending} />}
       <StoreMaster stores={stores} dealers={dealers} />
-      <InviteSection invites={invites} />
       <TestPublish stores={stores} />
       <PostLog posts={posts} />
       {monthly.length > 0 && <MonthlyStats monthly={monthly} />}
@@ -178,98 +166,6 @@ function PendingStores({ stores }: { stores: StoreRow[] }) {
   );
 }
 
-// ── 招待リンク（新規加盟店の自己登録用） ──
-function InviteSection({ invites }: { invites: InviteRow[] }) {
-  const router = useRouter();
-  const [pending, start] = useTransition();
-  const [note, setNote] = useState("");
-  const [copied, setCopied] = useState<string | null>(null);
-  const unused = invites.filter((i) => !i.used);
-  const used = invites.filter((i) => i.used).slice(0, 5);
-
-  const inviteUrl = (token: string) => `${window.location.origin}/pit/join/${token}`;
-  const copy = async (token: string) => {
-    try {
-      await navigator.clipboard.writeText(inviteUrl(token));
-      setCopied(token);
-      setTimeout(() => setCopied(null), 2000);
-    } catch {
-      // clipboard不可の環境ではURLを直接見せる（下に表示済み）
-    }
-  };
-
-  return (
-    <Card>
-      <h3 className="mb-2 text-sm font-semibold">新規加盟店の招待リンク</h3>
-      <p className="mb-2 text-[11px] text-ink-soft">
-        リンクを渡すと、店舗が自分でアカウントと店舗情報（店舗名・slug）を登録し、そのまま自動承認されて投稿できるようになります（WPカテゴリも自動作成）。WP接続エラー時のみ「承認待ち」に残るので手動で承認してください。登録されたらWordPress側の店舗ページ（/mbpit/店舗slug/）の作成をお忘れなく。
-      </p>
-      <div className="flex flex-wrap items-center gap-2">
-        <input
-          value={note}
-          onChange={(e) => setNote(e.target.value)}
-          placeholder="メモ（例: ○○コーティング様）"
-          className="w-56 rounded border border-line bg-surface px-2 py-1.5 text-xs"
-        />
-        <button
-          type="button"
-          disabled={pending}
-          onClick={() =>
-            start(async () => {
-              await createPitInvite(note);
-              setNote("");
-              router.refresh();
-            })
-          }
-          className="rounded-lg bg-gold-500 px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50"
-        >
-          ＋ 招待リンクを発行
-        </button>
-      </div>
-      {unused.length > 0 && (
-        <div className="mt-3 space-y-2">
-          {unused.map((i) => (
-            <div key={i.id} className="flex flex-wrap items-center gap-2 rounded-lg border border-line p-2 text-xs">
-              <span className="font-semibold">{i.note || "（メモなし）"}</span>
-              <span className="text-ink-soft">{i.createdAtLabel}</span>
-              <span className="max-w-[18rem] truncate font-mono text-[10px] text-ink-soft">
-                /pit/join/{i.token}
-              </span>
-              <div className="ml-auto flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => copy(i.token)}
-                  className="rounded border border-line px-2 py-1 font-semibold hover:bg-surface-2"
-                >
-                  {copied === i.token ? "✓ コピーしました" : "URLをコピー"}
-                </button>
-                <button
-                  type="button"
-                  disabled={pending}
-                  onClick={() =>
-                    start(async () => {
-                      await deletePitInvite(i.id);
-                      router.refresh();
-                    })
-                  }
-                  className="text-red-600 hover:underline"
-                >
-                  取消
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-      {used.length > 0 && (
-        <div className="mt-3 text-[11px] text-ink-soft">
-          使用済み: {used.map((i) => `${i.note || "メモなし"}→${i.usedByStore ?? "登録済み"}`).join(" / ")}
-        </div>
-      )}
-    </Card>
-  );
-}
-
 // ── 店舗マスタ ──
 function StoreMaster({ stores, dealers }: { stores: StoreRow[]; dealers: DealerOption[] }) {
   const router = useRouter();
@@ -310,6 +206,10 @@ function StoreMaster({ stores, dealers }: { stores: StoreRow[]; dealers: DealerO
           ＋ 店舗を追加
         </button>
       </div>
+      <p className="mb-2 text-[11px] text-ink-soft">
+        新規加盟店は公開ページ <span className="font-mono">/pit/join</span> から自分で登録できます（利用規約に同意→即投稿可能）。
+        不適切な店舗は右の「停止」でワンタップ停止（ログインも失効）。既公開記事の削除はWordPress側で行ってください。
+      </p>
 
       <div className="overflow-x-auto">
       <table className="w-full text-xs">
@@ -333,10 +233,27 @@ function StoreMaster({ stores, dealers }: { stores: StoreRow[]; dealers: DealerO
               <td className="font-mono">{s.wpCategoryId}</td>
               <td>{s.footerHtml.trim() ? "設定済み" : <span className="text-red-600">未設定</span>}</td>
               <td>{s.active ? "有効" : "停止"}</td>
-              <td className="text-right">
+              <td className="whitespace-nowrap text-right">
                 <button type="button" onClick={() => setEditing(s)} className="text-sky-700 hover:underline">
                   編集
                 </button>
+                {s.active && (
+                  <button
+                    type="button"
+                    disabled={pending}
+                    onClick={() => {
+                      if (!window.confirm(`「${s.displayName}」を停止しますか？\n投稿できなくなり、mbPIT専用アカウントはログインもできなくなります。`)) return;
+                      start(async () => {
+                        const r = await suspendPitStore(s.id);
+                        setMsg(r.error ?? `${s.displayName} を停止しました（再開は「承認して有効化」から）`);
+                        router.refresh();
+                      });
+                    }}
+                    className="ml-2 text-red-600 hover:underline disabled:opacity-50"
+                  >
+                    停止
+                  </button>
+                )}
               </td>
             </tr>
           ))}

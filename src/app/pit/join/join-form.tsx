@@ -16,7 +16,7 @@ function suggestSlug(name: string): string {
     .slice(0, 40);
 }
 
-export function JoinForm({ token }: { token: string }) {
+export function JoinForm() {
   const [storeName, setStoreName] = useState("");
   const [slug, setSlug] = useState("");
   const [slugTouched, setSlugTouched] = useState(false);
@@ -36,12 +36,12 @@ export function JoinForm({ token }: { token: string }) {
     setError(null);
     try {
       const r = await registerPitStore({
-        token,
         storeName,
         slug,
         contactName: String(fd.get("contactName") ?? ""),
         email: String(fd.get("email") ?? ""),
         password,
+        agreed: fd.get("agree") === "on",
       });
       if (r.error) setError(r.error);
       else setDone({ approved: !!r.approved });
@@ -135,6 +135,15 @@ export function JoinForm({ token }: { token: string }) {
       <label className={label}>
         パスワード（確認）
         <input name="password2" type="password" required minLength={8} className={input} />
+      </label>
+      <label className="flex items-start gap-2 text-[11px] text-neutral-300">
+        <input name="agree" type="checkbox" required className="mt-0.5 accent-[#c9a227]" />
+        <span>
+          <a href="/pit/terms" target="_blank" rel="noopener" className="text-[#c9a227] underline">
+            利用規約
+          </a>
+          に同意します
+        </span>
       </label>
       {error && <p className="text-xs text-red-400">{error}</p>}
       <button

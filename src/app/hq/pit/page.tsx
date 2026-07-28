@@ -4,7 +4,7 @@ import { formatDateTime } from "@/lib/labels";
 import { PageTitle, Card, LinkButton } from "@/components/ui";
 import { pitAiEnabled } from "@/server/pit/generate";
 import { wpConfigured } from "@/server/pit/wordpress";
-import { PitAdmin, type StoreRow, type PostRow, type DealerOption, type InviteRow } from "./pit-admin";
+import { PitAdmin, type StoreRow, type PostRow, type DealerOption } from "./pit-admin";
 
 export const dynamic = "force-dynamic";
 
@@ -12,7 +12,7 @@ export const dynamic = "force-dynamic";
 export default async function HqPitPage() {
   await requireHQ();
 
-  const [stores, posts, dealers, invites] = await Promise.all([
+  const [stores, posts, dealers] = await Promise.all([
     prisma.pitStore.findMany({ include: { dealer: { select: { name: true } } }, orderBy: { createdAt: "asc" } }),
     prisma.pitPost.findMany({
       include: { store: { select: { displayName: true } } },
@@ -20,7 +20,6 @@ export default async function HqPitPage() {
       take: 50,
     }),
     prisma.dealer.findMany({ select: { id: true, name: true }, orderBy: { name: "asc" } }),
-    prisma.pitInvite.findMany({ orderBy: { createdAt: "desc" }, take: 20 }),
   ]);
 
   const storeRows: StoreRow[] = stores.map((s) => ({
@@ -46,15 +45,6 @@ export default async function HqPitPage() {
     createdAtLabel: formatDateTime(p.createdAt),
   }));
   const dealerOptions: DealerOption[] = dealers.map((d) => ({ id: d.id, name: d.name }));
-  const storeNameById = new Map(stores.map((s) => [s.id, s.displayName]));
-  const inviteRows: InviteRow[] = invites.map((i) => ({
-    id: i.id,
-    token: i.token,
-    note: i.note,
-    used: !!i.usedAt,
-    usedByStore: i.storeId ? (storeNameById.get(i.storeId) ?? null) : null,
-    createdAtLabel: formatDateTime(i.createdAt),
-  }));
 
   const monthly = await prisma.$queryRaw<{ store: string; ym: string; count: bigint }[]>`
     SELECT s."displayName" AS store, to_char(p."createdAt" AT TIME ZONE 'Asia/Tokyo', 'YYYY-MM') AS ym, count(*) AS count
@@ -84,7 +74,6 @@ export default async function HqPitPage() {
         stores={storeRows}
         posts={postRows}
         dealers={dealerOptions}
-        invites={inviteRows}
         monthly={monthly.map((m) => ({ store: m.store, ym: m.ym, count: Number(m.count) }))}
       />
     </div>
