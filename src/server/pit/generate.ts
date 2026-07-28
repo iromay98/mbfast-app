@@ -39,7 +39,7 @@ const SCHEMA = {
   type: "object",
   properties: {
     title: { type: "string", description: "タイトル。厳守形式: 【施工記録】{車種} {施工内容}｜{店舗名}" },
-    slug: { type: "string", description: "英小文字とハイフンのみ。{車種ローマ字}-{施工slug}-{店舗slug}-{YYYYMMDD}" },
+    slug: { type: "string", description: "英小文字とハイフンのみ。{車種ローマ字}-{施工slug}-{YYYYMMDD}（店舗名は含めない）" },
     body_html: {
       type: "string",
       description:
@@ -131,7 +131,7 @@ export async function generateArticle(input: GenerateInput): Promise<GeneratedAr
     `作業日: ${input.dateJa}`,
     faqRef ? `参考FAQ（FAQセクションの素材に使ってよい）:\n${faqRef}` : ``,
     ``,
-    `slugは {車種ローマ字}-{施工slug}-${input.storeSlug}-${input.dateYmd} の形式にすること。`,
+    `slugは {車種ローマ字}-{施工slug}-${input.dateYmd} の形式にすること（店舗名は入れない。URLのパス側に店舗が入るため冗長になる）。`,
     `image_alts は写真と同じ ${input.photos.length} 件にすること。`,
   ].join("\n");
 
@@ -151,9 +151,17 @@ export async function generateArticle(input: GenerateInput): Promise<GeneratedAr
   if (!text) throw new Error("AIから記事が返りませんでした");
   const article = JSON.parse(text) as GeneratedArticle;
 
-  // 最低限のサニティ: slugを正規化し、店舗slugと日付が欠けていれば補う
+  // slugのサニティ（必ず明示指定して公開する。未指定だとWPが日本語タイトルをURLエンコードした長大slugを作る）:
+  // 英数字とハイフンのみに正規化。店舗slugは含めない（URLが /mbpit/{店舗短slug}/{slug}/ のため冗長）。
+  // AIがうっかり店舗slugを入れてきた場合は除去する。日付が欠けていれば補う。
+  // 同日同車種の他店舗投稿とslugが衝突した場合はWPが自動で -2 を付ける（許容仕様）。
   let slug = article.slug.toLowerCase().replace(/[^a-z0-9-]/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "");
-  if (!slug.includes(input.storeSlug)) slug = `${slug}-${input.storeSlug}`;
+  if (input.storeSlug) {
+    slug = slug
+      .replace(new RegExp(`(^|-)${input.storeSlug.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(-|$)`), "$1")
+      .replace(/-+/g, "-")
+      .replace(/^-|-$/g, "");
+  }
   if (!slug.includes(input.dateYmd)) slug = `${slug}-${input.dateYmd}`;
   article.slug = slug;
 
