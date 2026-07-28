@@ -12,7 +12,7 @@ export const dynamic = "force-dynamic";
 export default async function HqPitPage() {
   await requireHQ();
 
-  const [stores, posts, dealers] = await Promise.all([
+  const [stores, posts, dealers, postCounts, lastLogs] = await Promise.all([
     prisma.pitStore.findMany({ include: { dealer: { select: { name: true } } }, orderBy: { createdAt: "asc" } }),
     prisma.pitPost.findMany({
       include: { store: { select: { displayName: true } } },
@@ -20,18 +20,58 @@ export default async function HqPitPage() {
       take: 50,
     }),
     prisma.dealer.findMany({ select: { id: true, name: true }, orderBy: { name: "asc" } }),
+    prisma.pitPost.groupBy({ by: ["storeId"], where: { status: "published" }, _count: true }),
+    // 店舗ごとの直近同期ログ（skipped/dry-runは状態表示に関係ないので除外）
+    prisma.pitStoreSyncLog.findMany({
+      where: { status: { in: ["success", "failed", "ingest"] } },
+      orderBy: { createdAt: "desc" },
+      distinct: ["storeId"],
+      select: { storeId: true, status: true },
+    }),
   ]);
 
-  const storeRows: StoreRow[] = stores.map((s) => ({
-    id: s.id,
-    dealerId: s.dealerId,
-    dealerName: s.dealer?.name ?? "本店直営",
-    displayName: s.displayName,
-    slug: s.slug,
-    wpCategoryId: s.wpCategoryId,
-    footerHtml: s.footerHtml,
-    active: s.active,
-  }));
+  const countByStore = new Map(postCounts.map((c) => [c.storeId, c._count]));
+  const lastLogByStore = new Map(lastLogs.map((l) => [l.storeId, l.status]));
+
+  const storeRows: StoreRow[] = stores.map((s) => {
+    const lastLog = lastLogByStore.get(s.id);
+    const syncBadge: StoreRow["syncBadge"] = !s.lastSyncedAt
+      ? lastLog === "failed"
+        ? "failed"
+        : "none"
+      : lastLog === "failed"
+        ? "failed"
+        : // lastSyncedAt更新自体が@updatedAtを動かすため、5秒の許容差を見て「アプリ側が新しい」を判定
+          s.updatedAt.getTime() - s.lastSyncedAt.getTime() > 5000
+          ? "stale"
+          : "ok";
+    return {
+      id: s.id,
+      dealerId: s.dealerId,
+      dealerName: s.dealer?.name ?? "本店直営",
+      displayName: s.displayName,
+      slug: s.slug,
+      wpCategoryId: s.wpCategoryId,
+      footerHtml: s.footerHtml,
+      active: s.active,
+      info: {
+        area: s.area,
+        address: s.address,
+        hours: s.hours,
+        closedDays: s.closedDays,
+        tel: s.tel,
+        email: s.email,
+        website: s.website,
+        serviceTags: s.serviceTags,
+        intro: s.intro,
+      },
+      contactPerson: s.contactPerson,
+      internalNote: s.internalNote,
+      postCount: countByStore.get(s.id) ?? 0,
+      lastSyncedLabel: s.lastSyncedAt ? `最終同期: ${formatDateTime(s.lastSyncedAt)}` : null,
+      syncBadge,
+    };
+  });
   const postRows: PostRow[] = posts.map((p) => ({
     id: p.id,
     storeName: p.store.displayName,

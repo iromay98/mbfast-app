@@ -9,8 +9,10 @@
  * - 同期対象は STORE_META_FIELDS の9項目のみ。contactPerson / internalNote / plan は
  *   アプリ専用でWPへ絶対に送らない（このファイルに載せないことで構造的に保証）
  * - 空文字は「未設定」= WP表示側でその行ごと消える
+ *
+ * このファイルは純データ＋純関数のみ（クライアントの編集フォームからも参照する）。
+ * ハッシュ計算・WP通信は src/server/pit/store-sync.ts 側。
  */
-import { createHash } from "node:crypto";
 
 // PitStore の同期対象カラム名（この型に無いカラムは同期不能）
 export type StoreMetaField =
@@ -79,11 +81,6 @@ export function metaToStoreInfo(meta: Record<string, unknown> | null | undefined
     out[field] = typeof v === "string" ? v : "";
   }
   return out;
-}
-
-/** 同期スキップ判定用のハッシュ（価格同期の payloadHash と同思想） */
-export function storeMetaHash(info: StoreInfo): string {
-  return createHash("sha256").update(JSON.stringify(buildMetaPayload(info))).digest("hex");
 }
 
 /** 入力バリデーション。エラーは field → メッセージ */

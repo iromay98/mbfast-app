@@ -9,9 +9,19 @@ import {
   KNOWN_WP_STORES,
   shortSlugOf,
   metaToStoreInfo,
-  storeMetaHash,
   buildMetaPayload,
+  validateStoreInfo,
+  STORE_META_FIELDS,
+  type StoreInfo,
 } from "@/server/pit/store-meta";
+import {
+  storeMetaHash,
+  syncStoreInfo,
+  syncAllStores,
+  storeTargets,
+  type StoreSyncResult,
+  type StoreDiff,
+} from "@/server/pit/store-sync";
 import { notify } from "@/server/notifications";
 
 const PIT_PATH = "/hq/pit";
@@ -360,4 +370,104 @@ export async function ingestPitStoreInfo(): Promise<{
 
   revalidatePath(PIT_PATH);
   return { ok: true, rows, unmatchedTerms };
+}
+
+// ── 店舗マスター Step B/C: 保存プレビュー → 確定保存＋即時同期 / dry-run ──────
+
+export type StorePreview = {
+  ok?: true;
+  error?: string;
+  fieldErrors?: Partial<Record<string, string>>;
+  diffs?: StoreDiff[];
+  payload?: Record<string, string>;
+  targets?: { label: string; url: string }[];
+  willSync?: boolean; // false = 保存はされるが同期対象外（停止中など）
+  syncBlockReason?: string;
+};
+
+// 保存ボタン → 差分プレビュー（WPは一切変更しない）。
+// 差分は「WP側の現在値 → 編集後の値」。確定時は commitStoreInfo を呼ぶ。
+export async function previewStoreInfo(storeId: string, info: StoreInfo): Promise<StorePreview> {
+  await requireHQ();
+  const fieldErrors = validateStoreInfo(info);
+  if (Object.keys(fieldErrors).length > 0) return { error: "入力内容を確認してください", fieldErrors };
+
+  const store = await prisma.pitStore.findUnique({
+    where: { id: storeId },
+    select: { slug: true, active: true, wpCategoryId: true },
+  });
+  if (!store) return { error: "店舗が見つかりません" };
+
+  const targets = storeTargets(store.slug);
+  if (!store.active || store.wpCategoryId <= 0) {
+    return {
+      ok: true,
+      diffs: [],
+      payload: buildMetaPayload(info),
+      targets,
+      willSync: false,
+      syncBlockReason: !store.active ? "停止中のため保存のみ（同期しません）" : "WPカテゴリ未採番のため保存のみ（承認時に同期できます）",
+    };
+  }
+
+  const r = await syncStoreInfo(storeId, { candidate: info });
+  if (r.status === "failed" || r.status === "blocked") {
+    return { error: r.error ?? "差分の取得に失敗しました" };
+  }
+  return { ok: true, diffs: r.diffs, payload: r.payload, targets, willSync: true };
+}
+
+// 確定: アプリDBへ保存（原本更新）→ WPへ即時同期。
+// appOnly はWPへ送らないアプリ専用項目。
+export async function commitStoreInfo(
+  storeId: string,
+  info: StoreInfo,
+  appOnly: { contactPerson: string; internalNote: string },
+): Promise<{ ok?: true; error?: string; sync?: { status: string; error?: string } }> {
+  await requireHQ();
+  const fieldErrors = validateStoreInfo(info);
+  if (Object.keys(fieldErrors).length > 0) return { error: "入力内容を確認してください" };
+
+  const store = await prisma.pitStore.findUnique({ where: { id: storeId }, select: { id: true } });
+  if (!store) return { error: "店舗が見つかりません" };
+
+  const data: Record<string, string> = {
+    contactPerson: appOnly.contactPerson.trim(),
+    internalNote: appOnly.internalNote.trim(),
+  };
+  for (const { field } of STORE_META_FIELDS) data[field] = (info[field] ?? "").trim();
+  await prisma.pitStore.update({ where: { id: storeId }, data });
+
+  // 即時同期（cron待ちなし）。失敗しても保存自体は成功（リトライは同期ボタンから）
+  const r = await syncStoreInfo(storeId, {});
+  revalidatePath(PIT_PATH);
+  return { ok: true, sync: { status: r.status, error: r.error } };
+}
+
+// 単店舗の再同期/dry-run（失敗時のリトライ・送信ペイロード確認用）
+export async function runStoreSync(
+  storeId: string,
+  dryRun: boolean,
+): Promise<{ status: string; error?: string; diffs?: StoreDiff[]; payload?: Record<string, string> }> {
+  await requireHQ();
+  const r = await syncStoreInfo(storeId, { dryRun, force: !dryRun });
+  revalidatePath(PIT_PATH);
+  return { status: r.status, error: r.error, diffs: r.diffs, payload: r.payload };
+}
+
+// Step D: ラウンドトリップ検証（全active店舗をdry-run → 差分ゼロが期待値）
+export type RoundtripRow = { storeName: string; status: string; diffCount: number; error?: string };
+export async function roundtripCheck(): Promise<{ ok?: true; error?: string; rows?: RoundtripRow[] }> {
+  await requireHQ();
+  if (!wpConfigured()) return { error: "WP_USER / WP_APP_PASSWORD が未設定です" };
+  const results = await syncAllStores({ dryRun: true });
+  return {
+    ok: true,
+    rows: results.map((r) => ({
+      storeName: r.storeName,
+      status: r.result.status,
+      diffCount: r.result.diffs.length,
+      error: r.result.error,
+    })),
+  };
 }
