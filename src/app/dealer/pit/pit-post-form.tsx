@@ -143,6 +143,8 @@ export function PitPostForm({ storeId }: { storeId?: string } = {}) {
     | null
   >(null);
   const formRef = useRef<HTMLFormElement>(null);
+  // 施工日の既定値（今日・端末ローカル）。未来日は選べない
+  const todayStr = new Date().toLocaleDateString("sv-SE");
 
   // ── ナンバープレートぼかし（ブラウザ内処理・生画像はサーバーに送らない） ──
   const [photoItems, setPhotoItems] = useState<PhotoItem[]>([]);
@@ -641,6 +643,19 @@ export function PitPostForm({ storeId }: { storeId?: string } = {}) {
                 </option>
               ))}
             </select>
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-semibold">施工日</label>
+            <input
+              name="workDate"
+              type="date"
+              defaultValue={todayStr}
+              max={todayStr}
+              className="w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm"
+            />
+            <p className="mt-1 text-[11px] text-ink-soft">
+              あとからまとめて投稿するときは実際に施工した日に変更してください（記事の作業日に使われます）。
+            </p>
           </div>
         </div>
 

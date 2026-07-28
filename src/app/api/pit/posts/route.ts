@@ -85,6 +85,21 @@ export async function POST(request: NextRequest) {
     photos.push({ buffer: Buffer.from(await f.arrayBuffer()) });
   }
 
+  // 施工日（任意）。まとめて投稿でも実際の作業日を記事に出せる。未来日と2年超の過去は弾く
+  let workDate: string | null = null;
+  const workDateRaw = String(form.get("workDate") ?? "").trim();
+  if (workDateRaw) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(workDateRaw)) {
+      return json(400, { error: "施工日の形式が正しくありません" });
+    }
+    const today = new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Tokyo" });
+    const twoYearsAgo = new Date(Date.now() - 2 * 365 * 24 * 60 * 60 * 1000)
+      .toLocaleDateString("sv-SE", { timeZone: "Asia/Tokyo" });
+    if (workDateRaw > today) return json(400, { error: "施工日に未来の日付は指定できません" });
+    if (workDateRaw < twoYearsAgo) return json(400, { error: "施工日が古すぎます（2年以内にしてください）" });
+    workDate = workDateRaw;
+  }
+
   // 動画（任意・1本）。ぼかし加工なし＝映り込みは投稿者確認（フォームに注意書きあり）
   let video: { buffer: Buffer; type: string } | null = null;
   const videoFile = form.get("video");
@@ -121,6 +136,7 @@ export async function POST(request: NextRequest) {
     memo: memoRaw || null,
     photos,
     video,
+    workDate,
     vehicleId,
   });
 

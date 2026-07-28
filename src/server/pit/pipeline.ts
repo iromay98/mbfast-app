@@ -32,6 +32,9 @@ export async function runPitPipeline(opts: {
   // 施工動画（任意・1本）。バブリング等のサウンド系で効果大。
   // ぼかし加工は行わない（映り込みは投稿者の確認責任・フォームに注意書きあり）
   video?: { buffer: Buffer; type: string } | null;
+  // 施工日（YYYY-MM-DD・JST）。まとめて投稿するとき実際の作業日を記事に出すため。
+  // 未指定は当日。記事の作業日表記とslugの日付に使う（WPの公開日時は投稿時刻のまま）
+  workDate?: string | null;
   vehicleId?: string | null; // 車検証QRで紐づけた車両（お薬手帳）
 }): Promise<PitPublishResult> {
   const { store } = opts;
@@ -86,8 +89,9 @@ export async function runPitPipeline(opts: {
   }
 
   try {
-    // 3. AI記事生成
-    const isoDate = new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Tokyo" }); // "2026-07-19"
+    // 3. AI記事生成（施工日: 指定があればその日付、なければ当日JST）
+    const isoDate =
+      opts.workDate ?? new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Tokyo" }); // "2026-07-19"
     const dateYmd = isoDate.replace(/-/g, "");
     const [y, m, d] = isoDate.split("-").map(Number);
     const faqItems = Array.isArray(store.faqJson)
