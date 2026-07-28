@@ -706,6 +706,54 @@ export function PitPostForm({ storeId }: { storeId?: string } = {}) {
           }`}
         />
 
+        {/* ── 車種・施工内容 ── */}
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div>
+            <label className="mb-1 block text-xs font-semibold">
+              車種 <span className="text-red-600">必須</span>
+            </label>
+            <input
+              name="vehicle"
+              required
+              value={vehicle}
+              onChange={(e) => setVehicle(e.target.value)}
+              placeholder="例: アルファード 30系"
+              className="w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm"
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-semibold">
+              施工内容 <span className="text-red-600">必須</span>
+            </label>
+            <select
+              name="category"
+              value={category}
+              onChange={(e) => setCategory(e.target.value)}
+              className="w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm"
+            >
+              {CATEGORIES.map((c) => (
+                <option key={c.value} value={c.value}>
+                  {c.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-semibold">施工日</label>
+            <input
+              name="workDate"
+              type="date"
+              value={workDate}
+              onChange={(e) => setWorkDate(e.target.value)}
+              max={todayStr}
+              className="w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm"
+            />
+            <p className="mt-1 text-[11px] text-ink-soft">
+              あとからまとめて投稿するときは実際に施工した日に変更してください（記事の作業日に使われます）。
+            </p>
+          </div>
+        </div>
+
         {/* ── 写真 ── */}
         <div>
           <label className="mb-1 block text-xs font-semibold">
@@ -810,54 +858,6 @@ export function PitPostForm({ storeId }: { storeId?: string } = {}) {
               </p>
             </div>
           </details>
-        </div>
-
-        {/* ── 車種・施工内容 ── */}
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <div>
-            <label className="mb-1 block text-xs font-semibold">
-              車種 <span className="text-red-600">必須</span>
-            </label>
-            <input
-              name="vehicle"
-              required
-              value={vehicle}
-              onChange={(e) => setVehicle(e.target.value)}
-              placeholder="例: アルファード 30系"
-              className="w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm"
-            />
-          </div>
-          <div>
-            <label className="mb-1 block text-xs font-semibold">
-              施工内容 <span className="text-red-600">必須</span>
-            </label>
-            <select
-              name="category"
-              value={category}
-              onChange={(e) => setCategory(e.target.value)}
-              className="w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm"
-            >
-              {CATEGORIES.map((c) => (
-                <option key={c.value} value={c.value}>
-                  {c.label}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="mb-1 block text-xs font-semibold">施工日</label>
-            <input
-              name="workDate"
-              type="date"
-              value={workDate}
-              onChange={(e) => setWorkDate(e.target.value)}
-              max={todayStr}
-              className="w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm"
-            />
-            <p className="mt-1 text-[11px] text-ink-soft">
-              あとからまとめて投稿するときは実際に施工した日に変更してください（記事の作業日に使われます）。
-            </p>
-          </div>
         </div>
 
         {/* ── 車検証QR（お薬手帳・任意） ── */}
