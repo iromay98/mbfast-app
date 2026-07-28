@@ -43,35 +43,43 @@ export default async function PitHomePage() {
     <div className="space-y-4">
       <PageTitle title="ホーム" subtitle={store.displayName} />
 
-      {/* 実績（HPと同じ黒×ゴールドのブランドカード） */}
-      <div className="rounded-2xl border border-[#c9a227]/30 bg-[#0d0d0d] p-4 text-white">
-        <div className="grid grid-cols-3 gap-2 text-center">
-          <div>
-            <div className="text-2xl font-black text-[#e7d18d]">{stats.total}</div>
-            <div className="text-[10px] font-semibold text-white/60">通算記録</div>
-            {stats.badge && (
-              <div className="mt-0.5 text-[10px] font-bold text-[#e7d18d]">
-                {stats.badge.emoji} {stats.badge.name}店
-              </div>
+      {/* 実績＋記録ボタン（HPと同じ黒×ゴールド）。
+          実績は数字とラベルを横並びの1行にまとめて縦を詰め、「記録する」を最短距離に置く。 */}
+      <div className="rounded-2xl border border-[#c9a227]/30 bg-[#0d0d0d] p-3 text-white">
+        <div className="flex items-center justify-center gap-3 text-[11px] text-white/60">
+          <span>
+            <b className="mr-1 text-base font-black text-[#e7d18d]">{stats.total}</b>通算
+          </span>
+          <span className="text-white/25">|</span>
+          <span>
+            <b className="mr-1 text-base font-black text-white">{stats.month}</b>今月
+          </span>
+          <span className="text-white/25">|</span>
+          <span>
+            {stats.streakWeeks > 0 ? (
+              <>
+                <b className="mr-1 text-base font-black text-orange-300">🔥{stats.streakWeeks}</b>週連続
+              </>
+            ) : (
+              "今週まだ0件"
             )}
-          </div>
-          <div>
-            <div className="text-2xl font-black">{stats.month}</div>
-            <div className="text-[10px] font-semibold text-white/60">今月（先月{stats.lastMonth}件）</div>
-          </div>
-          <div>
-            <div className="text-2xl font-black text-orange-300">
-              {stats.streakWeeks > 0 ? `🔥${stats.streakWeeks}` : "—"}
-            </div>
-            <div className="text-[10px] font-semibold text-white/60">週連続投稿</div>
-          </div>
+          </span>
+          {stats.badge && (
+            <span className="whitespace-nowrap font-bold text-[#e7d18d]">
+              {stats.badge.emoji}
+              {stats.badge.name}
+            </span>
+          )}
         </div>
         <Link
           href="/dealer/pit"
-          className="mt-3 block rounded-xl bg-[#c9a227] py-2.5 text-center text-sm font-bold text-[#0d0d0d]"
+          className="mt-2.5 block rounded-xl bg-[#c9a227] py-3 text-center text-base font-extrabold text-[#0d0d0d]"
         >
-          🎤 施工を記録する
+          🎤 今日の施工を記録する
         </Link>
+        <p className="mt-1.5 text-center text-[10px] text-white/50">
+          写真を選んで話すだけ・約1分でブログ記事になります
+        </p>
       </div>
 
       {/* 車検が近いお客様 */}
