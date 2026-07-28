@@ -528,47 +528,44 @@ export function PitPostForm({ storeId }: { storeId?: string } = {}) {
             お客様のお顔や書類が写り込んでいない写真を選んでください。
           </p>
 
-          {/* ナンバーぼかし: サムネイルをタップして確認・修正 */}
+          {/* ナンバーぼかし: 写真ごとに「タップしてぼかす」帯で状態を明示（未ぼかし=オレンジ/済み=緑） */}
           {photoItems.length > 0 && (
-            <div className="mt-2 rounded-xl border border-line bg-surface-2 p-2.5">
-              <div className="flex items-center justify-between">
-                <p className="text-[11px] font-semibold">
-                  🖌 ナンバープレートのぼかし
-                  {modelReady === false && (
-                    <span className="ml-1 font-normal text-ink-soft">（自動検出は準備中・手動で指定できます）</span>
-                  )}
-                </p>
-              </div>
+            <div className="mt-2 rounded-xl border border-gold-300 bg-gold-50/60 p-2.5">
+              <p className="text-xs font-bold text-ink">🖌 ナンバープレートのぼかし</p>
+              <p className="mt-0.5 text-[11px] leading-relaxed text-ink-soft">
+                ナンバーが写っている写真は、<b>写真をタップ → 隠したい場所を指でなぞる</b>だけでぼかせます。
+                {modelReady === false && "（自動検出は準備中のため手動でお願いします）"}
+              </p>
               <div className="mt-2 flex gap-2 overflow-x-auto pb-1">
                 {photoItems.map((item, i) => (
                   <button
                     key={item.url}
                     type="button"
                     onClick={() => setEditorIdx(i)}
-                    className="relative shrink-0"
+                    className="relative shrink-0 overflow-hidden rounded-lg border border-line"
                   >
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                       src={item.previewUrl ?? item.url}
                       alt=""
-                      className="h-20 w-20 rounded-lg border border-line object-cover"
+                      className="h-24 w-24 object-cover"
                     />
                     <span
-                      className={`absolute bottom-1 right-1 rounded-full px-1.5 py-0.5 text-[9px] font-bold text-white ${
+                      className={`absolute inset-x-0 bottom-0 py-1 text-center text-[10px] font-bold text-white ${
                         item.detecting
-                          ? "bg-sky-600"
+                          ? "bg-sky-600/90"
                           : item.boxes.length > 0
-                            ? "bg-green-600"
-                            : "bg-black/60"
+                            ? "bg-green-600/90"
+                            : "bg-amber-500/95"
                       }`}
                     >
-                      {item.detecting ? "検出中…" : item.boxes.length > 0 ? `🖌 ${item.boxes.length}` : "編集"}
+                      {item.detecting ? "検出中…" : item.boxes.length > 0 ? `✓ ぼかし${item.boxes.length}箇所` : "タップしてぼかす"}
                     </span>
                   </button>
                 ))}
               </div>
               <p className="mt-1 text-[10px] leading-relaxed text-ink-soft">
-                ぼかしは送信前にこの端末内で合成されます（未加工の写真はサーバーに送られません）。サムネイルをタップすると追加・解除できます。
+                ぼかしは送信前にこの端末内で合成されます（未加工の写真はサーバーに送られません）。もう一度タップすれば修正・解除もできます。
               </p>
             </div>
           )}
