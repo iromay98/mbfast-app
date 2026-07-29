@@ -23,6 +23,7 @@ import {
   tuningContentLabel,
   parseTuningContentLabel,
   stripPopsStrongIfNoPops,
+  POPS_STRONG_TAG,
 } from "@/lib/catalog/options";
 import { type FormState, zodToFieldErrors } from "@/lib/actions/form-state";
 import {
@@ -32,6 +33,12 @@ import {
   variantStatusEnum,
 } from "@/lib/validation/catalog";
 import { normalizeManufacturer } from "@/lib/catalog/manufacturers";
+import {
+  normalizeSelectedTags,
+  pickReplaceTarget,
+  staleDuplicateIds,
+  sameTagSet as sameTagSetPure,
+} from "@/server/catalog/variant-config";
 
 const CATALOG_PATH = "/hq/catalog";
 
@@ -383,6 +390,19 @@ export async function replaceVariantFile(
   if (!(file instanceof File) || file.size === 0) {
     return { error: "ファイルを選択してください" };
   }
+  const self = await prisma.tunedVariant.findUnique({
+    where: { id: variantId },
+    select: {
+      baseFileId: true,
+      stage: true,
+      popsAndBangs: true,
+      popsSport: true,
+      optionTags: true,
+      deletedAt: true,
+    },
+  });
+  if (!self || self.deletedAt) return { error: "対象のバリエーションが見つかりません" };
+
   const saved = await saveUpload(file, "catalog/tuned");
   if (!saved.ok) return { error: saved.error };
 
@@ -393,31 +413,46 @@ export async function replaceVariantFile(
   });
   const version = (last?.version ?? 0) + 1;
 
+  const fileFields = {
+    fileRef: saved.key,
+    fileHash: saved.sha256,
+    fileName: saved.filename,
+    fileSize: saved.size,
+    contentType: saved.contentType,
+  };
   const ver = await prisma.tunedVariantVersion.create({
-    data: {
-      variantId,
-      version,
-      fileRef: saved.key,
-      fileHash: saved.sha256,
-      fileName: saved.filename,
-      fileSize: saved.size,
-      contentType: saved.contentType,
-      replacedById: user.id,
-    },
+    data: { variantId, version, ...fileFields, replacedById: user.id },
   });
   await prisma.tunedVariant.update({
     where: { id: variantId },
-    data: {
-      currentVersionId: ver.id,
-      fileRef: saved.key,
-      fileHash: saved.sha256,
-      fileName: saved.filename,
-      fileSize: saved.size,
-      contentType: saved.contentType,
-    },
+    data: { currentVersionId: ver.id, ...fileFields },
   });
+
+  // 同構成で配布可のまま残っている重複行も同じファイルに揃える。
+  // 代理店の解決は同構成のどれを引くか保証できないため、揃えないと古い版が配信されうる。
+  const dupes = (
+    await prisma.tunedVariant.findMany({
+      where: {
+        baseFileId: self.baseFileId,
+        stage: self.stage,
+        popsAndBangs: self.popsAndBangs,
+        popsSport: self.popsSport,
+        deletedAt: null,
+        status: "AVAILABLE",
+        id: { not: variantId },
+      },
+      orderBy: { createdAt: "asc" },
+      select: { id: true, status: true, fileRef: true, createdAt: true, optionTags: true },
+    })
+  ).filter((c) => sameTagSet(c.optionTags, self.optionTags ?? []));
+  const unified = await syncStaleDuplicates(
+    dupes.map((d) => d.id),
+    fileFields,
+    user.id,
+  );
+
   revalidatePath(CATALOG_PATH);
-  return { ok: true, data: { version } };
+  return { ok: true, data: { version, unified } };
 }
 
 // 旧版に戻す（履歴は保持し、現行ポインタを差し替えるだけ）
@@ -615,8 +650,9 @@ export async function createVariantWithFile(
   } catch {
     /* 無視 */
   }
-  // バブリング強はバブリング選択時のみ有効
-  optionTags = stripPopsStrongIfNoPops(optionTags, popsAndBangs);
+  // バブリング強はバブリング選択時のみ有効。重複排除＋ソートして構成の正規形に揃える
+  // （配列の形が違うだけで「別構成」と判定され、重複行が生まれるのを防ぐ）。
+  optionTags = [...new Set(stripPopsStrongIfNoPops(optionTags, popsAndBangs))].sort();
 
   const fileFields = {
     fileRef: saved.key,
@@ -628,18 +664,21 @@ export async function createVariantWithFile(
 
   // 同じ構成（ステージ・バブリング・OPの集合一致）の既存版があれば新規作成せず差し替え。
   // 旧ファイルは版履歴(TunedVariantVersion)に残る。「登録済み → 差し替え」の挙動。
-  const eqSet = (a: string[], b: string[]) =>
-    a.length === b.length && [...a].sort().join("\n") === [...b].sort().join("\n");
-  const sameConfig = (
+  const matched = (
     await prisma.tunedVariant.findMany({
       where: { baseFileId, deletedAt: null, stage, popsAndBangs, popsSport },
+      orderBy: { createdAt: "asc" },
       select: {
         id: true,
+        status: true,
+        fileRef: true,
+        createdAt: true,
         optionTags: true,
         versions: { select: { version: true }, orderBy: { version: "desc" }, take: 1 },
       },
     })
-  ).find((v) => eqSet(v.optionTags ?? [], optionTags));
+  ).filter((v) => sameTagSet(v.optionTags ?? [], optionTags));
+  const sameConfig = pickReplaceTarget(matched);
   if (sameConfig) {
     const nextVer = (sameConfig.versions[0]?.version ?? 0) + 1;
     const ver = await prisma.tunedVariantVersion.create({
@@ -649,9 +688,14 @@ export async function createVariantWithFile(
       where: { id: sameConfig.id },
       data: { currentVersionId: ver.id, status: "AVAILABLE", ...fileFields },
     });
+    const unified = await syncStaleDuplicates(
+      staleDuplicateIds(matched, sameConfig.id),
+      fileFields,
+      user.id,
+    );
     revalidatePath(CATALOG_PATH);
     revalidatePath(PENDING_PATH);
-    return { ok: true, data: { variantId: sameConfig.id, replaced: true } };
+    return { ok: true, data: { variantId: sameConfig.id, replaced: true, unified } };
   }
 
   const variant = await prisma.tunedVariant.create({
@@ -696,12 +740,50 @@ export async function createVariantWithFile(
   return { ok: true, data: { variantId: variant.id } };
 }
 
-// 同じ要素集合か（順不同）
+// 同じ要素集合か（順不同）。判定ルールは variant-config.ts が原本。
 function sameTagSet(a: string[], b: string[]): boolean {
-  if (a.length !== b.length) return false;
-  const sa = [...a].sort();
-  const sb = [...b].sort();
-  return sa.every((x, i) => x === sb[i]);
+  return sameTagSetPure(a, b);
+}
+
+/*
+ * 同構成の重複行にも同じファイルを行き渡らせる。
+ * 代理店への配信(resolveTuning)は同構成の重複のどれを引くか保証できないため、
+ * 差し替え先だけ更新すると「差し替えたのに古いファイルが配信される」が起きる。
+ */
+async function syncStaleDuplicates(
+  ids: string[],
+  fileFields: {
+    fileRef: string;
+    fileHash: string;
+    fileName: string | null;
+    fileSize: number | null;
+    contentType: string | null;
+  },
+  userId: string,
+): Promise<number> {
+  let n = 0;
+  for (const id of ids) {
+    const last = await prisma.tunedVariantVersion.findFirst({
+      where: { variantId: id },
+      orderBy: { version: "desc" },
+      select: { version: true },
+    });
+    const ver = await prisma.tunedVariantVersion.create({
+      data: {
+        variantId: id,
+        version: (last?.version ?? 0) + 1,
+        ...fileFields,
+        replacedById: userId,
+        note: "同構成の重複を同じファイルに統一",
+      },
+    });
+    await prisma.tunedVariant.update({
+      where: { id },
+      data: { currentVersionId: ver.id, ...fileFields },
+    });
+    n++;
+  }
+  return n;
 }
 
 // 案件(施工記録)起点のバリエーション・アップロード。
@@ -748,15 +830,18 @@ export async function registerVariationFromDelivery(opts: {
 
   const candidates = await prisma.tunedVariant.findMany({
     where: { baseFileId, stage: sel.stage, popsAndBangs: pops, popsSport, deletedAt: null },
+    orderBy: { createdAt: "asc" },
     select: {
       id: true,
       status: true,
+      fileRef: true,
+      createdAt: true,
       optionTags: true,
       versions: { select: { version: true }, orderBy: { version: "desc" }, take: 1 },
     },
   });
   const matched = candidates.filter((c) => sameTagSet(c.optionTags, optionTags));
-  const existing = matched.find((c) => c.status === "AVAILABLE") ?? matched[0];
+  const existing = pickReplaceTarget(matched);
 
   const fileFields = {
     fileRef: opts.fileRef,
@@ -775,6 +860,7 @@ export async function registerVariationFromDelivery(opts: {
       where: { id: existing.id },
       data: { status: "AVAILABLE", currentVersionId: ver.id, ...fileFields },
     });
+    await syncStaleDuplicates(staleDuplicateIds(matched, existing.id), fileFields, opts.userId);
   } else {
     const variant = await prisma.tunedVariant.create({
       data: {
@@ -834,41 +920,92 @@ export async function uploadVariation(
     popsAllowed(fuelKind) && (popsRaw === "1" || popsRaw === "true" || popsRaw === "on");
   const popsSportRaw = formData.get("popsSport");
   const popsSport = pops && (popsSportRaw === "1" || popsSportRaw === "true" || popsSportRaw === "on");
-  let optionTags: string[] = [];
+  let rawTags: string[] = [];
   try {
     const raw = formData.get("optionTags");
     if (typeof raw === "string" && raw) {
       const arr = JSON.parse(raw);
-      if (Array.isArray(arr)) optionTags = arr.map((x) => String(x));
+      if (Array.isArray(arr)) rawTags = arr.map((x) => String(x));
     }
   } catch {
     /* 無視 */
   }
-  const allowed = new Set(optionTagsFor(fuelKind, record.matchedBaseFile?.manufacturer));
-  // バブリング強はバブリング選択時のみ有効
-  optionTags = stripPopsStrongIfNoPops(
-    [...new Set(optionTags)].filter((t) => allowed.has(t)),
+  const norm = normalizeSelectedTags(rawTags, {
+    allowed: optionTagsFor(fuelKind, record.matchedBaseFile?.manufacturer),
     pops,
-  ).sort();
+    popsStrongTag: POPS_STRONG_TAG,
+  });
+  const optionTags = norm.tags;
+
+  // 既存行の差し替え（一覧の「差し替え」ボタン）は行そのもの(variantId)を狙う。
+  // 構成から引き直すと、選択肢に無いOP（燃料を直した後のEGR等）が落ちて
+  // 別構成の行を書き換えてしまう＝「差し替えたのに差し替わらない」の原因になる。
+  const targetIdRaw = formData.get("variantId");
+  const targetId = typeof targetIdRaw === "string" && targetIdRaw.trim() ? targetIdRaw.trim() : null;
+
+  const baseFileId = record.matchedBaseFileId;
+
+  let target: { id: string; stage: string; popsAndBangs: boolean; popsSport: boolean; optionTags: string[] } | null =
+    null;
+  if (targetId) {
+    const t = await prisma.tunedVariant.findUnique({
+      where: { id: targetId },
+      select: {
+        id: true,
+        baseFileId: true,
+        deletedAt: true,
+        stage: true,
+        popsAndBangs: true,
+        popsSport: true,
+        optionTags: true,
+      },
+    });
+    if (!t || t.deletedAt || t.baseFileId !== baseFileId) {
+      return { error: "差し替え対象のバリエーションが見つかりません（画面を再読み込みしてください）" };
+    }
+    target = t;
+  } else if (norm.dropped.length > 0) {
+    // 新規追加でこの状態になるのは選択肢の不整合。黙って別構成で登録しない。
+    return {
+      error: `この純正では選べないオプション（${norm.dropped.join("・")}）が含まれています。画面を再読み込みして選び直してください。`,
+    };
+  }
 
   const saved = await saveUpload(file, "catalog/tuned");
   if (!saved.ok) return { error: saved.error };
 
-  const baseFileId = record.matchedBaseFileId;
-
   // 既存 (stage, pops, optionTags 集合一致) を探して差し替え、無ければ新規作成。いずれも AVAILABLE。
-  // 重複データに備え AVAILABLE を優先する。
+  // 重複データに備え、順序は決定的に（AVAILABLE→実体あり→古い順）。
+  const cfg = target
+    ? {
+        stage: (target.stage ?? "").trim(),
+        pops: target.popsAndBangs,
+        popsSport: target.popsSport,
+        optionTags: target.optionTags ?? [],
+      }
+    : { stage: stageVal, pops, popsSport, optionTags };
   const candidates = await prisma.tunedVariant.findMany({
-    where: { baseFileId, stage: stageVal, popsAndBangs: pops, popsSport, deletedAt: null },
+    where: {
+      baseFileId,
+      stage: cfg.stage,
+      popsAndBangs: cfg.pops,
+      popsSport: cfg.popsSport,
+      deletedAt: null,
+    },
+    orderBy: { createdAt: "asc" },
     select: {
       id: true,
       status: true,
+      fileRef: true,
+      createdAt: true,
       optionTags: true,
       versions: { select: { version: true }, orderBy: { version: "desc" }, take: 1 },
     },
   });
-  const matched = candidates.filter((c) => sameTagSet(c.optionTags, optionTags));
-  const existing = matched.find((c) => c.status === "AVAILABLE") ?? matched[0];
+  const matched = candidates.filter((c) => sameTagSet(c.optionTags, cfg.optionTags));
+  const existing = target
+    ? (matched.find((c) => c.id === target.id) ?? null)
+    : pickReplaceTarget(matched);
 
   const fileFields = {
     fileRef: saved.key,
@@ -879,6 +1016,7 @@ export async function uploadVariation(
   };
 
   let variantId: string;
+  let unified = 0;
   if (existing) {
     const nextVer = (existing.versions[0]?.version ?? 0) + 1;
     const ver = await prisma.tunedVariantVersion.create({
@@ -889,6 +1027,15 @@ export async function uploadVariation(
       data: { status: "AVAILABLE", currentVersionId: ver.id, ...fileFields },
     });
     variantId = existing.id;
+    // 同構成で配布可のまま残っている重複行も同じファイルに揃える（古い版の配信を防ぐ）
+    unified = await syncStaleDuplicates(
+      staleDuplicateIds(matched, existing.id),
+      fileFields,
+      user.id,
+    );
+  } else if (target) {
+    // 差し替え対象を指定したのに見つからない＝画面が古い。別構成を勝手に作らない。
+    return { error: "差し替え対象が変更されています。画面を再読み込みしてください。" };
   } else {
     const variant = await prisma.tunedVariant.create({
       data: {
@@ -913,7 +1060,7 @@ export async function uploadVariation(
   }
 
   // 同じ内容の未返却リクエストを納品扱いに（requestNote の「内容」で判定）
-  const label = tuningContentLabel(stageVal, pops, optionTags, popsSport);
+  const label = tuningContentLabel(cfg.stage, cfg.pops, cfg.optionTags, cfg.popsSport);
   const open = await prisma.fileRequest.findMany({
     where: {
       serviceRecordId: recordId,
@@ -957,7 +1104,7 @@ export async function uploadVariation(
   revalidatePath(PENDING_PATH);
   revalidatePath(`/hq/records/${recordId}`);
   revalidatePath(`/dealer/records/${recordId}`);
-  return { ok: true, data: { variantId, delivered: open.length } };
+  return { ok: true, data: { variantId, delivered: open.length, unified } };
 }
 
 // 案件のバリエーション削除（間違ってアップした版を消す）。

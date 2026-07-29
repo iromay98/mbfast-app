@@ -25,7 +25,9 @@
     "check:cert-privacy": "tsx scripts/check-cert-privacy.mts",
     "check:shaken-ocr": "tsx scripts/check-shaken-ocr.mts",
     "check:photo-ocr": "tsx scripts/check-photo-ocr.mts",
-    "check:store-isolation": "tsx -r dotenv/config scripts/check-store-isolation.mts"
+    "check:store-isolation": "tsx -r dotenv/config scripts/check-store-isolation.mts",
+    "check:variant-replace": "tsx scripts/check-variant-replace.mts",
+    "report:variant-dupes": "tsx -r dotenv/config scripts/report-variant-duplicates.mts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.104.2",

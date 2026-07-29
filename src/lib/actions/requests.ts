@@ -199,8 +199,11 @@ export async function resolveTuning(
   const sel = normalizeSelection(selection, ctx.fuelKind, ctx.manufacturer);
 
   // 配布可(AVAILABLE)＋実体ありの中から探す
+  // 順序を固定する（orderBy 無しの findMany は順序が保証されず、同構成の重複があると
+  // 更新のたびに引く行が入れ替わる＝本店が差し替えたのに古い版が配信される）。
   const variants = await prisma.tunedVariant.findMany({
     where: { baseFileId: ctx.baseFileId, status: "AVAILABLE", deletedAt: null },
+    orderBy: [{ createdAt: "asc" }, { id: "asc" }],
     select: { id: true, stage: true, popsAndBangs: true, popsSport: true, optionTags: true, fileRef: true },
   });
   const stageMatch = (v: (typeof variants)[number]) =>

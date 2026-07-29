@@ -251,12 +251,10 @@ export default async function HQRecordDetailPage({
               status: true,
               fileRef: true,
               fileName: true,
-              // 現行ファイルの ver名・特徴メモ（最新版のメタ）
-              versions: {
-                orderBy: { version: "desc" },
-                take: 1,
-                select: { label: true, note: true },
-              },
+              createdAt: true,
+              // 現行ファイルの ver名・特徴メモ。最新版ではなく「現行版」を見る
+              // （旧版に戻した後も表示が実際の配信内容と一致するように）。
+              currentVersion: { select: { label: true, note: true } },
             },
           },
         },
@@ -276,6 +274,10 @@ export default async function HQRecordDetailPage({
     fileName: string | null;
     available: boolean;
     requested: boolean;
+    // この純正の選択肢に無いOP（燃料を直した後の EGR 等）。チェック列に出ないので明示する。
+    extraTags: string[];
+    // 同じ構成で残っている重複行の数（0=なし）。差し替え時は同じファイルに揃える。
+    dupes: number;
   };
   let builderProps: {
     stages: { value: string; label: string }[];
@@ -293,9 +295,25 @@ export default async function HQRecordDetailPage({
       .sort((a, b) => stageRank(a) - stageRank(b) || a.localeCompare(b))
       .map((s) => ({ value: s, label: s || "チューニングなし" }));
 
+    const allowedTags = new Set(optionTagsFor(fuelKind, matched.manufacturer));
     // 既存 variant を内容(label)ごとに集約（重複データは最良の1件に）。
-    const byLabel = new Map<string, VRow & { _score: number }>();
+    // 集約したことで隠れる重複件数と、チェック列に出ないOPは行に出す。
+    const dupeCount = new Map<string, number>();
     for (const v of matched.variants) {
+      const key = tuningContentLabel(
+        (v.stage ?? "").trim(),
+        v.popsAndBangs,
+        v.optionTags ?? [],
+        v.popsSport,
+      );
+      dupeCount.set(key, (dupeCount.get(key) ?? 0) + 1);
+    }
+    const byLabel = new Map<string, VRow & { _score: number }>();
+    // 並び順を決定的にする（同点のときにどの行が代表になるか揺れないように）
+    const rows = [...matched.variants].sort(
+      (a, b) => a.createdAt.getTime() - b.createdAt.getTime() || a.id.localeCompare(b.id),
+    );
+    for (const v of rows) {
       const stage = (v.stage ?? "").trim();
       const optionTags = v.optionTags ?? [];
       const label = tuningContentLabel(stage, v.popsAndBangs, optionTags, v.popsSport);
@@ -305,8 +323,8 @@ export default async function HQRecordDetailPage({
       if (!prev || score > prev._score) {
         byLabel.set(label, {
           variantId: v.id,
-          verLabel: v.versions[0]?.label ?? "",
-          verNote: v.versions[0]?.note ?? "",
+          verLabel: v.currentVersion?.label ?? "",
+          verNote: v.currentVersion?.note ?? "",
           label,
           stage,
           pops: v.popsAndBangs,
@@ -316,6 +334,8 @@ export default async function HQRecordDetailPage({
           fileName: v.fileName ?? null,
           available,
           requested: openLabels.includes(label),
+          extraTags: optionTags.filter((t) => !allowedTags.has(t)),
+          dupes: (dupeCount.get(label) ?? 1) - 1,
           _score: score,
         });
       }

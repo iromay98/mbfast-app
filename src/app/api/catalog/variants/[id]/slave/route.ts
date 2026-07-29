@@ -5,6 +5,7 @@ import { storage, type StoredFile } from "@/server/storage";
 import { encryptSlave } from "@/server/autotuner/client";
 import { fileResponse, logCatalogDownload } from "@/server/catalog/download-log";
 import { buildDownloadName, composeContent } from "@/server/catalog/filename";
+import { encryptedCacheKey } from "@/server/catalog/variant-config";
 
 // 本店専用: カタログの版(TunedVariant)を、自動取込元の車両(復号時に保存したID)で
 // AutoTuner encrypt して焼ける .slave として配信する。
@@ -67,8 +68,8 @@ export async function GET(
     );
   }
 
-  // キャッシュ: 同じ版(fileHash) × 同じ車(slaveId)
-  const cacheKey = `catalog/encrypted/${v.fileHash ?? "nohash"}__${slaveId}.slave`;
+  // キャッシュ: 同じ版(fileHash) × 同じ車(slaveId)。fileHash 無しは fileRef で一意化する。
+  const cacheKey = encryptedCacheKey({ fileHash: v.fileHash, fileRef: v.fileRef }, slaveId);
   let slaveData: Buffer;
   const cached = await storage.read(cacheKey);
   if (cached) {

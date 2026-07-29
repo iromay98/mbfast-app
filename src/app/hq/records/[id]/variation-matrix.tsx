@@ -20,6 +20,8 @@ type VRow = {
   fileName: string | null;
   available: boolean;
   requested: boolean;
+  extraTags: string[]; // この純正の選択肢に無いOP（チェック列に出ないので明示）
+  dupes: number; // 同じ構成で残っている重複行の数
 };
 
 const popsText = (pops: boolean, sport: boolean) => (pops ? (sport ? "スポーツ" : "全モード") : "—");
@@ -170,6 +172,18 @@ function VariationRow({
             </span>
           )}
         </div>
+        {/* この純正では選択肢に無いOP。チェック列に出ないので、ここに出さないと
+            「何の行なのか分からないまま差し替える」ことになる。 */}
+        {row.extraTags.length > 0 && (
+          <div className="mt-0.5 text-[11px] text-amber-700" title="この純正の選択肢には無いオプションです">
+            OP: {row.extraTags.join("・")}
+          </div>
+        )}
+        {row.dupes > 0 && (
+          <div className="mt-0.5 text-[11px] text-ink-soft" title="同じ構成の行が複数あります。差し替えると同じファイルに揃えます。">
+            同構成の重複 {row.dupes}件
+          </div>
+        )}
       </td>
       {showPops && (
         <td className="whitespace-nowrap px-2 py-1.5 text-center text-xs text-ink">
@@ -235,6 +249,9 @@ function VariationRow({
           </div>
         )}
         <form ref={formRef} action={formAction} className="flex items-center gap-1.5">
+          {/* 差し替えは行そのもの(variantId)を狙う。構成から引き直すと選択肢外のOPが落ちて
+              別の行を書き換えてしまう（＝差し替えたのに差し替わらない）ため。 */}
+          {row.variantId && <input type="hidden" name="variantId" value={row.variantId} />}
           <input type="hidden" name="stage" value={row.stage} />
           <input type="hidden" name="pops" value={row.pops ? "1" : "0"} />
           <input type="hidden" name="popsSport" value={row.popsSport ? "1" : "0"} />
@@ -287,6 +304,12 @@ function VariationRow({
           </button>
           {(state.error || delError) && (
             <span className="text-xs text-red-600">{state.error || delError}</span>
+          )}
+          {/* 同じ構成の重複行があった場合は黙って直さず件数を出す（配信は同じ構成を引くため揃える） */}
+          {state.ok && Number(state.data?.unified ?? 0) > 0 && (
+            <span className="text-xs text-ink-soft">
+              同じ構成の重複{String(state.data?.unified)}件も同じファイルに揃えました
+            </span>
           )}
         </form>
       </td>

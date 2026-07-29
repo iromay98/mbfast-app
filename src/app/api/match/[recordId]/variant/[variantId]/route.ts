@@ -6,6 +6,7 @@ import { encryptSlave } from "@/server/autotuner/client";
 import { fileResponse, logCatalogDownload } from "@/server/catalog/download-log";
 import { deliverOpenRequestsByDownload } from "@/server/catalog/deliver";
 import { buildDownloadName, composeContent, dateLabel } from "@/server/catalog/filename";
+import { encryptedCacheKey } from "@/server/catalog/variant-config";
 
 // 代理店向けスコープ限定DL（.slave のみ）:
 //   照合した記録(recordId)に紐づく AVAILABLE な mod を、その車固有のID(復号時に保存)で
@@ -137,7 +138,9 @@ export async function GET(
   }
 
   // キャッシュ: 同じ mod(fileHash) × 同じ車(slaveId) の .slave は使い回す（毎回 encrypt しない）
-  const cacheKey = `catalog/encrypted/${v.fileHash ?? "nohash"}__${slaveId}.slave`;
+  // fileHash が無い古いデータは fileRef で一意にする（ハッシュ無しを共通の固定文字で
+  // まとめると別ファイルのキャッシュを掴み、差し替え後も古い .slave を配信してしまう）。
+  const cacheKey = encryptedCacheKey({ fileHash: v.fileHash, fileRef: v.fileRef }, slaveId);
   let slaveData: Buffer;
   const cached = await storage.read(cacheKey);
   if (cached) {
