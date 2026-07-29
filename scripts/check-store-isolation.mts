@@ -32,6 +32,7 @@ import {
   getStoreCertificate,
   getSharedCertificate,
 } from "../src/server/pit/certificate";
+import { missingLegalFields, exportStoreRecordsCsv, retentionSummary } from "../src/server/pit/legal-record";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 let failed = 0;
@@ -220,6 +221,88 @@ async function main() {
   ok(
     "訂正版は下書きで、元をreplacesIdで指し、内容を引き継ぐ",
     clone?.status === "draft" && clone.replacesId === certId && clone.details.length > 0,
+  );
+
+  // ── 法定記録簿モード（認証工場は記載事項が欠けたら発行させない） ──
+  const legalMissing = missingLegalFields({
+    facilityType: "certified",
+    certificationNo: "",
+    hasVin: true,
+    hasRegistrationNumber: false,
+    customerName: "",
+    customerAddress: "",
+    serviceDate: new Date(),
+    staffName: "山本",
+    workSummary: "施工",
+  });
+  ok(
+    "認証工場で氏名・住所・認証番号が欠けていれば不足として挙げる",
+    ["依頼者氏名", "依頼者住所", "認証番号"].every((k) => legalMissing.includes(k)),
+    legalMissing.join("・"),
+  );
+  ok(
+    "一般事業場は法定必須の対象外（証明書のみ）",
+    missingLegalFields({
+      facilityType: "general",
+      certificationNo: "",
+      hasVin: false,
+      hasRegistrationNumber: false,
+      customerName: "",
+      customerAddress: "",
+      serviceDate: null,
+      staffName: "",
+      workSummary: "",
+    }).length === 0,
+  );
+  ok(
+    "車台番号があれば登録番号が無くても車両特定できる",
+    missingLegalFields({
+      facilityType: "certified",
+      certificationNo: "近運整第9999号",
+      hasVin: true,
+      hasRegistrationNumber: false,
+      customerName: "顧客",
+      customerAddress: "住所",
+      serviceDate: new Date(),
+      staffName: "担当",
+      workSummary: "作業",
+    }).length === 0,
+  );
+
+  // 住所を空にした顧客では認証工場の発行が止まること（実DBで確認）
+  await prisma.pitCustomer.update({ where: { id: custA.id }, data: { address: "" } });
+  const draft2 = await saveCertificateDraft(ctxA, { ...coreInput, serviceDate: "2026-07-21" });
+  const blocked = await issueCertificate(ctxA, draft2.certificateId!);
+  ok(
+    "認証工場は記載事項が欠けたまま発行できない",
+    !!blocked.error && blocked.error.includes("法定記録簿"),
+    blocked.error ?? "（発行できてしまった）",
+  );
+  await prisma.pitCustomer.update({ where: { id: custA.id }, data: { address: "大阪府堺市北区1-1" } });
+  ok("住所を入れれば発行できる", !!(await issueCertificate(ctxA, draft2.certificateId!)).ok);
+
+  // ── 記録の一括エクスポート（退会しても持ち出せる） ──
+  const exported = await exportStoreRecordsCsv(storeA.id, {
+    actorUserId: "test-user",
+    actorRole: "hq",
+    purpose: "検証",
+  });
+  ok("発行済み・無効化済みの記録がCSVに出る", exported.count >= 1, `${exported.count}件`);
+  ok("CSVにExcel向けのBOMが付いている", exported.csv.charCodeAt(0) === 0xfeff);
+  ok("CSVに法定記載事項の列がある", exported.csv.includes("依頼者住所") && exported.csv.includes("認証番号"));
+  ok("CSVに復号した車台番号が入る（記録簿の記載事項）", exported.csv.includes(VIN), VIN);
+  ok("CSVに保存期限が入る", exported.csv.includes("保存期限"));
+  const otherStoreCsv = await exportStoreRecordsCsv(storeB.id, {
+    actorUserId: "test-user",
+    actorRole: "hq",
+    purpose: "検証",
+  });
+  ok("他店のCSVに自店の記録が混ざらない", !otherStoreCsv.csv.includes("Ａ店の顧客"), `${otherStoreCsv.count}件`);
+  const summary = await retentionSummary(storeA.id);
+  ok("退会前の確認用に件数と保存期限が出る", summary.total >= 1 && summary.keepUntil !== null, JSON.stringify(summary));
+  ok(
+    "エクスポートの復号が監査ログに残る",
+    (await prisma.pitPiiAccessLog.count({ where: { purpose: "検証" } })) >= 2,
   );
 
   // 紐づけ解除は自店のものだけ

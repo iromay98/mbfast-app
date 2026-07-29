@@ -16,6 +16,7 @@ import { moduleDef, validateModuleValues, isLegalRecordFacility } from "@/server
 import { reviewCopy } from "@/server/pit/copy-guard";
 import { resolveRetention } from "@/server/pit/cert-retention";
 import { certificateNo, certificatePayloadHash } from "@/server/pit/cert-hash";
+import { missingLegalFields } from "@/server/pit/legal-record";
 
 // ハッシュ計算はDB非依存の cert-hash.ts が原本（検証スクリプトから単体で呼べるように分離）
 export { certificatePayloadHash } from "@/server/pit/cert-hash";
@@ -204,13 +205,34 @@ export async function issueCertificate(
       totalAmount: true,
       customerId: true,
       legalRecord: true,
-      vehicle: { select: { vehicleKey: true } },
+      staffLicenseNo: true,
+      customer: { select: { name: true, address: true } },
+      vehicle: { select: { vehicleKey: true, vinEnc: true, regNumberEnc: true } },
       details: { select: { module: true, fieldKey: true, fieldValue: true } },
     },
   });
   if (!cert) return { error: "証明書が見つかりません" };
   if (cert.status === "issued") return { error: "すでに発行済みです" };
   if (cert.status === "voided") return { error: "無効化された証明書は発行できません" };
+
+  // 認証/指定工場は法定記録簿を兼ねる。記載事項が欠けたものを「発行済み」にしない
+  // （後から直せないため、発行前に止めるのが唯一の機会）
+  const missing = missingLegalFields({
+    facilityType: store.facilityType,
+    certificationNo: store.certificationNo,
+    hasVin: !!cert.vehicle.vinEnc,
+    hasRegistrationNumber: !!cert.vehicle.regNumberEnc,
+    customerName: cert.customer?.name ?? "",
+    customerAddress: cert.customer?.address ?? "",
+    serviceDate: cert.serviceDate,
+    staffName: cert.staffName,
+    workSummary: cert.workSummary,
+  });
+  if (missing.length > 0) {
+    return {
+      error: `法定記録簿に必要な記載事項が不足しています: ${missing.join("・")}（入力してから発行してください）`,
+    };
+  }
 
   try {
     const issuedAt = new Date();

@@ -1,6 +1,6 @@
 import { requireHQ } from "@/lib/authz";
 import { prisma } from "@/lib/db";
-import { formatDateTime } from "@/lib/labels";
+import { formatDate, formatDateTime } from "@/lib/labels";
 import { PageTitle, Card, LinkButton } from "@/components/ui";
 import { pitAiEnabled } from "@/server/pit/generate";
 import { wpConfigured } from "@/server/pit/wordpress";
@@ -30,6 +30,22 @@ export default async function HqPitPage() {
     }),
   ]);
 
+  // 記録（施工証明書）の件数と最長保存期限。停止前に「消さない・保存義務が残る」を伝えるために出す
+  const [certCounts, keepUntils] = await Promise.all([
+    prisma.pitCertificate.groupBy({
+      by: ["storeId"],
+      where: { status: { in: ["issued", "voided"] } },
+      _count: true,
+    }),
+    prisma.pitCertificate.groupBy({
+      by: ["storeId"],
+      where: { retentionUntil: { not: null } },
+      _max: { retentionUntil: true },
+    }),
+  ]);
+  const certCountByStore = new Map(certCounts.map((c) => [c.storeId, c._count]));
+  const keepUntilByStore = new Map(keepUntils.map((k) => [k.storeId, k._max.retentionUntil]));
+
   const countByStore = new Map(postCounts.map((c) => [c.storeId, c._count]));
   const lastLogByStore = new Map(lastLogs.map((l) => [l.storeId, l.status]));
 
@@ -54,6 +70,12 @@ export default async function HqPitPage() {
       wpCategoryId: s.wpCategoryId,
       footerHtml: s.footerHtml,
       active: s.active,
+      facilityType: s.facilityType,
+      certificationNo: s.certificationNo,
+      certCount: certCountByStore.get(s.id) ?? 0,
+      keepUntilLabel: keepUntilByStore.get(s.id)
+        ? formatDate(keepUntilByStore.get(s.id)!)
+        : null,
       info: {
         area: s.area,
         address: s.address,

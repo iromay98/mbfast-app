@@ -29,6 +29,8 @@ const PIT_PATH = "/hq/pit";
 // 店舗マスタの作成・更新（本店のみ）。
 // dealerId 空 = 本店直営（代理店に紐づけない店舗。本部が /hq/pit/post から投稿）。
 // wpCategoryId 0以下 = WordPressに親545配下のカテゴリを自動作成してIDを取り込む。
+const FACILITY_TYPES = ["certified", "designated", "general"];
+
 export async function upsertPitStore(input: {
   id?: string;
   dealerId: string;
@@ -37,12 +39,24 @@ export async function upsertPitStore(input: {
   wpCategoryId: number;
   footerHtml: string;
   active: boolean;
+  /** 事業場区分。certified/designated = 法定記録簿モード（本部が設定する） */
+  facilityType?: string;
+  /** 認証番号（推測・自動補完はしない。店舗から申告された値をそのまま入れる） */
+  certificationNo?: string;
 }): Promise<{ ok?: true; error?: string; createdCategoryId?: number }> {
   await requireHQ();
   const displayName = input.displayName.trim();
   const slug = input.slug.trim().toLowerCase();
   if (!displayName) return { error: "表示名を入力してください" };
   if (!/^[a-z0-9-]+$/.test(slug)) return { error: "slugは英小文字・数字・ハイフンのみです" };
+  const facilityType = (input.facilityType ?? "general").trim();
+  if (!FACILITY_TYPES.includes(facilityType)) return { error: "事業場区分が不正です" };
+  const certificationNo = (input.certificationNo ?? "").trim();
+  if (certificationNo.length > 40) return { error: "認証番号が長すぎます" };
+  // 認証/指定工場として扱うなら認証番号が必要（法定記録簿に記載する項目）
+  if (facilityType !== "general" && !certificationNo) {
+    return { error: "認証工場・指定工場に設定するには認証番号を入力してください" };
+  }
 
   const dealerId = input.dealerId.trim() || null;
   if (dealerId) {
@@ -68,11 +82,29 @@ export async function upsertPitStore(input: {
     if (input.id) {
       await prisma.pitStore.update({
         where: { id: input.id },
-        data: { dealerId, displayName, slug, wpCategoryId, footerHtml: input.footerHtml, active: input.active },
+        data: {
+          dealerId,
+          displayName,
+          slug,
+          wpCategoryId,
+          footerHtml: input.footerHtml,
+          active: input.active,
+          facilityType,
+          certificationNo,
+        },
       });
     } else {
       await prisma.pitStore.create({
-        data: { dealerId, displayName, slug, wpCategoryId, footerHtml: input.footerHtml, active: input.active },
+        data: {
+          dealerId,
+          displayName,
+          slug,
+          wpCategoryId,
+          footerHtml: input.footerHtml,
+          active: input.active,
+          facilityType,
+          certificationNo,
+        },
       });
     }
   } catch (e) {

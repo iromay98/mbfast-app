@@ -5,6 +5,8 @@ import { PageTitle, Card, EmptyState } from "@/components/ui";
 import { ownPitStore } from "@/server/pit/own-store";
 import { listStoreCertificates, certificateTypeLabel } from "@/server/pit/certificate";
 import { listStoreVehicles } from "@/server/pit/customer-repo";
+import { retentionSummary } from "@/server/pit/legal-record";
+import { isLegalRecordFacility } from "@/server/pit/cert-fields";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = pitMetadata("mbPIT 施工証明書");
@@ -32,10 +34,12 @@ export default async function CertificatesPage() {
     );
   }
 
-  const [rows, vehicles] = await Promise.all([
+  const [rows, vehicles, retention] = await Promise.all([
     listStoreCertificates(own.store.id),
     listStoreVehicles(own.store.id),
+    retentionSummary(own.store.id),
   ]);
+  const legalMode = isLegalRecordFacility(own.store.facilityType);
   const unissued = rows.filter((r) => r.status === "draft" || r.status === "failed");
   const rest = rows.filter((r) => r.status !== "draft" && r.status !== "failed");
 
@@ -73,6 +77,41 @@ export default async function CertificatesPage() {
           {unissued.map((r) => (
             <Row key={r.id} row={r} />
           ))}
+        </Card>
+      )}
+
+      {legalMode && (
+        <Card>
+          <h3 className="text-sm font-bold text-ink">法定記録簿モード（認証工場・指定工場）</h3>
+          <p className="mt-1 text-xs text-ink-soft">
+            この店舗の証明書は記録簿としても扱います。依頼者の氏名・住所、認証番号、担当者名、作業概要が
+            揃っていないと発行できません（記録として成立しないため）。
+            {own.store.certificationNo ? "" : " 認証番号が未登録です。本部にご連絡ください。"}
+          </p>
+        </Card>
+      )}
+
+      {retention.total > 0 && (
+        <Card>
+          <h3 className="text-sm font-bold text-ink">記録の書き出し</h3>
+          <p className="mt-1 text-xs text-ink-soft">
+            発行済み・無効化済みの{retention.total}件をCSVで書き出せます（Excelで開けます）。
+            {retention.keepUntil && `保存期限がいちばん遅い記録は ${ymd(retention.keepUntil)} までです。`}
+            <br />
+            <span className="font-semibold text-ink">
+              mbPITをやめても、記録の保存義務（法定記録簿は記載の日から2年）はお店に残ります。
+            </span>
+            退会・廃業の前に必ず書き出して保管してください。
+          </p>
+          <a
+            href="/api/pit/records/export"
+            className="mt-3 inline-block rounded-lg border border-line px-3 py-2.5 text-sm font-semibold text-ink"
+          >
+            ⬇ 記録をCSVで書き出す
+          </a>
+          <p className="mt-2 text-[11px] text-ink-soft">
+            CSVには車台番号・お客様の氏名住所が含まれます。取り扱いにご注意ください。
+          </p>
         </Card>
       )}
 

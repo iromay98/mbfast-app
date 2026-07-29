@@ -65,6 +65,27 @@ export default async function CertificateDetailPage({ params }: { params: Promis
         warnings={warnings}
       />
 
+      {cert.status === "issued" && cert.retentionUntil && (
+        <Card className="no-print">
+          <p className="text-xs font-semibold text-ink">
+            保存期限: {cert.retentionUntil.toLocaleDateString("ja-JP", { timeZone: "Asia/Tokyo" })} まで
+            <span className="ml-1 font-normal text-ink-soft">
+              （
+              {cert.retentionReason === "legal_record"
+                ? "法定記録簿として記載の日から2年"
+                : cert.retentionReason === "warranty"
+                  ? "保証期間の満了日まで"
+                  : "保持理由なし"}
+              ）
+            </span>
+          </p>
+          <p className="mt-1 text-[11px] text-ink-soft">
+            この期限までは削除しません。mbPITをやめる場合も記録の保存義務はお店に残るため、
+            一覧の「記録をCSVで書き出す」から控えを取ってください。
+          </p>
+        </Card>
+      )}
+
       {cert.verifyLast3 && cert.status === "issued" && (
         <Card className="no-print">
           <p className="text-xs font-semibold text-ink">

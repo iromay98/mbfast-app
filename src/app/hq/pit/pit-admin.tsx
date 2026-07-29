@@ -25,6 +25,11 @@ export type StoreRow = {
   wpCategoryId: number;
   footerHtml: string;
   active: boolean;
+  // 事業場区分（法定記録簿モードの出し分け）と認証番号
+  facilityType: string;
+  certificationNo: string;
+  certCount: number; // 発行済み＋無効化済みの記録件数（停止前の確認用）
+  keepUntilLabel: string | null; // 記録の最長保存期限
   // 店舗マスター（店舗情報＋一覧表示用）
   info: StoreInfo;
   contactPerson: string;
@@ -200,6 +205,8 @@ function StoreMaster({ stores, dealers }: { stores: StoreRow[]; dealers: DealerO
         wpCategoryId: Number(editing.wpCategoryId ?? 0),
         footerHtml: editing.footerHtml ?? "",
         active: editing.active ?? true,
+        facilityType: editing.facilityType ?? "general",
+        certificationNo: editing.certificationNo ?? "",
       });
       setMsg(
         r.error ??
@@ -236,6 +243,7 @@ function StoreMaster({ stores, dealers }: { stores: StoreRow[]; dealers: DealerO
             <th>slug</th>
             <th>エリア</th>
             <th>記録</th>
+            <th>証明書</th>
             <th>状態</th>
             <th>同期</th>
             <th></th>
@@ -249,6 +257,17 @@ function StoreMaster({ stores, dealers }: { stores: StoreRow[]; dealers: DealerO
               <td className="font-mono">{s.slug}</td>
               <td>{s.info.area || <span className="text-ink-soft">—</span>}</td>
               <td>{s.postCount}件</td>
+              {/* 証明書の件数と、法定記録簿モードかどうか。停止前の確認に使う */}
+              <td className="whitespace-nowrap">
+                {s.certCount > 0 ? (
+                  <a href={`/api/pit/records/export?storeId=${s.id}`} className="text-gold-700 hover:underline">
+                    {s.certCount}件 CSV
+                  </a>
+                ) : (
+                  <span className="text-ink-soft">—</span>
+                )}
+                {s.facilityType !== "general" && <span className="ml-1 text-[10px] font-bold text-ink">記録簿</span>}
+              </td>
               <td>{s.active ? "有効" : "停止"}</td>
               <td className="whitespace-nowrap" title={s.lastSyncedLabel ?? "未同期"}>
                 <SyncBadge badge={s.syncBadge} />
@@ -269,7 +288,14 @@ function StoreMaster({ stores, dealers }: { stores: StoreRow[]; dealers: DealerO
                     type="button"
                     disabled={pending}
                     onClick={() => {
-                      if (!window.confirm(`「${s.displayName}」を停止しますか？\n投稿できなくなり、mbPIT専用アカウントはログインもできなくなります。`)) return;
+                      // 停止しても記録は消さない（法定記録簿の保存義務は事業者本人に残る）
+                      const keep = s.keepUntilLabel ? `\n記録の保存期限: ${s.keepUntilLabel} まで` : "";
+                      if (
+                        !window.confirm(
+                          `「${s.displayName}」を停止しますか？\n投稿できなくなり、mbPIT専用アカウントはログインもできなくなります。\n\n施工証明書${s.certCount}件は削除しません（保存義務が残るため）。${keep}\n必要なら先に「CSV」から記録を書き出してください。`,
+                        )
+                      )
+                        return;
                       start(async () => {
                         const r = await suspendPitStore(s.id);
                         setMsg(r.error ?? `${s.displayName} を停止しました（再開は「承認して有効化」から）`);
@@ -286,7 +312,7 @@ function StoreMaster({ stores, dealers }: { stores: StoreRow[]; dealers: DealerO
           ))}
           {stores.length === 0 && (
             <tr>
-              <td colSpan={7} className="py-4 text-center text-ink-soft">
+              <td colSpan={8} className="py-4 text-center text-ink-soft">
                 店舗が未登録です。「＋ 店舗を追加」から既存の代理店を紐づけてください。
               </td>
             </tr>
@@ -368,6 +394,29 @@ function StoreMaster({ stores, dealers }: { stores: StoreRow[]; dealers: DealerO
                 rows={4}
                 onChange={(e) => setEditing({ ...editing, footerHtml: e.target.value })}
                 className="mt-0.5 w-full rounded border border-line bg-surface px-2 py-1 text-xs font-mono"
+              />
+            </label>
+            {/* 事業場区分: certified/designated にすると施工証明書が法定記録簿モードになる
+                （依頼者住所・認証番号などの記載事項が発行時に必須になる） */}
+            <label className="block text-[11px] text-ink-soft">
+              事業場区分（法定記録簿モードの出し分け）
+              <select
+                value={editing.facilityType ?? "general"}
+                onChange={(e) => setEditing({ ...editing, facilityType: e.target.value })}
+                className="mt-0.5 w-full rounded border border-line bg-surface px-2 py-1 text-xs"
+              >
+                <option value="general">一般（証明書のみ）</option>
+                <option value="certified">認証工場（法定記録簿モード）</option>
+                <option value="designated">指定工場（法定記録簿モード）</option>
+              </select>
+            </label>
+            <label className="block text-[11px] text-ink-soft">
+              認証番号（認証・指定工場は必須。推測せず申告値をそのまま）
+              <input
+                value={editing.certificationNo ?? ""}
+                onChange={(e) => setEditing({ ...editing, certificationNo: e.target.value })}
+                placeholder="近運整第9999号"
+                className="mt-0.5 w-full rounded border border-line bg-surface px-2 py-1 text-xs"
               />
             </label>
             <label className="flex items-center gap-1.5 text-xs">
