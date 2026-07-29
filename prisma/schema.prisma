@@ -827,6 +827,22 @@ model PitVehicle {
   customerLinks PitVehicleCustomer[]
 }
 
+// 車両情報の修正履歴（誰がいつ何を直したか）。
+// 車両は店舗をまたいで共有されるため、他店が入れた値を上書きした事実を追えるようにする。
+// 個人情報の「復号」は PitPiiAccessLog、「変更」はこちらに残す（読みと書きを混ぜない）。
+model PitVehicleEditLog {
+  id          String   @id @default(cuid())
+  vehicleId   String
+  storeId     String
+  actorUserId String
+  // { field: { before, after } } の形。登録番号は値そのものを残さず "変更" だけ記録する
+  changes     Json
+  at          DateTime @default(now())
+
+  @@index([vehicleId, at])
+  @@index([storeId, at])
+}
+
 // 車両と顧客の関連。所有権移転（Phase2）に備えて期間を持たせる。
 // 履歴は「人」ではなく「車」に紐づける方針のため、証明書はここを介さず vehicleId を直接持つ。
 model PitVehicleCustomer {

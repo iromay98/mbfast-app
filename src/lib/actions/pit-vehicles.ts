@@ -13,9 +13,16 @@
  */
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
+import { requireDealer } from "@/lib/authz";
 import { ownPitStore } from "@/server/pit/own-store";
-import { registerVehicle, vehicleRegistrationReady } from "@/server/pit/vehicle-register";
-import { endStoreVehicleLink, linkVehicleToCustomer } from "@/server/pit/customer-repo";
+import {
+  registerVehicle,
+  vehicleRegistrationReady,
+  loadVehicleForEdit,
+  updateVehicleInfo,
+  type VehicleEditInput,
+} from "@/server/pit/vehicle-register";
+import { endStoreVehicleLink, getStoreVehicle, linkVehicleToCustomer } from "@/server/pit/customer-repo";
 import { normalizeShakenFields } from "@/server/pit/shaken-ocr";
 import { isLegalRecordFacility } from "@/server/pit/cert-fields";
 
@@ -156,4 +163,66 @@ export async function unlinkVehicle(vehicleId: string, customerId: string): Prom
   revalidatePath(PATH);
   revalidatePath("/dealer/pit/customers");
   return { ok: true };
+}
+
+/**
+ * 修正フォームを開くときに現在値を読む。
+ * 自店の顧客に紐づく車両だけ（他店の車両は「見つからない」扱い）。
+ * 登録番号・車台番号は復号するため監査ログが残る。
+ */
+export async function loadVehicleEdit(
+  vehicleId: string,
+): Promise<{ values?: VehicleEditInput & { vin: string }; error?: string }> {
+  const own = await ownPitStore();
+  if (!own.store) return { error: own.error };
+  const user = await requireDealer();
+  const linked = await getStoreVehicle(own.store.id, vehicleId);
+  if (!linked) return { error: "車両が見つかりません" };
+  const v = await loadVehicleForEdit(vehicleId, { actorUserId: user.id, actorRole: "dealer" });
+  if (!v) return { error: "車両が見つかりません" };
+  return {
+    values: {
+      vin: v.vin,
+      vehicleName: v.vehicleName,
+      maker: v.maker,
+      modelCode: v.modelCode,
+      firstRegistered: v.firstRegistered,
+      inspectionExpiry: v.inspectionExpiry,
+      registrationNumber: v.registrationNumber,
+    },
+  };
+}
+
+/**
+ * 車両情報の修正（上書き）。入力ミスを直せるようにするための経路。
+ * 車台番号は変更できない（別の車になるため、正しい番号で登録し直す）。
+ */
+export async function saveVehicleEdit(
+  vehicleId: string,
+  input: VehicleEditInput,
+): Promise<{ ok?: true; error?: string; changed?: string[] }> {
+  const own = await ownPitStore();
+  if (!own.store) return { error: own.error };
+  const user = await requireDealer();
+  const linked = await getStoreVehicle(own.store.id, vehicleId);
+  if (!linked) return { error: "車両が見つかりません" };
+
+  const r = await updateVehicleInfo(vehicleId, own.store.id, input, { actorUserId: user.id });
+  if (r.error) return { error: r.error };
+
+  // 顧客カルテの表示（車両名・車検満了日）も合わせて更新する
+  if (linked.customerId) {
+    await prisma.pitCustomer.updateMany({
+      where: { id: linked.customerId, storeId: own.store.id },
+      data: {
+        ...(input.vehicleName.trim() ? { vehicleName: input.vehicleName.trim() } : {}),
+        inspectionExpiry: input.inspectionExpiry
+          ? new Date(`${input.inspectionExpiry}T00:00:00+09:00`)
+          : null,
+      },
+    });
+  }
+  revalidatePath(PATH);
+  revalidatePath("/dealer/pit/customers");
+  return { ok: true, changed: r.changed };
 }

@@ -22,7 +22,7 @@ import {
   linkVehicleToCustomer,
   endStoreVehicleLink,
 } from "../src/server/pit/customer-repo";
-import { registerVehicle } from "../src/server/pit/vehicle-register";
+import { registerVehicle, loadVehicleForEdit, updateVehicleInfo } from "../src/server/pit/vehicle-register";
 import {
   saveCertificateDraft,
   issueCertificate,
@@ -51,6 +51,7 @@ async function cleanup() {
     const customers = await prisma.pitCustomer.findMany({ where: { storeId: { in: ids } }, select: { id: true } });
     // 証明書 → 紐づけ → 顧客 → 店舗 の順に消す（外部キーの向き）
     await prisma.pitCertificate.deleteMany({ where: { storeId: { in: ids } } });
+    await prisma.pitVehicleEditLog.deleteMany({ where: { storeId: { in: ids } } });
     await prisma.pitVehicleCustomer.deleteMany({ where: { customerId: { in: customers.map((c) => c.id) } } });
     await prisma.pitCustomer.deleteMany({ where: { storeId: { in: ids } } });
     await prisma.pitStore.deleteMany({ where: { id: { in: ids } } });
@@ -128,6 +129,71 @@ async function main() {
       afterA[0].customerName === "Ａ店の顧客" &&
       afterB.length === 1 &&
       afterB[0].customerName === "Ｂ店の顧客",
+  );
+
+  // ── 車両情報の修正（上書き・履歴が残る） ──
+  const beforeEdit = await loadVehicleForEdit(vehicleId, { actorUserId: "test", actorRole: "dealer" });
+  ok("修正画面は現在値を復号して返す", beforeEdit?.vin === VIN && beforeEdit?.registrationNumber === "大阪 300 あ 12-34", `${beforeEdit?.vin} / ${beforeEdit?.registrationNumber}`);
+
+  const edited = await updateVehicleInfo(
+    vehicleId,
+    storeA.id,
+    {
+      vehicleName: "検証車（修正後）",
+      maker: "スズキ",
+      modelCode: "3BA-ZC33S",
+      firstRegistered: "2019-05",
+      inspectionExpiry: "2027-05-20",
+      registrationNumber: "大阪 300 あ 99-99",
+    },
+    { actorUserId: "test-user" },
+  );
+  ok("修正で上書きできる（登録時の「空欄だけ埋める」と違う）", !!edited.ok && (edited.changed ?? []).includes("vehicleName"), (edited.changed ?? []).join(","));
+  const afterEdit = await loadVehicleForEdit(vehicleId, { actorUserId: "test", actorRole: "dealer" });
+  ok("登録番号を入れ替えられる", afterEdit?.registrationNumber === "大阪 300 あ 99-99", afterEdit?.registrationNumber);
+  ok("車台番号は修正で変わらない（一意キーのため）", afterEdit?.vin === VIN, afterEdit?.vin);
+
+  const editLog = await prisma.pitVehicleEditLog.findFirst({
+    where: { vehicleId, storeId: storeA.id },
+    orderBy: { at: "desc" },
+  });
+  ok("修正履歴が残る", !!editLog && editLog.actorUserId === "test-user");
+  ok(
+    "履歴に登録番号の値そのものは残さない（ログに個人情報を増やさない）",
+    !JSON.stringify(editLog?.changes ?? {}).includes("99-99"),
+    JSON.stringify(editLog?.changes ?? {}).slice(0, 90),
+  );
+  const cleared = await updateVehicleInfo(
+    vehicleId,
+    storeA.id,
+    {
+      vehicleName: "検証車",
+      maker: "スズキ",
+      modelCode: "3BA-ZC33S",
+      firstRegistered: "2019-05",
+      inspectionExpiry: "2027-05-20",
+      registrationNumber: "",
+    },
+    { actorUserId: "test-user" },
+  );
+  ok("空欄で保存すると登録番号を消せる", !!cleared.ok && (cleared.changed ?? []).includes("registrationNumber"));
+  ok(
+    "消したあとは登録番号が空",
+    (await loadVehicleForEdit(vehicleId, { actorUserId: "test", actorRole: "dealer" }))?.registrationNumber === "",
+  );
+  // 証明書のためにナンバーを戻す
+  await updateVehicleInfo(
+    vehicleId,
+    storeA.id,
+    {
+      vehicleName: "検証車",
+      maker: "スズキ",
+      modelCode: "3BA-ZC33S",
+      firstRegistered: "2019-05",
+      inspectionExpiry: "2027-05-20",
+      registrationNumber: "大阪 300 あ 12-34",
+    },
+    { actorUserId: "test-user" },
   );
 
   // ── 証明書（他店の証明書は見えない・発行後は変更できない） ──

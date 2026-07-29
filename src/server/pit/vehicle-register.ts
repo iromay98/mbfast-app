@@ -10,6 +10,7 @@
  *  - chassisLast3… 表示・簡易照合用の下3桁（既存の平文断片。新たな断片は増やさない）
  *  - vinEnc / regNumberEnc … AES-256-GCM（キーID付き）。復号は監査ログ必須の経路のみ
  */
+import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/db";
 import { normalizeChassis, vehicleFeatureEnabled, vehicleKeyFromChassis } from "@/server/pit/vehicle";
 import { decryptPiiAudited, encryptPii, keyIdOf, needsRekey, piiCryptoConfigured } from "@/server/pit/pii-crypto";
@@ -104,6 +105,156 @@ export async function registerVehicle(
     },
   });
   return { vehicle: { id: existing.id, vehicleKey, chassisLast3: last3, created: false } };
+}
+
+/**
+ * 修正画面のために現在値を読む（登録番号・車台番号は復号＝監査ログ付き）。
+ * 車台番号は表示専用。打ち間違いに気づけるように見せるが、ここからは変更させない。
+ */
+export async function loadVehicleForEdit(
+  vehicleId: string,
+  ctx: { actorUserId: string; actorRole: string },
+): Promise<{
+  vin: string;
+  registrationNumber: string;
+  vehicleName: string;
+  maker: string;
+  modelCode: string;
+  firstRegistered: string; // YYYY-MM
+  inspectionExpiry: string; // YYYY-MM-DD
+} | null> {
+  const v = await prisma.pitVehicle.findUnique({
+    where: { id: vehicleId },
+    select: {
+      vehicleName: true,
+      maker: true,
+      modelCode: true,
+      firstRegisteredOn: true,
+      inspectionExpiry: true,
+    },
+  });
+  if (!v) return null;
+  const secrets = await readVehicleSecrets(vehicleId, {
+    actorUserId: ctx.actorUserId,
+    actorRole: ctx.actorRole,
+    purpose: "車両情報の修正画面を開いた",
+  });
+  const ymd = (d: Date | null) => (d ? d.toLocaleDateString("sv-SE", { timeZone: "Asia/Tokyo" }) : "");
+  return {
+    vin: secrets.vin ?? "",
+    registrationNumber: secrets.registrationNumber ?? "",
+    vehicleName: v.vehicleName ?? "",
+    maker: v.maker ?? "",
+    modelCode: v.modelCode ?? "",
+    firstRegistered: ymd(v.firstRegisteredOn).slice(0, 7),
+    inspectionExpiry: ymd(v.inspectionExpiry),
+  };
+}
+
+export type VehicleEditInput = {
+  vehicleName: string;
+  maker: string;
+  modelCode: string;
+  /** "" | YYYY-MM */
+  firstRegistered: string;
+  /** "" | YYYY-MM-DD */
+  inspectionExpiry: string;
+  registrationNumber: string;
+};
+
+/**
+ * 車両情報の修正（上書き）。
+ *
+ * 登録時は「空欄だけ埋める」方針（他店の入力を壊さないため）だが、それだけでは自分の
+ * 入力ミスを直せない。この関数は明示的な修正操作なので**空欄なら空欄で保存する**
+ * （フォームに現在値を入れて出すので、空にするのは意図的な操作とみなせる）。
+ *
+ * 車台番号は変更しない。変えると別の車両になるため、正しい番号で登録し直す運用にする。
+ * 誰がいつ何を直したかは PitVehicleEditLog に残す（登録番号は値を残さず「変更」だけ）。
+ */
+export async function updateVehicleInfo(
+  vehicleId: string,
+  storeId: string,
+  input: VehicleEditInput,
+  ctx: { actorUserId: string },
+): Promise<{ ok?: true; error?: string; changed?: string[] }> {
+  const ready = vehicleRegistrationReady();
+  if (!ready.ok) return { error: ready.error };
+
+  const before = await prisma.pitVehicle.findUnique({
+    where: { id: vehicleId },
+    select: {
+      vehicleName: true,
+      maker: true,
+      modelCode: true,
+      firstRegisteredOn: true,
+      inspectionExpiry: true,
+      regNumberEnc: true,
+    },
+  });
+  if (!before) return { error: "車両が見つかりません" };
+
+  const jst = (v: string) => {
+    if (!v) return null;
+    const full = v.length === 7 ? `${v}-01` : v;
+    const d = new Date(`${full}T00:00:00+09:00`);
+    return Number.isNaN(d.getTime()) ? null : d;
+  };
+  if (input.firstRegistered && !jst(input.firstRegistered)) return { error: "初度登録年月の形式が正しくありません" };
+  if (input.inspectionExpiry && !jst(input.inspectionExpiry)) return { error: "車検満了日の形式が正しくありません" };
+
+  const next = {
+    vehicleName: input.vehicleName.trim() || null,
+    maker: input.maker.trim() || null,
+    modelCode: input.modelCode.trim() ? normalizeChassis(input.modelCode) : null,
+    firstRegisteredOn: jst(input.firstRegistered),
+    inspectionExpiry: jst(input.inspectionExpiry),
+  };
+  const reg = input.registrationNumber.trim();
+
+  // 変更点を拾う（登録番号は値を記録しない＝ログに個人情報を増やさない）
+  const changes: Record<string, { before: string; after: string }> = {};
+  const label = (d: Date | null) => (d ? d.toISOString().slice(0, 10) : "");
+  if ((before.vehicleName ?? "") !== (next.vehicleName ?? ""))
+    changes.vehicleName = { before: before.vehicleName ?? "", after: next.vehicleName ?? "" };
+  if ((before.maker ?? "") !== (next.maker ?? ""))
+    changes.maker = { before: before.maker ?? "", after: next.maker ?? "" };
+  if ((before.modelCode ?? "") !== (next.modelCode ?? ""))
+    changes.modelCode = { before: before.modelCode ?? "", after: next.modelCode ?? "" };
+  if (label(before.firstRegisteredOn) !== label(next.firstRegisteredOn))
+    changes.firstRegisteredOn = { before: label(before.firstRegisteredOn), after: label(next.firstRegisteredOn) };
+  if (label(before.inspectionExpiry) !== label(next.inspectionExpiry))
+    changes.inspectionExpiry = { before: label(before.inspectionExpiry), after: label(next.inspectionExpiry) };
+
+  // 登録番号: 空なら消す。値があれば入れ替える（現在値と同じかは復号しないと分からないので
+  // 「入力があった＝更新」とし、変更ログには値を残さず「更新」だけ書く）
+  let regEnc: string | null | undefined;
+  if (!reg && before.regNumberEnc) {
+    regEnc = null;
+    changes.registrationNumber = { before: "（登録あり）", after: "（削除）" };
+  } else if (reg) {
+    regEnc = encryptPii(reg);
+    changes.registrationNumber = { before: before.regNumberEnc ? "（登録あり）" : "（未登録）", after: "（更新）" };
+  }
+
+  if (Object.keys(changes).length === 0) return { ok: true, changed: [] };
+
+  await prisma.pitVehicle.update({
+    where: { id: vehicleId },
+    data: { ...next, ...(regEnc !== undefined ? { regNumberEnc: regEnc } : {}) },
+  });
+  await prisma.pitVehicleEditLog
+    .create({
+      data: {
+        vehicleId,
+        storeId,
+        actorUserId: ctx.actorUserId,
+        changes: changes as Prisma.InputJsonValue,
+      },
+    })
+    .catch((e) => console.error("mbPIT: 車両修正ログの記録に失敗", e));
+
+  return { ok: true, changed: Object.keys(changes) };
 }
 
 /** 車台番号から既存車両を引く（登録せずに照会したいとき） */
