@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Card, EmptyState } from "@/components/ui";
 import { upsertPitCustomer, deletePitCustomer, type CustomerInput } from "@/lib/actions/pit-customers";
@@ -13,6 +14,8 @@ export type CustomerRow = {
   vehicleName: string;
   inspectionExpiry: string; // "" | YYYY-MM-DD
   note: string;
+  address: string;
+  email: string;
 };
 
 const input = "mt-0.5 w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm font-semibold text-ink";
@@ -51,6 +54,8 @@ export function CustomersClient({ customers }: { customers: CustomerRow[] }) {
         vehicleName: editing.vehicleName ?? "",
         inspectionExpiry: editing.inspectionExpiry ?? "",
         note: editing.note ?? "",
+        address: editing.address ?? "",
+        email: editing.email ?? "",
       } satisfies CustomerInput);
       if (r.error) setError(r.error);
       else {
@@ -93,6 +98,15 @@ export function CustomersClient({ customers }: { customers: CustomerRow[] }) {
           ＋ 追加
         </button>
       </div>
+
+      {/* 車検証から登録すると、車台番号・型式・車検満了日・使用者の氏名住所までまとめて入る */}
+      <Link
+        href="/dealer/pit/vehicles"
+        className="flex items-center gap-2 rounded-lg border border-line bg-surface px-3 py-2.5 text-sm font-semibold text-ink"
+      >
+        📷 車検証を撮って車両を登録
+        <span className="ml-auto text-[11px] font-normal text-ink-soft">証明書に必要な情報が入ります</span>
+      </Link>
 
       {/* 追加・編集フォーム */}
       {editing && (
@@ -142,6 +156,25 @@ export function CustomersClient({ customers }: { customers: CustomerRow[] }) {
                 value={editing.inspectionExpiry ?? ""}
                 onChange={(e) => setEditing({ ...editing, inspectionExpiry: e.target.value })}
                 type="date"
+                className={input}
+              />
+            </label>
+            <label className={label}>
+              メール
+              <input
+                value={editing.email ?? ""}
+                onChange={(e) => setEditing({ ...editing, email: e.target.value })}
+                inputMode="email"
+                placeholder="example@example.jp"
+                className={input}
+              />
+            </label>
+            <label className={`${label} sm:col-span-2`}>
+              住所（施工証明書・記録簿に使います。公開ブログには出ません）
+              <input
+                value={editing.address ?? ""}
+                onChange={(e) => setEditing({ ...editing, address: e.target.value })}
+                placeholder="大阪府堺市北区…"
                 className={input}
               />
             </label>

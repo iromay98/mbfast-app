@@ -22,7 +22,9 @@
     "db:reset": "prisma migrate reset",
     "prebuild": "node scripts/copy-ort-wasm.mjs",
     "predev": "node scripts/copy-ort-wasm.mjs",
-    "check:cert-privacy": "tsx scripts/check-cert-privacy.mts"
+    "check:cert-privacy": "tsx scripts/check-cert-privacy.mts",
+    "check:shaken-ocr": "tsx scripts/check-shaken-ocr.mts",
+    "check:store-isolation": "tsx -r dotenv/config scripts/check-store-isolation.mts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.104.2",

@@ -7,18 +7,14 @@
 
 import { createHash, createHmac } from "node:crypto";
 import { prisma } from "@/lib/db";
+import { normalizeChassis } from "@/server/pit/chassis";
 
 export function vehicleFeatureEnabled(): boolean {
   return !!process.env.SERVER_SECRET;
 }
 
-// 全角→半角・大文字化・空白/長音等の除去（読取り揺れの正規化）
-export function normalizeChassis(raw: string): string {
-  return raw
-    .replace(/[Ａ-Ｚａ-ｚ０-９－]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0xfee0))
-    .toUpperCase()
-    .replace(/[^A-Z0-9-]/g, "");
-}
+// 正規化はDB非依存の chassis.ts が原本（読み取り側と同じ関数を使う）
+export { normalizeChassis };
 
 export function vehicleKeyFromChassis(chassis: string): string {
   const secret = process.env.SERVER_SECRET;

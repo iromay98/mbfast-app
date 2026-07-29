@@ -7,6 +7,7 @@ import { prisma } from "@/lib/db";
 import { formatDate, formatDateTime } from "@/lib/labels";
 import { PageTitle, Card } from "@/components/ui";
 import { storeStats } from "@/server/pit/gamification";
+import { listUpcomingInspections } from "@/server/pit/customer-repo";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = pitMetadata("mbPIT 加盟店ポータル");
@@ -21,14 +22,10 @@ export default async function PitHomePage() {
   if (!store) redirect("/dealer/pit"); // 未登録店舗は投稿ページ側の案内へ
 
   const now = new Date();
-  const soon = new Date(now.getTime() + 60 * 24 * 60 * 60 * 1000); // 60日以内
   const [stats, upcoming, recentPosts] = await Promise.all([
     storeStats(store.id),
-    prisma.pitCustomer.findMany({
-      where: { storeId: store.id, inspectionExpiry: { not: null, lte: soon } },
-      orderBy: { inspectionExpiry: "asc" },
-      take: 10,
-    }),
+    // 顧客の参照は customer-repo 経由（storeId条件の付け忘れを構造的に防ぐ）
+    listUpcomingInspections(store.id, 60),
     prisma.pitPost.findMany({
       where: { storeId: store.id },
       orderBy: { createdAt: "desc" },

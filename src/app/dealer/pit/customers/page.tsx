@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
 import { pitMetadata } from "@/lib/pit-metadata";
 import { redirect } from "next/navigation";
-import { requireDealer } from "@/lib/authz";
-import { prisma } from "@/lib/db";
 import { PageTitle } from "@/components/ui";
+import { ownPitStore } from "@/server/pit/own-store";
+import { listStoreCustomers } from "@/server/pit/customer-repo";
 import { CustomersClient, type CustomerRow } from "./customers-client";
 
 export const dynamic = "force-dynamic";
@@ -11,17 +11,10 @@ export const metadata: Metadata = pitMetadata("mbPIT 顧客カルテ");
 
 // 顧客カルテ（自店のみ・車検満了日の近い順）。個人情報のため本部画面には出さない
 export default async function PitCustomersPage() {
-  const user = await requireDealer();
-  const store = await prisma.pitStore.findUnique({
-    where: { dealerId: user.dealerId },
-    select: { id: true },
-  });
-  if (!store) redirect("/dealer/pit");
+  const own = await ownPitStore();
+  if (!own.store) redirect("/dealer/pit");
 
-  const customers = await prisma.pitCustomer.findMany({
-    where: { storeId: store.id },
-    orderBy: [{ inspectionExpiry: { sort: "asc", nulls: "last" } }, { name: "asc" }],
-  });
+  const customers = await listStoreCustomers(own.store.id);
 
   const rows: CustomerRow[] = customers.map((c) => ({
     id: c.id,
@@ -33,6 +26,8 @@ export default async function PitCustomersPage() {
       ? c.inspectionExpiry.toLocaleDateString("sv-SE", { timeZone: "Asia/Tokyo" })
       : "",
     note: c.note,
+    address: c.address,
+    email: c.email,
   }));
 
   return (

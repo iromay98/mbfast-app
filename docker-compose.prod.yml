@@ -64,6 +64,9 @@ services:
       AUTO_PUBLISH: "${AUTO_PUBLISH:-true}"
       STEALTH_MODE: "${STEALTH_MODE:-true}"
       SERVER_SECRET: "${SERVER_SECRET:-}"
+      PIT_OCR_MODEL: "${PIT_OCR_MODEL:-claude-sonnet-5}"
+      # 車台番号・登録番号の暗号化鍵（SERVER_SECRETとは別の鍵。docs/pii-key-management.md）
+      PII_ENC_KEYS: "${PII_ENC_KEYS:-}"
       AUTOTUNER_API_BASE: "${AUTOTUNER_API_BASE:-https://api.autotuner-tool.com/v2/api/v1/master}"
       AUTOTUNER_ID: "${AUTOTUNER_ID:-}"
       AUTOTUNER_API_KEY: "${AUTOTUNER_API_KEY:-}"

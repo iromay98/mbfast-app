@@ -4,7 +4,7 @@
  *
  * 使い方: npx tsx scripts/check-cert-privacy.mts
  */
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
@@ -166,11 +166,70 @@ process.env.SERVER_SECRET = "totally-different-value";
 resetKeyCache();
 ok("AES鍵がSERVER_SECRETから独立している", decryptForRekeyOnly(enc) === vin);
 
-// ── 8. 公開ブログ生成が復号モジュールを import していないこと（構造的な分離） ──
-for (const f of ["src/server/pit/generate.ts", "src/server/pit/pipeline.ts"]) {
-  const src = readFileSync(join(root, f), "utf8");
-  ok(`${f} が個人情報の復号モジュールを import していない`, !src.includes("pii-crypto"));
+// ── 8. 公開ブログ生成から復号モジュールへ辿れないこと（間接importも含めて検査） ──
+// 直接importだけ見ると、途中の1ファイルが取り込んだ瞬間に分離が崩れても気づけない。
+function resolveImport(spec: string, fromFile: string): string | null {
+  const base = spec.startsWith("@/")
+    ? join(root, "src", spec.slice(2))
+    : spec.startsWith(".")
+      ? join(dirname(join(root, fromFile)), spec)
+      : null;
+  if (!base) return null; // 外部パッケージ
+  for (const cand of [`${base}.ts`, `${base}.tsx`, join(base, "index.ts")]) {
+    try {
+      readFileSync(cand, "utf8");
+      return cand.slice(root.length + 1);
+    } catch {
+      /* 次の候補 */
+    }
+  }
+  return null;
 }
+
+function importGraph(entry: string): Set<string> {
+  const seen = new Set<string>();
+  const queue = [entry];
+  while (queue.length) {
+    const file = queue.shift()!;
+    if (seen.has(file)) continue;
+    seen.add(file);
+    let src: string;
+    try {
+      src = readFileSync(join(root, file), "utf8");
+    } catch {
+      continue;
+    }
+    for (const m of src.matchAll(/from\s+"([^"]+)"|import\("([^"]+)"\)/g)) {
+      const resolved = resolveImport(m[1] ?? m[2], file);
+      if (resolved) queue.push(resolved);
+    }
+  }
+  return seen;
+}
+
+for (const f of ["src/server/pit/generate.ts", "src/server/pit/pipeline.ts"]) {
+  const reached = importGraph(f);
+  const hit = [...reached].filter((p) => p.includes("pii-crypto"));
+  ok(`${f} から個人情報の復号モジュールへ辿れない（間接含む）`, hit.length === 0, hit.join(","));
+}
+
+// pii-crypto を import してよいファイルを明示する（増えたら気づけるようにする）
+const PII_IMPORTERS_ALLOWED = ["src/server/pit/vehicle-register.ts"];
+function walkTs(dir: string): string[] {
+  return readdirSync(join(root, dir), { withFileTypes: true }).flatMap((e) => {
+    const p = `${dir}/${e.name}`;
+    if (e.isDirectory()) return walkTs(p);
+    return /\.tsx?$/.test(e.name) ? [p] : [];
+  });
+}
+const importers = walkTs("src").filter(
+  (f) => !f.endsWith("pii-crypto.ts") && /from\s+"[^"]*pii-crypto"/.test(readFileSync(join(root, f), "utf8")),
+);
+ok(
+  "復号モジュールを使うファイルは許可した1箇所だけ",
+  importers.every((f) => PII_IMPORTERS_ALLOWED.includes(f)),
+  importers.join(","),
+);
 
 // ── 9. 共通コアの項目定義が公開可否を持つこと ──
 const noFlag = CORE_FIELDS.filter((f) => typeof f.publicSafe !== "boolean");
