@@ -29,8 +29,20 @@ export const NEVER_PUBLIC_KEYS = [
   "odometerKm",
 ] as const;
 
-/** 写真の種類のうち、公開ブログへ回してはいけないもの（車検証・ナンバーが写るもの） */
-export const NEVER_PUBLIC_MEDIA_KINDS = ["vehicle_plate", "diagnostic_screen"] as const;
+/**
+ * 写真の種類のうち、公開ブログへ回してはいけないもの。
+ * 画像に写り込んだ個人情報は型やテストでは検知できないため、
+ * 「除外がデフォルト・公開は明示選択」という構造で止める。
+ *  - shaken_cert: 車検証（OCR用にアップロードされたもの）
+ *  - vehicle_plate: ナンバープレートが写ったもの
+ *  - diagnostic_screen: 診断機の画面（車台番号が表示される機種がある）
+ */
+export const NEVER_PUBLIC_MEDIA_KINDS = ["shaken_cert", "vehicle_plate", "diagnostic_screen"] as const;
+
+/** 証明書専用の画像種別か（公開候補にも出さない） */
+export function isCertOnlyMediaKind(kind: string): boolean {
+  return (NEVER_PUBLIC_MEDIA_KINDS as readonly string[]).includes(kind);
+}
 
 /** 公開ブログへ渡せる車両情報（車台番号・登録番号は「存在しない」） */
 export type PublicVehicleView = {

@@ -8,6 +8,13 @@
 
 export type CopyViolation = { pattern: string; reason: string };
 
+/**
+ * 検査の強度。
+ *  generated = AI生成文・アプリのUI文言 → 違反はブロック（公開させない）
+ *  user      = 店舗が書いた自由文       → 警告のみ（現場の入力を弾くと使われなくなる）
+ */
+export type CopyMode = "generated" | "user";
+
 const RULES: { re: RegExp; label: string; reason: string }[] = [
   // 保険金の支払いを約束・示唆する表現
   { re: /保険(金)?が(下り|おり|支払われ)/, label: "保険金の支払いを示唆", reason: "支払いは保険会社の判断であり約束できない" },
@@ -23,7 +30,7 @@ const RULES: { re: RegExp; label: string; reason: string }[] = [
   { re: /リセールバリュー.{0,6}(上が|向上します)/, label: "リセール向上の断定", reason: "価格を保証できない" },
 ];
 
-/** 違反表現を返す（空配列＝問題なし） */
+/** 違反表現を返す（空配列＝問題なし）。判定自体は強度に依らず共通 */
 export function checkCopy(text: string): CopyViolation[] {
   const t = text.replace(/\s+/g, "");
   const out: CopyViolation[] = [];
@@ -33,7 +40,7 @@ export function checkCopy(text: string): CopyViolation[] {
   return out;
 }
 
-/** 生成文に禁止表現があれば公開を止める（AI生成の記事・証明書の説明文で使用） */
+/** 生成文・UI文言に禁止表現があれば公開を止める（ブロック） */
 export function assertCopyOk(text: string, where = "生成文"): void {
   const v = checkCopy(text);
   if (v.length > 0) {
@@ -41,6 +48,26 @@ export function assertCopyOk(text: string, where = "生成文"): void {
       `${where}に使用できない表現が含まれています: ${v.map((x) => x.pattern).join("・")}`,
     );
   }
+}
+
+/**
+ * 強度つきの検査結果。店舗の自由文（作業メモ・追記）は警告に留め、
+ * 画面に注意を出すだけで保存・投稿は止めない。
+ */
+export function reviewCopy(
+  text: string,
+  mode: CopyMode,
+): { severity: "ok" | "warn" | "block"; violations: CopyViolation[]; message: string } {
+  const violations = checkCopy(text);
+  if (violations.length === 0) return { severity: "ok", violations, message: "" };
+  const names = violations.map((v) => v.pattern).join("・");
+  return mode === "generated"
+    ? { severity: "block", violations, message: `使用できない表現が含まれています: ${names}` }
+    : {
+        severity: "warn",
+        violations,
+        message: `${names} は断定的な表現です。事実の記述に言い換えることをおすすめします（このまま保存もできます）`,
+      };
 }
 
 /** 画面に出して良い言い換えの例（UI文言のレビュー用・実装から参照して統一する） */

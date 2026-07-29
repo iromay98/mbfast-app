@@ -856,7 +856,7 @@ model PitCertificate {
 
   shareToken  String  @unique // 共有URL用の推測不能トークン（無効化可能）
   shareRevoked Boolean @default(false)
-  verifyLast4 String  @default("") // 任意の簡易照合（車台番号の下4桁）
+  verifyLast3 String  @default("") // 任意の簡易照合（既存のchassisLast3に合わせ、新たな平文断片は増やさない）
 
   serviceDate             DateTime // 施工日
   odometerKm              Int? // 施工時走行距離
@@ -870,7 +870,12 @@ model PitCertificate {
 
   payloadHash String    @default("") // 発行時点の内容ハッシュ（第三者検証用）
   issuedAt    DateTime? // 発行日時（null=下書き）
-  status      String    @default("draft") // draft | issued | voided
+  status      String    @default("draft") // draft | issued | voided | failed
+  errorMessage String   @default("") // 作成に失敗した理由（画面に出して再試行させる。沈黙させない）
+  // 保存期間は目的別。この日までは削除しない（加盟店退会時も含む）
+  //  legal_record = 記載日から2年 / warranty = 保証期間満了まで / none = 保持理由なし
+  retentionUntil  DateTime?
+  retentionReason String   @default("none")
   voidedAt    DateTime?
   voidReason  String    @default("")
   replacesId  String? // 訂正再発行の元証明書
@@ -1045,4 +1050,23 @@ model PriceSyncLog {
   createdAt   DateTime @default(now())
 
   @@index([wpPageId, createdAt])
+}
+
+// 個人情報（車台番号・登録番号）の復号アクセスログ。
+// 「いつ・誰が・どの証明書の・何を・なぜ」復号したかを残す。個人情報を扱うため追跡可能にする。
+// 復号関数がこのログの書き込みを内包しているため、記録されない復号経路は実装できない。
+model PitPiiAccessLog {
+  id            String   @id @default(cuid())
+  actorUserId   String
+  actorRole     String
+  field         String // vin | regNumber
+  purpose       String // certificate_pdf | legal_record | export | ...
+  certificateId String?
+  vehicleId     String?
+  keyId         String? // 復号に使った鍵のID（ローテーション追跡用）
+  ok            Boolean  @default(true)
+  at            DateTime @default(now())
+
+  @@index([certificateId, at])
+  @@index([actorUserId, at])
 }
