@@ -7,6 +7,8 @@ import { vehicleRegistrationReady } from "@/server/pit/vehicle-register";
 import { shakenOcrEnabled } from "@/server/pit/shaken-ocr";
 import { isLegalRecordFacility } from "@/server/pit/cert-fields";
 import { VehiclesClient, type VehicleRow, type CustomerOption } from "./vehicles-client";
+import { PitSubNav } from "../pit-sub-nav";
+import { countUnissuedDrafts } from "@/server/pit/certificate";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = pitMetadata("mbPIT 車両登録");
@@ -34,9 +36,10 @@ export default async function PitVehiclesPage({
     );
   }
 
-  const [vehicles, customers] = await Promise.all([
+  const [vehicles, customers, unissued] = await Promise.all([
     listStoreVehicles(own.store.id),
     listStoreCustomers(own.store.id),
+    countUnissuedDrafts(own.store.id),
   ]);
   const ready = vehicleRegistrationReady();
 
@@ -59,6 +62,7 @@ export default async function PitVehiclesPage({
 
   return (
     <div>
+      <PitSubNav current="vehicles" unissued={unissued} />
       <PageTitle title="車両登録" subtitle="車検証を撮るだけで、証明書に必要な情報が入ります" />
       <VehiclesClient
         vehicles={rows}

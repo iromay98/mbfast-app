@@ -7,6 +7,7 @@ import { listStoreCertificates, certificateTypeLabel } from "@/server/pit/certif
 import { listStoreVehicles } from "@/server/pit/customer-repo";
 import { retentionSummary } from "@/server/pit/legal-record";
 import { isLegalRecordFacility } from "@/server/pit/cert-fields";
+import { PitSubNav } from "../pit-sub-nav";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = pitMetadata("mbPIT 施工証明書");
@@ -45,6 +46,7 @@ export default async function CertificatesPage() {
 
   return (
     <div className="space-y-3">
+      <PitSubNav current="certificates" unissued={unissued.length} />
       <PageTitle title="施工証明書" subtitle="1回の入力から、お客様へ渡す証明書を発行します" />
 
       {vehicles.length === 0 ? (

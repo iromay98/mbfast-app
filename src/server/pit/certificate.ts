@@ -362,6 +362,7 @@ export type CertificateListRow = {
   certificateType: string;
   serviceDate: Date;
   issuedAt: Date | null;
+  customerId: string;
   customerName: string;
   vehicleName: string;
   chassisLast3: string;
@@ -382,7 +383,7 @@ export async function listStoreCertificates(storeId: string, take = 100): Promis
       issuedAt: true,
       errorMessage: true,
       shareRevoked: true,
-      customer: { select: { name: true } },
+      customer: { select: { id: true, name: true } },
       vehicle: { select: { vehicleName: true, chassisLast3: true } },
     },
   });
@@ -392,6 +393,7 @@ export async function listStoreCertificates(storeId: string, take = 100): Promis
     certificateType: r.certificateType,
     serviceDate: r.serviceDate,
     issuedAt: r.issuedAt,
+    customerId: r.customer?.id ?? "",
     customerName: r.customer?.name ?? "",
     vehicleName: r.vehicle.vehicleName ?? "",
     chassisLast3: r.vehicle.chassisLast3 ?? "",

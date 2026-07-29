@@ -16,6 +16,13 @@ export type CustomerVehicle = {
   inspectionExpiry: string; // "" | YYYY-MM-DD
 };
 
+export type CustomerCertificate = {
+  id: string;
+  status: string; // draft | issued | voided | failed
+  vehicleName: string;
+  serviceDate: string;
+};
+
 export type CustomerRow = {
   id: string;
   name: string;
@@ -28,6 +35,15 @@ export type CustomerRow = {
   email: string;
   /** 登録済みの車両（この場で修正・証明書作成ができる） */
   vehicles: CustomerVehicle[];
+  /** この方の施工証明書（下書きも含む＝保存したのに見つからない状態を作らない） */
+  certificates: CustomerCertificate[];
+};
+
+const CERT_STATUS: Record<string, { label: string; cls: string }> = {
+  draft: { label: "下書き", cls: "bg-amber-100 text-amber-800" },
+  issued: { label: "発行済み", cls: "bg-emerald-100 text-emerald-800" },
+  voided: { label: "無効", cls: "bg-neutral-200 text-neutral-700" },
+  failed: { label: "発行失敗", cls: "bg-red-100 text-red-700" },
 };
 
 const input = "mt-0.5 w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm font-semibold text-ink";
@@ -321,6 +337,31 @@ export function CustomersClient({ customers }: { customers: CustomerRow[] }) {
                     ＋ この方の車両を追加（車検証の読み取り／手入力）
                   </Link>
                 </div>
+
+                {/* この方の施工履歴（証明書）。下書きも出して続きから書けるようにする */}
+                {c.certificates.length > 0 && (
+                  <div className="mt-1.5 space-y-1">
+                    <p className="text-[10px] font-bold tracking-wider text-ink-soft">施工履歴（施工証明書）</p>
+                    {c.certificates.map((cert) => {
+                      const s = CERT_STATUS[cert.status] ?? { label: cert.status, cls: "bg-surface-2 text-ink-soft" };
+                      return (
+                        <Link
+                          key={cert.id}
+                          href={`/dealer/pit/certificates/${cert.id}`}
+                          className="flex items-center gap-2 rounded-lg border border-line px-2 py-1.5 hover:bg-surface-2"
+                        >
+                          <span className="truncate text-[11px] font-semibold text-ink">
+                            📄 {cert.serviceDate}
+                            {cert.vehicleName && <span className="ml-1.5 text-ink-soft">{cert.vehicleName}</span>}
+                          </span>
+                          <span className={`ml-auto shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold ${s.cls}`}>
+                            {s.label}
+                          </span>
+                        </Link>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             );
           })}
