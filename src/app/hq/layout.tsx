@@ -11,6 +11,8 @@ const hqNav: NavItem[] = [
   { href: "/hq/showcase", label: "施工事例" },
   { href: "/hq/prices", label: "価格表" },
   { href: "/hq/pit", label: "mbPIT" },
+  { href: "/hq/pit/vehicles", label: "mbPIT車両" },
+  { href: "/hq/pit/certificates", label: "mbPIT証明書" },
   { href: "/hq/activity", label: "ログ" },
   { href: "/hq/announcements", label: "お知らせ" },
   { href: "/hq/admin", label: "メンテナンス" },

@@ -21,6 +21,8 @@ export function CertificateActions({
   shareRevoked,
   warrantyUntil,
   warnings,
+  storeId,
+  basePath = "/dealer/pit",
 }: {
   certificateId: string;
   status: string;
@@ -28,6 +30,9 @@ export function CertificateActions({
   shareRevoked: boolean;
   warrantyUntil: string;
   warnings: string[];
+  /** 本部が代行操作するときの対象店舗（加盟店では undefined） */
+  storeId?: string;
+  basePath?: string;
 }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
@@ -44,7 +49,7 @@ export function CertificateActions({
     setBusy(true);
     setError(null);
     try {
-      const r = await publishCertificate(certificateId, warranty);
+      const r = await publishCertificate(certificateId, warranty, storeId);
       if (r.error) setError(r.error);
       else router.refresh();
     } catch {
@@ -57,7 +62,7 @@ export function CertificateActions({
   const share = async (revoked: boolean) => {
     setBusy(true);
     try {
-      const r = await toggleCertificateShare(certificateId, revoked);
+      const r = await toggleCertificateShare(certificateId, revoked, storeId);
       if (r.error) setError(r.error);
       else router.refresh();
     } finally {
@@ -69,9 +74,9 @@ export function CertificateActions({
     setBusy(true);
     setError(null);
     try {
-      const r = await reviseCertificate(certificateId, reason);
+      const r = await reviseCertificate(certificateId, reason, storeId);
       if (r.error) setError(r.error);
-      else router.push(`/dealer/pit/certificates/${r.certificateId}/edit`);
+      else router.push(`${basePath}/certificates/${r.certificateId}/edit${storeId ? `?storeId=${storeId}` : ""}`);
     } finally {
       setBusy(false);
     }
@@ -125,7 +130,7 @@ export function CertificateActions({
               {busy ? "発行中…" : "この内容で発行"}
             </button>
             <Link
-              href={`/dealer/pit/certificates/${certificateId}/edit`}
+              href={`${basePath}/certificates/${certificateId}/edit${storeId ? `?storeId=${storeId}` : ""}`}
               className="rounded-lg border border-line px-3 py-2.5 text-sm font-semibold text-ink"
             >
               内容を修正

@@ -384,6 +384,24 @@ async function main() {
     (await prisma.pitVehicle.count({ where: { id: vehicleId } })) === 1,
   );
 
+  // ── 本部の代行と加盟店の固定（acting-store の分岐が構造として正しいこと） ──
+  const actingSrc = readFileSync(join(root, "src/server/pit/acting-store.ts"), "utf8");
+  ok(
+    "加盟店は引数のstoreIdを使わず dealerId から解決している",
+    /dealerId: user\.dealerId/.test(actingSrc) && actingSrc.includes("加盟店は自店のみ（引数は見ない）"),
+  );
+  ok("本部だけが storeId で店舗を指定できる", /user\.role === "HQ_ADMIN"[\s\S]{0,400}storeId/.test(actingSrc));
+  // 画面・アクションが直接 ownPitStore/prisma で権限判定していないこと（代行の穴を作らない）
+  const certActions = readFileSync(join(root, "src/lib/actions/pit-certificates.ts"), "utf8");
+  const vehActions = readFileSync(join(root, "src/lib/actions/pit-vehicles.ts"), "utf8");
+  ok(
+    "車両・証明書のアクションは acting-store を通す",
+    certActions.includes("actingPitStore") &&
+      vehActions.includes("actingPitStore") &&
+      !certActions.includes("ownPitStore") &&
+      !vehActions.includes("ownPitStore"),
+  );
+
   // ── 構造: 画面から顧客テーブルを直接引かない（storeId条件の付け忘れを防ぐ） ──
   const walk = (dir: string): string[] =>
     readdirSync(dir, { withFileTypes: true }).flatMap((e) => {

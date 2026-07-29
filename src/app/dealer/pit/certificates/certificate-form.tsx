@@ -49,6 +49,8 @@ export function CertificateForm({
   ocrEnabled,
   initial,
   certificateId,
+  storeId,
+  basePath = "/dealer/pit",
 }: {
   vehicles: VehicleOption[];
   types: TypeOption[];
@@ -56,6 +58,9 @@ export function CertificateForm({
   ocrEnabled: boolean;
   initial?: Partial<CertificateCoreInput>;
   certificateId?: string;
+  /** 本部が代行入力するときの対象店舗（加盟店では undefined） */
+  storeId?: string;
+  basePath?: string;
 }) {
   const router = useRouter();
   const [form, setForm] = useState<CertificateCoreInput>({
@@ -106,14 +111,15 @@ export function CertificateForm({
     setFieldErrors({});
     setWarnings([]);
     try {
-      const r = await saveCertificate(form, certificateId);
+      const r = await saveCertificate(form, certificateId, storeId);
       if (r.error) {
         setError(r.error);
         setFieldErrors(Object.fromEntries((r.fieldErrors ?? []).map((e) => [e.fieldKey, e.message])));
         return;
       }
       // 発行前の確認をしてもらうため詳細画面へ送る
-      router.push(`/dealer/pit/certificates/${r.certificateId}${r.warnings?.length ? "?saved=1" : ""}`);
+      const q = storeId ? `?storeId=${storeId}` : "";
+      router.push(`${basePath}/certificates/${r.certificateId}${q}`);
     } catch {
       setError("通信エラーが発生しました");
     } finally {

@@ -13,8 +13,7 @@
  */
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
-import { requireDealer } from "@/lib/authz";
-import { ownPitStore } from "@/server/pit/own-store";
+import { actingPitStore } from "@/server/pit/acting-store";
 import {
   registerVehicle,
   vehicleRegistrationReady,
@@ -27,6 +26,7 @@ import { normalizeShakenFields } from "@/server/pit/shaken-ocr";
 import { isLegalRecordFacility } from "@/server/pit/cert-fields";
 
 const PATH = "/dealer/pit/vehicles";
+const HQ_PATH = "/hq/pit/vehicles"; // 本部の代行画面（同じ操作で両方を作り直す）
 
 export type VehicleFormInput = {
   // 車検証の項目（手入力・読み取り結果の修正後）
@@ -62,8 +62,12 @@ function jstDate(ymd: string): Date | null {
   return Number.isNaN(d.getTime()) ? null : d;
 }
 
-export async function saveVehicleWithCustomer(input: VehicleFormInput): Promise<VehicleFormResult> {
-  const own = await ownPitStore();
+export async function saveVehicleWithCustomer(
+  input: VehicleFormInput,
+  /** 本部が代行入力するときの対象店舗。加盟店では無視される（自店に固定） */
+  storeId?: string,
+): Promise<VehicleFormResult> {
+  const own = await actingPitStore(storeId);
   if (!own.store) return { error: own.error };
   const ready = vehicleRegistrationReady();
   if (!ready.ok) return { error: ready.error };
@@ -150,17 +154,23 @@ export async function saveVehicleWithCustomer(input: VehicleFormInput): Promise<
   }
 
   revalidatePath(PATH);
+  revalidatePath(HQ_PATH);
   revalidatePath("/dealer/pit/customers");
   return { ok: true, vehicleId: reg.vehicle.id, customerId, warnings: notes.length ? notes : undefined };
 }
 
 /** 登録間違いの訂正・所有権移転（車両そのものは消さない） */
-export async function unlinkVehicle(vehicleId: string, customerId: string): Promise<{ ok?: true; error?: string }> {
-  const own = await ownPitStore();
+export async function unlinkVehicle(
+  vehicleId: string,
+  customerId: string,
+  storeId?: string,
+): Promise<{ ok?: true; error?: string }> {
+  const own = await actingPitStore(storeId);
   if (!own.store) return { error: own.error };
   const r = await endStoreVehicleLink({ storeId: own.store.id, vehicleId, customerId });
   if (r.error) return r;
   revalidatePath(PATH);
+  revalidatePath(HQ_PATH);
   revalidatePath("/dealer/pit/customers");
   return { ok: true };
 }
@@ -172,13 +182,13 @@ export async function unlinkVehicle(vehicleId: string, customerId: string): Prom
  */
 export async function loadVehicleEdit(
   vehicleId: string,
+  storeId?: string,
 ): Promise<{ values?: VehicleEditInput & { vin: string }; error?: string }> {
-  const own = await ownPitStore();
-  if (!own.store) return { error: own.error };
-  const user = await requireDealer();
+  const own = await actingPitStore(storeId);
+  if (!own.store || !own.actor) return { error: own.error };
   const linked = await getStoreVehicle(own.store.id, vehicleId);
   if (!linked) return { error: "車両が見つかりません" };
-  const v = await loadVehicleForEdit(vehicleId, { actorUserId: user.id, actorRole: "dealer" });
+  const v = await loadVehicleForEdit(vehicleId, { actorUserId: own.actor.id, actorRole: own.actor.role });
   if (!v) return { error: "車両が見つかりません" };
   return {
     values: {
@@ -200,14 +210,14 @@ export async function loadVehicleEdit(
 export async function saveVehicleEdit(
   vehicleId: string,
   input: VehicleEditInput,
+  storeId?: string,
 ): Promise<{ ok?: true; error?: string; changed?: string[] }> {
-  const own = await ownPitStore();
-  if (!own.store) return { error: own.error };
-  const user = await requireDealer();
+  const own = await actingPitStore(storeId);
+  if (!own.store || !own.actor) return { error: own.error };
   const linked = await getStoreVehicle(own.store.id, vehicleId);
   if (!linked) return { error: "車両が見つかりません" };
 
-  const r = await updateVehicleInfo(vehicleId, own.store.id, input, { actorUserId: user.id });
+  const r = await updateVehicleInfo(vehicleId, own.store.id, input, { actorUserId: own.actor.id });
   if (r.error) return { error: r.error };
 
   // 顧客カルテの表示（車両名・車検満了日）も合わせて更新する
@@ -223,6 +233,7 @@ export async function saveVehicleEdit(
     });
   }
   revalidatePath(PATH);
+  revalidatePath(HQ_PATH);
   revalidatePath("/dealer/pit/customers");
   return { ok: true, changed: r.changed };
 }

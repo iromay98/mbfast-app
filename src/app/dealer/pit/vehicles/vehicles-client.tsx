@@ -63,12 +63,18 @@ export function VehiclesClient({
   ocrEnabled,
   setupError,
   legalRecordMode,
+  /** 本部が代行入力するときの対象店舗（加盟店では undefined＝自店に固定される） */
+  storeId,
+  /** 画面の基点。加盟店 "/dealer/pit" / 本部 "/hq/pit" */
+  basePath = "/dealer/pit",
 }: {
   vehicles: VehicleRow[];
   customers: CustomerOption[];
   ocrEnabled: boolean;
   setupError: string | null;
   legalRecordMode: boolean;
+  storeId?: string;
+  basePath?: string;
 }) {
   const router = useRouter();
   const fileRef = useRef<HTMLInputElement>(null);
@@ -96,7 +102,7 @@ export function VehiclesClient({
     setNotes([]);
     setDone(null);
     try {
-      const r = await loadVehicleEdit(vehicleId);
+      const r = await loadVehicleEdit(vehicleId, storeId);
       if (r.error || !r.values) setError(r.error ?? "読み込めませんでした");
       else setEdit({ vehicleId, ...r.values });
     } finally {
@@ -111,14 +117,11 @@ export function VehiclesClient({
     try {
       // vin は表示専用（車台番号は変更させない）ので送らない
       const { vehicleId, vehicleName, maker, modelCode, firstRegistered, inspectionExpiry, registrationNumber } = edit;
-      const r = await saveVehicleEdit(vehicleId, {
-        vehicleName,
-        maker,
-        modelCode,
-        firstRegistered,
-        inspectionExpiry,
-        registrationNumber,
-      });
+      const r = await saveVehicleEdit(
+        vehicleId,
+        { vehicleName, maker, modelCode, firstRegistered, inspectionExpiry, registrationNumber },
+        storeId,
+      );
       if (r.error) setError(r.error);
       else {
         setDone(r.changed?.length ? "修正しました" : "変更はありませんでした");
@@ -181,7 +184,7 @@ export function VehiclesClient({
     setBusy(true);
     setError(null);
     try {
-      const r = await saveVehicleWithCustomer(form);
+      const r = await saveVehicleWithCustomer(form, storeId);
       if (r.error) setError(r.error);
       else {
         setDone(`${form.vehicleName || form.maker || "車両"}を登録しました`);
@@ -200,7 +203,7 @@ export function VehiclesClient({
     if (!window.confirm(`${v.customerName} 様と ${v.vehicleName || "この車両"} の紐づけを解除しますか？`)) return;
     setBusy(true);
     try {
-      const r = await unlinkVehicle(v.vehicleId, v.customerId);
+      const r = await unlinkVehicle(v.vehicleId, v.customerId, storeId);
       if (r.error) setError(r.error);
       else router.refresh();
     } finally {
@@ -561,7 +564,7 @@ export function VehiclesClient({
                     </span>
                   )}
                   <Link
-                    href={`/dealer/pit/certificates/new?vehicleId=${v.vehicleId}`}
+                    href={`${basePath}/certificates/new?vehicleId=${v.vehicleId}${storeId ? `&storeId=${storeId}` : ""}`}
                     className="rounded-lg border border-gold-300 px-2 py-1 text-[11px] font-bold text-ink"
                   >
                     証明書
