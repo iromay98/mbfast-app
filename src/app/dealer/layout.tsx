@@ -60,8 +60,13 @@ export default async function DealerLayout({
     const pitTabs: BottomNavItem[] = [
       { href: "/dealer/pit/home", label: "ホーム", icon: "home" },
       { href: "/dealer/pit", label: "投稿", icon: "mic", exact: true },
-      // 車両登録は顧客カルテと同じ枠（タブは4つに保つ）
-      { href: "/dealer/pit/customers", label: "顧客", icon: "user", also: ["/dealer/pit/vehicles"] },
+      // 車両登録・証明書は顧客カルテと同じ枠（タブは4つに保つ）
+      {
+        href: "/dealer/pit/customers",
+        label: "顧客",
+        icon: "user",
+        also: ["/dealer/pit/vehicles", "/dealer/pit/certificates"],
+      },
       { href: "/dealer/pit/store", label: "店舗", icon: "shop" },
     ];
     const pitNav: NavItem[] = [
@@ -69,6 +74,7 @@ export default async function DealerLayout({
       { href: "/dealer/pit", label: "投稿" },
       { href: "/dealer/pit/customers", label: "顧客カルテ" },
       { href: "/dealer/pit/vehicles", label: "車両登録" },
+      { href: "/dealer/pit/certificates", label: "施工証明書" },
       { href: "/dealer/pit/store", label: "店舗情報" },
     ];
     return (

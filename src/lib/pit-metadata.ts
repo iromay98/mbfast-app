@@ -9,3 +9,18 @@ export function pitMetadata(title: string): Metadata {
     appleWebApp: { capable: true, title: "mbPIT", statusBarStyle: "default" },
   };
 }
+
+/*
+ * お客様・第三者に見せるページ（施工証明書の共有ページ・検証ページ）のメタデータ。
+ * ルートlayoutの appleWebApp.title は "mbFAST" なので、明示的に上書きしないと
+ * ホーム画面追加名やメタ情報にmbFASTの名前が出てしまう（mbPITは別ブランド運用）。
+ * 検索エンジンには載せない。
+ */
+export function publicCertMetadata(title: string, description: string): Metadata {
+  return {
+    title,
+    description,
+    robots: { index: false, follow: false },
+    appleWebApp: { capable: true, title, statusBarStyle: "default" },
+  };
+}

@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Card, EmptyState } from "@/components/ui";
 import { saveVehicleWithCustomer, unlinkVehicle, type VehicleFormInput } from "@/lib/actions/pit-vehicles";
@@ -422,6 +423,12 @@ export function VehiclesClient({
                       {left < 0 ? "車検切れ" : `車検あと${left}日`}
                     </span>
                   )}
+                  <Link
+                    href={`/dealer/pit/certificates/new?vehicleId=${v.vehicleId}`}
+                    className="rounded-lg border border-gold-300 px-2 py-1 text-[11px] font-bold text-ink"
+                  >
+                    証明書
+                  </Link>
                   <button
                     type="button"
                     disabled={busy}

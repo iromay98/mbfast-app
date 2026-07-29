@@ -1,15 +1,14 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
+import { publicCertMetadata } from "@/lib/pit-metadata";
 import { storage } from "@/server/storage";
 import { certHash } from "@/server/pit/vehicle";
 import { CATEGORY_LABELS } from "@/server/pit/generate";
 
 export const dynamic = "force-dynamic";
-export const metadata: Metadata = {
-  title: "mbPIT 施工証明書の検証",
-  robots: { index: false },
-};
+// お客様・買取店が見るページ。ルートlayoutのmbFAST表記を上書きする（別ブランド運用）
+export const metadata: Metadata = publicCertMetadata("mbPIT 施工証明書の検証", "施工記録の改ざん検証（mbPIT）");
 
 function jstDateJa(d: Date): string {
   const j = new Date(d.getTime() + 9 * 3600 * 1000);

@@ -8,6 +8,7 @@ import { formatDate, formatDateTime } from "@/lib/labels";
 import { PageTitle, Card } from "@/components/ui";
 import { storeStats } from "@/server/pit/gamification";
 import { listUpcomingInspections } from "@/server/pit/customer-repo";
+import { countUnissuedDrafts } from "@/server/pit/certificate";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = pitMetadata("mbPIT 加盟店ポータル");
@@ -22,7 +23,7 @@ export default async function PitHomePage() {
   if (!store) redirect("/dealer/pit"); // 未登録店舗は投稿ページ側の案内へ
 
   const now = new Date();
-  const [stats, upcoming, recentPosts] = await Promise.all([
+  const [stats, upcoming, recentPosts, unissuedCerts] = await Promise.all([
     storeStats(store.id),
     // 顧客の参照は customer-repo 経由（storeId条件の付け忘れを構造的に防ぐ）
     listUpcomingInspections(store.id, 60),
@@ -32,6 +33,8 @@ export default async function PitHomePage() {
       take: 5,
       select: { id: true, vehicle: true, status: true, title: true, publishedUrl: true, createdAt: true },
     }),
+    // 作ったのに渡していない証明書を放置させない（未発行の下書き・発行失敗）
+    countUnissuedDrafts(store.id),
   ]);
 
   const daysLeft = (d: Date) => Math.ceil((d.getTime() - now.getTime()) / (24 * 60 * 60 * 1000));
@@ -78,6 +81,19 @@ export default async function PitHomePage() {
           写真を選んで話すだけ・約1分でブログ記事になります
         </p>
       </div>
+
+      {/* 未発行の証明書（お客様にまだ渡せていない状態を知らせる） */}
+      {unissuedCerts > 0 && (
+        <Link
+          href="/dealer/pit/certificates"
+          className="block rounded-xl border border-amber-300 bg-amber-50 px-3 py-2.5 text-sm font-bold text-amber-900"
+        >
+          未発行の施工証明書が{unissuedCerts}件あります
+          <span className="mt-0.5 block text-[11px] font-normal">
+            発行するとお客様に渡せるURLとPDFができます →
+          </span>
+        </Link>
+      )}
 
       {/* 車検が近いお客様 */}
       <Card>

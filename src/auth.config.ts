@@ -33,6 +33,8 @@ export const authConfig = {
         path.startsWith("/api/mycar") ||
         // 施工証明書の第三者検証（買取店・保険会社向け・ログイン不要）
         path.startsWith("/verify/") ||
+        // 施工証明書の共有ページ（店舗がお客様へ渡すURL。推測不能トークン＋noindex）
+        path.startsWith("/cert/") ||
         // mbPIT加盟店の自己登録（公開ページ・ログイン不要）＋利用規約
         path === "/pit/join" ||
         path.startsWith("/pit/join/") ||

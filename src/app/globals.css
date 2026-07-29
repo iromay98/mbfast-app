@@ -65,3 +65,26 @@ body {
     transform: translateX(400%);
   }
 }
+
+/*
+ * 施工証明書の印刷（PDF保存）。
+ * ブラウザの「印刷 → PDFとして保存」で控えを作れるようにする。
+ * .no-print はナビ・タブ・操作ボタンに付ける（帳票だけが紙に出る）。
+ */
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  body {
+    background: #fff;
+  }
+  .cert-sheet {
+    max-width: none;
+    padding: 0;
+  }
+  /* 表が途中で切れると読めなくなるため、行の分割を避ける */
+  .cert-sheet tr,
+  .cert-sheet section {
+    break-inside: avoid;
+  }
+}

@@ -23,6 +23,15 @@ import {
   endStoreVehicleLink,
 } from "../src/server/pit/customer-repo";
 import { registerVehicle } from "../src/server/pit/vehicle-register";
+import {
+  saveCertificateDraft,
+  issueCertificate,
+  setShareRevoked,
+  voidAndClone,
+  listStoreCertificates,
+  getStoreCertificate,
+  getSharedCertificate,
+} from "../src/server/pit/certificate";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 let failed = 0;
@@ -39,6 +48,8 @@ async function cleanup() {
   const ids = stores.map((s) => s.id);
   if (ids.length) {
     const customers = await prisma.pitCustomer.findMany({ where: { storeId: { in: ids } }, select: { id: true } });
+    // 証明書 → 紐づけ → 顧客 → 店舗 の順に消す（外部キーの向き）
+    await prisma.pitCertificate.deleteMany({ where: { storeId: { in: ids } } });
     await prisma.pitVehicleCustomer.deleteMany({ where: { customerId: { in: customers.map((c) => c.id) } } });
     await prisma.pitCustomer.deleteMany({ where: { storeId: { in: ids } } });
     await prisma.pitStore.deleteMany({ where: { id: { in: ids } } });
@@ -116,6 +127,99 @@ async function main() {
       afterA[0].customerName === "Ａ店の顧客" &&
       afterB.length === 1 &&
       afterB[0].customerName === "Ｂ店の顧客",
+  );
+
+  // ── 証明書（他店の証明書は見えない・発行後は変更できない） ──
+  const ctxA = { id: storeA.id, slug: `${PREFIX}-a`, facilityType: "certified", certificationNo: "近運整第9999号" };
+  const ctxB = { id: storeB.id, slug: `${PREFIX}-b`, facilityType: "general", certificationNo: "" };
+  const coreInput = {
+    vehicleId,
+    customerId: custA.id,
+    certificateType: "coating",
+    serviceDate: "2026-07-20",
+    odometerKm: "52300",
+    staffName: "山本",
+    staffLicenseNo: "1級-12345",
+    workSummary: "ボディ全面のガラスコーティングを施工。",
+    totalAmount: "128000",
+    restorationCostEstimate: "128000",
+    requireVerifyLast3: true,
+    warrantyUntil: "",
+    moduleValues: { product_name: "テスト製品", maker: "テストメーカー", lot_no: "L-2026-07" },
+    blogPostId: "",
+  };
+  const draft = await saveCertificateDraft(ctxA, coreInput);
+  ok("証明書の下書きを作れる", !!draft.ok, draft.error ?? (draft.fieldErrors ?? []).map((e) => e.message).join(","));
+  const certId = draft.certificateId!;
+
+  ok("他店の証明書は一覧に出ない", (await listStoreCertificates(storeB.id)).length === 0);
+  ok("他店の証明書IDを渡しても取得できない", (await getStoreCertificate(storeB.id, certId)) === null);
+  ok("他店は発行できない", !!(await issueCertificate(ctxB, certId)).error);
+  ok(
+    "モジュール必須の欠けは弾く（ロット番号なし）",
+    !!(await saveCertificateDraft(ctxA, { ...coreInput, moduleValues: { product_name: "P", maker: "M" } }, certId))
+      .fieldErrors?.length,
+  );
+
+  // 下書きは共有ページから見えない
+  const draftRow = await prisma.pitCertificate.findUnique({
+    where: { id: certId },
+    select: { shareToken: true },
+  });
+  ok("下書きは共有リンクで開けない", (await getSharedCertificate(draftRow!.shareToken)).state === "notfound");
+
+  const issued = await issueCertificate(ctxA, certId, { warrantyUntil: "" });
+  ok("自店は発行できる", !!issued.ok, issued.error ?? "");
+  const token = issued.shareToken!;
+  ok("発行済みの証明書は編集できない", !!(await saveCertificateDraft(ctxA, coreInput, certId)).error);
+  ok("二重発行はできない", !!(await issueCertificate(ctxA, certId)).error);
+
+  const issuedRow = await prisma.pitCertificate.findUnique({
+    where: { id: certId },
+    select: { payloadHash: true, retentionUntil: true, retentionReason: true, verifyLast3: true },
+  });
+  ok("発行でハッシュが確定する", (issuedRow?.payloadHash ?? "").length === 64);
+  ok(
+    "認証工場の証明書は法定記録簿として2年保持",
+    issuedRow?.retentionReason === "legal_record" && issuedRow?.retentionUntil !== null,
+    String(issuedRow?.retentionUntil?.toISOString().slice(0, 10)),
+  );
+
+  // 共有リンク: 下3桁照合あり
+  ok("照合を設定したら下3桁が必要", (await getSharedCertificate(token)).state === "needs_verify");
+  ok("誤った下3桁では開けない", (await getSharedCertificate(token, "000")).state === "needs_verify");
+  const shared = await getSharedCertificate(token, issuedRow!.verifyLast3);
+  ok("正しい下3桁なら開ける", shared.state === "ok");
+  ok(
+    "共有ページのデータに平文の車台番号は含まれない（復号は別経路）",
+    shared.state === "ok" && !JSON.stringify(shared.cert).includes(VIN),
+  );
+
+  // 共有停止
+  await setShareRevoked(storeA.id, certId, true);
+  ok("共有を停止すると開けない", (await getSharedCertificate(token, issuedRow!.verifyLast3)).state === "revoked");
+  ok("他店は共有停止を操作できない", !!(await setShareRevoked(storeB.id, certId, false)).error);
+  await setShareRevoked(storeA.id, certId, false);
+
+  // 訂正（元は無効化され、内容を引き継いだ下書きができる）
+  ok("他店は訂正できない", !!(await voidAndClone(ctxB, certId, "誤り")).error);
+  const revised = await voidAndClone(ctxA, certId, "走行距離の入力誤り");
+  ok("訂正で新しい下書きができる", !!revised.ok && !!revised.certificateId);
+  const original = await prisma.pitCertificate.findUnique({
+    where: { id: certId },
+    select: { status: true, voidReason: true, shareRevoked: true },
+  });
+  ok(
+    "元の証明書は無効化され共有も止まる",
+    original?.status === "voided" && original.shareRevoked === true && !!original.voidReason,
+  );
+  const clone = await prisma.pitCertificate.findUnique({
+    where: { id: revised.certificateId! },
+    select: { status: true, replacesId: true, details: { select: { fieldKey: true } } },
+  });
+  ok(
+    "訂正版は下書きで、元をreplacesIdで指し、内容を引き継ぐ",
+    clone?.status === "draft" && clone.replacesId === certId && clone.details.length > 0,
   );
 
   // 紐づけ解除は自店のものだけ

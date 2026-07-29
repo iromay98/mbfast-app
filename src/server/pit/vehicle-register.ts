@@ -12,7 +12,7 @@
  */
 import { prisma } from "@/lib/db";
 import { normalizeChassis, vehicleFeatureEnabled, vehicleKeyFromChassis } from "@/server/pit/vehicle";
-import { encryptPii, keyIdOf, needsRekey, piiCryptoConfigured } from "@/server/pit/pii-crypto";
+import { decryptPiiAudited, encryptPii, keyIdOf, needsRekey, piiCryptoConfigured } from "@/server/pit/pii-crypto";
 
 export type VehicleRegisterInput = {
   /** 車台番号（平文。ここから出さない） */
@@ -115,6 +115,31 @@ export async function findVehicleByVin(vin: string): Promise<{ id: string; chass
     where: { vehicleKey: vehicleKeyFromChassis(normalized) },
     select: { id: true, chassisLast3: true },
   });
+}
+
+/**
+ * 証明書・法定記録簿に載せるための復号（監査ログ必須）。
+ * 復号モジュールを import できるのはこのファイルだけという制約を保つため、
+ * 「読む」経路もここに置く（scripts/check-cert-privacy.mts が import 元を検査している）。
+ *
+ * 誰が読んだか分からない復号を作らないよう、呼び出し側は必ず文脈を渡す。
+ * 共有リンク（ログイン不要）からの閲覧も actorRole="share" として記録する。
+ */
+export async function readVehicleSecrets(
+  vehicleId: string,
+  ctx: { actorUserId: string; actorRole: string; purpose: string; certificateId?: string | null },
+): Promise<{ vin: string | null; registrationNumber: string | null }> {
+  const v = await prisma.pitVehicle.findUnique({
+    where: { id: vehicleId },
+    select: { vinEnc: true, regNumberEnc: true },
+  });
+  if (!v) return { vin: null, registrationNumber: null };
+  const base = { ...ctx, vehicleId, certificateId: ctx.certificateId ?? null };
+  const [vin, registrationNumber] = await Promise.all([
+    decryptPiiAudited(v.vinEnc, { ...base, field: "vin" }),
+    decryptPiiAudited(v.regNumberEnc, { ...base, field: "regNumber" }),
+  ]);
+  return { vin, registrationNumber };
 }
 
 /** 暗号化状況の把握（鍵ローテーションの残件確認用。値そのものは返さない） */

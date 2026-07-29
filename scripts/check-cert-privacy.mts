@@ -24,6 +24,7 @@ import {
   resetKeyCache,
 } from "../src/server/pit/pii-crypto";
 import { resolveRetention, isDeletable, maskPersonName, maskAddress } from "../src/server/pit/cert-retention";
+import { certificatePayloadHash } from "../src/server/pit/cert-hash";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 let failed = 0;
@@ -213,6 +214,24 @@ for (const f of ["src/server/pit/generate.ts", "src/server/pit/pipeline.ts"]) {
   ok(`${f} から個人情報の復号モジュールへ辿れない（間接含む）`, hit.length === 0, hit.join(","));
 }
 
+// 共有ページ（ログイン不要）は認証除外リストに載っていないと開けない／載せすぎてもいけない
+const authConfig = readFileSync(join(root, "src/auth.config.ts"), "utf8");
+ok('共有ページ /cert/ が認証不要パスに入っている', authConfig.includes('path.startsWith("/cert/")'));
+const certPage = readFileSync(join(root, "src/app/cert/[token]/page.tsx"), "utf8");
+ok(
+  "共有ページが noindex ＋ mbFAST表記の上書きを使っている",
+  certPage.includes("publicCertMetadata"),
+);
+const metaHelper = readFileSync(join(root, "src/lib/pit-metadata.ts"), "utf8");
+ok(
+  "お客様向けメタデータは noindex で appleWebApp を上書きする",
+  /robots:\s*\{\s*index:\s*false/.test(metaHelper) && metaHelper.includes("appleWebApp: { capable: true, title,"),
+);
+ok(
+  "共有ページは復号を監査ログ経由で行う",
+  certPage.includes("readVehicleSecrets") && !certPage.includes("pii-crypto"),
+);
+
 // pii-crypto を import してよいファイルを明示する（増えたら気づけるようにする）
 const PII_IMPORTERS_ALLOWED = ["src/server/pit/vehicle-register.ts"];
 function walkTs(dir: string): string[] {
@@ -286,7 +305,61 @@ ok("生成文の違反はブロック", g.severity === "block");
 ok("店舗の自由文は警告に留める（入力を弾かない）", u.severity === "warn", u.message.slice(0, 30) + "…");
 ok("問題なければ ok", reviewCopy("施工内容を記録として保存します", "user").severity === "ok");
 
-// ── 12. 車検証画像は公開候補にも出さない ──
+// ── 12. 内容ハッシュ（改ざん検出・平文の個人情報を含めない） ──
+const hashBase = {
+  vehicleKey: "hmac-of-vin",
+  storeSlug: "test-store",
+  customerId: "cus_1",
+  certificateType: "coating",
+  serviceDate: new Date("2026-07-20T00:00:00+09:00"),
+  odometerKm: 52300,
+  staffName: "山本",
+  workSummary: "ボディ全面のコーティング施工",
+  totalAmount: 128000,
+  details: [{ module: "coating", fieldKey: "lot_no", fieldValue: "L-2026-07" }],
+  issuedAt: new Date("2026-07-29T10:00:00+09:00"),
+};
+const h1 = certificatePayloadHash(hashBase);
+ok("同じ内容なら同じハッシュ", certificatePayloadHash(hashBase) === h1);
+ok(
+  "1項目変えるとハッシュが変わる（改ざん検出）",
+  certificatePayloadHash({ ...hashBase, odometerKm: 52301 }) !== h1,
+);
+ok(
+  "モジュール項目の変更もハッシュに反映される",
+  certificatePayloadHash({
+    ...hashBase,
+    details: [{ module: "coating", fieldKey: "lot_no", fieldValue: "L-2026-08" }],
+  }) !== h1,
+);
+ok(
+  "項目の並び順ではハッシュが変わらない（同じ内容は同じ値）",
+  certificatePayloadHash({
+    ...hashBase,
+    details: [
+      { module: "coating", fieldKey: "maker", fieldValue: "M" },
+      { module: "coating", fieldKey: "lot_no", fieldValue: "L-2026-07" },
+    ],
+  }) ===
+    certificatePayloadHash({
+      ...hashBase,
+      details: [
+        { module: "coating", fieldKey: "lot_no", fieldValue: "L-2026-07" },
+        { module: "coating", fieldKey: "maker", fieldValue: "M" },
+      ],
+    }),
+);
+const hashSrc = readFileSync(join(root, "src/server/pit/cert-hash.ts"), "utf8");
+const certSrc = readFileSync(join(root, "src/server/pit/certificate.ts"), "utf8");
+ok(
+  "ハッシュ計算に平文の車台番号を使わない（vehicleKeyで表す）",
+  hashSrc.includes("vehicleKey: input.vehicleKey") &&
+    !hashSrc.includes("pii-crypto") &&
+    certSrc.includes("vehicleKey: cert.vehicle.vehicleKey"),
+);
+ok("ハッシュ計算モジュールはDBに依存しない（単体で検証できる）", !hashSrc.includes("@/lib/db"));
+
+// ── 13. 車検証画像は公開候補にも出さない ──
 const shaken = publicSafeMedia([{ kind: "shaken_cert", isPublicSafe: true, storageKey: "shaken.webp" }]);
 ok("車検証画像は公開側へ渡らない（明示的にtrueでも）", shaken.length === 0);
 
