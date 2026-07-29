@@ -41,7 +41,13 @@ export type CertificateSheetProps = {
   voided?: { at: string; reason: string } | null;
 };
 
-function Row({ label, value }: SheetRow) {
+/*
+ * 1行。任意項目(optional)が空のときは行そのものを出さない
+ * ＝お客様に渡す紙に「—」だけの行を並べない。
+ * 法定記録簿モードでは記載事項の欠けが分かるよう空でも必ず出す。
+ */
+function Row({ label, value, optional, always }: SheetRow & { optional?: boolean; always?: boolean }) {
+  if (!value && optional && !always) return null;
   return (
     <tr className="align-top">
       <th className="w-[38%] border border-neutral-300 bg-neutral-50 px-2 py-1.5 text-left text-[11px] font-semibold text-neutral-700">
@@ -56,6 +62,11 @@ function Row({ label, value }: SheetRow) {
 
 export function CertificateSheet(p: CertificateSheetProps) {
   const vinLabel = p.vehicle.vin || (p.vehicle.chassisLast3 ? `下3桁 ${p.vehicle.chassisLast3}` : "");
+  // 車種表示にメーカー名が入っていることが多い（車検証の読み取り由来）。二重に出さない
+  const vehicleLabel =
+    p.vehicle.maker && p.vehicle.name.includes(p.vehicle.maker)
+      ? p.vehicle.name
+      : [p.vehicle.maker, p.vehicle.name].filter(Boolean).join(" ");
 
   return (
     <div className="cert-sheet mx-auto max-w-[760px] bg-white p-5 text-neutral-900">
@@ -83,12 +94,12 @@ export function CertificateSheet(p: CertificateSheetProps) {
         <h2 className="mb-1 text-[12px] font-bold">車両</h2>
         <table className="w-full border-collapse">
           <tbody>
-            <Row label="車名・車種" value={[p.vehicle.maker, p.vehicle.name].filter(Boolean).join(" ")} />
-            <Row label="型式" value={p.vehicle.modelCode} />
+            <Row label="車名・車種" value={vehicleLabel} />
+            <Row label="型式" value={p.vehicle.modelCode} optional always={p.legalRecord} />
             <Row label="車台番号" value={vinLabel} />
-            <Row label="登録番号" value={p.vehicle.registrationNumber} />
-            <Row label="初度登録年月" value={p.vehicle.firstRegistered} />
-            <Row label="施工時走行距離" value={p.service.odometerKm} />
+            <Row label="登録番号" value={p.vehicle.registrationNumber} optional always={p.legalRecord} />
+            <Row label="初度登録年月" value={p.vehicle.firstRegistered} optional />
+            <Row label="施工時走行距離" value={p.service.odometerKm} optional always={p.legalRecord} />
           </tbody>
         </table>
       </section>
@@ -98,8 +109,8 @@ export function CertificateSheet(p: CertificateSheetProps) {
         <table className="w-full border-collapse">
           <tbody>
             <Row label="氏名または名称" value={p.customer.name} />
-            <Row label="住所" value={p.customer.address} />
-            <Row label="連絡先" value={p.customer.tel} />
+            <Row label="住所" value={p.customer.address} optional always={p.legalRecord} />
+            <Row label="連絡先" value={p.customer.tel} optional />
           </tbody>
         </table>
       </section>
@@ -113,8 +124,8 @@ export function CertificateSheet(p: CertificateSheetProps) {
             {p.details.map((d) => (
               <Row key={d.label} label={d.label} value={d.value} />
             ))}
-            <Row label="施工金額" value={p.service.totalAmount} />
-            <Row label="再施工費用の目安" value={p.service.restorationCostEstimate} />
+            <Row label="施工金額" value={p.service.totalAmount} optional />
+            <Row label="再施工費用の目安" value={p.service.restorationCostEstimate} optional />
           </tbody>
         </table>
       </section>
@@ -124,11 +135,11 @@ export function CertificateSheet(p: CertificateSheetProps) {
         <table className="w-full border-collapse">
           <tbody>
             <Row label="施工店" value={p.store.name} />
-            <Row label="所在地" value={p.store.address} />
-            <Row label="連絡先" value={p.store.tel} />
-            <Row label="認証番号" value={p.store.certificationNo} />
-            <Row label="担当者" value={p.service.staffName} />
-            <Row label="資格番号" value={p.service.staffLicenseNo} />
+            <Row label="所在地" value={p.store.address} optional />
+            <Row label="連絡先" value={p.store.tel} optional />
+            <Row label="認証番号" value={p.store.certificationNo} optional always={p.legalRecord} />
+            <Row label="担当者" value={p.service.staffName} optional always={p.legalRecord} />
+            <Row label="資格番号" value={p.service.staffLicenseNo} optional />
           </tbody>
         </table>
       </section>

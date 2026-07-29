@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>つながりませんでした — mbFAST</title>
+    <style>
+      :root { color-scheme: light dark; }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: #0d0d0d;
+        color: #fff;
+        font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Noto Sans JP", sans-serif;
+        padding: 24px;
+      }
+      .box { max-width: 22rem; text-align: center; }
+      h1 { font-size: 1rem; margin: 0 0 0.5rem; }
+      p { font-size: 0.8125rem; line-height: 1.7; color: rgba(255, 255, 255, 0.75); margin: 0 0 1rem; }
+      button {
+        border: 0;
+        border-radius: 0.625rem;
+        background: #c9a227;
+        color: #fff;
+        font-weight: 700;
+        font-size: 0.875rem;
+        padding: 0.75rem 1.25rem;
+      }
+      .small { font-size: 0.6875rem; color: rgba(255, 255, 255, 0.5); margin-top: 1rem; }
+    </style>
+  </head>
+  <body>
+    <div class="box">
+      <h1>つながりませんでした</h1>
+      <p>
+        通信が不安定か、アプリの更新中かもしれません。<br />
+        少し待ってから、下のボタンでもう一度お試しください。
+      </p>
+      <button type="button" onclick="location.reload()">もう一度開く</button>
+      <p class="small">入力途中の下書きは端末に保存されているので消えません。</p>
+      <script>
+        /* このページは「開こうとしたURL」の場所に表示されるので、
+           復帰したら reload でそのまま目的の画面に入れる。 */
+        var tries = 0;
+        setInterval(function () {
+          if (tries++ > 20) return;
+          fetch("/api/health", { cache: "no-store" })
+            .then(function (r) {
+              if (r.ok) location.reload();
+            })
+            .catch(function () {});
+        }, 3000);
+      </script>
+    </div>
+  </body>
+</html>

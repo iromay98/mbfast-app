@@ -2,8 +2,8 @@
  * mbFAST 最小サービスワーカー（PWA 対応）。
  * MVP ではアプリシェルの簡易キャッシュのみ。機微データ(API/ファイル)はキャッシュしない。
  */
-const CACHE = "mbfast-shell-v1";
-const SHELL = ["/manifest.webmanifest", "/icons/icon-192.png"];
+const CACHE = "mbfast-shell-v2";
+const SHELL = ["/manifest.webmanifest", "/icons/icon-192.png", "/offline.html"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)));
@@ -74,6 +74,27 @@ self.addEventListener("fetch", (event) => {
   if (url.pathname.startsWith("/icons/") || url.pathname === "/manifest.webmanifest") {
     event.respondWith(
       caches.match(req).then((hit) => hit || fetch(req)),
+    );
+    return;
+  }
+
+  /*
+   * 画面遷移（ホーム画面から起動したときの最初の読み込みを含む）が失敗したら
+   * 真っ白ではなく案内を出す。更新中・電波が悪いだけのことが多く、
+   * offline.html が自動で復帰を試す。ページ本体はキャッシュしない（機微情報のため）。
+   */
+  if (req.mode === "navigate") {
+    event.respondWith(
+      fetch(req).catch(() =>
+        caches.match("/offline.html").then(
+          (hit) =>
+            hit ||
+            new Response("<h1>つながりませんでした</h1><p>もう一度お試しください。</p>", {
+              status: 503,
+              headers: { "content-type": "text/html; charset=utf-8" },
+            }),
+        ),
+      ),
     );
   }
 });

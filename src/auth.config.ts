@@ -40,7 +40,10 @@ export const authConfig = {
         path.startsWith("/pit/join/") ||
         path === "/pit/terms" ||
         path === "/manifest.webmanifest" ||
-        path === "/sw.js";
+        path === "/sw.js" ||
+        // 生存確認・起動できなかったときの受け皿（どちらも情報を持たない）
+        path === "/api/health" ||
+        path === "/offline.html";
       if (isPublic) return true;
 
       if (!isLoggedIn) return false; // → signIn(/login) へリダイレクト
