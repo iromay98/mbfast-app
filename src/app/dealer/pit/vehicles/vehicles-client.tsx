@@ -4,13 +4,9 @@ import { useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Card, EmptyState } from "@/components/ui";
-import {
-  saveVehicleWithCustomer,
-  unlinkVehicle,
-  loadVehicleEdit,
-  saveVehicleEdit,
-} from "@/lib/actions/pit-vehicles";
+import { saveVehicleWithCustomer, unlinkVehicle } from "@/lib/actions/pit-vehicles";
 import type { VehicleFormInput } from "@/lib/actions/pit-vehicles";
+import { VehicleEditPanel } from "./vehicle-edit-panel";
 import { ShakenQrScanner } from "@/components/shaken-qr-scanner";
 import { parseShakenQr, qrExpiryToInput } from "@/server/pit/shaken-qr";
 
@@ -69,6 +65,8 @@ export function VehiclesClient({
   storeId,
   /** 画面の基点。加盟店 "/dealer/pit" / 本部 "/hq/pit" */
   basePath = "/dealer/pit",
+  /** 顧客カルテから「車両を追加」で来たときの対象顧客（最初から選ばれた状態にする） */
+  initialCustomerId,
 }: {
   vehicles: VehicleRow[];
   customers: CustomerOption[];
@@ -77,9 +75,12 @@ export function VehiclesClient({
   legalRecordMode: boolean;
   storeId?: string;
   basePath?: string;
+  initialCustomerId?: string;
 }) {
   const router = useRouter();
   const fileRef = useRef<HTMLInputElement>(null);
+  // 顧客カルテから来たときは、その顧客を選んだ状態で始める（カルテ→車両追加を往復させない）
+  const blank = (): VehicleFormInput => ({ ...EMPTY, customerId: initialCustomerId ?? "" });
   const [form, setForm] = useState<VehicleFormInput | null>(null);
   const [reading, setReading] = useState(false);
   const [scanning, setScanning] = useState(false);
@@ -96,7 +97,7 @@ export function VehiclesClient({
     if (!s.chassis) return; // 車台番号が無ければ何もしない（手入力・写真へ）
     setQrVin(s.chassis);
     setForm((prev) => ({
-      ...EMPTY,
+      ...blank(),
       ...(prev ?? {}),
       vin: s.chassis!,
       modelCode: s.modelCode ?? prev?.modelCode ?? "",
@@ -113,58 +114,10 @@ export function VehiclesClient({
   const [error, setError] = useState<string | null>(null);
   const [notes, setNotes] = useState<string[]>([]);
   const [done, setDone] = useState<string | null>(null);
-  // 修正フォーム（入力ミスを直すための上書き編集）
-  const [edit, setEdit] = useState<{
-    vehicleId: string;
-    vin: string;
-    vehicleName: string;
-    maker: string;
-    modelCode: string;
-    firstRegistered: string;
-    inspectionExpiry: string;
-    registrationNumber: string;
-  } | null>(null);
+  // 修正パネル（入力ミスを直すための上書き編集）。UIは顧客カルテと共通。
+  const [editVehicleId, setEditVehicleId] = useState<string | null>(null);
 
-  const openEdit = async (vehicleId: string) => {
-    setBusy(true);
-    setError(null);
-    setNotes([]);
-    setDone(null);
-    try {
-      const r = await loadVehicleEdit(vehicleId, storeId);
-      if (r.error || !r.values) setError(r.error ?? "読み込めませんでした");
-      else setEdit({ vehicleId, ...r.values });
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const saveEdit = async () => {
-    if (!edit) return;
-    setBusy(true);
-    setError(null);
-    try {
-      // vin は表示専用（車台番号は変更させない）ので送らない
-      const { vehicleId, vehicleName, maker, modelCode, firstRegistered, inspectionExpiry, registrationNumber } = edit;
-      const r = await saveVehicleEdit(
-        vehicleId,
-        { vehicleName, maker, modelCode, firstRegistered, inspectionExpiry, registrationNumber },
-        storeId,
-      );
-      if (r.error) setError(r.error);
-      else {
-        setDone(r.changed?.length ? "修正しました" : "変更はありませんでした");
-        setEdit(null);
-        router.refresh();
-      }
-    } catch {
-      setError("通信エラーが発生しました");
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const set = (patch: Partial<VehicleFormInput>) => setForm((f) => ({ ...(f ?? EMPTY), ...patch }));
+  const set = (patch: Partial<VehicleFormInput>) => setForm((f) => ({ ...(f ?? blank()), ...patch }));
 
   const read = async (file: File) => {
     setReading(true);
@@ -182,12 +135,12 @@ export function VehiclesClient({
       };
       if (!res.ok || !body.fields) {
         setError(body.error ?? "読み取れませんでした。手入力で進めてください");
-        setForm((f) => f ?? EMPTY); // 失敗しても手入力を続けられるようにフォームは開く
+        setForm((f) => f ?? blank()); // 失敗しても手入力を続けられるようにフォームは開く
         return;
       }
       const f = body.fields;
       setForm((prev) => ({
-        ...EMPTY,
+        ...blank(),
         ...(prev ?? {}),
         // 車台番号・型式はQRで取れていればそれを使う（写真の誤読で上書きさせない）
         vin: qrVin ?? f.vin ?? "",
@@ -206,7 +159,7 @@ export function VehiclesClient({
       ]);
     } catch {
       setError("通信エラーが発生しました。手入力で進めてください");
-      setForm((f) => f ?? EMPTY);
+      setForm((f) => f ?? blank());
     } finally {
       setReading(false);
       if (fileRef.current) fileRef.current.value = "";
@@ -306,7 +259,7 @@ export function VehiclesClient({
             <button
               type="button"
               onClick={() => {
-                setForm(EMPTY);
+                setForm(blank());
                 setNotes([]);
                 setDone(null);
               }}
@@ -549,82 +502,19 @@ export function VehiclesClient({
         </Card>
       )}
 
-      {/* 修正フォーム（現在値を入れて出す。空欄で保存するとその項目は消える） */}
-      {edit && (
-        <Card className="border-gold-300">
-          <h3 className="mb-1 text-sm font-bold text-ink">車両情報を修正</h3>
-          <p className="mb-2 text-[11px] text-ink-soft">
-            車台番号 <span className="font-mono font-semibold text-ink">{edit.vin || "（読み取れませんでした）"}</span>
-            <br />
-            車台番号が違っている場合は、この画面では直せません（別の車として扱われるため）。
-            正しい車台番号で登録し直し、間違った車両は「解除」してください。
-          </p>
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-            <label className={label}>
-              車種表示
-              <input
-                value={edit.vehicleName}
-                onChange={(e) => setEdit({ ...edit, vehicleName: e.target.value })}
-                className={input}
-              />
-            </label>
-            <label className={label}>
-              車名（メーカー）
-              <input value={edit.maker} onChange={(e) => setEdit({ ...edit, maker: e.target.value })} className={input} />
-            </label>
-            <label className={label}>
-              型式
-              <input
-                value={edit.modelCode}
-                onChange={(e) => setEdit({ ...edit, modelCode: e.target.value })}
-                className={input}
-              />
-            </label>
-            <label className={label}>
-              登録番号（ナンバー）
-              <input
-                value={edit.registrationNumber}
-                onChange={(e) => setEdit({ ...edit, registrationNumber: e.target.value })}
-                placeholder="大阪 300 あ 12-34"
-                className={input}
-              />
-            </label>
-            <label className={label}>
-              初度登録年月
-              <input
-                type="month"
-                value={edit.firstRegistered}
-                onChange={(e) => setEdit({ ...edit, firstRegistered: e.target.value })}
-                className={input}
-              />
-            </label>
-            <label className={label}>
-              車検満了日
-              <input
-                type="date"
-                value={edit.inspectionExpiry}
-                onChange={(e) => setEdit({ ...edit, inspectionExpiry: e.target.value })}
-                className={input}
-              />
-            </label>
-          </div>
-          <p className="mt-2 text-[11px] text-ink-soft">
-            空欄にして保存するとその項目は消えます。修正の記録（誰がいつ何を直したか）は残ります。
-          </p>
-          <div className="mt-2 flex items-center gap-2">
-            <button
-              type="button"
-              disabled={busy}
-              onClick={saveEdit}
-              className="rounded-lg bg-gold-500 px-4 py-2.5 text-sm font-bold text-white disabled:opacity-50"
-            >
-              {busy ? "保存中…" : "修正を保存"}
-            </button>
-            <button type="button" onClick={() => setEdit(null)} className="text-sm text-ink-soft hover:underline">
-              キャンセル
-            </button>
-          </div>
-        </Card>
+      {/* 修正パネル（車両登録画面と顧客カルテで同じものを使う） */}
+      {editVehicleId && (
+        <VehicleEditPanel
+          key={editVehicleId}
+          vehicleId={editVehicleId}
+          storeId={storeId}
+          onClose={() => setEditVehicleId(null)}
+          onSaved={(m) => {
+            setDone(m);
+            setEditVehicleId(null);
+            router.refresh();
+          }}
+        />
       )}
 
       {/* 登録済み車両 */}
@@ -674,7 +564,7 @@ export function VehiclesClient({
                   <button
                     type="button"
                     disabled={busy}
-                    onClick={() => void openEdit(v.vehicleId)}
+                    onClick={() => setEditVehicleId(v.vehicleId)}
                     className="text-[11px] text-ink-soft hover:underline disabled:opacity-50"
                   >
                     修正

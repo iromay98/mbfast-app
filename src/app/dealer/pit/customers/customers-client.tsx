@@ -5,6 +5,16 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Card, EmptyState } from "@/components/ui";
 import { upsertPitCustomer, deletePitCustomer, type CustomerInput } from "@/lib/actions/pit-customers";
+import { VehicleEditPanel } from "../vehicles/vehicle-edit-panel";
+
+export type CustomerVehicle = {
+  vehicleId: string;
+  vehicleName: string;
+  maker: string;
+  modelCode: string;
+  chassisLast3: string;
+  inspectionExpiry: string; // "" | YYYY-MM-DD
+};
 
 export type CustomerRow = {
   id: string;
@@ -16,6 +26,8 @@ export type CustomerRow = {
   note: string;
   address: string;
   email: string;
+  /** 登録済みの車両（この場で修正・証明書作成ができる） */
+  vehicles: CustomerVehicle[];
 };
 
 const input = "mt-0.5 w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm font-semibold text-ink";
@@ -34,6 +46,9 @@ export function CustomersClient({ customers }: { customers: CustomerRow[] }) {
   const [q, setQ] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [done, setDone] = useState<string | null>(null);
+  // カルテの中から車両情報を直す（車両登録をやり直させない）
+  const [editVehicleId, setEditVehicleId] = useState<string | null>(null);
 
   const filtered = q.trim()
     ? customers.filter((c) =>
@@ -107,6 +122,24 @@ export function CustomersClient({ customers }: { customers: CustomerRow[] }) {
         📷 車検証を撮って車両を登録
         <span className="ml-auto text-[11px] font-normal text-ink-soft">証明書に必要な情報が入ります</span>
       </Link>
+
+      {done && (
+        <p className="rounded-lg bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-800">{done}</p>
+      )}
+
+      {/* 車両情報の修正（車両登録画面と同じパネル） */}
+      {editVehicleId && (
+        <VehicleEditPanel
+          key={editVehicleId}
+          vehicleId={editVehicleId}
+          onClose={() => setEditVehicleId(null)}
+          onSaved={(m) => {
+            setDone(m);
+            setEditVehicleId(null);
+            router.refresh();
+          }}
+        />
+      )}
 
       {/* 追加・編集フォーム */}
       {editing && (
@@ -215,7 +248,7 @@ export function CustomersClient({ customers }: { customers: CustomerRow[] }) {
         </Card>
       )}
 
-      {/* 一覧（車検が近い順） */}
+      {/* 一覧（車検が近い順）。行の中にその方の車両を出し、ここから修正・証明書まで行ける */}
       {filtered.length === 0 ? (
         <EmptyState message={q ? "該当するお客様がいません。" : "まだ登録がありません。「＋追加」からお客様を登録しましょう。"} />
       ) : (
@@ -223,32 +256,72 @@ export function CustomersClient({ customers }: { customers: CustomerRow[] }) {
           {filtered.map((c) => {
             const left = daysLeft(c.inspectionExpiry);
             return (
-              <button
-                key={c.id}
-                type="button"
-                onClick={() => setEditing(c)}
-                className="flex w-full items-center gap-2 p-3 text-left hover:bg-surface-2"
-              >
-                <div className="min-w-0">
-                  <div className="flex items-baseline gap-2">
-                    <span className="whitespace-nowrap text-sm font-semibold text-ink">{c.name} 様</span>
-                    {c.vehicleName && <span className="truncate text-xs text-ink-soft">{c.vehicleName}</span>}
-                  </div>
-                  <div className="mt-0.5 truncate text-xs text-ink-soft">
-                    {c.tel && <span className="mr-2">📞 {c.tel}</span>}
-                    {c.note && <span>{c.note.slice(0, 30)}{c.note.length > 30 ? "…" : ""}</span>}
-                  </div>
-                </div>
-                {left !== null && (
-                  <span
-                    className={`ml-auto shrink-0 rounded-full px-2 py-0.5 text-[11px] font-bold ${
-                      left <= 30 ? "bg-red-100 text-red-700" : left <= 60 ? "bg-amber-100 text-amber-800" : "bg-surface-2 text-ink-soft"
-                    }`}
+              <div key={c.id} className="p-3">
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setEditing(c)}
+                    className="min-w-0 flex-1 text-left"
+                    title="カルテ（お客様情報）を編集"
                   >
-                    {left < 0 ? "車検切れ" : `車検あと${left}日`}
-                  </span>
-                )}
-              </button>
+                    <div className="flex items-baseline gap-2">
+                      <span className="whitespace-nowrap text-sm font-semibold text-ink">{c.name} 様</span>
+                      {c.vehicleName && <span className="truncate text-xs text-ink-soft">{c.vehicleName}</span>}
+                    </div>
+                    <div className="mt-0.5 truncate text-xs text-ink-soft">
+                      {c.tel && <span className="mr-2">📞 {c.tel}</span>}
+                      {c.note && <span>{c.note.slice(0, 30)}{c.note.length > 30 ? "…" : ""}</span>}
+                    </div>
+                  </button>
+                  {left !== null && (
+                    <span
+                      className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-bold ${
+                        left <= 30 ? "bg-red-100 text-red-700" : left <= 60 ? "bg-amber-100 text-amber-800" : "bg-surface-2 text-ink-soft"
+                      }`}
+                    >
+                      {left < 0 ? "車検切れ" : `車検あと${left}日`}
+                    </span>
+                  )}
+                </div>
+
+                {/* 登録済み車両（車検証を撮り直さずにここで直せる） */}
+                <div className="mt-1.5 space-y-1">
+                  {c.vehicles.map((v) => (
+                    <div
+                      key={v.vehicleId}
+                      className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg bg-surface-2 px-2 py-1.5"
+                    >
+                      <span className="text-xs font-semibold text-ink">🚗 {v.vehicleName || v.maker || "車両"}</span>
+                      {v.modelCode && <span className="text-[11px] text-ink-soft">型式 {v.modelCode}</span>}
+                      {v.chassisLast3 && <span className="text-[11px] text-ink-soft">車台下3桁 {v.chassisLast3}</span>}
+                      <span className="ml-auto flex shrink-0 items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setDone(null);
+                            setEditVehicleId(v.vehicleId);
+                          }}
+                          className="text-[11px] font-semibold text-ink-soft hover:underline"
+                        >
+                          車両を修正
+                        </button>
+                        <Link
+                          href={`/dealer/pit/certificates/new?vehicleId=${v.vehicleId}`}
+                          className="rounded-lg border border-gold-300 px-2 py-1 text-[11px] font-bold text-ink"
+                        >
+                          証明書
+                        </Link>
+                      </span>
+                    </div>
+                  ))}
+                  <Link
+                    href={`/dealer/pit/vehicles?customerId=${c.id}`}
+                    className="inline-block text-[11px] font-semibold text-ink-soft hover:underline"
+                  >
+                    ＋ この方の車両を追加（車検証の読み取り／手入力）
+                  </Link>
+                </div>
+              </div>
             );
           })}
         </Card>

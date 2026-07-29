@@ -3,8 +3,8 @@ import { pitMetadata } from "@/lib/pit-metadata";
 import { redirect } from "next/navigation";
 import { PageTitle } from "@/components/ui";
 import { ownPitStore } from "@/server/pit/own-store";
-import { listStoreCustomers } from "@/server/pit/customer-repo";
-import { CustomersClient, type CustomerRow } from "./customers-client";
+import { listStoreCustomers, listStoreVehicles } from "@/server/pit/customer-repo";
+import { CustomersClient, type CustomerRow, type CustomerVehicle } from "./customers-client";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = pitMetadata("mbPIT 顧客カルテ");
@@ -14,7 +14,27 @@ export default async function PitCustomersPage() {
   const own = await ownPitStore();
   if (!own.store) redirect("/dealer/pit");
 
-  const customers = await listStoreCustomers(own.store.id);
+  const [customers, vehicles] = await Promise.all([
+    listStoreCustomers(own.store.id),
+    listStoreVehicles(own.store.id),
+  ]);
+
+  // カルテの中でその方の車両を直せるようにする（車両登録画面まで行かせない）
+  const byCustomer = new Map<string, CustomerVehicle[]>();
+  for (const v of vehicles) {
+    const list = byCustomer.get(v.customerId) ?? [];
+    list.push({
+      vehicleId: v.vehicleId,
+      vehicleName: v.vehicleName,
+      maker: v.maker,
+      modelCode: v.modelCode,
+      chassisLast3: v.chassisLast3,
+      inspectionExpiry: v.inspectionExpiry
+        ? v.inspectionExpiry.toLocaleDateString("sv-SE", { timeZone: "Asia/Tokyo" })
+        : "",
+    });
+    byCustomer.set(v.customerId, list);
+  }
 
   const rows: CustomerRow[] = customers.map((c) => ({
     id: c.id,
@@ -28,6 +48,7 @@ export default async function PitCustomersPage() {
     note: c.note,
     address: c.address,
     email: c.email,
+    vehicles: byCustomer.get(c.id) ?? [],
   }));
 
   return (

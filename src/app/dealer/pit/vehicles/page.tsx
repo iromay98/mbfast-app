@@ -15,7 +15,13 @@ const ymd = (d: Date | null) => (d ? d.toLocaleDateString("sv-SE", { timeZone: "
 
 // 車両登録（車検証の読み取り→確認→登録）。証明書・法定記録簿の土台になる画面。
 // 表示するのは自店の顧客に紐づく車両だけ（他店の車両・顧客は出ない）
-export default async function PitVehiclesPage() {
+export default async function PitVehiclesPage({
+  searchParams,
+}: {
+  // 顧客カルテの「＋ 車両を追加」から来たとき、その顧客を選んだ状態で始める
+  searchParams: Promise<{ customerId?: string }>;
+}) {
+  const { customerId } = await searchParams;
   const own = await ownPitStore();
   if (!own.store) {
     return (
@@ -60,6 +66,9 @@ export default async function PitVehiclesPage() {
         ocrEnabled={shakenOcrEnabled()}
         setupError={ready.ok ? null : (ready.error ?? null)}
         legalRecordMode={isLegalRecordFacility(own.store.facilityType)}
+        initialCustomerId={
+          customerId && options.some((o) => o.id === customerId) ? customerId : undefined
+        }
       />
     </div>
   );
