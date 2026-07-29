@@ -745,8 +745,13 @@ model PitStore {
   wpPageId       Int? // 店舗固定ページID（/mbpit/{slug}/）
   lastSyncedAt   DateTime? // 店舗情報の最終WP同期時刻
 
-  posts     PitPost[]
-  customers PitCustomer[]
+  // 事業場の区分。法定記録簿モードの出し分けに使う（certified/designated のみON）
+  facilityType    String @default("general") // certified | designated | general
+  certificationNo String @default("") // 認証番号（自動補完・推測はしない）
+
+  posts        PitPost[]
+  customers    PitCustomer[]
+  certificates PitCertificate[]
 }
 
 // 加盟店の顧客カルテ（店舗ごとの顧客台帳）。車検満了日で「そろそろ車検」の声かけができる。
@@ -761,9 +766,15 @@ model PitCustomer {
   vehicleName      String    @default("") // 車両（例: アルファード 30系）
   inspectionExpiry DateTime? // 車検満了日
   note             String    @default("") // カルテメモ（施工内容・好み・注意点など）
+  address          String    @default("") // 住所（法定記録簿の依頼者住所・非公開）
+  email            String    @default("")
   vehicleId        String? // 車検証QR連携（PitVehicle）との紐づけ（将来: 施工履歴の自動表示）
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
+
+  certificates PitCertificate[]
+  vehicleLinks PitVehicleCustomer[]
+  consents     PitConsent[]
 
   @@index([storeId, inspectionExpiry])
 }
@@ -796,15 +807,132 @@ model PitInvite {
 // vehicleKey で一意化する。車台番号の平文はDBに保存しない（PII保護）。
 model PitVehicle {
   id               String    @id @default(cuid())
-  vehicleKey       String    @unique // HMAC-SHA256(車台番号, SERVER_SECRET) hex
-  chassisLast3     String? // 証明書表示用（車台番号の下3桁のみ）
+  vehicleKey       String    @unique // HMAC-SHA256(車台番号, SERVER_SECRET) hex ＝車両の一意キー
+  chassisLast3     String? // 表示用（車台番号の下3桁のみ）
   vehicleName      String? // 車種表示（最初に紐づいた記録の車種）
   modelCode        String? // 型式（QRから取得できた場合）
   inspectionExpiry DateTime? // 車検有効期限（リマインド用）
+  // ── 証明書・法定記録簿の出力に必要な非公開項目 ──
+  // 車台番号/登録番号は平文で持たず AES-256-GCM で暗号化して保存する
+  // （復号は src/server/pit/vin-crypto.ts のみ。公開ブログ生成からは参照不可）
+  vinEnc            String? // 車台番号（暗号化）
+  regNumberEnc      String? // 登録番号＝ナンバー（暗号化・非公開）
+  maker             String? // メーカー（公開可）
+  firstRegisteredOn DateTime? // 初度登録年月（公開可）
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
 
-  posts PitPost[]
+  posts         PitPost[]
+  certificates  PitCertificate[]
+  customerLinks PitVehicleCustomer[]
+}
+
+// 車両と顧客の関連。所有権移転（Phase2）に備えて期間を持たせる。
+// 履歴は「人」ではなく「車」に紐づける方針のため、証明書はここを介さず vehicleId を直接持つ。
+model PitVehicleCustomer {
+  id         String      @id @default(cuid())
+  vehicleId  String
+  vehicle    PitVehicle  @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  customerId String
+  customer   PitCustomer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  startedOn  DateTime    @default(now())
+  endedOn    DateTime? // null = 現在の所有者
+  createdAt  DateTime    @default(now())
+
+  @@unique([vehicleId, customerId, startedOn])
+  @@index([vehicleId, endedOn])
+}
+
+// 施工証明書（1作業＝1証明書）。車両に紐づけ、顧客には紐づけない（所有権移転で履歴が切れないため）。
+// 発行後は内容変更不可。訂正は voided にして replacesId を付けた新しい証明書を発行する。
+model PitCertificate {
+  id         String      @id @default(cuid())
+  vehicleId  String
+  vehicle    PitVehicle  @relation(fields: [vehicleId], references: [id])
+  storeId    String
+  store      PitStore    @relation(fields: [storeId], references: [id])
+  customerId String? // 法定記録簿の「依頼者」。店舗が保持する顧客情報への参照
+  customer   PitCustomer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
+
+  shareToken  String  @unique // 共有URL用の推測不能トークン（無効化可能）
+  shareRevoked Boolean @default(false)
+  verifyLast4 String  @default("") // 任意の簡易照合（車台番号の下4桁）
+
+  serviceDate             DateTime // 施工日
+  odometerKm              Int? // 施工時走行距離
+  staffName               String   @default("")
+  staffLicenseNo          String   @default("") // 資格番号（非公開）
+  workSummary             String   @default("")
+  totalAmount             Int? // 施工金額（非公開）
+  restorationCostEstimate Int? // 再施工費用の目安（保険説明用・非公開）
+  certificateType         String // coating | ecu | aiming | tire | repair_history | battery | general
+  legalRecord             Boolean  @default(false) // 法定記録簿モードで作成（認証/指定工場のみ）
+
+  payloadHash String    @default("") // 発行時点の内容ハッシュ（第三者検証用）
+  issuedAt    DateTime? // 発行日時（null=下書き）
+  status      String    @default("draft") // draft | issued | voided
+  voidedAt    DateTime?
+  voidReason  String    @default("")
+  replacesId  String? // 訂正再発行の元証明書
+
+  blogPostId String? // ①公開ブログ記事との紐付け
+  blogPost   PitPost? @relation(fields: [blogPostId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  details PitCertificateDetail[]
+  media   PitCertificateMedia[]
+
+  @@index([storeId, createdAt])
+  @@index([vehicleId, serviceDate])
+  @@index([status])
+}
+
+// 施工種別モジュールの値（key-value）。項目追加でスキーマ変更が起きないようにする。
+// 項目定義（表示名・型・必須・単位）は src/server/pit/cert-fields.ts が唯一の原本。
+model PitCertificateDetail {
+  id            String         @id @default(cuid())
+  certificateId String
+  certificate   PitCertificate @relation(fields: [certificateId], references: [id], onDelete: Cascade)
+  module        String // coating | ecu | aiming | tire | repair_history | battery
+  fieldKey      String
+  fieldValue    String         @default("")
+  unit          String         @default("")
+
+  @@unique([certificateId, module, fieldKey])
+}
+
+// 証明書に添付する写真。公開ブログへ回せるかは isPublicSafe で明示する
+// （車検証・ナンバーが写ったものは false のまま＝公開側へ渡さない）
+model PitCertificateMedia {
+  id            String         @id @default(cuid())
+  certificateId String
+  certificate   PitCertificate @relation(fields: [certificateId], references: [id], onDelete: Cascade)
+  storageKey    String // 認可付きルート経由で配信（公開URLは持たない）
+  kind          String // before | after | product_label | vehicle_plate | diagnostic_screen | other
+  takenAt       DateTime?
+  exifJson      Json? // 撮影情報（証跡用・公開しない）
+  hash          String         @default("")
+  isPublicSafe  Boolean        @default(false)
+  createdAt     DateTime       @default(now())
+
+  @@index([certificateId])
+}
+
+// 第三者提供の同意記録（Phase2の所有権移転で必要。後付けが困難なため器だけ先に用意）
+model PitConsent {
+  id          String      @id @default(cuid())
+  customerId  String
+  customer    PitCustomer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  vehicleId   String?
+  purpose     String // 例: transfer_to_new_owner
+  textVersion String      @default("") // 同意時に提示した文面のバージョン
+  agreedAt    DateTime    @default(now())
+  agreedVia   String      @default("") // 店頭 / 共有ページ 等
+  note        String      @default("")
+
+  @@index([customerId, purpose])
 }
 
 // 投稿1件（公開ログを兼ねる）
@@ -829,6 +957,8 @@ model PitPost {
   externalProof Json? // 施工証明の外部連携スロット {provider, tx_id, url}（Ledra等、現状は未使用）
   createdAt     DateTime    @default(now())
   updatedAt     DateTime    @updatedAt
+
+  certificates PitCertificate[]
 
   @@index([storeId, createdAt])
   @@index([status])
