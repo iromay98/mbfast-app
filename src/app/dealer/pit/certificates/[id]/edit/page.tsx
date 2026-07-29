@@ -6,6 +6,7 @@ import { ownPitStore } from "@/server/pit/own-store";
 import { listStoreVehicles } from "@/server/pit/customer-repo";
 import { getStoreCertificate, CERTIFICATE_TYPES } from "@/server/pit/certificate";
 import { modulesForFacility, isLegalRecordFacility } from "@/server/pit/cert-fields";
+import { photoOcrEnabled } from "@/server/pit/photo-ocr";
 import { CertificateForm, type TypeOption, type VehicleOption } from "../../certificate-form";
 
 export const dynamic = "force-dynamic";
@@ -53,6 +54,7 @@ export default async function EditCertificatePage({ params }: { params: Promise<
         vehicles={options}
         types={types}
         legalRecordMode={isLegalRecordFacility(own.store.facilityType)}
+        ocrEnabled={photoOcrEnabled()}
         initial={{
           vehicleId: cert.vehicleId,
           customerId: cert.customerId ?? "",

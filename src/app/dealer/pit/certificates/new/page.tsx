@@ -5,6 +5,7 @@ import { PageTitle, Card } from "@/components/ui";
 import { ownPitStore } from "@/server/pit/own-store";
 import { listStoreVehicles } from "@/server/pit/customer-repo";
 import { modulesForFacility, isLegalRecordFacility } from "@/server/pit/cert-fields";
+import { photoOcrEnabled } from "@/server/pit/photo-ocr";
 import { CERTIFICATE_TYPES } from "@/server/pit/certificate";
 import { CertificateForm, type TypeOption, type VehicleOption } from "../certificate-form";
 
@@ -81,6 +82,7 @@ export default async function NewCertificatePage({
         vehicles={options}
         types={types}
         legalRecordMode={isLegalRecordFacility(own.store.facilityType)}
+        ocrEnabled={photoOcrEnabled()}
         initial={{ vehicleId: preferred.vehicleId, customerId: preferred.customerId }}
       />
     </div>

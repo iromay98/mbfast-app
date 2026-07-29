@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Card } from "@/components/ui";
 import { saveCertificate } from "@/lib/actions/pit-certificates";
+import { PhotoOcrButton } from "./photo-ocr-button";
 import type { CertificateCoreInput } from "@/server/pit/certificate";
 
 export type VehicleOption = {
@@ -34,16 +35,25 @@ const label = "block text-[11px] font-semibold text-ink-soft";
  * 共通コア（施工日・走行距離・担当者・作業概要・金額）＋施工種別モジュールの項目を1画面で入れる。
  * 発行は保存後に詳細画面で行う（発行すると内容が固定されるため、確認の一手間を挟む）。
  */
+/** 施工種別ごとに、どの写真を撮れば項目が埋まるか（読み取りキーはモジュールの項目キーと一致させている） */
+const OCR_BY_TYPE: Record<string, { target: string; label: string }> = {
+  coating: { target: "product_label", label: "製品ラベルを読み取る" },
+  tire: { target: "tire", label: "タイヤ側面を読み取る" },
+  battery: { target: "device_screen", label: "測定器の画面を読み取る" },
+};
+
 export function CertificateForm({
   vehicles,
   types,
   legalRecordMode,
+  ocrEnabled,
   initial,
   certificateId,
 }: {
   vehicles: VehicleOption[];
   types: TypeOption[];
   legalRecordMode: boolean;
+  ocrEnabled: boolean;
   initial?: Partial<CertificateCoreInput>;
   certificateId?: string;
 }) {
@@ -74,6 +84,21 @@ export function CertificateForm({
     setForm((f) => ({ ...f, moduleValues: { ...f.moduleValues, [key]: value } }));
 
   const active = types.find((t) => t.key === form.certificateType);
+  const ocr = OCR_BY_TYPE[form.certificateType];
+
+  /*
+   * 読み取り結果をフォームへ反映する。
+   * 定義に無いキーは捨て、空の値では既存の入力を上書きしない（撮り直しで消えると困る）。
+   */
+  const applyOcr = (values: Record<string, string>, notes: string[], ocrWarnings: string[]) => {
+    const keys = new Set((active?.fields ?? []).map((f) => f.key));
+    setForm((f) => {
+      const next = { ...f.moduleValues };
+      for (const [k, v] of Object.entries(values)) if (keys.has(k) && v) next[k] = v;
+      return { ...f, moduleValues: next };
+    });
+    setWarnings([...notes, ...ocrWarnings, "読み取った内容が写真と合っているか確認してください"]);
+  };
 
   const save = async () => {
     setBusy(true);
@@ -158,16 +183,31 @@ export function CertificateForm({
               className={input}
             />
           </label>
-          <label className={label}>
-            施工時走行距離（km）
-            <input
-              inputMode="numeric"
-              value={form.odometerKm}
-              onChange={(e) => set({ odometerKm: e.target.value })}
-              placeholder="52300"
-              className={input}
-            />
-          </label>
+          {/* メーター写真から走行距離を入れられるようにする（ボタンはlabelの外＝クリックの取り違いを防ぐ） */}
+          <div>
+            <label className={label}>
+              施工時走行距離（km）
+              <input
+                inputMode="numeric"
+                value={form.odometerKm}
+                onChange={(e) => set({ odometerKm: e.target.value })}
+                placeholder="52300"
+                className={input}
+              />
+            </label>
+            {ocrEnabled && (
+              <div className="mt-1">
+                <PhotoOcrButton
+                  target="meter"
+                  label="メーターを読み取る"
+                  onValues={(v, notes, ws) => {
+                    if (v.odometer_km) set({ odometerKm: v.odometer_km });
+                    setWarnings([...notes, ...ws, "読み取った走行距離が写真と合っているか確認してください"]);
+                  }}
+                />
+              </div>
+            )}
+          </div>
           <label className={label}>
             担当者名 <span className="text-red-600">必須</span>
             <input
@@ -232,7 +272,12 @@ export function CertificateForm({
 
       {active && active.fields.length > 0 && (
         <Card>
-          <h3 className="mb-2 text-sm font-bold text-ink">{active.label}の項目</h3>
+          <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+            <h3 className="text-sm font-bold text-ink">{active.label}の項目</h3>
+            {ocr && ocrEnabled && (
+              <PhotoOcrButton target={ocr.target} label={ocr.label} onValues={applyOcr} />
+            )}
+          </div>
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
             {active.fields.map((f) => (
               <label key={f.key} className={`${label} ${f.type === "textarea" ? "sm:col-span-2" : ""}`}>
@@ -277,7 +322,9 @@ export function CertificateForm({
           </div>
           {active.fields.some((f) => f.hint === "ocr") && (
             <p className="mt-2 text-[11px] text-ink-soft">
-              製品ラベルやタイヤ刻印の写真からの読み取りは次の更新で追加します。いまは手入力でお願いします。
+              {ocr && ocrEnabled
+                ? "📷 のボタンで写真から読み取れます（ロット番号・DOTは記入漏れが起きやすいので写真がおすすめです）。読み取った値は必ず確認してください。写真は保存されません。"
+                : "読み取り機能が未設定のため、いまは手入力でお願いします。"}
             </p>
           )}
         </Card>
