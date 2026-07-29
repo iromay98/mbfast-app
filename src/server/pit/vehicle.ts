@@ -8,6 +8,7 @@
 import { createHash, createHmac } from "node:crypto";
 import { prisma } from "@/lib/db";
 import { normalizeChassis } from "@/server/pit/chassis";
+import { parseShakenQr } from "@/server/pit/shaken-qr";
 
 export function vehicleFeatureEnabled(): boolean {
   return !!process.env.SERVER_SECRET;
@@ -22,47 +23,8 @@ export function vehicleKeyFromChassis(chassis: string): string {
   return createHmac("sha256", secret).update(normalizeChassis(chassis)).digest("hex");
 }
 
-export type ParsedShakenQr = {
-  chassis: string | null; // 車台番号（例: ZC33S-123456 / 17桁VIN）
-  modelCode: string | null; // 型式（例: 3BA-ZC33S）
-  expiry: Date | null; // 車検有効期限
-};
-
-// 車検証QR（複数QRの連結にも対応）の寛容パース。
-// 国交省フォーマットは「/」区切りのフィールド列なので、フィールドの形で判定する:
-//  - 車台番号: {英数}-{数字4〜8桁} または 17桁VIN
-//  - 型式: {排ガス記号}-{英数}（例 3BA-ZC33S, CBA-…, DBA-…）
-//  - 有効期限: YYYYMMDD 形式（和暦コード等は対象外＝取れなければ手入力）
-export function parseShakenQr(text: string): ParsedShakenQr {
-  const fields = text
-    .split(/[\/\n\r]+/)
-    .map((f) => normalizeChassis(f.trim()))
-    .filter(Boolean);
-
-  let chassis: string | null = null;
-  let modelCode: string | null = null;
-  let expiry: Date | null = null;
-
-  for (const f of fields) {
-    if (!modelCode && /^[A-Z0-9]{2,4}-[A-Z][A-Z0-9]{1,9}$/.test(f) && /^\d/.test(f)) {
-      // 3BA-ZC33S のような型式（先頭が排ガス規制コード=数字始まり）
-      modelCode = f;
-      continue;
-    }
-    if (!chassis && (/^[A-Z][A-Z0-9]{1,9}-\d{4,8}$/.test(f) || /^[A-HJ-NPR-Z0-9]{17}$/.test(f))) {
-      chassis = f;
-      continue;
-    }
-    if (!expiry && /^(20\d{2})(0[1-9]|1[0-2])(0[1-9]|[12]\d|3[01])$/.test(f)) {
-      const y = Number(f.slice(0, 4));
-      const m = Number(f.slice(4, 6));
-      const d = Number(f.slice(6, 8));
-      const dt = new Date(Date.UTC(y, m - 1, d));
-      if (y >= 2020 && y <= 2050) expiry = dt;
-    }
-  }
-  return { chassis, modelCode, expiry };
-}
+// 車検証QRの解析はDB非依存の shaken-qr.ts が原本（カメラのスキャナからも同じ関数を使う）
+export { parseShakenQr, chassisFromQrText, type ParsedShakenQr } from "@/server/pit/shaken-qr";
 
 // 車台番号（またはQR生テキスト）から車両をupsertしてidを返す
 export async function upsertVehicle(opts: {

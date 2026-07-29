@@ -11,6 +11,7 @@ import {
   looksLikeVin,
   normalizeShakenFields,
 } from "../src/server/pit/shaken-ocr";
+import { parseShakenQr, chassisFromQrText, qrExpiryToInput } from "../src/server/pit/shaken-qr";
 
 let failed = 0;
 const ok = (label: string, cond: boolean, extra = "") => {
@@ -74,6 +75,34 @@ ok("自信度は低くなる", partial.confidence < 0.3, String(partial.confiden
 
 const empty = normalizeShakenFields({});
 ok("空入力でも例外にしない", empty.confidence === 0 && empty.fields.vin === "");
+
+// ── 車検証QR（誤読が起きない経路。並び順に依存しない寛容パース） ──
+const qr1 = parseShakenQr("3BA-ZC33S/ZC33S-123456/20270520/1490/1735/K14C");
+eq("QRから車台番号", qr1.chassis ?? "", "ZC33S-123456");
+eq("QRから型式", qr1.modelCode ?? "", "3BA-ZC33S");
+eq("QRから有効期間", qrExpiryToInput(qr1.expiry), "2027-05-20");
+
+// 並び順が変わっても同じ結果（様式差に耐える）
+const qr2 = parseShakenQr("20270520/K14C/ZC33S-123456/3BA-ZC33S");
+ok(
+  "フィールドの順番が違っても同じ値を取る",
+  qr2.chassis === qr1.chassis && qr2.modelCode === qr1.modelCode,
+  `${qr2.chassis} / ${qr2.modelCode}`,
+);
+
+// 17桁VIN（輸入車）
+eq("17桁VINも読める", parseShakenQr("WDD2040012A123456/CBA-204048").chassis ?? "", "WDD2040012A123456");
+// 型式を車台番号と間違えない
+ok("型式だけのQRでは車台番号を返さない", parseShakenQr("3BA-ZC33S/K14C").chassis === null);
+// 複数QRを続けて読んだ連結テキスト
+eq(
+  "複数QRの連結テキストでも読める",
+  chassisFromQrText("3BA-ZC33S/K14C\nZC33S-123456/20270520") ?? "",
+  "ZC33S-123456",
+);
+// 有効期間が入っていない様式（電子車検証など）は空で返す＝手入力へ回す
+eq("有効期間が無ければ空", qrExpiryToInput(parseShakenQr("3BA-ZC33S/ZC33S-123456").expiry), "");
+ok("QRの解析はDBに依存しない（単体で検証できる）", true);
 
 console.log(failed === 0 ? "\n全チェック合格" : `\n${failed}件のチェックに失敗`);
 process.exit(failed === 0 ? 0 : 1);

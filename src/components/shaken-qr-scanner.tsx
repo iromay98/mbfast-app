@@ -10,17 +10,27 @@ import jsQR from "jsqr";
 export function ShakenQrScanner({
   onText,
   onClose,
+  status,
+  hint,
 }: {
   onText: (text: string) => boolean; // true を返したらスキャン終了
   onClose: () => void;
+  /** 読み取り状況（例「車台番号 ✓ / 型式 …」）。呼び出し側が組み立てて渡す */
+  status?: string;
+  /** 下部の案内文の差し替え */
+  hint?: string;
 }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [error, setError] = useState<string | null>(null);
   const stopRef = useRef(false);
   const seenRef = useRef<Set<string>>(new Set());
+  // 最新の onText を effect から参照するための箱。
+  // render 中に ref を書くと React の警告になるので effect で更新する。
   const onTextRef = useRef(onText);
-  onTextRef.current = onText;
+  useEffect(() => {
+    onTextRef.current = onText;
+  }, [onText]);
 
   const stopCamera = useCallback(() => {
     stopRef.current = true;
@@ -75,7 +85,11 @@ export function ShakenQrScanner({
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-black/90">
       <div className="flex items-center justify-between px-4 py-3 text-white">
-        <p className="text-sm font-bold">📄 車検証のQRコードを映してください</p>
+        <div className="min-w-0">
+          <p className="text-sm font-bold">📄 車検証のQRコードを映してください</p>
+          {/* QRは複数あるので「どれを読むか選ばせない」。取れた項目だけ示す */}
+          {status && <p className="mt-0.5 truncate text-[11px] text-gold-300">{status}</p>}
+        </div>
         <button
           type="button"
           onClick={() => {
@@ -96,27 +110,14 @@ export function ShakenQrScanner({
         </div>
       </div>
       <p className="px-4 py-3 text-center text-[11px] leading-relaxed text-white/80">
-        {error ?? "車検証の下部に並んでいるQRコードを順番に枠へ。車台番号を読み取ると自動で閉じます。"}
+        {error ??
+          hint ??
+          "QRが複数あってもそのまま車検証全体を映してください。必要なQRを自動で探します。"}
       </p>
     </div>
   );
 }
 
-// クライアント側の簡易判定（サーバー側 parseShakenQr と同じ規則の軽量版）
-export function chassisFromQrText(text: string): string | null {
-  const fields = text
-    .split(/[\/\n\r]+/)
-    .map((f) =>
-      f
-        .trim()
-        .replace(/[Ａ-Ｚａ-ｚ０-９－]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0xfee0))
-        .toUpperCase()
-        .replace(/[^A-Z0-9-]/g, ""),
-    )
-    .filter(Boolean);
-  for (const f of fields) {
-    if (/^\d/.test(f) && /^[A-Z0-9]{2,4}-[A-Z][A-Z0-9]{1,9}$/.test(f)) continue; // 型式はスキップ
-    if (/^[A-Z][A-Z0-9]{1,9}-\d{4,8}$/.test(f) || /^[A-HJ-NPR-Z0-9]{17}$/.test(f)) return f;
-  }
-  return null;
-}
+// 判定は src/server/pit/shaken-qr.ts に集約した（サーバーとクライアントで規則がズレないように）。
+// 互換のため同名で再エクスポートする。
+export { chassisFromQrText } from "@/server/pit/shaken-qr";

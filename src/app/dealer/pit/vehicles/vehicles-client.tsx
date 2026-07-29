@@ -11,6 +11,8 @@ import {
   saveVehicleEdit,
 } from "@/lib/actions/pit-vehicles";
 import type { VehicleFormInput } from "@/lib/actions/pit-vehicles";
+import { ShakenQrScanner } from "@/components/shaken-qr-scanner";
+import { parseShakenQr, qrExpiryToInput } from "@/server/pit/shaken-qr";
 
 export type VehicleRow = {
   vehicleId: string;
@@ -80,6 +82,33 @@ export function VehiclesClient({
   const fileRef = useRef<HTMLInputElement>(null);
   const [form, setForm] = useState<VehicleFormInput | null>(null);
   const [reading, setReading] = useState(false);
+  const [scanning, setScanning] = useState(false);
+  // QRで読み取った車台番号は確定扱い（写真OCRの値で上書きしない＝誤読で壊さない）
+  const [qrVin, setQrVin] = useState<string | null>(null);
+  // 複数QRから集めた値（1枚のQRに全部入っているとは限らない）
+  type Scanned = { chassis: string | null; modelCode: string | null; expiry: string | null };
+  const [scanned, setScanned] = useState<Scanned>({ chassis: null, modelCode: null, expiry: null });
+  const scannedRef = useRef<Scanned>({ chassis: null, modelCode: null, expiry: null });
+
+  /** 集めた値をフォームへ入れる（閉じたタイミング・揃ったタイミングの両方から呼ぶ） */
+  const applyScanned = (v?: Scanned) => {
+    const s = v ?? scannedRef.current;
+    if (!s.chassis) return; // 車台番号が無ければ何もしない（手入力・写真へ）
+    setQrVin(s.chassis);
+    setForm((prev) => ({
+      ...EMPTY,
+      ...(prev ?? {}),
+      vin: s.chassis!,
+      modelCode: s.modelCode ?? prev?.modelCode ?? "",
+      inspectionExpiry: s.expiry ?? prev?.inspectionExpiry ?? "",
+    }));
+    setError(null);
+    setNotes([
+      `QRから読み取りました（車台番号 ${s.chassis}${s.modelCode ? ` / 型式 ${s.modelCode}` : ""}）`,
+      ...(s.modelCode ? [] : ["型式はQRから取れませんでした。写真の読み取りか手入力で入れてください"]),
+      "氏名・住所はQRに入っていません。続けて「車検証を撮る」を押すと埋まります",
+    ]);
+  };
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notes, setNotes] = useState<string[]>([]);
@@ -157,19 +186,24 @@ export function VehiclesClient({
         return;
       }
       const f = body.fields;
-      setForm({
+      setForm((prev) => ({
         ...EMPTY,
-        vin: f.vin ?? "",
+        ...(prev ?? {}),
+        // 車台番号・型式はQRで取れていればそれを使う（写真の誤読で上書きさせない）
+        vin: qrVin ?? f.vin ?? "",
+        modelCode: qrVin && prev?.modelCode ? prev.modelCode : (f.modelCode ?? ""),
         registrationNumber: f.registrationNumber ?? "",
         maker: f.makerName ?? "",
-        modelCode: f.modelCode ?? "",
         firstRegistered: f.firstRegistered ?? "",
-        inspectionExpiry: (f.inspectionExpiry ?? "").length === 10 ? f.inspectionExpiry : "",
-        vehicleName: "",
+        inspectionExpiry:
+          (f.inspectionExpiry ?? "").length === 10 ? f.inspectionExpiry : (prev?.inspectionExpiry ?? ""),
         customerName: f.userName ?? "",
         customerAddress: f.userAddress ?? "",
-      });
-      setNotes(body.warnings ?? []);
+      }));
+      setNotes([
+        ...(body.warnings ?? []).filter((w) => !(qrVin && w.includes("車台番号"))),
+        ...(qrVin ? ["車台番号はQRで読み取った値を使っています（写真の読み取りでは上書きしません）"] : []),
+      ]);
     } catch {
       setError("通信エラーが発生しました。手入力で進めてください");
       setForm((f) => f ?? EMPTY);
@@ -190,6 +224,7 @@ export function VehiclesClient({
         setDone(`${form.vehicleName || form.maker || "車両"}を登録しました`);
         setNotes(r.warnings ?? []);
         setForm(null);
+        setQrVin(null);
         router.refresh();
       }
     } catch {
@@ -229,9 +264,11 @@ export function VehiclesClient({
         <Card className="border-gold-300">
           <h3 className="text-sm font-bold text-ink">車検証を読み取って登録</h3>
           <p className="mt-1 text-xs text-ink-soft">
-            車検証の全体が入るように撮影してください。読み取った内容は登録前に確認・修正できます。
+            <span className="font-semibold text-ink">QRから読むのがいちばん確実です</span>
+            （車台番号・型式を誤読なく取れます）。氏名・住所はQRに入っていないため、続けて車検証の
+            写真を撮ると残りが埋まります。読み取った内容は登録前に確認・修正できます。
             <br />
-            <span className="font-semibold text-ink">撮影した車検証の画像は保存されません</span>（読み取り後に破棄します）。
+            <span className="font-semibold text-ink">車検証の画像は保存されません</span>（読み取り後に破棄します）。
           </p>
           <input
             ref={fileRef}
@@ -245,11 +282,24 @@ export function VehiclesClient({
             }}
           />
           <div className="mt-3 flex flex-wrap items-center gap-2">
+            {/* QRは文字認識ではないので車台番号・型式の誤読が起きない。まずこれを勧める */}
+            <button
+              type="button"
+              disabled={reading}
+              onClick={() => {
+                scannedRef.current = { chassis: null, modelCode: null, expiry: null };
+                setScanned({ chassis: null, modelCode: null, expiry: null });
+                setScanning(true);
+              }}
+              className="rounded-lg bg-gold-500 px-4 py-2.5 text-sm font-bold text-white disabled:opacity-50"
+            >
+              🔎 車検証のQRを読む
+            </button>
             <button
               type="button"
               disabled={!ocrEnabled || reading}
               onClick={() => fileRef.current?.click()}
-              className="rounded-lg bg-gold-500 px-4 py-2.5 text-sm font-bold text-white disabled:opacity-50"
+              className="rounded-lg border border-gold-300 px-3 py-2.5 text-sm font-bold text-ink disabled:opacity-50"
             >
               {reading ? "読み取り中…" : "📷 車検証を撮る／選ぶ"}
             </button>
@@ -273,6 +323,49 @@ export function VehiclesClient({
         </Card>
       )}
 
+      {/*
+        QRスキャナ（カメラ）。
+        車検証にはQRが複数あり、車台番号・型式・有効期間が別のQRに分かれていることがある。
+        店舗にどれを読むか選ばせず、映ったQRから取れた項目を**集めて合わせる**。
+        車台番号と型式が揃ったら自動で閉じる（車台番号だけでも「これで進む」で閉じられる）。
+      */}
+      {scanning && (
+        <ShakenQrScanner
+          status={[
+            `車台番号 ${scanned.chassis ? "✓" : "…"}`,
+            `型式 ${scanned.modelCode ? "✓" : "…"}`,
+            `有効期間 ${scanned.expiry ? "✓" : "—"}`,
+          ].join(" / ")}
+          hint={
+            scanned.chassis
+              ? "車台番号は取れました。他のQRも映すと型式・有効期間が埋まります（「閉じる」で先に進めます）"
+              : "QRが複数あってもそのまま車検証全体を映してください。必要なQRを自動で探します。"
+          }
+          onClose={() => {
+            setScanning(false);
+            applyScanned();
+          }}
+          onText={(text) => {
+            const parsed = parseShakenQr(text);
+            // 取れた項目だけ足していく（読めなかったQRは無視して読み続ける）
+            const next = {
+              chassis: scanned.chassis ?? parsed.chassis,
+              modelCode: scanned.modelCode ?? parsed.modelCode,
+              expiry: scanned.expiry ?? (qrExpiryToInput(parsed.expiry) || null),
+            };
+            scannedRef.current = next;
+            setScanned(next);
+            // 車台番号と型式が揃えば十分（有効期間は様式によって入っていない）
+            if (next.chassis && next.modelCode) {
+              setScanning(false);
+              applyScanned(next);
+              return true;
+            }
+            return false;
+          }}
+        />
+      )}
+
       {done && <p className="rounded-lg bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-800">{done}</p>}
       {error && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm font-semibold text-red-700">{error}</p>}
       {notes.length > 0 && (
@@ -292,9 +385,18 @@ export function VehiclesClient({
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
             <label className={`${label} sm:col-span-2`}>
               車台番号 <span className="text-red-600">必須</span>
+              {qrVin && form.vin === qrVin && (
+                <span className="ml-1 rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-bold text-emerald-800">
+                  QRで読み取り済み
+                </span>
+              )}
               <input
                 value={form.vin}
-                onChange={(e) => set({ vin: e.target.value })}
+                onChange={(e) => {
+                  // 手で直したらQR確定を解除する（画面の表示と実態を合わせる）
+                  if (qrVin && e.target.value !== qrVin) setQrVin(null);
+                  set({ vin: e.target.value });
+                }}
                 placeholder="ZC33S-123456"
                 className={input}
               />
