@@ -12,7 +12,7 @@
  */
 import { randomBytes } from "node:crypto";
 import { prisma } from "@/lib/db";
-import { moduleDef, validateModuleValues, isLegalRecordFacility } from "@/server/pit/cert-fields";
+import { moduleDef, validateModuleValues, moduleAdvice, isLegalRecordFacility } from "@/server/pit/cert-fields";
 import { reviewCopy } from "@/server/pit/copy-guard";
 import { resolveRetention } from "@/server/pit/cert-retention";
 import { certificateNo, certificatePayloadHash } from "@/server/pit/cert-hash";
@@ -118,6 +118,8 @@ export async function saveCertificateDraft(
 
   const legalRecord = isLegalRecordFacility(store.facilityType);
   const warnings: string[] = [];
+  // 施工種別の細目は任意。足りない・噛み合わない組み合わせは弾かずに伝える
+  if (mod) warnings.push(...moduleAdvice(mod.key, input.moduleValues));
   // 店舗が書いた自由文は弾かずに警告する（生成文はブロック。copy-guard の強度分離）
   const copy = reviewCopy(input.workSummary, "user");
   if (copy.severity !== "ok") warnings.push(copy.message);

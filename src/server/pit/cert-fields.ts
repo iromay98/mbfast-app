@@ -7,6 +7,13 @@
  *   （値は PitCertificateDetail の module + fieldKey + fieldValue に入る）。
  *
  * 表示可否は cert-visibility.ts が担当する（このファイルは「何を集めるか」だけを定義する）。
+ *
+ * 必須の考え方（重要）:
+ *  施工種別ごとの細目は**すべて任意**にしている。証明書の本質は「その施工を、いつ、誰が、どの車に
+ *  したか」であり、製品名やECU型番を必須にすると入力が止まって**記録そのものが生まれない**。
+ *  細目は書ける店・書ける場面で埋めてもらい、足りないものは「注意」として伝えるだけにする。
+ *  例外は法令で記載が要求される項目のみ（エーミングの場外実施＝場所・天候・理由、外注区分）。
+ *  法定記録簿としての最低要件は legal-record.ts が発行時に見る（そこだけは欠けたら止める）。
  */
 
 export type FieldType = "text" | "number" | "date" | "select" | "boolean" | "textarea";
@@ -83,9 +90,9 @@ export const MODULES: ModuleDef[] = [
     key: "coating",
     label: "コーティング・PPF",
     fields: [
-      { key: "product_name", label: "製品名", type: "text", required: true, hint: "ocr", help: "製品ラベルの写真から読み取れます" },
-      { key: "maker", label: "メーカー", type: "text", required: true },
-      { key: "lot_no", label: "ロット番号", type: "text", required: true, hint: "ocr", help: "手入力だと記入漏れが起きやすいため写真から読み取ります" },
+      { key: "product_name", label: "製品名", type: "text", hint: "ocr", help: "製品ラベルの写真から読み取れます（任意）" },
+      { key: "maker", label: "メーカー", type: "text" },
+      { key: "lot_no", label: "ロット番号", type: "text", hint: "ocr", help: "写真から読み取れます。分かる場合だけで構いません" },
       { key: "area", label: "施工範囲", type: "text" },
       { key: "temperature", label: "施工環境（気温）", type: "number", unit: "℃" },
       { key: "humidity", label: "施工環境（湿度）", type: "number", unit: "%" },
@@ -98,12 +105,43 @@ export const MODULES: ModuleDef[] = [
     key: "ecu",
     label: "ECUチューニング",
     fields: [
-      { key: "ecu_model", label: "ECU型番", type: "text", required: true },
-      { key: "stock_backup", label: "純正データのバックアップ", type: "select", options: ["取得済み", "未取得"], required: true, hint: "choice" },
-      { key: "backup_id", label: "バックアップ保管ID", type: "text", requiredWhen: { key: "stock_backup", equals: "取得済み" } },
+      // 施工方法で記録の意味が変わる。
+      //  OBD        … 通常は純正データを読み出せる＝バックアップありと言える
+      //  ECU直接    … 他社データが入っていてOBDから純正が読めない場合はこちらになる
+      // ここが分かれていれば「純正に戻せるか」を後から判断できる。
+      {
+        key: "method",
+        label: "施工方法",
+        type: "select",
+        options: ["OBD（車両側から）", "ECU直接（取り外し・ベンチ）", "その他"],
+        hint: "choice",
+        help: "OBDか、コンピューターを直接扱ったかで記録の意味が変わります",
+      },
+      {
+        key: "stock_backup",
+        label: "純正データのバックアップ",
+        type: "select",
+        options: [
+          "取得済み",
+          "取得できず（他社データが入っていた）",
+          "取得しない（お客様の同意あり）",
+          "未確認",
+        ],
+        hint: "choice",
+      },
+      {
+        key: "backup_consent",
+        label: "現データを残さないことへのお客様の同意",
+        type: "select",
+        options: ["同意あり", "同意なし"],
+        hint: "choice",
+        help: "バックアップを取らない場合は、同意を記録に残しておくと後の説明が楽になります",
+      },
+      { key: "backup_id", label: "バックアップ保管ID", type: "text", help: "社内の保管場所・ファイル名など" },
+      { key: "ecu_model", label: "ECU型番", type: "text", help: "分かる場合だけで構いません" },
       { key: "power_before", label: "施工前出力", type: "number", unit: "ps" },
       { key: "power_after", label: "施工後出力", type: "number", unit: "ps" },
-      { key: "revertible", label: "純正復帰の可否", type: "select", options: ["可", "不可"], required: true, hint: "choice" },
+      { key: "revertible", label: "純正復帰の可否", type: "select", options: ["可", "不可", "未確認"], hint: "choice" },
       { key: "tool", label: "使用ツール", type: "text" },
     ],
   },
@@ -141,9 +179,9 @@ export const MODULES: ModuleDef[] = [
     key: "tire",
     label: "タイヤ",
     fields: [
-      { key: "brand", label: "銘柄", type: "text", required: true, hint: "ocr" },
-      { key: "size", label: "サイズ", type: "text", required: true, hint: "ocr" },
-      { key: "dot", label: "DOT（製造週）", type: "text", required: true, hint: "ocr", help: "タイヤ側面の刻印を撮影すると読み取ります（4桁）" },
+      { key: "brand", label: "銘柄", type: "text", hint: "ocr" },
+      { key: "size", label: "サイズ", type: "text", hint: "ocr" },
+      { key: "dot", label: "DOT（製造週）", type: "text", hint: "ocr", help: "タイヤ側面の刻印を撮影すると読み取ります（4桁・任意）" },
       { key: "position_fl", label: "装着位置 右前", type: "text" },
       { key: "position_fr", label: "装着位置 左前", type: "text" },
       { key: "position_rl", label: "装着位置 右後", type: "text" },
@@ -156,7 +194,7 @@ export const MODULES: ModuleDef[] = [
     key: "repair_history",
     label: "修復歴",
     fields: [
-      { key: "has_history", label: "修復歴", type: "select", options: ["なし", "あり"], required: true, hint: "choice" },
+      { key: "has_history", label: "修復歴", type: "select", options: ["なし", "あり"], hint: "choice" },
       { key: "parts", label: "部位", type: "text", requiredWhen: { key: "has_history", equals: "あり" } },
       { key: "note", label: "備考", type: "textarea" },
     ],
@@ -203,6 +241,43 @@ export function validateModuleValues(
     }
   }
   return errors;
+}
+
+/**
+ * 入力を弾かずに伝える注意。
+ * 必須にはしない代わりに、記録として弱くなる組み合わせをここで知らせる。
+ * （現場の判断を止めないが、後で困る点は残さず伝える）
+ */
+export function moduleAdvice(moduleKey: string, values: Record<string, string>): string[] {
+  const v = (k: string) => (values[k] ?? "").trim();
+  const advice: string[] = [];
+
+  if (moduleKey === "ecu") {
+    const method = v("method");
+    const backup = v("stock_backup");
+    // OBDで純正が読めないのは他社データが入っている典型。ECU直接なら取得できる場合がある
+    if (method.startsWith("OBD") && backup.startsWith("取得できず")) {
+      advice.push(
+        "OBDでは他社データが入っていると純正データを取り出せません。純正へ戻す可能性があるなら、ECU直接での取得を検討してください",
+      );
+    }
+    if (backup.startsWith("取得しない") && v("backup_consent") !== "同意あり") {
+      advice.push("バックアップを取らない場合は、お客様の同意を「同意あり」にして記録に残しておくと後の説明が楽になります");
+    }
+    if (backup === "取得済み" && !v("backup_id")) {
+      advice.push("バックアップの保管場所（保管ID）も入れておくと、純正復帰のときに探さずに済みます");
+    }
+    if (!method) advice.push("施工方法（OBD / ECU直接）を選ぶと、純正に戻せるかが後から分かります");
+  }
+
+  if (moduleKey === "coating" && !v("lot_no")) {
+    advice.push("ロット番号は製品ラベルの写真から読み取れます（保証の照会で必要になることがあります）");
+  }
+  if (moduleKey === "tire" && !v("dot")) {
+    advice.push("DOT（製造週）はタイヤ側面の写真から読み取れます");
+  }
+
+  return advice;
 }
 
 /** 事業場区分に応じて出すモジュール（general＝認証工場以外には特定整備の項目を出さない） */

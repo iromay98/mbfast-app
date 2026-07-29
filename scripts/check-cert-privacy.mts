@@ -13,7 +13,7 @@ import {
   assertNoPrivateLeak,
   NEVER_PUBLIC_KEYS,
 } from "../src/server/pit/cert-visibility";
-import { validateModuleValues, modulesForFacility, CORE_FIELDS } from "../src/server/pit/cert-fields";
+import { validateModuleValues, modulesForFacility, moduleAdvice, moduleDef, CORE_FIELDS } from "../src/server/pit/cert-fields";
 import { checkCopy, reviewCopy } from "../src/server/pit/copy-guard";
 import {
   encryptPii,
@@ -114,13 +114,57 @@ ok(
   "外注なら外注先名が必須になる",
   outsourced.some((e) => e.fieldKey === "outsourcing_to"),
 );
-// ECU: バックアップ取得済みなら保管IDが必須
-const ecu = validateModuleValues("ecu", {
-  ecu_model: "MED17",
-  stock_backup: "取得済み",
-  revertible: "可",
+// ── 5b. 施工種別の細目は任意（記録が生まれないほうが損失。法令項目だけ必須に残す） ──
+for (const key of ["coating", "ecu", "tire", "repair_history", "battery"]) {
+  const def = moduleDef(key)!;
+  const required = def.fields.filter((f) => f.required).map((f) => f.label);
+  ok(`${def.label}の細目は必須にしない`, required.length === 0, required.join("・") || "必須なし");
+  ok(`${def.label}は空でも保存できる`, validateModuleValues(key, {}).length === 0);
+}
+const aimingRequired = moduleDef("aiming")!.fields.filter((f) => f.required).map((f) => f.key);
+ok(
+  "エーミング（法令要件）だけは必須が残る",
+  aimingRequired.includes("location_type") && aimingRequired.includes("outsourcing"),
+  aimingRequired.join(","),
+);
+
+// ── 5c. ECUは施工方法（OBD / ECU直接）で分けて記録できる ──
+const ecuFields = moduleDef("ecu")!.fields;
+const method = ecuFields.find((f) => f.key === "method");
+ok(
+  "施工方法をOBDとECU直接で選べる",
+  !!method?.options?.some((o) => o.startsWith("OBD")) && !!method?.options?.some((o) => o.includes("ECU直接")),
+  (method?.options ?? []).join("/"),
+);
+const backup = ecuFields.find((f) => f.key === "stock_backup");
+ok(
+  "他社データで取得できない場合と、同意して取らない場合を区別できる",
+  !!backup?.options?.some((o) => o.includes("他社データ")) && !!backup?.options?.some((o) => o.includes("同意")),
+  (backup?.options ?? []).join("/"),
+);
+// 助言（弾かずに伝える）
+const obdAdvice = moduleAdvice("ecu", {
+  method: "OBD（車両側から）",
+  stock_backup: "取得できず（他社データが入っていた）",
 });
-ok("純正バックアップ取得済みなら保管IDが必須", ecu.some((e) => e.fieldKey === "backup_id"));
+ok(
+  "OBDで純正が取れない場合はECU直接を案内する",
+  obdAdvice.some((a) => a.includes("ECU直接")),
+  obdAdvice.join(" / "),
+);
+const consentAdvice = moduleAdvice("ecu", {
+  method: "ECU直接（取り外し・ベンチ）",
+  stock_backup: "取得しない（お客様の同意あり）",
+});
+ok("バックアップを取らないなら同意の記録を促す", consentAdvice.some((a) => a.includes("同意")));
+ok(
+  "揃っていれば余計な注意を出さない",
+  moduleAdvice("ecu", {
+    method: "OBD（車両側から）",
+    stock_backup: "取得済み",
+    backup_id: "NAS-2026-07-01",
+  }).length === 0,
+);
 
 // ── 6. 禁止表現 ──
 const bad = [

@@ -326,6 +326,10 @@ export function CertificateForm({
               </label>
             ))}
           </div>
+          <p className="mb-2 text-[11px] text-ink-soft">
+            ここは<span className="font-semibold text-ink">すべて任意</span>です。
+            分かるところだけで構いません（「その施工をしたこと」の記録は共通項目だけで成立します）。
+          </p>
           {active.fields.some((f) => f.hint === "ocr") && (
             <p className="mt-2 text-[11px] text-ink-soft">
               {ocr && ocrEnabled

@@ -222,11 +222,20 @@ async function main() {
   ok("他店の証明書は一覧に出ない", (await listStoreCertificates(storeB.id)).length === 0);
   ok("他店の証明書IDを渡しても取得できない", (await getStoreCertificate(storeB.id, certId)) === null);
   ok("他店は発行できない", !!(await issueCertificate(ctxB, certId)).error);
-  ok(
-    "モジュール必須の欠けは弾く（ロット番号なし）",
-    !!(await saveCertificateDraft(ctxA, { ...coreInput, moduleValues: { product_name: "P", maker: "M" } }, certId))
-      .fieldErrors?.length,
+  // 施工種別の細目は任意（記録が生まれないほうが損失）。弾かずに注意だけ出す
+  const looseSave = await saveCertificateDraft(
+    ctxA,
+    { ...coreInput, moduleValues: { product_name: "P", maker: "M" } },
+    certId,
   );
+  ok("細目（ロット番号）が無くても保存できる", !!looseSave.ok && !looseSave.fieldErrors?.length, looseSave.error ?? "");
+  ok(
+    "代わりに注意が返る（写真から読める旨）",
+    (looseSave.warnings ?? []).some((w) => w.includes("ロット番号")),
+    (looseSave.warnings ?? []).join(" / "),
+  );
+  // 元の値に戻す（以降の検証は揃った状態を前提にしている）
+  await saveCertificateDraft(ctxA, coreInput, certId);
 
   // 下書きは共有ページから見えない
   const draftRow = await prisma.pitCertificate.findUnique({
