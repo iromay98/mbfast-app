@@ -17,6 +17,8 @@ export type StoreRow = {
   gbpLocationAddr: string;
   gbpLinkedAt: string;
   gbpPostingEnabled: boolean;
+  /** GBP_LOCATION_MAP による手動指定（DBの紐付けが無いときの投稿先） */
+  manualLocationId: string | null;
 };
 
 export type LocationRow = {
@@ -182,9 +184,16 @@ export function GbpLinkClient({ stores, locations }: { stores: StoreRow[]; locat
                     <span className="ml-2 font-mono text-[10px]">{s.gbpLocationId}</span>
                     {s.gbpLinkedAt && <span className="ml-2">{s.gbpLinkedAt} 紐付け</span>}
                   </p>
+                ) : s.manualLocationId ? (
+                  <p className="mt-0.5 truncate text-xs text-ink-soft">
+                    <span className="rounded bg-surface-2 px-1.5 py-0.5 text-[10px] font-bold">環境変数で指定</span>
+                    <span className="ml-2 font-mono text-[10px]">{s.manualLocationId}</span>
+                  </p>
                 ) : (
                   <p className="mt-0.5 text-xs text-ink-soft">未紐付け</p>
                 )}
+                {/* 手動指定の突き合わせに使うので slug は常に出す */}
+                <p className="mt-0.5 font-mono text-[10px] text-ink-soft">slug: {s.slug}</p>
                 {s.gbpLocationAddr && <p className="truncate text-[11px] text-ink-soft">{s.gbpLocationAddr}</p>}
               </div>
               <div className="ml-auto flex shrink-0 items-center gap-2">
@@ -195,7 +204,7 @@ export function GbpLinkClient({ stores, locations }: { stores: StoreRow[]; locat
                 >
                   {s.gbpPostingEnabled ? "投稿 有効" : "投稿 無効"}
                 </span>
-                {s.gbpLocationId && (
+                {(s.gbpLocationId || s.manualLocationId) && (
                   <>
                     <button
                       type="button"
@@ -210,17 +219,19 @@ export function GbpLinkClient({ stores, locations }: { stores: StoreRow[]; locat
                     >
                       {s.gbpPostingEnabled ? "無効にする" : "有効にする"}
                     </button>
-                    <button
-                      type="button"
-                      disabled={busy}
-                      onClick={() => {
-                        if (!window.confirm(`「${s.displayName}」の紐付けを解除します。よろしいですか？`)) return;
-                        run(() => unlinkGbpLocation(s.id), "紐付けを解除しました");
-                      }}
-                      className="text-[11px] text-ink-soft hover:underline"
-                    >
-                      解除
-                    </button>
+                    {s.gbpLocationId && (
+                      <button
+                        type="button"
+                        disabled={busy}
+                        onClick={() => {
+                          if (!window.confirm(`「${s.displayName}」の紐付けを解除します。よろしいですか？`)) return;
+                          run(() => unlinkGbpLocation(s.id), "紐付けを解除しました");
+                        }}
+                        className="text-[11px] text-ink-soft hover:underline"
+                      >
+                        解除
+                      </button>
+                    )}
                   </>
                 )}
               </div>

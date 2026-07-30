@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { requireHQ } from "@/lib/authz";
 import { PageTitle, Card } from "@/components/ui";
-import { gbpConfigured } from "@/server/pit/gbp/client";
+import { gbpConfigured, configuredAccountId, configuredLocationMap } from "@/server/pit/gbp/client";
 import { listStoreLinks, listLinkableLocations } from "@/server/pit/gbp/link";
 import { GbpLinkClient } from "./gbp-link-client";
 
@@ -19,7 +19,9 @@ export default async function HqGbpPage() {
 
   const cfg = gbpConfigured();
   const stores = await listStoreLinks();
-  const locations = cfg.ok ? await listLinkableLocations() : null;
+  // 手動指定モード（一覧APIの割り当てが0の間）は一覧取得を試みない＝無駄に失敗させない
+  const manualMode = !!configuredAccountId() && configuredLocationMap().size > 0;
+  const locations = cfg.ok && !manualMode ? await listLinkableLocations() : null;
 
   return (
     <div className="space-y-3">
@@ -61,6 +63,22 @@ export default async function HqGbpPage() {
               : locations.kind === "permission"
                 ? "APIの有効化・スコープ（business.manage）・OAuth同意画面の設定・管理権限のいずれかをご確認ください。"
                 : "時間をおいて再度お試しください。"}
+          </p>
+        </Card>
+      )}
+
+      {manualMode && (
+        <Card className="border-gold-300">
+          <p className="text-sm font-bold text-ink">手動指定モードで動いています</p>
+          <p className="mt-1 text-xs text-ink-soft">
+            アカウントIDとロケーションIDを環境変数（GBP_ACCOUNT_ID / GBP_LOCATION_MAP）で指定しているため、
+            一覧の取得（Account Management / Business Information API）を呼びません。
+            投稿は v4 の割り当てだけで動きます。
+            <br />
+            サーバー上で <span className="font-mono">npm run gbp:v4check</span> を実行すると、
+            投稿を作らずに v4 が使える状態かを確認できます。
+            <br />
+            一覧APIの割り当てが下りたら、この指定を消して下の一覧から紐付け直せます（DBの紐付けが優先されます）。
           </p>
         </Card>
       )}

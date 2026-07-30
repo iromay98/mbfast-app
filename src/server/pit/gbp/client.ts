@@ -35,6 +35,32 @@ export function configuredAccountId(): string | null {
   return /^[0-9]+$/.test(digits) ? `accounts/${digits}` : null;
 }
 
+/*
+ * ロケーションIDの手動指定。
+ *
+ * Account Management / Business Information の割り当てが0（アクセス未承認）でも、
+ * v4(mybusiness.googleapis.com) の割り当てが生きていれば投稿はできる。
+ * その間は一覧APIを一切呼ばず、店舗→ロケーションの対応を環境変数で与える。
+ *
+ *   GBP_LOCATION_MAP="pleasure:18204209748554497603,kisarazu:1600847083813484494"
+ *
+ * キーは店舗の slug（推奨）か PitStore.id。値は "locations/123..." でも数字だけでも可。
+ * 割り当てが下りたら一覧＋画面での紐付け（DB側）に移行でき、この指定は消せる。
+ */
+export function configuredLocationMap(): Map<string, string> {
+  const out = new Map<string, string>();
+  const raw = (process.env.GBP_LOCATION_MAP ?? "").trim();
+  if (!raw) return out;
+  for (const part of raw.split(",")) {
+    const [keyRaw, valRaw] = part.split(":");
+    const key = (keyRaw ?? "").trim();
+    const digits = (valRaw ?? "").trim().replace(/^locations\//, "");
+    if (!key || !/^[0-9]+$/.test(digits)) continue;
+    out.set(key, `locations/${digits}`);
+  }
+  return out;
+}
+
 /** 設定の有無だけを返す（値は返さない・出さない） */
 export function gbpConfigured(): { ok: boolean; missing: string[] } {
   const missing = (["GBP_CLIENT_ID", "GBP_CLIENT_SECRET", "GBP_REFRESH_TOKEN"] as const).filter(
@@ -347,6 +373,37 @@ export async function listLocations(accountName: string): Promise<GbpLocation[]>
     pageToken = json.nextPageToken;
   } while (pageToken);
   return out;
+}
+
+// ── v4 (投稿) ────────────────────────────────────────────
+
+export type LocalPost = {
+  /** "accounts/{a}/locations/{l}/localPosts/{p}" */
+  name: string;
+  state?: string;
+  topicType?: string;
+  summary?: string;
+  createTime?: string;
+  searchUrl?: string;
+};
+
+/*
+ * localPosts の一覧（GET）。**投稿は作らない**。
+ * v4 の割り当てが生きているかを確かめる最小のリクエストとして使う。
+ * accountId/locationId は "accounts/123" / "locations/456" 形式で受ける。
+ */
+export async function listLocalPosts(
+  accountId: string,
+  locationId: string,
+  pageSize = 1,
+): Promise<{ posts: LocalPost[]; nextPageToken?: string }> {
+  const acc = accountId.startsWith("accounts/") ? accountId : `accounts/${accountId}`;
+  const loc = locationId.startsWith("locations/") ? locationId : `locations/${locationId}`;
+  const q = new URLSearchParams({ pageSize: String(pageSize) });
+  const json = await gbpFetch<{ localPosts?: LocalPost[]; nextPageToken?: string }>(
+    `${V4_HOST}/${acc}/${loc}/localPosts?${q}`,
+  );
+  return { posts: json.localPosts ?? [], nextPageToken: json.nextPageToken };
 }
 
 /** 接続確認の1回分。失敗しても投げずに理由を返す（画面に出すため） */

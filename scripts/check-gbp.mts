@@ -130,7 +130,33 @@ ok(
   "どちらのAPIで失敗したかを出す（割り当てはAPIごと）",
 );
 
-console.log("[5] 紐付けの作法（ソース確認）");
+console.log("[5] 手動指定（一覧APIを呼ばない経路）");
+process.env.GBP_ACCOUNT_ID = "accounts/104393726705113377120";
+process.env.GBP_LOCATION_MAP = "honten:18204209748554497603,kisarazu:locations/1600847083813484494";
+const { configuredAccountId, configuredLocationMap } = await import("../src/server/pit/gbp/client");
+ok(configuredAccountId() === "accounts/104393726705113377120", "GBP_ACCOUNT_ID を正規化して読む");
+const lmap = configuredLocationMap();
+ok(lmap.get("honten") === "locations/18204209748554497603", "数字だけの指定を locations/ に正規化する");
+ok(lmap.get("kisarazu") === "locations/1600847083813484494", "locations/ 付きの指定も受ける");
+process.env.GBP_LOCATION_MAP = "bad:not-a-number,ok:123";
+const lmap2 = configuredLocationMap();
+ok(!lmap2.has("bad") && lmap2.get("ok") === "locations/123", "数字でない値は捨てる（誤った投稿先を作らない）");
+Object.assign(process.env, before);
+
+const linkSrc = readFileSync(new URL("../src/server/pit/gbp/link.ts", import.meta.url), "utf8");
+ok(
+  /if \(!s \|\| !s\.active \|\| !s\.gbpPostingEnabled\) return null;/.test(linkSrc),
+  "手動指定でも gbpPostingEnabled が false なら投稿先にしない",
+);
+ok(
+  linkSrc.indexOf("s.gbpLocationId && s.gbpAccountId") < linkSrc.indexOf("return manualTargetFor(s)"),
+  "DBの紐付けを手動指定より優先する",
+);
+const v4 = readFileSync(new URL("./gbp-v4check.mts", import.meta.url), "utf8");
+ok(v4.includes("listLocalPosts(") && !v4.includes("createLocalPost"), "v4確認は一覧のみ（投稿を作らない）");
+ok(!v4.includes("listAccounts") && !v4.includes("listLocations"), "v4確認は一覧APIを呼ばない");
+
+console.log("[6] 紐付けの作法（ソース確認）");
 const link = readFileSync(new URL("../src/server/pit/gbp/link.ts", import.meta.url), "utf8");
 // 店名の類似度などで自動的に決める処理を持ち込まないこと（誤配信の元）
 ok(
@@ -144,8 +170,10 @@ ok(
   "解除すると投稿も無効になる",
 );
 ok(
-  /!s\.active \|\| !s\.gbpPostingEnabled \|\| !s\.gbpLocationId/.test(link),
-  "投稿先の判定は 有効店舗＋投稿有効＋紐付け済み の3条件",
+  /!s\.active \|\| !s\.gbpPostingEnabled/.test(link) &&
+    /gbpLocationId && s\.gbpAccountId/.test(link) &&
+    link.includes("manualTargetFor(s)"),
+  "投稿先の判定は 有効店舗＋投稿有効＋（DB紐付け or 手動指定）",
 );
 const actions = readFileSync(new URL("../src/lib/actions/pit-gbp.ts", import.meta.url), "utf8");
 ok(

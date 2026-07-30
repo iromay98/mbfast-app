@@ -9,7 +9,13 @@
  *  - 紐付け時のGoogle側の店名・住所を保存する（後から照合を疑えるようにする）。
  */
 import { prisma } from "@/lib/db";
-import { checkGbpConnection, type GbpLocation, type GbpFailure } from "./client";
+import {
+  checkGbpConnection,
+  configuredAccountId,
+  configuredLocationMap,
+  type GbpLocation,
+  type GbpFailure,
+} from "./client";
 
 export type LinkableLocation = GbpLocation & {
   accountId: string;
@@ -31,10 +37,12 @@ export type StoreLinkRow = {
   gbpLocationAddr: string;
   gbpLinkedAt: Date | null;
   gbpPostingEnabled: boolean;
+  /** GBP_LOCATION_MAP による手動指定（DBの紐付けが無いときの投稿先） */
+  manualLocationId: string | null;
 };
 
 export async function listStoreLinks(): Promise<StoreLinkRow[]> {
-  return prisma.pitStore.findMany({
+  const rows = await prisma.pitStore.findMany({
     orderBy: [{ active: "desc" }, { displayName: "asc" }],
     select: {
       id: true,
@@ -50,6 +58,7 @@ export async function listStoreLinks(): Promise<StoreLinkRow[]> {
       gbpPostingEnabled: true,
     },
   });
+  return rows.map((r) => ({ ...r, manualLocationId: manualTargetFor(r)?.locationId ?? null }));
 }
 
 /** Googleから取得できるロケーション一覧（紐付け画面の選択肢）。失敗理由も返す */
@@ -147,34 +156,63 @@ export async function unlinkStore(storeId: string): Promise<{ ok?: true; error?:
   return { ok: true };
 }
 
-/** 投稿の有効・無効。紐付いていない店舗は有効にできない */
+/** 投稿の有効・無効。投稿先が決まっていない店舗は有効にできない */
 export async function setGbpPostingEnabled(
   storeId: string,
   enabled: boolean,
 ): Promise<{ ok?: true; error?: string }> {
   const store = await prisma.pitStore.findUnique({
     where: { id: storeId },
-    select: { gbpLocationId: true },
+    select: { id: true, slug: true, gbpLocationId: true },
   });
   if (!store) return { error: "店舗が見つかりません" };
-  if (enabled && !store.gbpLocationId) {
-    return { error: "先にGoogleのロケーションと紐付けてください" };
+  // 手動指定（GBP_LOCATION_MAP）でも投稿先は決まるので、それも紐付け済みとして扱う
+  if (enabled && !store.gbpLocationId && !manualTargetFor(store)) {
+    return { error: "先にGoogleのロケーションと紐付けてください（または GBP_LOCATION_MAP に追加）" };
   }
   await prisma.pitStore.update({ where: { id: storeId }, data: { gbpPostingEnabled: enabled } });
   return { ok: true };
 }
 
+export type GbpTarget = {
+  accountId: string;
+  locationId: string;
+  /** db = 画面で紐付けた / env = GBP_LOCATION_MAP による手動指定 */
+  source: "db" | "env";
+};
+
+/*
+ * 環境変数による手動指定の解決（一覧APIを一切呼ばない経路）。
+ * キーは slug か店舗ID。アカウントIDは GBP_ACCOUNT_ID を使う。
+ */
+export function manualTargetFor(store: { id: string; slug: string }): GbpTarget | null {
+  const accountId = configuredAccountId();
+  if (!accountId) return null;
+  const map = configuredLocationMap();
+  const locationId = map.get(store.slug) ?? map.get(store.id);
+  return locationId ? { accountId, locationId, source: "env" } : null;
+}
+
 /*
  * 投稿先として使える店舗か（Step 3 の投稿処理はこの関数を必ず通す）。
- * 紐付け済み・投稿有効・店舗が有効、の3つが揃って初めて true。
+ * 店舗が有効・投稿が有効、が前提。投稿先はDBの紐付けを優先し、無ければ手動指定を見る。
+ * **gbpPostingEnabled が false の店舗は、手動指定があっても投稿先にしない。**
  */
-export async function gbpTargetOf(
-  storeId: string,
-): Promise<{ accountId: string; locationId: string } | null> {
+export async function gbpTargetOf(storeId: string): Promise<GbpTarget | null> {
   const s = await prisma.pitStore.findUnique({
     where: { id: storeId },
-    select: { active: true, gbpAccountId: true, gbpLocationId: true, gbpPostingEnabled: true },
+    select: {
+      id: true,
+      slug: true,
+      active: true,
+      gbpAccountId: true,
+      gbpLocationId: true,
+      gbpPostingEnabled: true,
+    },
   });
-  if (!s || !s.active || !s.gbpPostingEnabled || !s.gbpLocationId || !s.gbpAccountId) return null;
-  return { accountId: s.gbpAccountId, locationId: s.gbpLocationId };
+  if (!s || !s.active || !s.gbpPostingEnabled) return null;
+  if (s.gbpLocationId && s.gbpAccountId) {
+    return { accountId: s.gbpAccountId, locationId: s.gbpLocationId, source: "db" };
+  }
+  return manualTargetFor(s);
 }
