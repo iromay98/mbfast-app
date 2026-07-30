@@ -12,6 +12,7 @@
  */
 import {
   gbpConfigured,
+  configuredAccountId,
   listAccounts,
   listLocations,
   accessToken,
@@ -69,21 +70,32 @@ try {
   process.exit(1);
 }
 
-// 1) アカウント一覧（Account Management API）
+// 1) アカウント一覧（Account Management API）。
+//    GBP_ACCOUNT_ID を指定していれば、このAPIを使わずに次へ進む。
+const fixed = configuredAccountId();
 let accounts;
-try {
-  accounts = await listAccounts();
-  console.log(`✓ accounts.list: OK（${accounts.length}件）`);
-} catch (e) {
-  dump("accounts.list に失敗（mybusinessaccountmanagement.googleapis.com）", e);
-  console.log("");
-  console.log("原因の見分け方:");
-  console.log("  RESOURCE_EXHAUSTED …… APIは有効だが割り当てが不足/0。details の metric と limit を確認。");
-  console.log("                        limit が 0 なら、そのAPIの割り当て申請がまだ通っていない");
-  console.log("                        （承認は API ごと・プロジェクトごと。別APIの承認では通らない）");
-  console.log("  PERMISSION_DENIED … API未有効化 / スコープ不足 / このアカウントに管理権限が無い");
-  console.log("  UNAUTHENTICATED …… トークンが無効");
-  process.exit(1);
+if (fixed) {
+  console.log(`✓ accounts.list は省略（GBP_ACCOUNT_ID=${fixed} を使用）`);
+  accounts = [{ name: fixed, accountName: "（環境変数で指定）", type: "-", role: "-" }];
+} else {
+  try {
+    accounts = await listAccounts();
+    console.log(`✓ accounts.list: OK（${accounts.length}件）`);
+  } catch (e) {
+    dump("accounts.list に失敗（mybusinessaccountmanagement.googleapis.com）", e);
+    console.log("");
+    console.log("原因の見分け方:");
+    console.log("  RESOURCE_EXHAUSTED + quota_limit_value: 0");
+    console.log("      → 使いすぎではなく、そのAPIへのアクセスがまだ許可されていない状態。");
+    console.log("        『割り当ての増加』ではなく Application for Basic API Access を出す。");
+    console.log("        承認はプロジェクト単位・API単位（別APIの承認では通らない）。");
+    console.log("  PERMISSION_DENIED … API未有効化 / スコープ不足 / このアカウントに管理権限が無い");
+    console.log("  UNAUTHENTICATED …… トークンが無効");
+    console.log("");
+    console.log("回避策: アカウントIDが分かっているなら GBP_ACCOUNT_ID に入れると");
+    console.log("        このAPIを呼ばずにロケーション取得・投稿まで進めます。");
+    process.exit(1);
+  }
 }
 
 if (accounts.length === 0) {

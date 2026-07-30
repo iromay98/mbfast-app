@@ -112,6 +112,16 @@ ok(denied.apiStatus === "PERMISSION_DENIED", "403でも error.status で区別�
 ok(denied.details.some((d) => d.includes("SERVICE_DISABLED")), "API未有効化の理由が出る");
 ok(parseGoogleError("<html>502</html>").details.length === 0, "JSONでない応答でも落ちない");
 
+const clientSrc = readFileSync(new URL("../src/server/pit/gbp/client.ts", import.meta.url), "utf8");
+ok(
+  clientSrc.includes("const fixed = configuredAccountId();"),
+  "GBP_ACCOUNT_ID があれば accounts.list を呼ばない（割り当てを使わない）",
+);
+ok(
+  /if \(fixed\) \{/.test(clientSrc) && clientSrc.includes("const accounts = await listAccounts();"),
+  "指定が無いときだけ accounts.list に落ちる（既定の挙動は変えない）",
+);
+
 const accountsScript = readFileSync(new URL("./gbp-accounts.mts", import.meta.url), "utf8");
 ok(accountsScript.includes("error.status"), "接続確認スクリプトが error.status を出す");
 ok(accountsScript.includes("raw body (redacted)"), "生の応答（伏せ字済み）も出す");

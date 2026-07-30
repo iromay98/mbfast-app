@@ -20,6 +20,21 @@ export const GBP_SCOPE = "https://www.googleapis.com/auth/business.manage";
 
 export type GbpConfig = { clientId: string; clientSecret: string; refreshToken: string };
 
+/*
+ * アカウントIDを環境変数で固定できるようにする。
+ *
+ * accounts.list は Account Management API を叩く＝この割り当てが0だと何も始まらない。
+ * だがアカウントIDは一度分かれば変わらないので、控えておけば通常運用では
+ * accounts.list を呼ばずに済む（ロケーション取得・投稿は別APIで、割り当ても別枠）。
+ * 形式は "accounts/123..." でも数字だけでも受ける。
+ */
+export function configuredAccountId(): string | null {
+  const raw = (process.env.GBP_ACCOUNT_ID ?? "").trim();
+  if (!raw) return null;
+  const digits = raw.replace(/^accounts\//, "");
+  return /^[0-9]+$/.test(digits) ? `accounts/${digits}` : null;
+}
+
 /** 設定の有無だけを返す（値は返さない・出さない） */
 export function gbpConfigured(): { ok: boolean; missing: string[] } {
   const missing = (["GBP_CLIENT_ID", "GBP_CLIENT_SECRET", "GBP_REFRESH_TOKEN"] as const).filter(
@@ -352,6 +367,26 @@ export async function checkGbpConnection(): Promise<
   { ok: true; accounts: { account: GbpAccount; locations: GbpLocation[] }[] } | GbpFailure
 > {
   try {
+    // GBP_ACCOUNT_ID が指定されていれば accounts.list を呼ばない
+    // （Account Management API の割り当てを使わずにロケーションを取れる）
+    const fixed = configuredAccountId();
+    if (fixed) {
+      const locations = await listLocations(fixed);
+      return {
+        ok: true,
+        accounts: [
+          {
+            account: {
+              name: fixed,
+              accountName: "（GBP_ACCOUNT_ID で指定）",
+              type: "-",
+              role: "-",
+            },
+            locations,
+          },
+        ],
+      };
+    }
     const accounts = await listAccounts();
     const result: { account: GbpAccount; locations: GbpLocation[] }[] = [];
     for (const a of accounts) {
