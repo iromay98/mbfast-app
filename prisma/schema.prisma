@@ -749,6 +749,19 @@ model PitStore {
   facilityType    String @default("general") // certified | designated | general
   certificationNo String @default("") // 認証番号（自動補完・推測はしない）
 
+  /*
+   * Googleビジネスプロフィール（施工記録のGoogleマップ投稿）。
+   * 紐付けは必ず人が選ぶ（店名の表記ゆれで別の店に投稿する事故を防ぐため自動照合はしない）。
+   * gbpLocationId は一意＝1つのロケーションを2店舗に割り当てられない。
+   */
+  gbpAccountId      String    @default("") // "accounts/123..."
+  gbpLocationId     String?   @unique // "locations/456..."（未紐付けは null）
+  gbpLocationName   String    @default("") // Google側の表示名（照合確認用に保持）
+  gbpLocationAddr   String    @default("") // 紐付け時点のGoogle側住所（照合の記録）
+  gbpLinkedAt       DateTime?
+  gbpLinkedByUserId String? // 誰が紐付けたか（誤配信の追跡用）
+  gbpPostingEnabled Boolean   @default(false) // 投稿の有効・無効（既定は無効）
+
   posts        PitPost[]
   customers    PitCustomer[]
   certificates PitCertificate[]
