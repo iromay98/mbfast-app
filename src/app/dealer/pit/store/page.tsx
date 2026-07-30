@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { pitMetadata } from "@/lib/pit-metadata";
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { requireDealer } from "@/lib/authz";
 import { prisma } from "@/lib/db";
@@ -38,6 +39,18 @@ export default async function PitStorePage() {
         title="店舗情報"
         subtitle="HPの店舗ページ・カードに表示される内容です。保存すると即時反映されます"
       />
+      <Link
+        href="/dealer/pit/gbp"
+        className="flex items-center justify-between rounded-xl border border-line bg-white px-3 py-2.5 text-sm hover:bg-gray-50"
+      >
+        <span className="font-semibold text-ink">
+          Googleマップ連携
+          <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-800">
+            準備中
+          </span>
+        </span>
+        <span className="text-gold-600">設定 →</span>
+      </Link>
       <Card>
         <StoreInfoEditor
           scope="self"

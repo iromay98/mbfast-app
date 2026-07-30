@@ -61,6 +61,19 @@ export function configuredLocationMap(): Map<string, string> {
   return out;
 }
 
+/*
+ * mbFASTを管理者に招待するためのGoogleアカウント（メールアドレス）。
+ *
+ * これは秘密情報ではない（加盟店が自店のGoogleビジネスプロフィールに管理者として
+ * 招待する宛先＝相手に伝えることが目的）。認証情報（CLIENT_SECRET等）とは別物。
+ * 未設定なら null を返し、画面は「本部にお問い合わせください」を出す。
+ */
+export function gbpManagerEmail(): string | null {
+  const raw = (process.env.GBP_MANAGER_EMAIL ?? "").trim();
+  // ざっくりメール形式のときだけ返す（typoで変な文字列を画面に出さない）
+  return /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(raw) ? raw : null;
+}
+
 /** 設定の有無だけを返す（値は返さない・出さない） */
 export function gbpConfigured(): { ok: boolean; missing: string[] } {
   const missing = (["GBP_CLIENT_ID", "GBP_CLIENT_SECRET", "GBP_REFRESH_TOKEN"] as const).filter(

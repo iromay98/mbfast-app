@@ -67,7 +67,7 @@ export default async function DealerLayout({
         icon: "user",
         also: ["/dealer/pit/vehicles", "/dealer/pit/certificates"],
       },
-      { href: "/dealer/pit/store", label: "店舗", icon: "shop" },
+      { href: "/dealer/pit/store", label: "店舗", icon: "shop", also: ["/dealer/pit/gbp"] },
     ];
     const pitNav: NavItem[] = [
       { href: "/dealer/pit/home", label: "ホーム" },
@@ -75,6 +75,7 @@ export default async function DealerLayout({
       { href: "/dealer/pit/customers", label: "顧客カルテ" },
       { href: "/dealer/pit/vehicles", label: "車両登録" },
       { href: "/dealer/pit/certificates", label: "施工証明書" },
+      { href: "/dealer/pit/gbp", label: "Googleマップ連携" },
       { href: "/dealer/pit/store", label: "店舗情報" },
     ];
     return (
