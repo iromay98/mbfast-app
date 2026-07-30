@@ -407,5 +407,55 @@ ok("ハッシュ計算モジュールはDBに依存しない（単体で検証�
 const shaken = publicSafeMedia([{ kind: "shaken_cert", isPublicSafe: true, storageKey: "shaken.webp" }]);
 ok("車検証画像は公開側へ渡らない（明示的にtrueでも）", shaken.length === 0);
 
+// ── 14. 写真の公開判定は「許可リスト方式」（未知の種別は通さない） ──
+const unknownKind = publicSafeMedia([
+  { kind: "engine_bay_with_vin", isPublicSafe: true, storageKey: "new-kind.webp" },
+]);
+ok(
+  "許可リストに無い新しい種別は、公開可を立てても公開されない（デフォルト除外）",
+  unknownKind.length === 0,
+);
+ok(
+  "許可リストにある種別＋公開可 は通る",
+  publicSafeMedia([{ kind: "before", isPublicSafe: true, storageKey: "b.webp" }]).length === 1,
+);
+for (const k of ["meter", "device_screen", "other"]) {
+  ok(
+    `${k} は公開に回せない（走行距離・機器画面・内容不明は証跡専用）`,
+    publicSafeMedia([{ kind: k, isPublicSafe: true, storageKey: `${k}.webp` }]).length === 0,
+  );
+}
+
+// 写真の実装側: 種別の検査と配信の二重チェックが入っていること
+const mediaSrc = readFileSync(new URL("../src/server/pit/cert-media.ts", import.meta.url), "utf8");
+ok(
+  "アップロード時に許可外の種別へ公開フラグを立てない",
+  mediaSrc.includes("input.wantPublic && isPublicAllowedMediaKind(input.kind)"),
+);
+ok(
+  "公開経路の配信でも種別で弾く（DBのフラグが誤っていても漏らさない）",
+  /where\.scope === "public" && \(!isPublicAllowedMediaKind\(m\.kind\) \|\| isCertOnlyMediaKind\(m\.kind\)\)/.test(
+    mediaSrc,
+  ),
+);
+ok(
+  "発行済みの証明書には写真を追加・削除させない",
+  mediaSrc.includes("発行済みの証明書には写真を追加できません") &&
+    mediaSrc.includes("発行済みの証明書の写真は削除できません"),
+);
+ok("保存前にEXIFを落とす（processPhoto を通す）", mediaSrc.includes("processPhoto("));
+ok(
+  "保存キーは推測不能（連番や証明書IDを使わない）",
+  mediaSrc.includes("crypto.randomUUID()") && !/storageKey: `pit\/cert-media\/\$\{input\.certificateId/.test(mediaSrc),
+);
+const publicRoute = readFileSync(
+  new URL("../src/app/cert/[token]/media/[mediaId]/route.ts", import.meta.url),
+  "utf8",
+);
+ok(
+  "共有ページの写真配信はトークン経由（証明書IDをURLに出さない）",
+  publicRoute.includes('scope: "public", shareToken: token') && !publicRoute.includes("certificateId"),
+);
+
 console.log(failed === 0 ? "\n全チェック合格" : `\n${failed}件のチェックに失敗`);
 process.exit(failed === 0 ? 0 : 1);

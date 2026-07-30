@@ -6,6 +6,7 @@ import { readVehicleSecrets } from "@/server/pit/vehicle-register";
 import { toSheetProps } from "@/server/pit/cert-sheet-data";
 import { CertificateSheet } from "@/components/certificate-sheet";
 import { certVerifyQr } from "@/server/pit/cert-share";
+import { listPublicCertificateMedia } from "@/server/pit/cert-media";
 import { PrintButton } from "./print-button";
 
 /*
@@ -82,6 +83,11 @@ export default async function SharedCertificatePage({
   // マスク時は全桁をHTMLに載せない（画面はマスクなのにソースに残る状態を作らない）
   const sheet = toSheetProps(cert, revealVin ? secrets : { ...secrets, vin: null });
   const qr = await certVerifyQr(cert);
+  // 公開可の写真だけ（種別の許可リストも通す）。URLはトークン配下＝証明書IDを出さない
+  const photos = (await listPublicCertificateMedia(token)).map((m) => ({
+    url: `/cert/${token}/media/${m.id}`,
+    label: m.kindLabel,
+  }));
 
   return (
     <div className="min-h-screen bg-neutral-200 py-4">
@@ -92,7 +98,7 @@ export default async function SharedCertificatePage({
           </p>
           <PrintButton />
         </div>
-        <CertificateSheet {...sheet} {...qr} revealVin={revealVin} />
+        <CertificateSheet {...sheet} {...qr} revealVin={revealVin} photos={photos} />
         <p className="no-print mt-3 text-center text-[11px] text-neutral-500">
           {revealVin ? (
             <a href={`/cert/${token}`} className="underline">

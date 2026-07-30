@@ -144,6 +144,10 @@ body {
 .cert-qr svg {
   display: block;
 }
+.cert-photo {
+  border: 1px solid rgba(201, 162, 39, 0.4);
+  background: #2a2a2a;
+}
 
 @media print {
   .no-print {
@@ -174,6 +178,10 @@ body {
   }
   .cert-seal-sub {
     color: #555;
+  }
+  .cert-photo {
+    border: 1px solid #bbb;
+    background: #f4f4f4;
   }
   /* 表が途中で切れると読めなくなるため、行の分割を避ける */
   .cert-sheet tr,

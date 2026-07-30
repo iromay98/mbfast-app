@@ -48,6 +48,8 @@ export type CertificateSheetProps = {
   verifyQrSvg?: string;
   /** 車台番号を全桁表示する（既定はマスク。印刷用の紙・本部画面で使う） */
   revealVin?: boolean;
+  /** 証跡写真（公開経路では公開可のものだけが渡ってくる。URLは認可付きルート） */
+  photos?: { url: string; label: string }[];
 };
 
 /** 車台番号のマスク: 末尾3桁だけ残す（例 ****-***728） */
@@ -164,6 +166,22 @@ export function CertificateSheet(p: CertificateSheetProps) {
           <Row label="連絡先" value={p.customer.tel} optional />
         </tbody>
       </table>
+
+      {/* 証跡写真。渡された分だけ出す（公開ページには公開可のものしか渡らない） */}
+      {p.photos && p.photos.length > 0 && (
+        <div className="mt-3 flex flex-wrap gap-2">
+          {p.photos.map((ph) => (
+            /* eslint-disable-next-line @next/next/no-img-element */
+            <img
+              key={ph.url}
+              src={ph.url}
+              alt={ph.label}
+              title={ph.label}
+              className="cert-photo h-[54px] w-[72px] rounded-md object-cover"
+            />
+          ))}
+        </div>
+      )}
 
       {/* 改ざん検証ハッシュ */}
       <div className="cert-hash mt-3 px-3 py-2">

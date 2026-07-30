@@ -10,7 +10,9 @@ import { readVehicleSecrets } from "@/server/pit/vehicle-register";
 import { toSheetProps } from "@/server/pit/cert-sheet-data";
 import { isLegalRecordFacility } from "@/server/pit/cert-fields";
 import { CertificateSheet } from "@/components/certificate-sheet";
+import { CertMediaPanel } from "@/app/dealer/pit/certificates/[id]/cert-media-panel";
 import { certVerifyQr } from "@/server/pit/cert-share";
+import { listCertificateMedia, CERT_MEDIA_KINDS, MAX_CERT_MEDIA } from "@/server/pit/cert-media";
 import { CertificateActions } from "./certificate-actions";
 
 export const dynamic = "force-dynamic";
@@ -35,6 +37,11 @@ export default async function CertificateDetailPage({ params }: { params: Promis
   });
   const sheet = toSheetProps(cert, secrets);
   const qr = await certVerifyQr(cert);
+  const media = await listCertificateMedia(cert.id, own.store.id);
+  const photos = media.map((m) => ({
+    url: `/api/pit/cert-media/${m.id}`,
+    label: m.kindLabel,
+  }));
 
   const warnings: string[] = [];
   if (isLegalRecordFacility(cert.store.facilityType)) {
@@ -96,8 +103,17 @@ export default async function CertificateDetailPage({ params }: { params: Promis
         </Card>
       )}
 
+      <CertMediaPanel
+        certificateId={cert.id}
+        storeId={undefined}
+        media={media}
+        kinds={CERT_MEDIA_KINDS}
+        editable={cert.status === "draft" || cert.status === "failed"}
+        maxCount={MAX_CERT_MEDIA}
+      />
+
       <div className="rounded-xl border border-line bg-white">
-        <CertificateSheet {...sheet} {...qr} revealVin />
+        <CertificateSheet {...sheet} {...qr} revealVin photos={photos} />
       </div>
     </div>
   );

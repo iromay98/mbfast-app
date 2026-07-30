@@ -39,9 +39,26 @@ export const NEVER_PUBLIC_KEYS = [
  */
 export const NEVER_PUBLIC_MEDIA_KINDS = ["shaken_cert", "vehicle_plate", "diagnostic_screen"] as const;
 
+/*
+ * 公開してよい画像種別の**許可リスト**（デフォルト除外）。
+ *
+ * 除外リスト方式（載っていなければ通す）だと、新しい種別を足したときに
+ * 黙って公開側へ流れる。**ここに書いた種別以外は公開しない**。
+ * 迷ったら足さない — 公開しないことで失われるのは見栄えだけだが、
+ * 逆は取り返せない。
+ */
+export const PUBLIC_ALLOWED_MEDIA_KINDS = ["before", "after", "product_label", "tire"] as const;
+
 /** 証明書専用の画像種別か（公開候補にも出さない） */
 export function isCertOnlyMediaKind(kind: string): boolean {
   return (NEVER_PUBLIC_MEDIA_KINDS as readonly string[]).includes(kind);
+}
+
+/** 公開してよい種別か（許可リストにあり、かつ never-public でない） */
+export function isPublicAllowedMediaKind(kind: string): boolean {
+  return (
+    (PUBLIC_ALLOWED_MEDIA_KINDS as readonly string[]).includes(kind) && !isCertOnlyMediaKind(kind)
+  );
 }
 
 /** 公開ブログへ渡せる車両情報（車台番号・登録番号は「存在しない」） */
@@ -82,13 +99,17 @@ export function toPublicVehicle(v: VehicleRow): PublicVehicleView {
   };
 }
 
-/** 公開して良い写真だけを抜く */
+/*
+ * 公開して良い写真だけを抜く。
+ * 条件は3つとも必要:
+ *   1. 種別が許可リストにある（未知の種別は通さない＝デフォルト除外）
+ *   2. never-public の種別でない（二重の歯止め）
+ *   3. 店舗が明示的に「公開してよい」と付けている（isPublicSafe）
+ */
 export function publicSafeMedia<T extends { kind: string; isPublicSafe: boolean; storageKey: string }>(
   media: T[],
 ): string[] {
-  return media
-    .filter((m) => m.isPublicSafe && !(NEVER_PUBLIC_MEDIA_KINDS as readonly string[]).includes(m.kind))
-    .map((m) => m.storageKey);
+  return media.filter((m) => m.isPublicSafe && isPublicAllowedMediaKind(m.kind)).map((m) => m.storageKey);
 }
 
 /**
