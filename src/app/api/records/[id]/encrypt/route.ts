@@ -2,8 +2,8 @@ import type { NextRequest } from "next/server";
 import { createHash } from "crypto";
 import { getSessionUser } from "@/lib/authz";
 import { prisma } from "@/lib/db";
-import { storage, type StoredFile } from "@/server/storage";
-import { encryptSlave } from "@/server/autotuner/client";
+import { type StoredFile } from "@/server/storage";
+import { freshSlave } from "@/server/autotuner/reencrypt";
 import { fileResponse } from "@/server/catalog/download-log";
 import { buildDownloadName, composeContent, dateLabel } from "@/server/catalog/filename";
 
@@ -71,20 +71,14 @@ export async function POST(
   const tuned = Buffer.from(await file.arrayBuffer());
   // キャッシュ: 同じ bin(hash) × 同じ車(slaveId) × mode は使い回す
   const tunedHash = createHash("sha256").update(tuned).digest("hex");
+  // .slave はAutoTuner側に有効期限があるため配信のたびに作り直す。cacheKeyは監査用。
   const cacheKey = `records/encrypted/${tunedHash}__${slaveId}${mode === "backup" ? "__bak" : ""}.slave`;
   let slaveData: Buffer;
-  const cached = await storage.read(cacheKey);
-  if (cached) {
-    slaveData = cached.buffer;
-  } else {
-    try {
-      const enc = await encryptSlave(tuned, { slaveId, ecuId, modelId, mcuId }, { recordId, mode });
-      slaveData = enc.slaveData;
-      await storage.save(cacheKey, slaveData, "application/octet-stream");
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      return new Response(`暗号化に失敗しました: ${msg}`, { status: 502 });
-    }
+  try {
+    slaveData = await freshSlave(tuned, { slaveId, ecuId, modelId, mcuId }, cacheKey, { recordId, mode });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return new Response(`暗号化に失敗しました: ${msg}`, { status: 502 });
   }
 
   const name = buildDownloadName({

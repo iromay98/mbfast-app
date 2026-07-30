@@ -2,7 +2,8 @@ import type { NextRequest } from "next/server";
 import { getSessionUser } from "@/lib/authz";
 import { prisma } from "@/lib/db";
 import { storage, type StoredFile } from "@/server/storage";
-import { encryptSlave, decryptSlave } from "@/server/autotuner/client";
+import { decryptSlave } from "@/server/autotuner/client";
+import { freshSlave } from "@/server/autotuner/reencrypt";
 import { fileResponse, logCatalogDownload } from "@/server/catalog/download-log";
 import { buildDownloadName, dateLabel } from "@/server/catalog/filename";
 
@@ -119,36 +120,28 @@ export async function GET(
     }
     const bakSlavePath = sideRow ? sideRow.slaveFilePath : record.slaveFilePath;
     if (!bakSlavePath) return new Response("Not Found", { status: 404 });
+    // 純正フルバックアップ: 復号bin は不変なのでキャッシュ可。ただし .slave は毎回作り直す（有効期限対策）。
     const bakCache = `records/stock-encrypted/${recordId}__${slaveId}__bak.slave`;
-    let bakSlave = (await storage.read(bakCache))?.buffer ?? null;
-    if (!bakSlave) {
-      // 純正のフルバックアップ（decrypt mode=backup）。既存キャッシュがあれば使う。
-      const bakBinKey = sideRow ? `decrypted-bak/${recordId}__${sideRow.id}.bin` : `decrypted-bak/${recordId}.bin`;
-      let bakBin = (await storage.read(bakBinKey))?.buffer ?? null;
-      if (!bakBin) {
-        const slave = await storage.read(bakSlavePath);
-        if (!slave) return new Response("Not Found", { status: 404 });
-        try {
-          const dec = await decryptSlave(slave.buffer, { recordId, mode: "backup" });
-          bakBin = dec.decryptedData;
-          await storage.save(bakBinKey, bakBin, "application/octet-stream");
-        } catch (e) {
-          const msg = e instanceof Error ? e.message : String(e);
-          return new Response(`bak復号に失敗しました: ${msg}`, { status: 502 });
-        }
-      }
+    const bakBinKey = sideRow ? `decrypted-bak/${recordId}__${sideRow.id}.bin` : `decrypted-bak/${recordId}.bin`;
+    let bakBin = (await storage.read(bakBinKey))?.buffer ?? null;
+    if (!bakBin) {
+      const slave = await storage.read(bakSlavePath);
+      if (!slave) return new Response("Not Found", { status: 404 });
       try {
-        const enc = await encryptSlave(
-          bakBin,
-          { slaveId, ecuId, modelId, mcuId },
-          { recordId, mode: "backup" },
-        );
-        bakSlave = enc.slaveData;
-        await storage.save(bakCache, bakSlave, "application/octet-stream");
+        const dec = await decryptSlave(slave.buffer, { recordId, mode: "backup" });
+        bakBin = dec.decryptedData;
+        await storage.save(bakBinKey, bakBin, "application/octet-stream");
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
-        return new Response(`暗号化に失敗しました: ${msg}`, { status: 502 });
+        return new Response(`bak復号に失敗しました: ${msg}`, { status: 502 });
       }
+    }
+    let bakSlave: Buffer;
+    try {
+      bakSlave = await freshSlave(bakBin, { slaveId, ecuId, modelId, mcuId }, bakCache, { recordId, mode: "backup" });
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      return new Response(`暗号化に失敗しました: ${msg}`, { status: 502 });
     }
     await logCatalogDownload({
       variantId: null,
@@ -179,23 +172,16 @@ export async function GET(
     return fileResponse(outBak, bakName, outBak.contentType);
   }
 
-  // キャッシュ: 同じ純正(hash) × 同じ車(slaveId)
+  // .slave はAutoTuner側に有効期限があるため配信のたびに作り直す。cacheKeyは監査用。
   const cacheKey = `records/stock-encrypted/${srcHash ?? recordId}__${slaveId}.slave`;
+  const stock = await storage.read(srcPath);
+  if (!stock) return new Response("Not Found", { status: 404 });
   let slaveData: Buffer;
-  const cached = await storage.read(cacheKey);
-  if (cached) {
-    slaveData = cached.buffer;
-  } else {
-    const stock = await storage.read(srcPath);
-    if (!stock) return new Response("Not Found", { status: 404 });
-    try {
-      const enc = await encryptSlave(stock.buffer, { slaveId, ecuId, modelId, mcuId }, { recordId });
-      slaveData = enc.slaveData;
-      await storage.save(cacheKey, slaveData, "application/octet-stream");
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      return new Response(`暗号化に失敗しました: ${msg}`, { status: 502 });
-    }
+  try {
+    slaveData = await freshSlave(stock.buffer, { slaveId, ecuId, modelId, mcuId }, cacheKey, { recordId });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return new Response(`暗号化に失敗しました: ${msg}`, { status: 502 });
   }
 
   await logCatalogDownload({

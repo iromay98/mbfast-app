@@ -2,7 +2,7 @@ import type { NextRequest } from "next/server";
 import { getSessionUser } from "@/lib/authz";
 import { prisma } from "@/lib/db";
 import { storage, type StoredFile } from "@/server/storage";
-import { encryptSlave } from "@/server/autotuner/client";
+import { freshSlave } from "@/server/autotuner/reencrypt";
 import { fileResponse, logCatalogDownload } from "@/server/catalog/download-log";
 import { deliverOpenRequestsByDownload } from "@/server/catalog/deliver";
 import { buildDownloadName, composeContent, dateLabel } from "@/server/catalog/filename";
@@ -137,29 +137,17 @@ export async function GET(
     return new Response("この記録には再暗号化に必要な情報がありません", { status: 409 });
   }
 
-  // キャッシュ: 同じ mod(fileHash) × 同じ車(slaveId) の .slave は使い回す（毎回 encrypt しない）
-  // fileHash が無い古いデータは fileRef で一意にする（ハッシュ無しを共通の固定文字で
-  // まとめると別ファイルのキャッシュを掴み、差し替え後も古い .slave を配信してしまう）。
+  // .slave はAutoTuner側に有効期限があるため、配信のたびに作り直す（freshSlave）。
+  // cacheKey は監査用に最後の .slave を残すだけ（fileHash無しは fileRef で一意化）。
   const cacheKey = encryptedCacheKey({ fileHash: v.fileHash, fileRef: v.fileRef }, slaveId);
+  const tuned = await storage.read(v.fileRef);
+  if (!tuned) return new Response("Not Found", { status: 404 });
   let slaveData: Buffer;
-  const cached = await storage.read(cacheKey);
-  if (cached) {
-    slaveData = cached.buffer;
-  } else {
-    const tuned = await storage.read(v.fileRef);
-    if (!tuned) return new Response("Not Found", { status: 404 });
-    try {
-      const enc = await encryptSlave(
-        tuned.buffer,
-        { slaveId, ecuId, modelId, mcuId },
-        { recordId },
-      );
-      slaveData = enc.slaveData;
-      await storage.save(cacheKey, slaveData, "application/octet-stream");
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      return new Response(`再暗号化に失敗しました: ${msg}`, { status: 502 });
-    }
+  try {
+    slaveData = await freshSlave(tuned.buffer, { slaveId, ecuId, modelId, mcuId }, cacheKey, { recordId });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return new Response(`再暗号化に失敗しました: ${msg}`, { status: 502 });
   }
 
   await logCatalogDownload({

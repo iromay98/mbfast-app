@@ -3,7 +3,7 @@ import type { NextRequest } from "next/server";
 import { getSessionUser } from "@/lib/authz";
 import { prisma } from "@/lib/db";
 import { storage, type StoredFile } from "@/server/storage";
-import { encryptSlave } from "@/server/autotuner/client";
+import { freshSlave } from "@/server/autotuner/reencrypt";
 import { fileResponse, logCatalogDownload } from "@/server/catalog/download-log";
 import { buildDownloadName, dateLabel } from "@/server/catalog/filename";
 
@@ -60,21 +60,14 @@ export async function GET(
   if (!tuned) return new Response("Not Found", { status: 404 });
   const fileHash = createHash("sha256").update(tuned.buffer).digest("hex");
 
-  // キャッシュ: 同じ成果(hash) × 同じ車(slaveId) の .slave は使い回す
+  // .slave はAutoTuner側に有効期限があるため配信のたびに作り直す。cacheKeyは監査用。
   const cacheKey = `requests/encrypted/${fileHash}__${slaveId}.slave`;
   let slaveData: Buffer;
-  const cached = await storage.read(cacheKey);
-  if (cached) {
-    slaveData = cached.buffer;
-  } else {
-    try {
-      const enc = await encryptSlave(tuned.buffer, { slaveId, ecuId, modelId, mcuId }, { recordId: rec.id });
-      slaveData = enc.slaveData;
-      await storage.save(cacheKey, slaveData, "application/octet-stream");
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      return new Response(`再暗号化に失敗しました: ${msg}`, { status: 502 });
-    }
+  try {
+    slaveData = await freshSlave(tuned.buffer, { slaveId, ecuId, modelId, mcuId }, cacheKey, { recordId: rec.id });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return new Response(`再暗号化に失敗しました: ${msg}`, { status: 502 });
   }
 
   await logCatalogDownload({

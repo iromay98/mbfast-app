@@ -2,7 +2,7 @@ import type { NextRequest } from "next/server";
 import { getSessionUser } from "@/lib/authz";
 import { prisma } from "@/lib/db";
 import { storage, type StoredFile } from "@/server/storage";
-import { encryptSlave } from "@/server/autotuner/client";
+import { freshSlave } from "@/server/autotuner/reencrypt";
 import { fileResponse } from "@/server/catalog/download-log";
 import { buildDownloadName, dateLabel } from "@/server/catalog/filename";
 
@@ -103,9 +103,7 @@ export async function GET(
   if (!tuned) return new Response("Not Found", { status: 404 });
   let slaveData: Buffer;
   try {
-    const enc = await encryptSlave(tuned.buffer, { slaveId, ecuId, modelId, mcuId }, { recordId });
-    slaveData = enc.slaveData;
-    await storage.save(cacheKey, slaveData, "application/octet-stream");
+    slaveData = await freshSlave(tuned.buffer, { slaveId, ecuId, modelId, mcuId }, cacheKey, { recordId });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     return new Response(`再暗号化に失敗しました: ${msg}`, { status: 502 });
