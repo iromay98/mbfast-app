@@ -60,14 +60,21 @@ export default async function DealerDashboard() {
         />
       </div>
 
-      {/* スマホ: タブに入っていないメニューへの入り口（加盟店はブログ投稿がタブ化→施工事例をここから） */}
+      {/* スマホ: 下タブに入っていないメニューへの入り口。
+          投稿主役の代理店は「価格表」タブを畳んでいるので、ここ（ホーム）から開く。 */}
       {pitStore?.active && (
-        <div className="mt-3 sm:hidden">
+        <div className="mt-3 grid grid-cols-2 gap-2 sm:hidden">
+          <Link
+            href="/dealer/prices"
+            className="block rounded-lg border border-line bg-surface px-3 py-2.5 text-center text-sm font-semibold text-ink hover:bg-surface-2"
+          >
+            💴 価格表
+          </Link>
           <Link
             href="/dealer/showcase"
             className="block rounded-lg border border-line bg-surface px-3 py-2.5 text-center text-sm font-semibold text-ink hover:bg-surface-2"
           >
-            📷 施工事例を見る
+            📷 施工事例
           </Link>
         </div>
       )}

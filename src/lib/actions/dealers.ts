@@ -24,6 +24,7 @@ function parseDealerForm(formData: FormData) {
     note: formData.get("note"),
     status: formData.get("status") ?? "ACTIVE",
     fileFormat: formData.get("fileFormat") ?? "SLAVE",
+    ecuEnabled: formData.get("ecuEnabled"),
   });
 }
 

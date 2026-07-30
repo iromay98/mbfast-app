@@ -42,6 +42,30 @@ function dealerBottomNav(pitMember: boolean): BottomNavItem[] {
   ];
 }
 
+// 本部が許可した代理店（PitStore有効）の下タブ。投稿を主役にし、料金表はホームへ移して
+// 空いた枠を「顧客」に当てる（他の加盟店と同じ構成）。ECU業務ありなら4枠目を「施工依頼」に、
+// なければ「店舗」にする（コーティング等の別業種向け）。
+function ecuDealerBottomNav(ecuEnabled: boolean): BottomNavItem[] {
+  return [
+    { href: "/dealer", label: "ホーム", icon: "home", also: ["/dealer/announcements", "/dealer/prices"] },
+    { href: "/dealer/pit", label: "投稿", icon: "mic", exact: true },
+    {
+      href: "/dealer/pit/customers",
+      label: "顧客",
+      icon: "user",
+      also: ["/dealer/pit/vehicles", "/dealer/pit/certificates", "/dealer/pit/gbp"],
+    },
+    ecuEnabled
+      ? {
+          href: "/dealer/records",
+          label: "施工依頼",
+          icon: "wrench",
+          also: ["/dealer/requests", "/dealer/activity"],
+        }
+      : { href: "/dealer/pit/store", label: "店舗", icon: "shop" },
+  ];
+}
+
 export default async function DealerLayout({
   children,
 }: {
@@ -56,7 +80,7 @@ export default async function DealerLayout({
     }),
     prisma.dealer.findUnique({
       where: { id: user.dealerId },
-      select: { pitOnly: true },
+      select: { pitOnly: true, ecuEnabled: true },
     }),
   ]);
   // mbPIT専用アカウント（外部店舗）: mbFASTブランド・ECU系メニューを一切出さない（別ブランド運用）。
@@ -89,21 +113,45 @@ export default async function DealerLayout({
       </AppShell>
     );
   }
-  // 本部が許可した（＝PitStoreが有効な）代理店には、mbPITの顧客カルテ・車両・施工証明書・
-  // ブログ投稿・Googleマップ連携の導線をまとめて出す。ページ自体は pitOnly を前提にしておらず、
-  // これまでは導線だけが未配線だった。
+  // 本部が許可した（＝PitStoreが有効な）代理店は、投稿機能を主役にした構成にする。
+  // 顧客カルテ・車両・施工証明書・ブログ・Map・店舗情報をまとめて出す（ページ自体は
+  // pitOnly を前提にしていない）。ECU業務ありなら施工記録・依頼(ECUの特殊機能)も出す。
+  const ecuEnabled = dealer?.ecuEnabled !== false; // 既定 true（既存の代理店はON）
   const pitDealerNav: NavItem[] = [
     { href: "/dealer/pit", label: "施工ブログ投稿" },
     { href: "/dealer/pit/customers", label: "顧客カルテ" },
     { href: "/dealer/pit/vehicles", label: "車両登録" },
     { href: "/dealer/pit/certificates", label: "施工証明書" },
     { href: "/dealer/pit/gbp", label: "Googleマップ連携" },
+    { href: "/dealer/pit/store", label: "店舗情報" },
   ];
-  const navItems: NavItem[] = pitStore?.active
-    ? [...dealerNav.slice(0, 2), ...pitDealerNav, ...dealerNav.slice(2)]
-    : dealerNav;
+
+  if (pitStore?.active) {
+    // ECUの特殊機能（施工記録・依頼／DL履歴）は ecuEnabled のときだけ
+    const ecuNav: NavItem[] = ecuEnabled
+      ? [
+          { href: "/dealer/records", label: "施工記録・依頼" },
+          { href: "/dealer/activity", label: "DL・依頼履歴" },
+        ]
+      : [];
+    const navItems: NavItem[] = [
+      { href: "/dealer", label: "ダッシュボード" },
+      ...ecuNav,
+      ...pitDealerNav,
+      { href: "/dealer/showcase", label: "施工事例" },
+      { href: "/dealer/prices", label: "価格表" },
+      { href: "/dealer/announcements", label: "お知らせ" },
+    ];
+    return (
+      <AppShell user={user} navItems={navItems} bottomNavItems={ecuDealerBottomNav(ecuEnabled)}>
+        {children}
+      </AppShell>
+    );
+  }
+
+  // mbPIT未有効の代理店は従来どおり
   return (
-    <AppShell user={user} navItems={navItems} bottomNavItems={dealerBottomNav(!!pitStore?.active)}>
+    <AppShell user={user} navItems={dealerNav} bottomNavItems={dealerBottomNav(false)}>
       {children}
     </AppShell>
   );

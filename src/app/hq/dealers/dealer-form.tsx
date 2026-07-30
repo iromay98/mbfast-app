@@ -15,6 +15,7 @@ type DealerDefaults = {
   note?: string | null;
   status?: "ACTIVE" | "INACTIVE";
   fileFormat?: string | null;
+  ecuEnabled?: boolean;
 };
 
 export function DealerForm({
@@ -96,6 +97,21 @@ export function DealerForm({
             <option value="SLAVE">スレーブ（AutoTuner）</option>
             <option value="MASTER">Master File（Powergate3・生bin）</option>
           </Select>
+        </Field>
+
+        <Field
+          label="ECU業務"
+          hint="ONで「施工依頼・記録」を表示。コーティング等の別業種の代理店はOFFにすると非表示になります（既定ON）。"
+        >
+          <label className="flex items-center gap-2 text-sm text-ink">
+            <input
+              type="checkbox"
+              name="ecuEnabled"
+              defaultChecked={defaults?.ecuEnabled ?? true}
+              className="h-4 w-4"
+            />
+            この代理店はECU業務あり（施工依頼・記録を表示）
+          </label>
         </Field>
 
         <Field label="備考">

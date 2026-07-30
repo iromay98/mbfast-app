@@ -213,6 +213,10 @@ model Dealer {
   // mbPIT専用アカウント（招待リンクから自己登録した外部店舗）。
   // true の場合はブログ投稿機能のみ利用可能で、ECU系の画面（施工記録・依頼・価格表等）は見せない。
   pitOnly         Boolean      @default(false)
+  // ECU業務を行う代理店か。false なら「施工依頼・記録」のECU特殊機能を出さない
+  // （コーティング等の別業種の代理店向け）。既定 true＝既存の代理店はそのままON。
+  // pitOnly の外部加盟店ではこのフラグは参照しない（ECU画面自体を出さないため）。
+  ecuEnabled      Boolean      @default(true)
   note            String?
   createdAt       DateTime     @default(now())
 
