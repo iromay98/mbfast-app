@@ -5,6 +5,7 @@ import { getSharedCertificate } from "@/server/pit/certificate";
 import { readVehicleSecrets } from "@/server/pit/vehicle-register";
 import { toSheetProps } from "@/server/pit/cert-sheet-data";
 import { CertificateSheet } from "@/components/certificate-sheet";
+import { certVerifyQr } from "@/server/pit/cert-share";
 import { PrintButton } from "./print-button";
 
 /*
@@ -23,10 +24,10 @@ export default async function SharedCertificatePage({
   searchParams,
 }: {
   params: Promise<{ token: string }>;
-  searchParams: Promise<{ v?: string }>;
+  searchParams: Promise<{ v?: string; vin?: string }>;
 }) {
   const { token } = await params;
-  const { v } = await searchParams;
+  const { v, vin } = await searchParams;
   const result = await getSharedCertificate(token, v);
 
   if (result.state === "notfound") notFound();
@@ -69,17 +70,21 @@ export default async function SharedCertificatePage({
   }
 
   const cert = result.cert;
+  // 車台番号は既定でマスク表示。全桁は ?vin=1 を明示的に開いたときだけ（スクショ流出の被害を小さくする）
+  const revealVin = vin === "1";
   const secrets = await readVehicleSecrets(cert.vehicleId, {
     // 共有リンクは誰が開いたか特定できないため、証明書単位で記録する（記録しない経路は作らない）
     actorUserId: `share:${cert.id}`,
     actorRole: "share",
-    purpose: "証明書の共有ページ表示",
+    purpose: revealVin ? "証明書の共有ページ表示（車台番号を全桁表示）" : "証明書の共有ページ表示",
     certificateId: cert.id,
   });
-  const sheet = toSheetProps(cert, secrets);
+  // マスク時は全桁をHTMLに載せない（画面はマスクなのにソースに残る状態を作らない）
+  const sheet = toSheetProps(cert, revealVin ? secrets : { ...secrets, vin: null });
+  const qr = await certVerifyQr(cert);
 
   return (
-    <div className="min-h-screen bg-neutral-100 py-4">
+    <div className="min-h-screen bg-neutral-200 py-4">
       <div className="mx-auto max-w-[760px] px-3">
         <div className="no-print mb-3 flex items-center justify-between gap-2">
           <p className="text-xs font-semibold text-neutral-600">
@@ -87,10 +92,18 @@ export default async function SharedCertificatePage({
           </p>
           <PrintButton />
         </div>
-        <div className="rounded-xl bg-white shadow-sm">
-          <CertificateSheet {...sheet} />
-        </div>
+        <CertificateSheet {...sheet} {...qr} revealVin={revealVin} />
         <p className="no-print mt-3 text-center text-[11px] text-neutral-500">
+          {revealVin ? (
+            <a href={`/cert/${token}`} className="underline">
+              車台番号を隠す
+            </a>
+          ) : (
+            <a href={`/cert/${token}?vin=1`} className="underline">
+              車台番号を全桁表示する（印刷して提出するとき）
+            </a>
+          )}
+          <br />
           発行元: {cert.store.displayName}／お問い合わせは施工店までお願いします
         </p>
       </div>

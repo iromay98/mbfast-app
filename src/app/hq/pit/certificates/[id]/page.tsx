@@ -9,6 +9,7 @@ import { readVehicleSecrets } from "@/server/pit/vehicle-register";
 import { toSheetProps } from "@/server/pit/cert-sheet-data";
 import { isLegalRecordFacility } from "@/server/pit/cert-fields";
 import { CertificateSheet } from "@/components/certificate-sheet";
+import { certVerifyQr } from "@/server/pit/cert-share";
 import { CertificateActions } from "@/app/dealer/pit/certificates/[id]/certificate-actions";
 
 export const dynamic = "force-dynamic";
@@ -38,6 +39,7 @@ export default async function HqCertificateDetailPage({
     certificateId: cert.id,
   });
   const sheet = toSheetProps(cert, secrets);
+  const qr = await certVerifyQr(cert);
 
   const warnings: string[] = [];
   if (isLegalRecordFacility(cert.store.facilityType)) {
@@ -82,7 +84,7 @@ export default async function HqCertificateDetailPage({
       )}
 
       <div className="rounded-xl border border-line bg-white">
-        <CertificateSheet {...sheet} />
+        <CertificateSheet {...sheet} {...qr} revealVin />
       </div>
     </div>
   );

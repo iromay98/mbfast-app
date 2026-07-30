@@ -71,6 +71,80 @@ body {
  * ブラウザの「印刷 → PDFとして保存」で控えを作れるようにする。
  * .no-print はナビ・タブ・操作ボタンに付ける（帳票だけが紙に出る）。
  */
+/*
+ * 施工証明書の見た目。
+ * 画面 = 黒地×金（お客様に見せる/渡す「証書」らしさ）。
+ * 印刷 = 白地×黒（インクを食わない・車検場や買取店へ出す紙として読める）。
+ * 色はここに集約し、certificate-sheet.tsx はクラス名だけを持つ。
+ */
+.cert-sheet {
+  --cert-bg: #0d0d0d;
+  --cert-line: #c9a227;
+  --cert-gold: #d4af37;
+  --cert-key: #999;
+  --cert-val: #eee;
+  --cert-sub: #8f8f8f;
+  --cert-panel: #1a1a1a;
+  background: var(--cert-bg);
+  border: 1px solid var(--cert-line);
+  border-radius: 12px;
+  padding: 1.25rem 1.4rem;
+  color: var(--cert-val);
+}
+.cert-head {
+  border-bottom: 1px solid var(--cert-line);
+}
+.cert-brand,
+.cert-no {
+  color: var(--cert-gold);
+}
+.cert-sub,
+.cert-key {
+  color: var(--cert-sub);
+}
+.cert-val {
+  color: var(--cert-val);
+}
+.cert-section {
+  color: var(--cert-gold);
+  border-top: 1px solid rgba(201, 162, 39, 0.25);
+  padding-top: 0.5rem;
+}
+.cert-badge {
+  display: inline-block;
+  border: 1px solid var(--cert-line);
+  border-radius: 999px;
+  padding: 0 0.4em;
+  font-size: 9.5px;
+  color: var(--cert-gold);
+}
+.cert-hash,
+.cert-qr svg {
+  border-radius: 8px;
+}
+.cert-hash {
+  background: var(--cert-panel);
+}
+.cert-seal {
+  border: 2px solid var(--cert-line);
+}
+.cert-seal-sub {
+  color: #8a6d14;
+}
+.cert-void {
+  border: 1px solid #b91c1c;
+  border-radius: 8px;
+  background: rgba(185, 28, 28, 0.12);
+  color: #fca5a5;
+}
+.cert-foot {
+  border-top: 1px solid rgba(201, 162, 39, 0.25);
+  color: var(--cert-sub);
+}
+.cert-qr svg {
+  display: block;
+}
+
 @media print {
   .no-print {
     display: none !important;
@@ -78,9 +152,28 @@ body {
   body {
     background: #fff;
   }
+  /* 印刷は白地に反転する（黒背景は印刷に向かない） */
   .cert-sheet {
+    --cert-bg: #fff;
+    --cert-line: #111;
+    --cert-gold: #111;
+    --cert-key: #555;
+    --cert-val: #111;
+    --cert-sub: #555;
+    --cert-panel: #f4f4f4;
     max-width: none;
+    border-radius: 0;
     padding: 0;
+    border: 0;
+  }
+  .cert-section {
+    border-top: 1px solid #bbb;
+  }
+  .cert-foot {
+    border-top: 1px solid #bbb;
+  }
+  .cert-seal-sub {
+    color: #555;
   }
   /* 表が途中で切れると読めなくなるため、行の分割を避ける */
   .cert-sheet tr,
