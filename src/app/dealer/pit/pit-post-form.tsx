@@ -142,7 +142,18 @@ const CATEGORIES: { value: string; label: string }[] = [
 // 店舗の投稿フォーム。入力は最小限（写真・車種・カテゴリ・任意メモ）。
 // 送信 → サーバーでAI記事化＋WordPress公開 → 完了画面で公開URLを表示。
 // storeId: 本部が任意の店舗として投稿する場合のみ指定（代理店はセッションから解決されるので不要）
-export function PitPostForm({ storeId }: { storeId?: string } = {}) {
+// staged*: 施工証明のスタンバイ下書きから来たときの引き継ぎ（車種・カテゴリの初期値と元ID）
+export function PitPostForm({
+  storeId,
+  stagedPostId,
+  initialVehicle,
+  initialCategory,
+}: {
+  storeId?: string;
+  stagedPostId?: string;
+  initialVehicle?: string;
+  initialCategory?: string;
+} = {}) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -252,8 +263,13 @@ export function PitPostForm({ storeId }: { storeId?: string } = {}) {
   const chassisLast3 = chassisDisplay ? chassisDisplay.replace(/[^0-9]/g, "").slice(-3) : null;
 
   // ── 下書き対象の入力（stateで持ち、localStorage/IndexedDBへ自動保存する） ──
-  const [vehicle, setVehicle] = useState("");
-  const [category, setCategory] = useState(CATEGORIES[0].value);
+  // 施工証明から来たときは車種・カテゴリを初期値に入れる（端末内の下書きがあればそちらが優先）
+  const [vehicle, setVehicle] = useState(initialVehicle ?? "");
+  const [category, setCategory] = useState(
+    initialCategory && CATEGORIES.some((c) => c.value === initialCategory)
+      ? initialCategory
+      : CATEGORIES[0].value,
+  );
   const [workDate, setWorkDate] = useState(todayStr);
   const [videoUrl, setVideoUrl] = useState("");
 
@@ -620,6 +636,16 @@ export function PitPostForm({ storeId }: { storeId?: string } = {}) {
       )}
 
       <form ref={formRef} onSubmit={submit} className={busy ? "hidden" : "space-y-4"}>
+        {/* 施工証明から来たスタンバイ下書きの引き継ぎ（投稿成功時にサーバー側で片付ける） */}
+        {stagedPostId && <input type="hidden" name="stagedPostId" value={stagedPostId} />}
+        {stagedPostId && (
+          <div className="rounded-xl border border-gold-300 bg-gold-50 px-3 py-2 text-xs leading-relaxed text-ink">
+            🧾 施工証明からの下書きです。写真と一言を足して公開してください。
+            <span className="mt-0.5 block text-[11px] text-ink-soft">
+              公開ブログにはお客様の氏名・住所・車台番号・金額は載りません。
+            </span>
+          </div>
+        )}
         {/* 下書き: 自動保存に加えて明示的な保存ボタンを置く（保存された確信が持てるように） */}
         <div className="flex flex-wrap items-center gap-2">
           <button

@@ -28,7 +28,8 @@ export default async function PitHomePage() {
     // 顧客の参照は customer-repo 経由（storeId条件の付け忘れを構造的に防ぐ）
     listUpcomingInspections(store.id, 60),
     prisma.pitPost.findMany({
-      where: { storeId: store.id },
+      // スタンバイ下書き（施工証明由来・未投稿）は「最近の投稿」には出さない
+      where: { storeId: store.id, status: { not: "draft" } },
       orderBy: { createdAt: "desc" },
       take: 5,
       select: { id: true, vehicle: true, status: true, title: true, publishedUrl: true, createdAt: true },

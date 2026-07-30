@@ -25,8 +25,14 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 // 店舗（mbPIT加盟店）: 施工記録の投稿 → AIが記事化して mbfasttuning.com に自動公開。
-export default async function DealerPitPage() {
+export default async function DealerPitPage({
+  searchParams,
+}: {
+  // ?from=<PitPost.id> … 施工証明のスタンバイ下書きから「投稿する」で来たとき
+  searchParams: Promise<{ from?: string }>;
+}) {
   const user = await requireDealer();
+  const { from } = await searchParams;
 
   const store = await prisma.pitStore.findUnique({
     where: { dealerId: user.dealerId },
@@ -75,6 +81,14 @@ export default async function DealerPitPage() {
       createdAt: true,
     },
   });
+
+  // 施工証明のスタンバイ下書きから来たとき、その下書き(自店・draft)を読んで車種・カテゴリを引き継ぐ
+  const staged = from
+    ? await prisma.pitPost.findFirst({
+        where: { id: from, storeId: store.id, status: "draft" },
+        select: { id: true, vehicle: true, category: true },
+      })
+    : null;
 
   const stats = await storeStats(store.id);
   // mbPIT専用アカウントは下タブに「ホーム」「店舗」があるので、この画面では投稿に集中させる
@@ -126,7 +140,11 @@ export default async function DealerPitPage() {
       </div>
 
       <Card>
-        <PitPostForm />
+        <PitPostForm
+          stagedPostId={staged?.id}
+          initialVehicle={staged?.vehicle}
+          initialCategory={staged?.category}
+        />
       </Card>
 
       {/* 店舗情報の自己編集（mbPIT専用アカウントは「店舗」タブに独立ページがあるので出さない） */}

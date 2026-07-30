@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { updateMyPitPost, deleteMyPitPost } from "@/lib/actions/pit-posts";
 
@@ -20,6 +21,8 @@ const STATUS: Record<string, { label: string; cls: string }> = {
   failed: { label: "失敗", cls: "bg-surface-2 text-ink-soft" },
   processing: { label: "処理中", cls: "bg-sky-100 text-sky-800" },
   deleted: { label: "削除済み", cls: "bg-surface-2 text-ink-soft" },
+  // 施工証明から用意したスタンバイ下書き（まだ公開していない）
+  draft: { label: "下書き（証明書から）", cls: "bg-gold-100 text-gold-800" },
 };
 
 // 公開後の記事の編集（タイトル・追記）と削除。
@@ -89,6 +92,7 @@ export function PostList({ posts }: { posts: PostListRow[] }) {
       {posts.map((p) => {
         const st = STATUS[p.status] ?? { label: p.status, cls: "bg-surface-2" };
         const deleted = p.status === "deleted";
+        const draft = p.status === "draft";
         return (
           <div key={p.id} className="py-2">
             <div className="flex flex-wrap items-center gap-2 text-xs">
@@ -109,15 +113,14 @@ export function PostList({ posts }: { posts: PostListRow[] }) {
                   {p.title ?? "記事を見る"}
                 </a>
               )}
-              {!deleted && (
+              {draft ? (
                 <span className="ml-auto flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => (editing?.id === p.id ? setEditing(null) : open(p))}
-                    className="font-semibold text-gold-700 hover:underline"
+                  <Link
+                    href={`/dealer/pit?from=${p.id}`}
+                    className="rounded-lg bg-gold-500 px-3 py-1 font-bold text-white hover:bg-gold-600"
                   >
-                    編集
-                  </button>
+                    投稿する →
+                  </Link>
                   <button
                     type="button"
                     disabled={busy}
@@ -127,6 +130,26 @@ export function PostList({ posts }: { posts: PostListRow[] }) {
                     削除
                   </button>
                 </span>
+              ) : (
+                !deleted && (
+                  <span className="ml-auto flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => (editing?.id === p.id ? setEditing(null) : open(p))}
+                      className="font-semibold text-gold-700 hover:underline"
+                    >
+                      編集
+                    </button>
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={() => remove(p)}
+                      className="text-red-600 hover:underline disabled:opacity-50"
+                    >
+                      削除
+                    </button>
+                  </span>
+                )
               )}
             </div>
 

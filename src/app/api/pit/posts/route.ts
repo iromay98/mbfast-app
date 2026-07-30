@@ -7,6 +7,7 @@ import { wpConfigured } from "@/server/pit/wordpress";
 import { upsertVehicle, vehicleFeatureEnabled } from "@/server/pit/vehicle";
 import { parseVideoUrl } from "@/server/pit/video-embed";
 import { notifyBadgeIfReached, storeStats } from "@/server/pit/gamification";
+import { consumeStagedDraft } from "@/server/pit/cert-blog-link";
 
 // mbPIT 施工記録の投稿 → AI記事化 → WordPress自動公開。
 // 店舗IDは認証セッションから解決する（クライアントの申告値は信用しない）。
@@ -73,6 +74,10 @@ export async function POST(request: NextRequest) {
   const vehicle = String(form.get("vehicle") ?? "").trim();
   const category = String(form.get("category") ?? "").trim();
   const memoRaw = String(form.get("memo") ?? "").trim();
+
+  // 施工証明から用意したスタンバイ下書きを引き継ぐ場合の元ID（任意）。
+  // 妥当性は投稿成功後の consumeStagedDraft 側で store/status を条件に確認する。
+  const stagedPostId = String(form.get("stagedPostId") ?? "").trim() || null;
 
   // ── 品質ゲート ──
   if (!vehicle) return json(400, { error: "車種を入力してください" });
@@ -157,6 +162,16 @@ export async function POST(request: NextRequest) {
     workDate,
     vehicleId,
   });
+
+  // 施工証明のスタンバイ下書きから来た投稿なら、証明書の紐付けを本物の記事へ張り替え、
+  // 空のプレースホルダを片付ける（失敗しても投稿の成功は返す）。
+  if (stagedPostId && result.status !== "failed") {
+    try {
+      await consumeStagedDraft(store.id, stagedPostId, result.postId);
+    } catch (e) {
+      console.error("mbPIT: スタンバイ下書きの引き継ぎに失敗（投稿は成功）", e);
+    }
+  }
 
   switch (result.status) {
     case "published": {

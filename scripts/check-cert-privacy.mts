@@ -457,5 +457,30 @@ ok(
   publicRoute.includes('scope: "public", shareToken: token') && !publicRoute.includes("certificateId"),
 );
 
+// ── 施工証明 → 施工ブログ下書き（導線）の情報境界 ──
+// 証明書からブログ下書きへ持ち込むのは公開可の車種・カテゴリだけ。非公開情報は構造的に持ち込まない。
+const blogLinkSrc = readFileSync(new URL("../src/server/pit/cert-blog-link.ts", import.meta.url), "utf8");
+ok(
+  "cert→blog: 車両からは公開可のフィールドだけ読む（maker/vehicleName）",
+  /vehicle:\s*\{\s*select:\s*\{\s*maker:\s*true,\s*vehicleName:\s*true\s*\}/.test(blogLinkSrc),
+);
+ok(
+  "cert→blog: 車台番号・登録番号・金額・氏名・住所を一切読まない",
+  !/vinEnc|regNumberEnc|totalAmount|restorationCostEstimate/.test(blogLinkSrc) &&
+    !/name:\s*true|address:\s*true/.test(blogLinkSrc),
+);
+ok(
+  "cert→blog: PII復号モジュールをimportしない",
+  !/pii-crypto|decryptPii|readVehicleSecrets/.test(blogLinkSrc),
+);
+ok(
+  "cert→blog: 下書きは写真なし（証跡写真を自動流用しない）",
+  /photoKeys:\s*\[\]/.test(blogLinkSrc) && !/cert-media|media/.test(blogLinkSrc),
+);
+ok(
+  "cert→blog: 作られる投稿は status=\"draft\"（自動公開しない）",
+  /status:\s*"draft"/.test(blogLinkSrc),
+);
+
 console.log(failed === 0 ? "\n全チェック合格" : `\n${failed}件のチェックに失敗`);
 process.exit(failed === 0 ? 0 : 1);

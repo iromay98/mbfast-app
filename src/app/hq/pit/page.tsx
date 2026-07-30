@@ -15,6 +15,8 @@ export default async function HqPitPage() {
   const [stores, posts, dealers, postCounts, lastLogs] = await Promise.all([
     prisma.pitStore.findMany({ include: { dealer: { select: { name: true } } }, orderBy: { createdAt: "asc" } }),
     prisma.pitPost.findMany({
+      // 施工証明から用意しただけのスタンバイ下書きは投稿ではないので本部の一覧に出さない
+      where: { status: { not: "draft" } },
       include: { store: { select: { displayName: true } } },
       orderBy: { createdAt: "desc" },
       take: 50,

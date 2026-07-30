@@ -15,6 +15,7 @@ import {
   type CertificateCoreInput,
   type SaveResult,
 } from "@/server/pit/certificate";
+import { ensureBlogDraftForCertificate } from "@/server/pit/cert-blog-link";
 
 const LIST = "/dealer/pit/certificates";
 const HQ_LIST = "/hq/pit/certificates"; // 本部の代行画面
@@ -35,9 +36,19 @@ export async function saveCertificate(
   if (!ctx.store) return { error: ctx.error };
   const r = await saveCertificateDraft(ctx.store, input, certificateId);
   if (r.ok) {
+    // 下書き保存の時点で、施工ブログの下書きを投稿一覧にスタンバイさせる（導線）。
+    // 失敗しても証明書の保存は成立させる（best-effort・非公開情報は持ち込まない）。
+    if (r.certificateId) {
+      try {
+        await ensureBlogDraftForCertificate(ctx.store.id, r.certificateId);
+      } catch (e) {
+        console.error("mbPIT: 施工ブログ下書きのスタンバイ作成に失敗（証明書の保存は成功）", e);
+      }
+    }
     revalidatePath(LIST);
     revalidatePath(HQ_LIST);
     revalidatePath("/dealer/pit/home");
+    revalidatePath("/dealer/pit"); // 投稿一覧にスタンバイ下書きを反映
   }
   return r;
 }
