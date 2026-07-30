@@ -129,7 +129,9 @@ export const BRAND_HTML_SPECS: Record<string, BrandHtmlSpec> = {
     ],
   },
   lamborghini: {
-    // 2026-07-26 ライブの手動並び替えに追随: 工賃はTCUチューニング(最後の価格列)の直後
+    // 工賃はメインのECUチューニング価格列の直後（TCUチューニングより前）。
+    // 2026-07-26 時点のライブはTCUの後ろだったが、7/29に本番で人が並び替えたため追随した。
+    // 共通ルール（applyColumnOrderRule）と同じ位置。thead は templates.ts 側も同じ順にする。
     ns: "",
     searchAttr: "data-search",
     seriesAttr: "data-series",
@@ -141,8 +143,8 @@ export const BRAND_HTML_SPECS: Record<string, BrandHtmlSpec> = {
       { kind: "grade" },
       { kind: "price", key: "babble", askLabel: "バブリング" },
       { kind: "price", key: "ecuTuning", askLabel: "ECUチューニング" },
-      { kind: "price", key: "tcu", askLabel: "TCUチューニング" },
       { kind: "labor" },
+      { kind: "price", key: "tcu", askLabel: "TCUチューニング" },
       { kind: "stock" },
       { kind: "gain" },
       { kind: "shops" },
