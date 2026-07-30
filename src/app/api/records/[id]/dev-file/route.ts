@@ -93,22 +93,22 @@ export async function GET(
     return new Response("この記録には再暗号化に必要な情報がありません", { status: 409 });
   }
 
+  // .slave は AutoTuner 側に有効期限がある（ツールで焼くときに期限切れで弾かれる）。
+  // 以前はここで無期限キャッシュ(records/dev/encrypted/...)を再配信していたため、時間が経つと
+  // 期限切れの古い .slave を渡してしまい「ファイルの有効期限切れ」の原因になっていた。
+  // → 開発モードでは**毎回作り直す**。キャッシュは再配信用ではなく、最後に配信した .slave を
+  //   監査・障害調査のために残すだけ（毎回上書き）。
   const cacheKey = `records/dev/encrypted/${node.fileHash ?? node.id}__${slaveId}.slave`;
+  const tuned = await storage.read(node.filePath);
+  if (!tuned) return new Response("Not Found", { status: 404 });
   let slaveData: Buffer;
-  const cached = await storage.read(cacheKey);
-  if (cached) {
-    slaveData = cached.buffer;
-  } else {
-    const tuned = await storage.read(node.filePath);
-    if (!tuned) return new Response("Not Found", { status: 404 });
-    try {
-      const enc = await encryptSlave(tuned.buffer, { slaveId, ecuId, modelId, mcuId }, { recordId });
-      slaveData = enc.slaveData;
-      await storage.save(cacheKey, slaveData, "application/octet-stream");
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      return new Response(`再暗号化に失敗しました: ${msg}`, { status: 502 });
-    }
+  try {
+    const enc = await encryptSlave(tuned.buffer, { slaveId, ecuId, modelId, mcuId }, { recordId });
+    slaveData = enc.slaveData;
+    await storage.save(cacheKey, slaveData, "application/octet-stream");
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return new Response(`再暗号化に失敗しました: ${msg}`, { status: 502 });
   }
 
   const out: StoredFile = { buffer: slaveData, contentType: "application/octet-stream", size: slaveData.byteLength };
