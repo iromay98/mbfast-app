@@ -61,21 +61,42 @@ export default async function DealerDashboard() {
       </div>
 
       {/* スマホ: 下タブに入っていないメニューへの入り口。
-          投稿主役の代理店は「価格表」タブを畳んでいるので、ここ（ホーム）から開く。 */}
+          投稿主役の代理店は「価格表」タブを畳んでいるので、ここ（ホーム）から開く。
+          Googleマップ連携・店舗情報は下タブに枠が無いのでここに出す（上部ナビはスマホで隠れる）。 */}
       {pitStore?.active && (
-        <div className="mt-3 grid grid-cols-2 gap-2 sm:hidden">
+        <div className="mt-3 space-y-2 sm:hidden">
           <Link
-            href="/dealer/prices"
-            className="block rounded-lg border border-line bg-surface px-3 py-2.5 text-center text-sm font-semibold text-ink hover:bg-surface-2"
+            href="/dealer/pit/gbp"
+            className="flex items-center justify-between rounded-lg border border-line bg-surface px-3 py-2.5 text-sm hover:bg-surface-2"
           >
-            💴 価格表
+            <span className="font-semibold text-ink">
+              🗺 Googleマップ連携
+              <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-800">
+                準備中
+              </span>
+            </span>
+            <span className="text-gold-600">ひらく →</span>
           </Link>
-          <Link
-            href="/dealer/showcase"
-            className="block rounded-lg border border-line bg-surface px-3 py-2.5 text-center text-sm font-semibold text-ink hover:bg-surface-2"
-          >
-            📷 施工事例
-          </Link>
+          <div className="grid grid-cols-3 gap-2">
+            <Link
+              href="/dealer/prices"
+              className="block rounded-lg border border-line bg-surface px-3 py-2.5 text-center text-sm font-semibold text-ink hover:bg-surface-2"
+            >
+              💴 価格表
+            </Link>
+            <Link
+              href="/dealer/pit/store"
+              className="block rounded-lg border border-line bg-surface px-3 py-2.5 text-center text-sm font-semibold text-ink hover:bg-surface-2"
+            >
+              🏪 店舗情報
+            </Link>
+            <Link
+              href="/dealer/showcase"
+              className="block rounded-lg border border-line bg-surface px-3 py-2.5 text-center text-sm font-semibold text-ink hover:bg-surface-2"
+            >
+              📷 施工事例
+            </Link>
+          </div>
         </div>
       )}
 

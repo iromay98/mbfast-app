@@ -83,6 +83,20 @@ export default async function PitHomePage() {
         </p>
       </div>
 
+      {/* Googleマップ連携（審査待ちのため準備中）。スマホは上部ナビが隠れるのでホームから開けるようにする */}
+      <Link
+        href="/dealer/pit/gbp"
+        className="flex items-center justify-between rounded-xl border border-line bg-surface px-3 py-2.5 text-sm hover:bg-surface-2"
+      >
+        <span className="font-semibold text-ink">
+          🗺 Googleマップ連携
+          <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-800">
+            準備中
+          </span>
+        </span>
+        <span className="text-gold-600">ひらく →</span>
+      </Link>
+
       {/* 未発行の証明書（お客様にまだ渡せていない状態を知らせる） */}
       {unissuedCerts > 0 && (
         <Link
