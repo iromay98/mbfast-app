@@ -43,9 +43,20 @@ export default async function HqGbpPage() {
       {locations && !locations.ok && (
         <Card className="border-red-300">
           <p className="text-sm font-bold text-red-700">ロケーション一覧を取得できませんでした（{locations.kind}）</p>
-          <p className="mt-1 break-all text-xs text-ink-soft">{locations.message}</p>
+          <div className="mt-1 space-y-0.5 break-all text-xs text-ink-soft">
+            <p>HTTP {locations.httpStatus ?? "—"} / {locations.apiStatus ?? "—"}</p>
+            <p>{locations.apiMessage ?? locations.message}</p>
+            {(locations.details ?? []).map((d) => (
+              <p key={d} className="font-mono text-[10px]">
+                {d}
+              </p>
+            ))}
+            {locations.url && <p className="font-mono text-[10px]">{locations.url}</p>}
+          </div>
           <p className="mt-2 text-xs text-ink-soft">
-            {locations.kind === "auth"
+            {locations.kind === "quota"
+              ? "APIは有効ですが割り当てが足りません。上の quota_limit_value が 0 なら、そのAPIの割り当て申請がまだ通っていません（承認はAPIごと・プロジェクトごと）。"
+              : locations.kind === "auth"
               ? "リフレッシュトークンが失効しています。認可をやり直して GBP_REFRESH_TOKEN を更新してください。"
               : locations.kind === "permission"
                 ? "APIの有効化・スコープ（business.manage）・OAuth同意画面の設定・管理権限のいずれかをご確認ください。"

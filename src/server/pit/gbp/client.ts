@@ -54,13 +54,89 @@ export type GbpErrorKind =
 
 export class GbpError extends Error {
   kind: GbpErrorKind;
+  /** HTTPステータス */
   status?: number;
-  constructor(message: string, kind: GbpErrorKind, status?: number) {
+  /** Googleの error.status（PERMISSION_DENIED / RESOURCE_EXHAUSTED 等） */
+  apiStatus?: string;
+  /** Googleの error.message（そのまま） */
+  apiMessage?: string;
+  /** 呼び出したURL（クエリを含む。秘密は含まない） */
+  url?: string;
+  /** レスポンス本文（redact 済み） */
+  body?: string;
+  /** error.details から拾った要点（割り当て超過ならメトリック名と上限） */
+  details?: string[];
+  constructor(
+    message: string,
+    kind: GbpErrorKind,
+    extra?: {
+      status?: number;
+      apiStatus?: string;
+      apiMessage?: string;
+      url?: string;
+      body?: string;
+      details?: string[];
+    },
+  ) {
     super(message);
     this.name = "GbpError";
     this.kind = kind;
-    this.status = status;
+    Object.assign(this, extra ?? {});
   }
+}
+
+type GoogleErrorBody = {
+  error?: {
+    code?: number;
+    message?: string;
+    status?: string;
+    details?: {
+      "@type"?: string;
+      reason?: string;
+      domain?: string;
+      metadata?: Record<string, string>;
+      violations?: { subject?: string; description?: string; quotaMetric?: string; quotaId?: string; quotaValue?: string }[];
+      links?: { description?: string; url?: string }[];
+    }[];
+  };
+};
+
+/*
+ * Googleのエラー本文を「そのまま読める形」に開く。
+ * 種別の推測だけで済ませると（例: 403を全部「権限」と言う）原因を取り違えるため、
+ * error.status / error.message / details を必ず持ち回る。
+ */
+export function parseGoogleError(bodyText: string): {
+  apiStatus?: string;
+  apiMessage?: string;
+  details: string[];
+} {
+  let json: GoogleErrorBody | null = null;
+  try {
+    json = JSON.parse(bodyText) as GoogleErrorBody;
+  } catch {
+    return { details: [] };
+  }
+  const e = json?.error;
+  const details: string[] = [];
+  for (const d of e?.details ?? []) {
+    const t = (d["@type"] ?? "").split("/").pop();
+    if (d.reason) details.push(`reason: ${d.reason}${d.domain ? ` (${d.domain})` : ""}`);
+    for (const [k, v] of Object.entries(d.metadata ?? {})) details.push(`${k}: ${v}`);
+    for (const v of d.violations ?? []) {
+      const parts = [
+        v.quotaMetric ? `metric=${v.quotaMetric}` : "",
+        v.quotaId ? `id=${v.quotaId}` : "",
+        v.quotaValue ? `limit=${v.quotaValue}` : "",
+        v.subject ? `subject=${v.subject}` : "",
+        v.description ?? "",
+      ].filter(Boolean);
+      if (parts.length) details.push(parts.join(" / "));
+    }
+    for (const l of d.links ?? []) if (l.url) details.push(`${l.description ?? "link"}: ${l.url}`);
+    if (!d.reason && !d.metadata && !d.violations && !d.links && t) details.push(t);
+  }
+  return { apiStatus: e?.status, apiMessage: e?.message, details };
 }
 
 /*
@@ -102,10 +178,14 @@ export async function accessToken(): Promise<string> {
   if (!res.ok) {
     // invalid_grant = リフレッシュトークンが失効（再認可が必要）
     const kind: GbpErrorKind = /invalid_grant|invalid_client|unauthorized/.test(text) ? "auth" : "http";
-    throw new GbpError(`アクセストークンを取得できませんでした: ${redact(text)}`, kind, res.status);
+    throw new GbpError(`アクセストークンを取得できませんでした: ${redact(text)}`, kind, {
+      status: res.status,
+      url: TOKEN_URL,
+      body: redact(text),
+    });
   }
   const json = JSON.parse(text) as { access_token?: string; expires_in?: number };
-  if (!json.access_token) throw new GbpError("アクセストークンが空でした", "auth", res.status);
+  if (!json.access_token) throw new GbpError("アクセストークンが空でした", "auth", { status: res.status });
   cached = { token: json.access_token, expiresAt: Date.now() + (json.expires_in ?? 3600) * 1000 };
   return cached.token;
 }
@@ -134,15 +214,37 @@ export async function gbpFetch<T>(
     throw new GbpError(`Googleに接続できませんでした: ${redact(String(e))}`, "network");
   }
   const text = await res.text();
-  if (!res.ok) throw new GbpError(redact(text) || `HTTP ${res.status}`, kindOf(res.status, text), res.status);
+  if (!res.ok) {
+    const parsed = parseGoogleError(text);
+    throw new GbpError(
+      redact(parsed.apiMessage ?? text) || `HTTP ${res.status}`,
+      kindOf(res.status, parsed.apiStatus ?? "", text),
+      {
+        status: res.status,
+        apiStatus: parsed.apiStatus,
+        apiMessage: parsed.apiMessage ? redact(parsed.apiMessage) : undefined,
+        url,
+        body: redact(text),
+        details: parsed.details.map(redact),
+      },
+    );
+  }
   return (text ? JSON.parse(text) : {}) as T;
 }
 
-function kindOf(status: number, body: string): GbpErrorKind {
-  if (status === 401) return "auth";
-  if (status === 403) return /RESOURCE_EXHAUSTED|quota/i.test(body) ? "quota" : "permission";
-  if (status === 404) return "notfound";
-  if (status === 429) return "quota";
+/*
+ * 種別の判定は error.status を優先する（HTTPステータスだけでは 403 の意味が割れる:
+ * API未有効化・スコープ不足・割り当て0 がどれも 403 で来る）。
+ */
+function kindOf(httpStatus: number, apiStatus: string, body: string): GbpErrorKind {
+  if (apiStatus === "RESOURCE_EXHAUSTED") return "quota";
+  if (apiStatus === "PERMISSION_DENIED") return "permission";
+  if (apiStatus === "UNAUTHENTICATED") return "auth";
+  if (apiStatus === "NOT_FOUND") return "notfound";
+  if (httpStatus === 401) return "auth";
+  if (httpStatus === 403) return /RESOURCE_EXHAUSTED|quota/i.test(body) ? "quota" : "permission";
+  if (httpStatus === 404) return "notfound";
+  if (httpStatus === 429) return "quota";
   return "http";
 }
 
@@ -233,9 +335,21 @@ export async function listLocations(accountName: string): Promise<GbpLocation[]>
 }
 
 /** 接続確認の1回分。失敗しても投げずに理由を返す（画面に出すため） */
+export type GbpFailure = {
+  ok: false;
+  kind: GbpErrorKind;
+  message: string;
+  /** 生の応答（原因の切り分けに使う。すべて redact 済み） */
+  httpStatus?: number;
+  apiStatus?: string;
+  apiMessage?: string;
+  url?: string;
+  body?: string;
+  details?: string[];
+};
+
 export async function checkGbpConnection(): Promise<
-  | { ok: true; accounts: { account: GbpAccount; locations: GbpLocation[] }[] }
-  | { ok: false; kind: GbpErrorKind; message: string }
+  { ok: true; accounts: { account: GbpAccount; locations: GbpLocation[] }[] } | GbpFailure
 > {
   try {
     const accounts = await listAccounts();
@@ -245,7 +359,19 @@ export async function checkGbpConnection(): Promise<
     }
     return { ok: true, accounts: result };
   } catch (e) {
-    if (e instanceof GbpError) return { ok: false, kind: e.kind, message: e.message };
+    if (e instanceof GbpError) {
+      return {
+        ok: false,
+        kind: e.kind,
+        message: e.message,
+        httpStatus: e.status,
+        apiStatus: e.apiStatus,
+        apiMessage: e.apiMessage,
+        url: e.url,
+        body: e.body,
+        details: e.details,
+      };
+    }
     return { ok: false, kind: "http", message: redact(String(e)) };
   }
 }

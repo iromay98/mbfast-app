@@ -9,7 +9,7 @@
  *  - 紐付け時のGoogle側の店名・住所を保存する（後から照合を疑えるようにする）。
  */
 import { prisma } from "@/lib/db";
-import { checkGbpConnection, type GbpLocation } from "./client";
+import { checkGbpConnection, type GbpLocation, type GbpFailure } from "./client";
 
 export type LinkableLocation = GbpLocation & {
   accountId: string;
@@ -54,10 +54,11 @@ export async function listStoreLinks(): Promise<StoreLinkRow[]> {
 
 /** Googleから取得できるロケーション一覧（紐付け画面の選択肢）。失敗理由も返す */
 export async function listLinkableLocations(): Promise<
-  { ok: true; locations: LinkableLocation[] } | { ok: false; kind: string; message: string }
+  { ok: true; locations: LinkableLocation[] } | GbpFailure
 > {
   const conn = await checkGbpConnection();
-  if (!conn.ok) return { ok: false, kind: conn.kind, message: conn.message };
+  // 失敗はそのまま返す（HTTPステータス・error.status・details を画面で見せて原因を切り分ける）
+  if (!conn.ok) return conn;
 
   const linked = await prisma.pitStore.findMany({
     where: { gbpLocationId: { not: null } },

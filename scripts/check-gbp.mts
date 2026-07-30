@@ -7,7 +7,7 @@
  * Step 3 以降で投稿ペイロードの公開/非公開検査をここに足していく。
  */
 import { readFileSync } from "node:fs";
-import { redact, formatAddress, gbpConfigured, GBP_SCOPE } from "../src/server/pit/gbp/client";
+import { redact, formatAddress, gbpConfigured, GBP_SCOPE, parseGoogleError } from "../src/server/pit/gbp/client";
 
 let failed = 0;
 function ok(cond: boolean, label: string, detail?: string) {
@@ -55,7 +55,72 @@ ok(
 );
 ok(formatAddress(undefined) === "", "住所が無いロケーションでも落ちない");
 
-console.log("[4] 紐付けの作法（ソース確認）");
+console.log("[4] Googleのエラー応答を読み解く（原因を推測で潰さない）");
+const quotaBody = JSON.stringify({
+  error: {
+    code: 429,
+    message:
+      "Quota exceeded for quota metric 'Requests' and limit 'Requests per minute' of service 'mybusinessaccountmanagement.googleapis.com' for consumer 'project_number:123456789012'.",
+    status: "RESOURCE_EXHAUSTED",
+    details: [
+      {
+        "@type": "type.googleapis.com/google.rpc.ErrorInfo",
+        reason: "RATE_LIMIT_EXCEEDED",
+        domain: "googleapis.com",
+        metadata: {
+          service: "mybusinessaccountmanagement.googleapis.com",
+          quota_metric: "mybusinessaccountmanagement.googleapis.com/default_requests",
+          quota_limit: "defaultPerMinutePerProject",
+          quota_limit_value: "0",
+        },
+      },
+      {
+        "@type": "type.googleapis.com/google.rpc.Help",
+        links: [{ description: "Request a higher quota limit.", url: "https://cloud.google.com/docs/quota" }],
+      },
+    ],
+  },
+});
+const q = parseGoogleError(quotaBody);
+ok(q.apiStatus === "RESOURCE_EXHAUSTED", "error.status をそのまま取り出す");
+ok((q.apiMessage ?? "").includes("Quota exceeded"), "error.message をそのまま取り出す");
+ok(q.details.some((d) => d.includes("quota_limit_value: 0")), "割り当ての上限値（0なら未承認）が出る");
+ok(q.details.some((d) => d.includes("RATE_LIMIT_EXCEEDED")), "reason が出る");
+ok(
+  q.details.some((d) => d.includes("service: mybusinessaccountmanagement.googleapis.com")),
+  "どのAPIの割り当てかが分かる",
+);
+const denied = parseGoogleError(
+  JSON.stringify({
+    error: {
+      code: 403,
+      message:
+        "My Business Account Management API has not been used in project 123456789012 before or it is disabled.",
+      status: "PERMISSION_DENIED",
+      details: [
+        {
+          "@type": "type.googleapis.com/google.rpc.ErrorInfo",
+          reason: "SERVICE_DISABLED",
+          domain: "googleapis.com",
+          metadata: { service: "mybusinessaccountmanagement.googleapis.com" },
+        },
+      ],
+    },
+  }),
+);
+ok(denied.apiStatus === "PERMISSION_DENIED", "403でも error.status で区別できる");
+ok(denied.details.some((d) => d.includes("SERVICE_DISABLED")), "API未有効化の理由が出る");
+ok(parseGoogleError("<html>502</html>").details.length === 0, "JSONでない応答でも落ちない");
+
+const accountsScript = readFileSync(new URL("./gbp-accounts.mts", import.meta.url), "utf8");
+ok(accountsScript.includes("error.status"), "接続確認スクリプトが error.status を出す");
+ok(accountsScript.includes("raw body (redacted)"), "生の応答（伏せ字済み）も出す");
+ok(
+  accountsScript.includes("mybusinessbusinessinformation.googleapis.com"),
+  "どちらのAPIで失敗したかを出す（割り当てはAPIごと）",
+);
+
+console.log("[5] 紐付けの作法（ソース確認）");
 const link = readFileSync(new URL("../src/server/pit/gbp/link.ts", import.meta.url), "utf8");
 // 店名の類似度などで自動的に決める処理を持ち込まないこと（誤配信の元）
 ok(
