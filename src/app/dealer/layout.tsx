@@ -31,7 +31,12 @@ function dealerBottomNav(pitMember: boolean): BottomNavItem[] {
       also: ["/dealer/requests", "/dealer/activity"],
     },
     pitMember
-      ? { href: "/dealer/pit", label: "ブログ投稿", icon: "mic" }
+      ? {
+          href: "/dealer/pit",
+          label: "ブログ投稿",
+          icon: "mic",
+          also: ["/dealer/pit/customers", "/dealer/pit/vehicles", "/dealer/pit/certificates", "/dealer/pit/gbp"],
+        }
       : { href: "/dealer/showcase", label: "施工事例", icon: "camera" },
     { href: "/dealer/prices", label: "価格表", icon: "yen" },
   ];
@@ -84,8 +89,18 @@ export default async function DealerLayout({
       </AppShell>
     );
   }
+  // 本部が許可した（＝PitStoreが有効な）代理店には、mbPITの顧客カルテ・車両・施工証明書・
+  // ブログ投稿・Googleマップ連携の導線をまとめて出す。ページ自体は pitOnly を前提にしておらず、
+  // これまでは導線だけが未配線だった。
+  const pitDealerNav: NavItem[] = [
+    { href: "/dealer/pit", label: "施工ブログ投稿" },
+    { href: "/dealer/pit/customers", label: "顧客カルテ" },
+    { href: "/dealer/pit/vehicles", label: "車両登録" },
+    { href: "/dealer/pit/certificates", label: "施工証明書" },
+    { href: "/dealer/pit/gbp", label: "Googleマップ連携" },
+  ];
   const navItems: NavItem[] = pitStore?.active
-    ? [...dealerNav.slice(0, 2), { href: "/dealer/pit", label: "施工ブログ投稿" }, ...dealerNav.slice(2)]
+    ? [...dealerNav.slice(0, 2), ...pitDealerNav, ...dealerNav.slice(2)]
     : dealerNav;
   return (
     <AppShell user={user} navItems={navItems} bottomNavItems={dealerBottomNav(!!pitStore?.active)}>
