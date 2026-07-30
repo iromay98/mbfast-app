@@ -42,8 +42,9 @@ HQ（mbFAST Tuning本店）⇄ 代理店のポータル。Next.js 16 App Router 
 
 ## 検証の作法（本番でしか出来ないもの）
 
-- 価格表のWP同期は本番DB＋WP認証が必要。VPSで `npm run prices:wp-diff`（読み取りのみ）→ 一致を確認 → `npm run prices:wp-push -- --yes`
-- mbPITの利用状況（店舗ごとの証明書・車両・投稿の件数）は `npm run report:pit-usage`（読み取りのみ）
+- 価格表のWP同期・mbPITの利用状況レポートは**本番DBとWP認証の両方**が要る。開発クローン(/root/dev/mbfast-app)の `.env` には無く、postgres もホスト非公開なので**アプリのコンテナの中で実行する**:
+  `docker compose -f /root/mbfast-app/docker-compose.prod.yml exec app npm run prices:wp-diff`（読み取りのみ）→ 一致を確認 → 同じ形で `npm run prices:wp-push -- --yes`。新しいスクリプトを使うには先に `bash scripts/deploy-vps.sh`
+- mbPITの利用状況（店舗ごとの証明書・車両・投稿の件数）も同様に `… exec app npm run report:pit-usage`（読み取りのみ）
 
 ## 検証の作法
 

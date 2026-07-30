@@ -18,7 +18,19 @@ import { wpConfigured } from "../src/lib/prices/wordpress";
 import type { BrandRow, VehicleRow } from "../src/lib/prices/types";
 
 if (!wpConfigured()) {
-  console.log("✗ WP_USER / WP_APP_PASSWORD が未設定です（.env）");
+  console.log("✗ WP_USER / WP_APP_PASSWORD が読めていません");
+  console.log("");
+  console.log("このコマンドは **本番のDBとWP認証の両方** が必要です。");
+  console.log("認証情報は開発クローンの .env ではなく、デプロイ先の .env から");
+  console.log("docker compose 経由でアプリのコンテナに渡されています。");
+  console.log("さらに postgres はホストに公開していないため、開発クローンからはDBにも届きません。");
+  console.log("");
+  console.log("→ アプリのコンテナの中で実行してください（環境変数もDBも揃っています）:");
+  console.log("   docker compose -f /root/mbfast-app/docker-compose.prod.yml exec app \\");
+  console.log("     npm run prices:wp-diff");
+  console.log("");
+  console.log("   新しいスクリプトを含めるには先にデプロイが必要です:");
+  console.log("   cd /root/dev/mbfast-app && git pull && bash scripts/deploy-vps.sh");
   process.exit(1);
 }
 
