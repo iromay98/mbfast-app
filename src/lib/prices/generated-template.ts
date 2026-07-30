@@ -23,17 +23,58 @@ export function askLabelFor(col: ColumnDefinition): string {
   return ASK_LABELS[col.key] ?? col.label.replace(/<br\s*\/?>/g, "");
 }
 
-// 列順の共通ルール（Airtable由来の生成ブランドに適用。既存4ブランドのゴールデンには触れない）:
-// 工賃（脱着工賃）列は「ECUチューニング価格列（key=stage1）」の直後に置く。
-// リミッター解除OP・O2/OPF・Stage2 等の追加価格列よりも前（ライブの手動並び替えと同じ位置）。
-// stage1 列が無いブランドは最後の価格列の直後にフォールバック。
+/*
+ * 列順の共通ルール（本番の手作業の並びに合わせる。工賃列が無いブランドは何もしない）:
+ *
+ *   工賃（脱着工賃／脱着・殻割工賃／工賃／脱着等工賃）は
+ *   **メインのECUチューニング価格列の直後**に置く。
+ *   純正出力・Stage1出力向上・リミッター解除OP・O2/OPF・Stage2 等より前。
+ *
+ * メイン価格列の名前はブランドごとに違う（列名で判定する）:
+ *   Mercedes(ガソリン) … Stage1(バブ無料)
+ *   Mercedes(ディーゼル)… ECUチューニング
+ *   Ferrari / その他 …… ECUチューニング(バブリング無料)
+ *
+ * 以前は key === "stage1" だけを見ていたため、メイン列のキーが tuning / ecuTuning の
+ * ブランドでは「最後の価格列の直後」にフォールバックし、工賃が Stage2 や
+ * リミッター解除OPより後ろに落ちていた（本番で人が直した並びと食い違う）。
+ */
+
+/** メイン価格列と見なすキー（左が優先）。ブランドによって命名が違う */
+const MAIN_PRICE_KEYS = ["stage1", "ecuTuning", "tuning", "ecu_tuning"] as const;
+
+/** メイン価格列と見なすラベル（キーで決まらないときの判定。全角/半角カナ・空白差を吸収） */
+const MAIN_PRICE_LABEL_RE =
+  /(ECU|ｅｃｕ)\s*(ﾁｭｰﾆﾝｸﾞ|チューニング)|Stage\s*1(?!\.)|ｽﾃｰｼﾞ\s*1/i;
+
+const normalizeLabel = (s: string) => s.replace(/<br\s*\/?>/gi, "").replace(/\s+/g, "");
+
+/**
+ * メイン価格列の位置を返す（見つからなければ -1）。
+ * 判定順: キーの一致 → ラベルの一致 → 最初の price 列。
+ * 「最初の price 列」を最後の手段にしているのは、追加OP列（Stage2・リミッター解除OP）が
+ * 後ろに並ぶ設計なので、先頭側の方がメインである可能性が高いため。
+ */
+export function findMainPriceIndex(cols: ColumnDefinition[]): number {
+  const prices = cols.filter((c) => c.type === "price");
+  if (prices.length === 0) return -1;
+  for (const key of MAIN_PRICE_KEYS) {
+    const i = cols.findIndex((c) => c.type === "price" && c.key === key);
+    if (i >= 0) return i;
+  }
+  const byLabel = cols.findIndex(
+    (c) => c.type === "price" && MAIN_PRICE_LABEL_RE.test(normalizeLabel(c.labelHtml ?? c.label)),
+  );
+  if (byLabel >= 0) return byLabel;
+  return cols.findIndex((c) => c.type === "price");
+}
+
 export function applyColumnOrderRule(cols: ColumnDefinition[]): ColumnDefinition[] {
   const labor = cols.filter((c) => c.type === "labor");
-  if (labor.length === 0) return cols;
+  if (labor.length === 0) return cols; // 工賃データが無いブランドは列を作らない
   const rest = cols.filter((c) => c.type !== "labor");
-  let anchor = rest.findIndex((c) => c.type === "price" && c.key === "stage1");
-  if (anchor === -1) anchor = rest.map((c) => c.type).lastIndexOf("price");
-  if (anchor === -1) return cols;
+  const anchor = findMainPriceIndex(rest);
+  if (anchor === -1) return cols; // 価格列が無い（想定外）ときは並べ替えない
   return [...rest.slice(0, anchor + 1), ...labor, ...rest.slice(anchor + 1)];
 }
 
@@ -400,7 +441,10 @@ td[class^="${p}cell-price-"] { font-weight: 700; color: #8a6d14; font-size: 0.92
       var rowSeries = row.getAttribute('data-series') || '';
       var matchSearch = !q || searchText.indexOf(q) !== -1;
       var matchSeries = state.series === 'all' || rowSeries === state.series;
-      if (matchSearch && matchSeries) {
+      // WordPressのREST保存は本文中のアンパサンドを数値参照に変換するため、
+      // 生成JSにはアンパサンドを一切書かない（論理AND演算子が壊れる）。
+      // 同じ理由で小なり記号も使わない（比較は大なり側に寄せている）。
+      if (!(!matchSearch || !matchSeries)) {
         row.className = row.className.replace(/\\s*${p}row-off/g, '');
         visible++;
       } else if (row.className.indexOf('${p}row-off') === -1) {

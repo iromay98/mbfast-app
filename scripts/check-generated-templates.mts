@@ -56,6 +56,10 @@ const ES6_PATTERNS: [RegExp, string][] = [
   // WPは本文レンダー時、script内でも裸の「<」をタグ開始と誤認し、以降の & を &#038; に
   // エンティティ化してJSを破壊する（Ferrariページで実証）。比較は「length > i」形式にする。
   [/</, "裸の <（WPレンダーフィルタがJSを破壊。比較は length > i 形式にする）"],
+  // REST API 経由の保存でも本文中の & が &#038; に変換される（mbPITのフィードで実害）。
+  // 論理ANDやクエリ文字列が壊れるため、JSには & を一切書かない（必要なら
+  // String.fromCharCode(38) で組む）。
+  [/&/, "裸の &（REST保存で &#038; に変換されJSが壊れる。String.fromCharCode(38) を使う）"],
   [/=>/, "アロー関数"],
   [/\bconst\s/, "const"],
   [/\blet\s/, "let"],
