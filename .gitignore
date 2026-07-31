@@ -56,7 +56,9 @@ next-env.d.ts
 # Claude Code local config
 .claude/
 .verify-out/
-prisma/data/wp-live/
+# prisma/data/wp-live/ … 価格表パーサーのオフライン検証フィクスチャ（LIVEスナップショット＋manifest）
+#   をリポジトリで管理するため除外を解除（CIでラウンドトリップ検証を回す。公開価格の
+#   マーケ用HTMLで秘密情報は含まない）。
 prisma/data/airtable/
 prisma/data/wp-backup/
 public/ort/
