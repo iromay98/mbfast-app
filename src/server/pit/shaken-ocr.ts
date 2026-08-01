@@ -11,6 +11,7 @@
  *  - 和暦→西暦の変換はここで行う（AIの計算に依存させない）
  */
 import Anthropic from "@anthropic-ai/sdk";
+import { parseShakenPdf } from "@/lib/shaken/pdf-parse";
 import { normalizeChassis } from "@/server/pit/chassis";
 
 // 読み取りは視覚的な帳票理解が要るためsonnetを既定に（PIT_OCR_MODEL で上書き可能）
@@ -263,8 +264,24 @@ export async function readShakenImage(
  */
 export async function readShakenPdf(
   pdf: Buffer,
-): Promise<{ result?: ShakenReadResult; error?: string }> {
-  if (!shakenOcrEnabled()) return { error: "読み取り機能が未設定です（本部にお問い合わせください）" };
+): Promise<{ result?: ShakenReadResult; error?: string; source?: "text" | "ai" }> {
+  /*
+   * まず**PDFの文字を直接読む**（pdf-parse.ts）。閲覧アプリのPDFはテキストPDFなので、
+   * これで確実に取れる＝車台番号を誤読しない・外部APIへ書類を送らない・費用ゼロ。
+   * 実物のPDFで全項目取得を確認済み。
+   */
+  const direct = parseShakenPdf(pdf);
+  if (direct) {
+    return { result: normalizeShakenFields(direct), source: "text" };
+  }
+
+  // ここから下はスキャン画像のPDF等、文字が埋まっていない場合のフォールバック。
+  if (!shakenOcrEnabled()) {
+    return {
+      error:
+        "このPDFから文字を読み取れませんでした（画像として保存されたPDFの可能性）。手入力で進めてください",
+    };
+  }
   const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
   let msg: Anthropic.Message;
   try {
@@ -308,5 +325,5 @@ export async function readShakenPdf(
         "車検証のPDFとして読み取れませんでした。車検証閲覧アプリで出力したPDFかどうか確認してください",
     };
   }
-  return { result: normalizeShakenFields(input) };
+  return { result: normalizeShakenFields(input), source: "ai" };
 }
