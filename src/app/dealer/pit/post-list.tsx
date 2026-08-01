@@ -3,7 +3,12 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { updateMyPitPost, deleteMyPitPost } from "@/lib/actions/pit-posts";
+import {
+  updateMyPitPost,
+  deleteMyPitPost,
+  approveMyPitPost,
+  discardMyPitPost,
+} from "@/lib/actions/pit-posts";
 
 export type PostListRow = {
   id: string;
@@ -13,6 +18,8 @@ export type PostListRow = {
   editNote: string;
   publishedUrl: string | null;
   createdAtLabel: string;
+  /** 公開前確認（status="review"）で読む記事本文。それ以外では渡さない */
+  bodyHtml?: string | null;
 };
 
 const STATUS: Record<string, { label: string; cls: string }> = {
@@ -23,6 +30,8 @@ const STATUS: Record<string, { label: string; cls: string }> = {
   deleted: { label: "削除済み", cls: "bg-surface-2 text-ink-soft" },
   // 施工証明から用意したスタンバイ下書き（まだ公開していない）
   draft: { label: "下書き（証明書から）", cls: "bg-gold-100 text-gold-800" },
+  // AIが書き終えて、公開前の確認を待っている（店舗設定 postReviewRequired=ON のとき）
+  review: { label: "内容の確認待ち", cls: "bg-violet-100 text-violet-800" },
 };
 
 // 公開後の記事の編集（タイトル・追記）と削除。
@@ -34,6 +43,40 @@ export function PostList({ posts }: { posts: PostListRow[] }) {
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+  // 公開前確認: 本文を開いている投稿
+  const [previewId, setPreviewId] = useState<string | null>(null);
+
+  /* 公開前確認の記事をそのまま公開する（WordPressの下書き→公開に切り替える） */
+  const approve = async (p: PostListRow) => {
+    if (!confirm(`「${p.title ?? p.vehicle}」をブログに公開します。よろしいですか？`)) return;
+    setBusy(true);
+    setMsg(null);
+    try {
+      const r = await approveMyPitPost(p.id);
+      if (r.error) setMsg(r.error);
+      else router.refresh();
+    } catch {
+      setMsg("通信エラーが発生しました");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  /* 公開せずに取り下げる（内容が違うとき用の出口） */
+  const discard = async (p: PostListRow) => {
+    if (!confirm(`「${p.title ?? p.vehicle}」を公開せずに取り下げます。よろしいですか？`)) return;
+    setBusy(true);
+    setMsg(null);
+    try {
+      const r = await discardMyPitPost(p.id);
+      if (r.error) setMsg(r.error);
+      else router.refresh();
+    } catch {
+      setMsg("通信エラーが発生しました");
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const open = (p: PostListRow) => {
     setEditing(p);
@@ -93,6 +136,7 @@ export function PostList({ posts }: { posts: PostListRow[] }) {
         const st = STATUS[p.status] ?? { label: p.status, cls: "bg-surface-2" };
         const deleted = p.status === "deleted";
         const draft = p.status === "draft";
+        const review = p.status === "review";
         return (
           <div key={p.id} className="py-2">
             <div className="flex flex-wrap items-center gap-2 text-xs">
@@ -113,7 +157,34 @@ export function PostList({ posts }: { posts: PostListRow[] }) {
                   {p.title ?? "記事を見る"}
                 </a>
               )}
-              {draft ? (
+              {review ? (
+                <span className="ml-auto flex items-center gap-2">
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => (previewId === p.id ? setPreviewId(null) : setPreviewId(p.id))}
+                    className="font-semibold text-violet-700 hover:underline disabled:opacity-50"
+                  >
+                    {previewId === p.id ? "本文を閉じる" : "本文を読む"}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => approve(p)}
+                    className="rounded-lg bg-gold-500 px-3 py-1 font-bold text-white hover:bg-gold-600 disabled:opacity-50"
+                  >
+                    公開する
+                  </button>
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => discard(p)}
+                    className="text-red-600 hover:underline disabled:opacity-50"
+                  >
+                    取り下げ
+                  </button>
+                </span>
+              ) : draft ? (
                 <span className="ml-auto flex items-center gap-2">
                   <Link
                     href={`/dealer/pit?from=${p.id}`}
@@ -152,6 +223,31 @@ export function PostList({ posts }: { posts: PostListRow[] }) {
                 )
               )}
             </div>
+
+            {/*
+              公開前確認の本文プレビュー。AIが書いた本文をそのまま読めるようにする。
+              本文は生成時に保存したもの（DB）。まだWordPressでは下書きなので公開URLでは読めない。
+              表示は自前で組んだHTMLのみ（外部入力を埋め込まない）。
+            */}
+            {review && previewId === p.id && (
+              <div className="mt-2 rounded-xl border-2 border-violet-400 bg-white p-3">
+                <p className="mb-1.5 text-[11px] font-bold text-violet-800">
+                  この内容で公開されます（まだ公開されていません）
+                </p>
+                {p.title && <p className="mb-2 text-sm font-bold text-ink">{p.title}</p>}
+                {p.bodyHtml ? (
+                  <div
+                    className="mbpit-preview max-h-[60vh] overflow-y-auto text-[13px] leading-relaxed text-ink"
+                    dangerouslySetInnerHTML={{ __html: p.bodyHtml }}
+                  />
+                ) : (
+                  <p className="text-xs text-ink-soft">本文を読み込めませんでした。</p>
+                )}
+                <p className="mt-2 text-[11px] text-ink-soft">
+                  直したいところがあれば「取り下げ」で捨てて、投稿し直してください。
+                </p>
+              </div>
+            )}
 
             {editing?.id === p.id && (
               <div className="mt-2 rounded-xl border-2 border-gold-500 bg-surface-2 p-3">

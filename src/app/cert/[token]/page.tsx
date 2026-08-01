@@ -90,8 +90,9 @@ export default async function SharedCertificatePage({
   }));
 
   return (
-    <div className="min-h-screen bg-neutral-200 py-4">
-      <div className="mx-auto max-w-[760px] px-3">
+    /* cert-print-area: 画面用のグレー地・左右パディングは紙では消す（globals.css の @media print） */
+    <div className="cert-print-area min-h-screen bg-neutral-200 py-4">
+      <div className="cert-print-area mx-auto max-w-[760px] px-3">
         <div className="no-print mb-3 flex items-center justify-between gap-2">
           <p className="text-xs font-semibold text-neutral-600">
             この画面は印刷／PDF保存できます。大切に保管してください。

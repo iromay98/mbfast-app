@@ -27,6 +27,8 @@ const STORE_SELECT = {
   wpCategoryId: true,
   footerHtml: true,
   faqJson: true,
+  // 公開前確認（ONなら生成後に review で止める）
+  postReviewRequired: true,
   active: true,
 } as const;
 

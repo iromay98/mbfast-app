@@ -5,6 +5,7 @@
  */
 import { moduleDef } from "@/server/pit/cert-fields";
 import { certificateTypeLabel, certificateNumberOf } from "@/server/pit/certificate";
+import { hideIf, resolveCertDisplay, type CertDisplaySettings } from "@/server/pit/cert-display";
 import type { CertificateSheetProps, SheetRow } from "@/components/certificate-sheet";
 
 const STATUS_LABEL: Record<string, string> = {
@@ -62,13 +63,19 @@ type CertRecord = {
     chassisLast3: string | null;
     firstRegisteredOn: Date | null;
   };
-  store: { displayName: string; address: string; tel: string; certificationNo: string };
+  store: {
+    displayName: string;
+    address: string;
+    tel: string;
+    certificationNo: string;
+  } & CertDisplaySettings;
 };
 
 export function toSheetProps(
   cert: CertRecord,
   secrets: { vin: string | null; registrationNumber: string | null },
 ): CertificateSheetProps {
+  const display = resolveCertDisplay(cert.store, cert.legalRecord);
   const details: SheetRow[] = cert.details.map((d) => {
     const def = moduleDef(d.module)?.fields.find((f) => f.key === d.fieldKey);
     return {
@@ -92,16 +99,20 @@ export function toSheetProps(
       registrationNumber: secrets.registrationNumber ?? "",
       chassisLast3: cert.vehicle.chassisLast3 ?? "",
     },
+    // 店舗設定で外した項目は空文字で渡す（値は保存されたまま＝載せないだけ）。
+    // 法定記録簿モードでは氏名・住所のOFFは無効化される（cert-display.ts が判定の原本）。
     customer: {
-      name: cert.customer?.name ?? "",
-      address: cert.customer?.address ?? "",
-      tel: cert.customer?.tel ?? "",
+      name: hideIf(display.showCustomerName, cert.customer?.name ?? ""),
+      address: hideIf(display.showCustomerAddress, cert.customer?.address ?? ""),
+      tel: hideIf(display.showCustomerTel, cert.customer?.tel ?? ""),
     },
     store: {
       name: cert.store.displayName,
       address: cert.store.address,
       tel: cert.store.tel,
       certificationNo: cert.store.certificationNo,
+      // 左上のブランド名。未設定なら店舗名にフォールバック（空欄の紙を作らない）
+      brandName: display.brandName || cert.store.displayName,
     },
     service: {
       dateLabel: ymdJa(cert.serviceDate),
@@ -109,8 +120,8 @@ export function toSheetProps(
       staffName: cert.staffName,
       staffLicenseNo: cert.staffLicenseNo,
       workSummary: cert.workSummary,
-      totalAmount: yen(cert.totalAmount),
-      restorationCostEstimate: yen(cert.restorationCostEstimate),
+      totalAmount: hideIf(display.showAmount, yen(cert.totalAmount)),
+      restorationCostEstimate: hideIf(display.showAmount, yen(cert.restorationCostEstimate)),
     },
     details,
     payloadHash: cert.payloadHash,

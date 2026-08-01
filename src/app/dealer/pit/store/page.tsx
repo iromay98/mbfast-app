@@ -6,6 +6,7 @@ import { requireDealer } from "@/lib/authz";
 import { prisma } from "@/lib/db";
 import { PageTitle, Card } from "@/components/ui";
 import { StoreInfoEditor } from "@/components/store-info-editor";
+import { CertSettingsEditor } from "@/components/cert-settings-editor";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = pitMetadata("mbPIT 店舗情報");
@@ -29,6 +30,14 @@ export default async function PitStorePage() {
       website: true,
       serviceTags: true,
       intro: true,
+      // 証明書の体裁・記載範囲／AI記事の公開前確認（自店のみ編集可）
+      facilityType: true,
+      certBrandName: true,
+      certShowCustomerName: true,
+      certShowCustomerAddress: true,
+      certShowCustomerTel: true,
+      certShowAmount: true,
+      postReviewRequired: true,
     },
   });
   if (!store) redirect("/dealer/pit");
@@ -72,6 +81,23 @@ export default async function PitStorePage() {
             },
             contactPerson: "",
             internalNote: "",
+          }}
+        />
+      </Card>
+
+      {/* 証明書の体裁・記載範囲とAI記事の公開前確認（WordPressへは同期しないアプリ内設定） */}
+      <Card>
+        <p className="mb-2 text-base font-bold text-ink">施工証明書・投稿の設定</p>
+        <CertSettingsEditor
+          storeName={store.displayName}
+          legalFacility={store.facilityType !== "general"}
+          initial={{
+            certBrandName: store.certBrandName,
+            certShowCustomerName: store.certShowCustomerName,
+            certShowCustomerAddress: store.certShowCustomerAddress,
+            certShowCustomerTel: store.certShowCustomerTel,
+            certShowAmount: store.certShowAmount,
+            postReviewRequired: store.postReviewRequired,
           }}
         />
       </Card>

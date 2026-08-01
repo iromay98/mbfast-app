@@ -33,12 +33,13 @@ export function AppShell({
       }`}
     >
       {/* ヘッダー: mbPITは群青×ゴールドで常時固定。mbFASTは下タブ使用時のみスマホで固定 */}
+      {/* no-print: アプリのヘッダーは紙に出さない（証明書だけが紙に出るようにする） */}
       <header
         className={
           isPit
             ? // HPのmbPIT記事トップバーと同じ見た目（黒地＋ゴールドの下線）
-              "sticky top-0 z-30 border-b-2 border-gold-500 bg-[#0d0d0d]"
-            : `border-b border-line bg-surface ${hasBottomNav ? "max-sm:sticky max-sm:top-0 max-sm:z-30" : ""}`
+              "no-print sticky top-0 z-30 border-b-2 border-gold-500 bg-[#0d0d0d]"
+            : `no-print border-b border-line bg-surface ${hasBottomNav ? "max-sm:sticky max-sm:top-0 max-sm:z-30" : ""}`
         }
       >
         <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-2.5">

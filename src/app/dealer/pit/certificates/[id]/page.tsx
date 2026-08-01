@@ -112,7 +112,8 @@ export default async function CertificateDetailPage({ params }: { params: Promis
         maxCount={MAX_CERT_MEDIA}
       />
 
-      <div className="rounded-xl border border-line bg-white">
+      {/* cert-print-area: 画面用のカード枠は紙では消す（globals.css の @media print） */}
+      <div className="cert-print-area rounded-xl border border-line bg-white">
         <CertificateSheet {...sheet} {...qr} revealVin photos={photos} />
       </div>
     </div>

@@ -424,7 +424,14 @@ export async function getStoreCertificate(storeId: string, certificateId: string
           firstRegisteredOn: true,
         },
       },
-      store: { select: { displayName: true, address: true, tel: true, certificationNo: true, facilityType: true } },
+      store: {
+        select: {
+          displayName: true, address: true, tel: true, certificationNo: true, facilityType: true,
+          // 帳票の体裁・記載範囲の店舗設定（判定は cert-display.ts）
+          certBrandName: true, certShowCustomerName: true, certShowCustomerAddress: true,
+          certShowCustomerTel: true, certShowAmount: true,
+        },
+      },
     },
   });
 }
@@ -462,7 +469,14 @@ export async function getSharedCertificate(
           firstRegisteredOn: true,
         },
       },
-      store: { select: { displayName: true, address: true, tel: true, certificationNo: true, facilityType: true } },
+      store: {
+        select: {
+          displayName: true, address: true, tel: true, certificationNo: true, facilityType: true,
+          // 帳票の体裁・記載範囲の店舗設定（判定は cert-display.ts）
+          certBrandName: true, certShowCustomerName: true, certShowCustomerAddress: true,
+          certShowCustomerTel: true, certShowAmount: true,
+        },
+      },
     },
   });
   if (!cert || cert.status !== "issued") return { state: "notfound" };

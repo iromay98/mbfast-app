@@ -96,7 +96,8 @@ export function BottomNav({ items, dark }: { items: BottomNavItem[]; dark?: bool
     <nav
       // iPhoneのホームバーと被らないよう safe-area 分＋最低10pxの余白を下に取る
       // dark: mbPIT加盟店向け（HPと同じ黒×ゴールド）
-      className={`fixed inset-x-0 bottom-0 z-30 border-t pb-[max(env(safe-area-inset-bottom),10px)] backdrop-blur sm:hidden ${
+      // no-print: 下タブは紙に出さない（固定要素は印刷で各ページに重なって出る）
+      className={`no-print fixed inset-x-0 bottom-0 z-30 border-t pb-[max(env(safe-area-inset-bottom),10px)] backdrop-blur sm:hidden ${
         dark ? "border-gold-500/50 bg-[#0d0d0d]/95" : "border-line bg-surface/95"
       }`}
       aria-label="モバイルナビゲーション"

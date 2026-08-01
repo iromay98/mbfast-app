@@ -134,7 +134,8 @@ export async function fetchPostContent(
 // 公開済み記事の更新（タイトル・本文の部分更新）
 export async function updatePost(
   postId: number,
-  fields: { title?: string; content?: string },
+  // status: 公開前確認（review）を通した記事を draft → publish に切り替えるのに使う
+  fields: { title?: string; content?: string; status?: "publish" | "draft" },
 ): Promise<void> {
   await wpFetch(`/posts/${postId}`, {
     method: "POST",
@@ -189,6 +190,11 @@ export type WpPostInput = {
   featuredMediaId?: number;
   metaDescription?: string;
   focusKeyword?: string;
+  /**
+   * 公開前確認（店舗設定 postReviewRequired）のとき true。
+   * AUTO_PUBLISH に関係なく WordPress へ下書きで作る（店舗が読んでから公開する）。
+   */
+  forceDraft?: boolean;
 };
 
 export type WpPost = { id: number; link: string };
@@ -203,7 +209,7 @@ export async function publishPost(input: WpPostInput): Promise<WpPost> {
     title: input.title,
     slug: input.slug,
     content: `${BRAND_BLOCK}\n${input.contentHtml}`,
-    status: autoPublish() ? "publish" : "draft",
+    status: input.forceDraft || !autoPublish() ? "draft" : "publish",
     categories: input.categoryIds,
   };
   if (input.featuredMediaId) body.featured_media = input.featuredMediaId;

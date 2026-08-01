@@ -25,7 +25,7 @@ export async function POST(request: NextRequest) {
 
   const store = await prisma.pitStore.findUnique({
     where: { id: storeId },
-    select: { id: true, displayName: true, slug: true, wpCategoryId: true, footerHtml: true, faqJson: true },
+    select: { id: true, displayName: true, slug: true, wpCategoryId: true, footerHtml: true, faqJson: true, postReviewRequired: true },
   });
   if (!store) return Response.json({ error: "店舗が見つかりません" }, { status: 404 });
   if (store.wpCategoryId <= 0) {

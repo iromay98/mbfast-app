@@ -55,6 +55,7 @@ async function loadOwnPost(postId: string) {
       title: true,
       editNote: true,
       wpPostId: true,
+      publishedUrl: true,
       store: { select: { dealerId: true, footerHtml: true } },
     },
   });
@@ -135,5 +136,60 @@ export async function deleteMyPitPost(postId: string): Promise<{ ok?: true; erro
   revalidatePath("/dealer/pit");
   revalidatePath("/dealer/pit/home");
   revalidatePath("/hq/pit");
+  return { ok: true };
+}
+
+/**
+ * 公開前確認（status="review"）の記事を公開する。
+ *
+ * パイプラインは確認ONのとき WordPress へ **下書き** で作って止めている。
+ * ここで下書き→公開に切り替える（記事を作り直さない＝画像やブロックをそのまま活かす）。
+ * 加盟店は自店のみ・本部は全店（loadOwnPost が権限を見る）。
+ */
+export async function approveMyPitPost(
+  postId: string,
+): Promise<{ ok?: true; url?: string; error?: string }> {
+  const r = await loadOwnPost(postId);
+  if (!r.post) return { error: r.error };
+  const post = r.post;
+
+  if (post.status !== "review") return { error: "確認待ちの投稿ではありません" };
+  if (!post.wpPostId) return { error: "WordPressの記事が見つかりません" };
+  if (!wpConfigured()) return { error: "WordPress接続が未設定のため公開できません" };
+
+  try {
+    await updatePost(post.wpPostId, { status: "publish" });
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "公開に失敗しました" };
+  }
+
+  await prisma.pitPost.update({ where: { id: post.id }, data: { status: "published" } });
+  revalidatePath("/dealer/pit");
+  revalidatePath("/hq/pit");
+  return { ok: true, url: post.publishedUrl ?? undefined };
+}
+
+/**
+ * 公開前確認の記事を公開せずに取り下げる（WordPressの下書きはゴミ箱へ）。
+ * 「AIが書いた内容が違う」ときに、公開せず捨てられる出口を必ず用意する。
+ */
+export async function discardMyPitPost(postId: string): Promise<{ ok?: true; error?: string }> {
+  const r = await loadOwnPost(postId);
+  if (!r.post) return { error: r.error };
+  const post = r.post;
+
+  if (post.status !== "review") return { error: "確認待ちの投稿ではありません" };
+  if (post.wpPostId && wpConfigured()) {
+    try {
+      await trashPost(post.wpPostId);
+    } catch (e) {
+      return { error: e instanceof Error ? e.message : "取り下げに失敗しました" };
+    }
+  }
+  await prisma.pitPost.update({
+    where: { id: post.id },
+    data: { status: "deleted", errorMessage: "公開前確認で取り下げ" },
+  });
+  revalidatePath("/dealer/pit");
   return { ok: true };
 }

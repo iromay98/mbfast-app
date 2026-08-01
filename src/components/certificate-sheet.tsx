@@ -29,7 +29,18 @@ export type CertificateSheetProps = {
     chassisLast3: string;
   };
   customer: { name: string; address: string; tel: string };
-  store: { name: string; address: string; tel: string; certificationNo: string };
+  store: {
+    name: string;
+    address: string;
+    tel: string;
+    certificationNo: string;
+    /**
+     * 帳票の左上に出す「その店舗のブランド名」（会社名ではない。例: Charism）。
+     * 店舗設定で空のときは店舗名にフォールバックする（左上が空欄の紙を作らない）。
+     * 右下の「mbPIT VERIFIED」証紙は共通のまま＝どの店舗の証明書もmbPITの検証を受けている印。
+     */
+    brandName: string;
+  };
   service: {
     dateLabel: string;
     odometerKm: string;
@@ -101,7 +112,10 @@ export function CertificateSheet(p: CertificateSheetProps) {
       {/* 見出し: ブランド／証明書番号 */}
       <header className="cert-head flex items-center justify-between gap-3 pb-3">
         <div>
-          <p className="cert-brand font-serif text-[20px] font-medium tracking-[0.05em]">mbPIT</p>
+          {/* 左上はその店舗のブランド名（会社名ではない）。右下の証紙が mbPIT の検証を示す */}
+          <p className="cert-brand font-serif text-[20px] font-medium tracking-[0.05em]">
+            {p.store.brandName || p.store.name}
+          </p>
           <p className="cert-sub mt-0.5 text-[10.5px]">施工証明書 / Certificate of work</p>
         </div>
         <div className="text-right">
@@ -158,14 +172,22 @@ export function CertificateSheet(p: CertificateSheetProps) {
         </tbody>
       </table>
 
-      <SectionTitle>依頼者</SectionTitle>
-      <table className="w-full border-collapse">
-        <tbody>
-          <Row label="氏名または名称" value={p.customer.name} />
-          <Row label="住所" value={p.customer.address} optional always={p.legalRecord} />
-          <Row label="連絡先" value={p.customer.tel} optional />
-        </tbody>
-      </table>
+      {/*
+        依頼者。店舗設定で全項目を外した場合は見出しごと出さない（「—」だけの節を作らない）。
+        法定記録簿モードでは氏名・住所は必ず値が渡ってくる（cert-display.ts が設定を上書きする）。
+      */}
+      {(p.customer.name || p.customer.address || p.customer.tel || p.legalRecord) && (
+        <>
+          <SectionTitle>依頼者</SectionTitle>
+          <table className="w-full border-collapse">
+            <tbody>
+              <Row label="氏名または名称" value={p.customer.name} optional always={p.legalRecord} />
+              <Row label="住所" value={p.customer.address} optional always={p.legalRecord} />
+              <Row label="連絡先" value={p.customer.tel} optional />
+            </tbody>
+          </table>
+        </>
+      )}
 
       {/* 証跡写真。渡された分だけ出す（公開ページには公開可のものしか渡らない） */}
       {p.photos && p.photos.length > 0 && (

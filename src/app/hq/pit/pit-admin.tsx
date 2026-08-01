@@ -15,6 +15,7 @@ import {
 } from "@/lib/actions/pit";
 import type { StoreInfo } from "@/server/pit/store-meta";
 import { StoreInfoEditor } from "@/components/store-info-editor";
+import { CertSettingsEditor } from "@/components/cert-settings-editor";
 
 export type StoreRow = {
   id: string;
@@ -28,6 +29,13 @@ export type StoreRow = {
   // 事業場区分（法定記録簿モードの出し分け）と認証番号
   facilityType: string;
   certificationNo: string;
+  // 証明書の体裁・記載範囲／AI記事の公開前確認（WPへは同期しないアプリ内設定）
+  certBrandName: string;
+  certShowCustomerName: boolean;
+  certShowCustomerAddress: boolean;
+  certShowCustomerTel: boolean;
+  certShowAmount: boolean;
+  postReviewRequired: boolean;
   certCount: number; // 発行済み＋無効化済みの記録件数（停止前の確認用）
   keepUntilLabel: string | null; // 記録の最長保存期限
   // 店舗マスター（店舗情報＋一覧表示用）
@@ -191,8 +199,11 @@ function StoreMaster({ stores, dealers }: { stores: StoreRow[]; dealers: DealerO
   const [pending, start] = useTransition();
   const [editing, setEditing] = useState<Partial<StoreRow> | null>(null);
   const [infoEditingId, setInfoEditingId] = useState<string | null>(null);
+  // 証明書設定（帳票のブランド名・記載範囲・公開前確認）を開いている店舗
+  const [certEditingId, setCertEditingId] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
   const infoEditing = stores.find((s) => s.id === infoEditingId) ?? null;
+  const certEditing = stores.find((s) => s.id === certEditingId) ?? null;
 
   const save = () => {
     if (!editing) return;
@@ -280,6 +291,13 @@ function StoreMaster({ stores, dealers }: { stores: StoreRow[]; dealers: DealerO
                 >
                   店舗情報
                 </button>
+                <button
+                  type="button"
+                  onClick={() => setCertEditingId(certEditingId === s.id ? null : s.id)}
+                  className="mr-2 text-violet-700 hover:underline"
+                >
+                  証明書設定
+                </button>
                 <button type="button" onClick={() => setEditing(s)} className="text-sky-700 hover:underline">
                   編集
                 </button>
@@ -339,6 +357,38 @@ function StoreMaster({ stores, dealers }: { stores: StoreRow[]; dealers: DealerO
           }}
           onClose={() => setInfoEditingId(null)}
         />
+      )}
+
+      {/* 証明書の体裁・記載範囲／AI記事の公開前確認（本部が店舗を選んで代行設定できる） */}
+      {certEditing && (
+        <div className="mt-3 rounded-lg border border-line bg-surface-2 p-3">
+          <div className="mb-2 flex items-center justify-between">
+            <h4 className="text-xs font-semibold">
+              証明書・投稿の設定: {certEditing.displayName}
+            </h4>
+            <button
+              type="button"
+              onClick={() => setCertEditingId(null)}
+              className="text-[11px] text-ink-soft hover:underline"
+            >
+              閉じる
+            </button>
+          </div>
+          <CertSettingsEditor
+            key={certEditing.id}
+            storeId={certEditing.id}
+            storeName={certEditing.displayName}
+            legalFacility={certEditing.facilityType !== "general"}
+            initial={{
+              certBrandName: certEditing.certBrandName,
+              certShowCustomerName: certEditing.certShowCustomerName,
+              certShowCustomerAddress: certEditing.certShowCustomerAddress,
+              certShowCustomerTel: certEditing.certShowCustomerTel,
+              certShowAmount: certEditing.certShowAmount,
+              postReviewRequired: certEditing.postReviewRequired,
+            }}
+          />
+        </div>
       )}
 
       {editing && (

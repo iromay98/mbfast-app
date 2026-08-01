@@ -756,6 +756,30 @@ model PitStore {
   certificationNo String @default("") // 認証番号（自動補完・推測はしない）
 
   /*
+   * 施工証明書の体裁と記載範囲（店舗ごとの設定）。**WPへは同期しない**
+   * （store-meta.ts の STORE_META_FIELDS に載せないことで構造的に保証）。
+   *
+   * certBrandName … 帳票の左上に出す「その店舗のブランド名」。会社名ではない（例: Charism）。
+   *                 空なら displayName にフォールバックする。右下の mbPIT VERIFIED 証紙は共通。
+   * certShow*     … お客様へ渡す証明書・共有ページに何を載せるか。個人情報保護の都合で
+   *                 店舗が外せるようにする。**法定記録簿モードでは必須記載事項を外せない**
+   *                 （認証/指定工場は氏名・住所が法令上の必須。判定は cert-display.ts が原本）。
+   *                 保存する値は変えない＝載せないだけ（記録の保存義務は事業者に残る）。
+   */
+  certBrandName           String  @default("")
+  certShowCustomerName    Boolean @default(true)
+  certShowCustomerAddress Boolean @default(true)
+  certShowCustomerTel     Boolean @default(true)
+  certShowAmount          Boolean @default(true) // 施工金額・再施工費用の目安
+
+  /*
+   * AI記事を公開前に人が確認するか。true なら WordPress へ下書きで投稿して
+   * PitPost.status="review" で止め、店舗が本文を見てから公開する。
+   * false（既定）は従来どおり生成してそのまま公開。
+   */
+  postReviewRequired Boolean @default(false)
+
+  /*
    * Googleビジネスプロフィール（施工記録のGoogleマップ投稿）。
    * 紐付けは必ず人が選ぶ（店名の表記ゆれで別の店に投稿する事故を防ぐため自動照合はしない）。
    * gbpLocationId は一意＝1つのロケーションを2店舗に割り当てられない。
@@ -984,8 +1008,15 @@ model PitPost {
   category      String // ecu | coating | polish | maintenance | other
   memo          String?
   photoKeys     Json        @default("[]") // storage上のキー（処理済み画像）
-  status        String      @default("processing") // processing | published | held | failed | deleted
+  // draft=証明書から作られたスタンバイ（記事未生成）/ review=生成済みで公開前の確認待ち
+  status        String      @default("processing") // processing | review | published | held | failed | deleted | draft
   editNote      String      @default("") // 公開後の追記（訂正・補足）。記事末尾に反映する
+  /*
+   * 生成した記事本文（WPへ送るHTML）。公開前確認（status="review"）で
+   * 店舗が中身を読めるようにするため保存する。以前は本文を一切保存しておらず、
+   * 生成→即公開の間に人が見る手段が無かった。
+   */
+  bodyHtml      String?
   guardResult   String? // ガード判定の内訳（held理由・注意書き挿入等）
   title         String?
   wpPostId      Int?

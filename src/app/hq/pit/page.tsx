@@ -73,6 +73,12 @@ export default async function HqPitPage() {
       footerHtml: s.footerHtml,
       active: s.active,
       facilityType: s.facilityType,
+      certBrandName: s.certBrandName,
+      certShowCustomerName: s.certShowCustomerName,
+      certShowCustomerAddress: s.certShowCustomerAddress,
+      certShowCustomerTel: s.certShowCustomerTel,
+      certShowAmount: s.certShowAmount,
+      postReviewRequired: s.postReviewRequired,
       certificationNo: s.certificationNo,
       certCount: certCountByStore.get(s.id) ?? 0,
       keepUntilLabel: keepUntilByStore.get(s.id)

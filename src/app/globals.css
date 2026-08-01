@@ -149,14 +149,34 @@ body {
   background: #2a2a2a;
 }
 
+/*
+ * 用紙設計。A4縦・余白14mm。
+ * @page を指定しないとブラウザ既定の余白になり、ヘッダー/フッター（URL・日付・ページ番号）と
+ * 帳票が詰まって「ただのWebページを印刷した紙」に見える。余白を自分で決めるのが要点。
+ */
+@page {
+  size: A4 portrait;
+  margin: 14mm;
+}
+
 @media print {
   .no-print {
     display: none !important;
   }
+  html,
   body {
-    background: #fff;
+    background: #fff !important;
   }
-  /* 印刷は白地に反転する（黒背景は印刷に向かない） */
+  /*
+   * 背景・枠線を実際に印刷させる。既定（Chromeの「背景のグラフィック」OFF）では
+   * ハッシュ枠のグレー面・証紙の枠・QRの白地が飛び、文字だけの素っぽい紙になる。
+   */
+  .cert-sheet,
+  .cert-sheet * {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  /* 印刷は白地に反転する（黒背景はインクを食い、車検場・買取店へ出す紙として読みづらい） */
   .cert-sheet {
     --cert-bg: #fff;
     --cert-line: #111;
@@ -165,10 +185,15 @@ body {
     --cert-val: #111;
     --cert-sub: #555;
     --cert-panel: #f4f4f4;
+    /*
+     * 紙でも「証書」の体裁を保つため外枠と内側余白を残す（以前は padding:0/border:0 で
+     * 枠を捨てていたため、罫線だけの素の帳票に見えていた）。
+     */
     max-width: none;
+    width: 100%;
+    border: 1.5pt solid #111;
     border-radius: 0;
-    padding: 0;
-    border: 0;
+    padding: 7mm 8mm;
   }
   .cert-section {
     border-top: 1px solid #bbb;
@@ -185,7 +210,29 @@ body {
   }
   /* 表が途中で切れると読めなくなるため、行の分割を避ける */
   .cert-sheet tr,
+  .cert-sheet table,
   .cert-sheet section {
     break-inside: avoid;
+  }
+  /* 見出しだけが前のページ末尾に残らないように */
+  .cert-section {
+    break-after: avoid;
+  }
+  /* ハッシュ枠・QR＋証紙は塊で保つ（2ページ目に証紙だけ残るのを防ぐ） */
+  .cert-hash,
+  .cert-seal {
+    break-inside: avoid;
+  }
+  /*
+   * 帳票の外側（画面用のカード枠・グレー地・左右パディング）を紙では消す。
+   * これが残ると「Webページを印刷した」見た目になる。
+   */
+  .cert-print-area {
+    background: #fff !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    max-width: none !important;
   }
 }

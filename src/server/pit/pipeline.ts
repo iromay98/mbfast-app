@@ -13,6 +13,7 @@ import { compressVideo } from "./video";
 
 export type PitPublishResult =
   | { status: "published"; postId: string; url: string; title: string }
+  | { status: "review"; postId: string; title: string }
   | { status: "held"; postId: string; reasons: string[] }
   | { status: "failed"; postId: string; error: string };
 
@@ -23,6 +24,8 @@ type StoreInfo = {
   wpCategoryId: number;
   footerHtml: string;
   faqJson: unknown;
+  /** true なら生成後に公開せず status="review" で止める（店舗が本文を読んでから公開） */
+  postReviewRequired?: boolean;
 };
 
 export async function runPitPipeline(opts: {
@@ -170,8 +173,16 @@ export async function runPitPipeline(opts: {
       `　/　<a href="${MBPIT_HUB_URL}">mbPIT施工記録一覧</a></p><!-- /wp:paragraph -->`;
     if (store.footerHtml.trim()) body += `\n${store.footerHtml}`;
 
-    // 6. 公開（店舗カテゴリ＋親カテゴリ545。既存の「代理店」カテゴリツリーには絶対に触れない）
+    /*
+     * 6. WordPressへ投稿（店舗カテゴリ＋親カテゴリ545。既存の「代理店」カテゴリツリーには絶対に触れない）
+     *
+     * 店舗が「公開前に内容を確認する」設定なら、ここでは **下書き**として作り、
+     * PitPost.status="review" で止める。店舗が本文を読んで承認すると publish に切り替わる
+     * （lib/actions/pit-posts.ts の approveMyPitPost）。
+     */
+    const review = store.postReviewRequired === true;
     const wpPost = await publishPost({
+      forceDraft: review,
       title: article.title,
       slug: article.slug,
       contentHtml: body,
@@ -181,10 +192,32 @@ export async function runPitPipeline(opts: {
       focusKeyword: article.focus_keyword,
     });
 
+    /*
+     * 本文（bodyHtml）は確認画面で読めるように保存する。
+     * 以前は本文をどこにも保存しておらず、生成→即公開の間に人が見る手段が無かった。
+     */
     await prisma.pitPost.update({
       where: { id: post.id },
-      data: { status: "published", title: article.title, wpPostId: wpPost.id, publishedUrl: wpPost.link },
+      data: {
+        status: review ? "review" : "published",
+        title: article.title,
+        wpPostId: wpPost.id,
+        publishedUrl: wpPost.link,
+        bodyHtml: body,
+      },
     });
+
+    if (review) {
+      await notify({
+        type: "PIT_PUBLISHED",
+        title: "施工記録の記事ができました（公開前の確認待ち）",
+        message: `${store.displayName}: ${article.title}`,
+        dealerId: null,
+        link: "/dealer/pit",
+      });
+      return { status: "review", postId: post.id, title: article.title };
+    }
+
     await notify({
       type: "PIT_PUBLISHED",
       title: "施工記録がブログに公開されました",

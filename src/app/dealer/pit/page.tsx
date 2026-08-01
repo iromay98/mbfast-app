@@ -79,6 +79,8 @@ export default async function DealerPitPage({
       editNote: true,
       publishedUrl: true,
       createdAt: true,
+      // 公開前確認（review）の本文を確認画面で読めるようにする
+      bodyHtml: true,
     },
   });
 
@@ -189,6 +191,8 @@ export default async function DealerPitPage({
             editNote: p.editNote,
             publishedUrl: p.publishedUrl,
             createdAtLabel: formatDateTime(p.createdAt),
+            // 本文は確認待ちのときだけ渡す（公開済みの本文をクライアントに載せない）
+            bodyHtml: p.status === "review" ? p.bodyHtml : null,
           }))}
         />
       </Card>

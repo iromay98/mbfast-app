@@ -506,10 +506,22 @@ async function runCommit(): Promise<void> {
     $disconnect: () => Promise<void>;
   };
 
-  // 0) 旧id（Airtable由来5行）を purge。prefix で作り直すため残さない。
-  await prisma.priceVehicle.deleteMany({ where: { brandId: { in: LEGACY_BRAND_IDS } } });
-  await prisma.priceBrand.deleteMany({ where: { id: { in: LEGACY_BRAND_IDS } } });
-  console.log(`旧id purge: ${LEGACY_BRAND_IDS.join(",")}`);
+  /*
+   * 0) 旧id（Airtable由来）を purge。prefix で作り直すため残さない。
+   *
+   * **--pilot では絶対に purge しない**。旧id5件は audi/bmw/mercedes_gasoline を含み、
+   * その中身はパイロット4本（ferrari/lambo/mbd/others）では作り直されないため、
+   * 部分取込で purge すると「消したまま再作成されない」ブランドが出る
+   * （実際に run#2 で html 870行→78行になり audi/bmw/mb のデータが欠落した）。
+   * purge は全ブランドを入れ直す全量取込のときだけ行う。
+   */
+  if (pilotOnly) {
+    console.log(`旧id purge: スキップ（--pilot のため。purgeは全量取込のときだけ行う）`);
+  } else {
+    await prisma.priceVehicle.deleteMany({ where: { brandId: { in: LEGACY_BRAND_IDS } } });
+    await prisma.priceBrand.deleteMany({ where: { id: { in: LEGACY_BRAND_IDS } } });
+    console.log(`旧id purge: ${LEGACY_BRAND_IDS.join(",")}`);
+  }
 
   const commitTables = discoverTables().filter((t) => (pilotOnly ? pilotIds.has(t.id) : true));
   const collisions: string[] = [];
