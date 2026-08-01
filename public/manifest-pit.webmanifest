@@ -1,0 +1,41 @@
+{
+  "name": "mbPIT 施工記録",
+  "short_name": "mbPIT",
+  "description": "mbPIT 加盟店の施工記録・顧客・施工証明書",
+  "lang": "ja",
+  "start_url": "/dealer/pit",
+  "scope": "/dealer/pit",
+  "display": "standalone",
+  "background_color": "#0d0d0d",
+  "theme_color": "#0d0d0d",
+  "icons": [
+    {
+      "src": "/icons/pit-icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/pit-icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "share_target": {
+    "action": "/api/shaken-share",
+    "method": "POST",
+    "enctype": "multipart/form-data",
+    "params": {
+      "files": [
+        {
+          "name": "file",
+          "accept": [
+            "application/pdf",
+            ".pdf"
+          ]
+        }
+      ]
+    }
+  }
+}
