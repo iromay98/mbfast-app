@@ -16,7 +16,7 @@
  * 事故を避けるため、series は tr 属性から / チップ一覧はボタン属性から明示的に取る。
  */
 
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import type {
@@ -55,17 +55,18 @@ export function extractBlock(html: string, blockIndex: number): string {
 function parseCellValue(innerHtml: string): CellValue {
   const s = innerHtml.trim();
   if (/class="[^"]*ask-btn/.test(s)) {
-    // その列セルの ask-btn 実測 data-grade（同一行でも列で ★ の有無が揺れる原本ノイズを保持）
+    // ask-btn の data-car / data-grade は同一行内でも列で ★ の有無が揺れる原本ノイズ。
+    // セル単位で実測保持する（行単位だと最初の値で他セルを誤って上書きする）。
     const aTag = /<a[^>]*class="[^"]*ask-btn[^"]*"[^>]*>/.exec(s)?.[0] ?? "";
     const g = attr(aTag, "data-grade");
-    return g !== null ? { kind: "ask", askGrade: g } : { kind: "ask" };
+    return { kind: "ask", askCar: attr(aTag, "data-car") ?? "", ...(g !== null ? { askGrade: g } : {}) };
   }
   // muted の —（上位グレード非提供）
   if (/-muted"[^>]*>\s*—\s*</.test(s) || s === "—") return { kind: "not_offered" };
   const text = stripTags(s).trim();
-  if (text === "") return { kind: "ask" }; // 空欄 → 価格NULL（ask）
+  if (text === "") return { kind: "ask", askCar: "" }; // 空欄 → 価格NULL（ask）
   if (/^¥[\d,]+$/.test(text)) return { kind: "yen", value: Number(text.slice(1).replace(/,/g, "")) };
-  if (/^ASK$/i.test(text)) return { kind: "ask" };
+  if (/^ASK$/i.test(text)) return { kind: "ask", askCar: "" };
   return { kind: "raw", text: s }; // "+¥11,000" / "+¥33,000/各" / "ロック解除必要" 等
 }
 
@@ -179,10 +180,10 @@ export function parseWpBlock(
     const sortable = thClass.split(/\s+/).includes(`${p}-sortable`);
     const cellClassSuffix = cellSuffixes[index] ?? "cell-text";
     const role = roleOf(cellClassSuffix);
-    const sortKey =
-      role === "car" || role === "grade" || role === "engine" || role === "maker"
-        ? role
-        : `c${index}`;
+    // sortKey は th の data-{p}-sort を実測する。位置由来の c{index} では
+    // 合わない版面がある（例: fuso は legacy番号で car,c1,c2,c4,c5 と c3 を飛ばす）。
+    const measuredSort = attr(`<x${thAttrs}>`, `data-${p}-sort`);
+    const sortKey = measuredSort ?? `c${index}`;
     return {
       index,
       sortKey,
@@ -197,29 +198,19 @@ export function parseWpBlock(
   });
 
   const hasGradeColumn = columns.some((c) => c.role === "grade");
-  const gradeColIndex = columns.findIndex((c) => c.role === "grade");
 
   // ---- 各行を解析（ついでに列の askLabel/titleLabel を実測） ----
   const rows: ParsedRow[] = trBlocks.map((m) => {
     const trAttrs = m[1];
     const rowHtml = m[2];
+    // <tr> の data-* 属性を実測順で全取得（search/series の他 engine-family 等を持つ版面がある）
+    const dataAttrs = [...trAttrs.matchAll(/(data-[\w-]+)\s*=\s*"([^"]*)"/g)].map((a) => ({
+      name: a[1],
+      value: a[2],
+    }));
     const series = attr(`<x${trAttrs}>`, `data-${p}-series`) ?? "";
     const searchText = attr(`<x${trAttrs}>`, `data-${p}-search`) ?? "";
     const tds = [...rowHtml.matchAll(/<td\b[^>]*>([\s\S]*?)<\/td>/g)].map((x) => x[1]);
-
-    // grade セルから gradeClean / hasStar
-    let gradeClean = "";
-    let hasStar = false;
-    if (gradeColIndex >= 0 && tds[gradeColIndex] !== undefined) {
-      const g = tds[gradeColIndex];
-      hasStar = /cell-note/.test(g);
-      gradeClean = stripTags(g.replace(/<span class="[^"]*cell-note[^"]*"[\s\S]*?<\/span>/g, "")).trim();
-    }
-
-    // 行の ask-btn から data-car（生値）
-    let askCar: string | null = null;
-    const firstAsk = /<a[^>]*class="[^"]*ask-btn[^"]*"[^>]*>/.exec(rowHtml);
-    if (firstAsk) askCar = attr(firstAsk[0], "data-car") ?? "";
 
     const cells: CellCell[] = columns.map((col, i) => {
       const inner = tds[i] ?? "";
@@ -238,7 +229,7 @@ export function parseWpBlock(
       return { role: "verbatim", innerHtml: inner.trim() };
     });
 
-    return { series, searchText, askCar, gradeClean, hasStar, cells };
+    return { series, searchText, dataAttrs, cells };
   });
 
   const layout: BrandLayout = {
@@ -286,6 +277,29 @@ export const PILOTS: { id: string; pageId: number; blockIndex: number; prefix: s
 
 export function loadFixture(pageId: number): string {
   return readFileSync(join(ROOT, "prisma", "data", "wp-live", `${pageId}.html`), "utf-8");
+}
+
+/**
+ * wp-live の全ページを走査し、価格表ブロック（{prefix}-price-table を含む wp:html）を
+ * すべて実測抽出する。manifest.json は無く、pageId/blockIndex/prefix は全てHTMLから拾う。
+ * 1ページ複数ブロック（9679=mb+mbd 等）はブロックindexで分離される。
+ */
+export function discoverTables(): { id: string; pageId: number; blockIndex: number; prefix: string }[] {
+  const dir = join(ROOT, "prisma", "data", "wp-live");
+  const files = readdirSync(dir)
+    .filter((f) => f.endsWith(".html"))
+    .sort((a, b) => parseInt(a) - parseInt(b));
+  const out: { id: string; pageId: number; blockIndex: number; prefix: string }[] = [];
+  for (const f of files) {
+    const pageId = parseInt(f);
+    const html = readFileSync(join(dir, f), "utf-8");
+    const blocks = [...html.matchAll(/<!-- wp:html -->([\s\S]*?)<!-- \/wp:html -->/g)];
+    blocks.forEach((m, blockIndex) => {
+      const pm = /class="([a-z0-9]+)-price-table"/.exec(m[1]) || /class="([a-z0-9]+)-price-wrapper"/.exec(m[1]);
+      if (pm) out.push({ id: pm[1], pageId, blockIndex, prefix: pm[1] });
+    });
+  }
+  return out;
 }
 
 export function parsePilot(id: string): ParsedBlock {

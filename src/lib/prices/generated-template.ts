@@ -568,18 +568,17 @@ export type CellValue =
   | { kind: "yen"; value: number } // "¥198,000" → 198000
   | { kind: "raw"; text: string } // "+¥11,000" / "ロック解除必要" 等はそのまま
   | { kind: "not_offered" } // "—"（上位グレード非提供）
-  // 空欄 / ASK / LINEボタン → 価格NULL。ask-btn の data-grade は
+  // 空欄 / ASK / LINEボタン → 価格NULL。ask-btn の data-car / data-grade は
   // ライブHTMLで同一行内でも列により ★ の有無が揺れる（ルール化不能な原本ノイズ）。
-  // 生成で辻褄を合わせず、その列セルの data-grade を実測して保持する。
-  | { kind: "ask"; askGrade?: string };
+  // 生成で辻褄を合わせず、その列セルの data-car / data-grade を実測して保持する。
+  | { kind: "ask"; askCar: string; askGrade?: string };
 
 /** tbody 1行。text 系セルは実測 innerHTML を保持（そのまま再出力）。 */
 export type ParsedRow = {
-  series: string; // data-{p}-series
-  searchText: string; // data-{p}-search（派生インデックス。実測値を保持）
-  askCar: string | null; // 行の ask-btn の data-car（生値。others は "maker car"、空行は " "）
-  gradeClean: string; // grade セルの本文（★ノート除去・trim 済み）
-  hasStar: boolean; // grade セルに ★ノートが付くか
+  series: string; // data-{p}-series（便宜アクセサ）
+  searchText: string; // data-{p}-search（便宜アクセサ）
+  // <tr> の data-* 属性を実測順で全保持（search/series の他に engine-family 等を持つ版面がある）
+  dataAttrs: { name: string; value: string }[];
   cells: CellCell[];
 };
 
@@ -604,37 +603,29 @@ function yen(n: number): string {
   return "¥" + n.toLocaleString("en-US");
 }
 
-/** ask-btn 1個の HTML を版面規約で再構成する（grade は実測 askGrade を優先）。 */
+/** ask-btn 1個の HTML を版面規約で再構成する（data-car / data-grade はセルごとの実測値）。 */
 function buildAskBtn(
   layout: BrandLayout,
   col: ParsedColumn,
-  row: ParsedRow,
+  askCar: string,
   askGrade: string | undefined,
 ): string {
   const p = layout.namespacePrefix;
-  const car = row.askCar ?? "";
-  // その列セルの実測 data-grade（無ければ grade セル本文へフォールバック）
-  const gradeVal = askGrade ?? (layout.hasGradeColumn ? row.gradeClean : "");
-  const dataGradeAttr = layout.hasGradeColumn ? ` data-grade="${gradeVal}"` : "";
-  // title 末尾: 車名(trim) + grade列があれば " grade"。空なら付けない
-  const base = car.trim();
-  const gradeTail = layout.hasGradeColumn && gradeVal !== "" ? " " + gradeVal : "";
-  const title = `LINEで問い合わせ:【${col.titleLabel ?? ""}見積希望】${base}${gradeTail}`;
+  // data-car / data-grade は同一行内でも列で ★ の有無が揺れるためセル単位で実測保持する。
+  const dataGradeAttr = askGrade !== undefined ? ` data-grade="${askGrade}"` : "";
+  // title 末尾 = (data-car [+ " " + data-grade]) を trim。空なら 】直後に何も付けない。
+  const tail = (askCar + (askGrade !== undefined ? " " + askGrade : "")).trim();
+  const title = `LINEで問い合わせ:【${col.titleLabel ?? ""}見積希望】${tail}`;
   return (
     `<a href="${layout.askHref}" target="_blank" rel="noopener" class="${cls(p, "ask-btn")}"` +
-    ` data-car="${car}"${dataGradeAttr} data-label="${col.askLabel ?? ""}" title="${title}">` +
+    ` data-car="${askCar}"${dataGradeAttr} data-label="${col.askLabel ?? ""}" title="${title}">` +
     `<span class="${cls(p, "ask-icon")}">&#x1f4ac;</span>` +
     `<span class="${cls(p, "ask-text")}">LINE</span></a>`
   );
 }
 
 /** price/tcu/labor セルの中身を正規化値から再構成する。 */
-function buildValueInner(
-  layout: BrandLayout,
-  col: ParsedColumn,
-  row: ParsedRow,
-  v: CellValue,
-): string {
+function buildValueInner(layout: BrandLayout, col: ParsedColumn, v: CellValue): string {
   const p = layout.namespacePrefix;
   switch (v.kind) {
     case "yen":
@@ -644,18 +635,15 @@ function buildValueInner(
     case "not_offered":
       return `<span class="${cls(p, "muted")}">—</span>`;
     case "ask":
-      return buildAskBtn(layout, col, row, v.askGrade);
+      return buildAskBtn(layout, col, v.askCar, v.askGrade);
   }
 }
 
 /** 1セルの <td> を生成する。 */
-function buildCell(layout: BrandLayout, col: ParsedColumn, row: ParsedRow, cell: CellCell): string {
+function buildCell(layout: BrandLayout, col: ParsedColumn, cell: CellCell): string {
   const p = layout.namespacePrefix;
   const klass = `${p}-${col.cellClassSuffix}`;
-  const inner =
-    cell.role === "verbatim"
-      ? cell.innerHtml
-      : buildValueInner(layout, col, row, cell.value);
+  const inner = cell.role === "verbatim" ? cell.innerHtml : buildValueInner(layout, col, cell.value);
   return `    <td class="${klass}">${inner}</td>`;
 }
 
@@ -709,11 +697,11 @@ export function buildTheadRegion(pb: ParsedBlock): string {
 /** tbody の全 <tr> を生成する。 */
 export function buildTbodyRegion(pb: ParsedBlock): string {
   const { layout, columns, rows } = pb;
-  const p = layout.namespacePrefix;
   return rows
     .map((row) => {
-      const cells = columns.map((col, i) => buildCell(layout, col, row, row.cells[i])).join("\n");
-      return `<tr ${dataAttr(p, "search")}="${row.searchText}" ${dataAttr(p, "series")}="${row.series}">\n${cells}\n  </tr>`;
+      const cells = columns.map((col, i) => buildCell(layout, col, row.cells[i])).join("\n");
+      const trAttrs = row.dataAttrs.map((a) => `${a.name}="${a.value}"`).join(" ");
+      return `<tr ${trAttrs}>\n${cells}\n  </tr>`;
     })
     .join("\n");
 }
