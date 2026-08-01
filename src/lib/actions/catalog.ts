@@ -982,20 +982,9 @@ export async function uploadVariation(
   });
   const optionTags = norm.tags;
 
-  // 本部が付ける「ver名」（任意）。内部連番(version)とは別に、この版の呼び名として保存。
+  // 本部が付ける「ver名」（任意・自由文字列）。内部連番(version)は自動採番のみで、
+  // 表示用の呼び名としてこの label を保存する（一意性は強制しない）。
   const verLabel = String(formData.get("verLabel") ?? "").trim() || null;
-
-  // 本部が指定する「版番号」(整数 version・任意)。未入力なら従来通り自動採番(max+1)。
-  // 形式チェックは saveUpload の前に（誤入力でストレージにファイルを残さない）。
-  const verNumRaw = String(formData.get("versionNumber") ?? "").trim();
-  let manualVersion: number | null = null;
-  if (verNumRaw) {
-    const n = Number(verNumRaw);
-    if (!Number.isInteger(n) || n <= 0) {
-      return { error: "版番号は正の整数で入力してください" };
-    }
-    manualVersion = n;
-  }
 
   // 既存行の差し替え（一覧の「差し替え」ボタン）は行そのもの(variantId)を狙う。
   // 構成から引き直すと、選択肢に無いOP（燃料を直した後のEGR等）が落ちて
@@ -1077,16 +1066,19 @@ export async function uploadVariation(
 
   let variantId: string;
   let unified = 0;
+  // ver名の重複は「ブロックしない」。同一variant内に同じver名が既にあれば非ブロッキング警告のみ。
+  // （別名を捏造させないため保存は必ず通す。version は純粋な自動採番。）
+  let verNameWarning: string | null = null;
   if (existing) {
-    // 版番号: 手入力があればそれを採用（同一variant内で重複したら拒否）。無ければ max+1。
-    // versions は version 降順 take:1 なので versions[0] が最大版＝自動採番は max+1。
-    const nextVer = manualVersion ?? (existing.versions[0]?.version ?? 0) + 1;
-    if (manualVersion != null) {
-      const dup = await prisma.tunedVariantVersion.findUnique({
-        where: { variantId_version: { variantId: existing.id, version: manualVersion } },
-        select: { id: true },
+    // 内部連番は自動採番のみ。versions は version 降順 take:1 なので versions[0] が最大版＝max+1。
+    const nextVer = (existing.versions[0]?.version ?? 0) + 1;
+    if (verLabel) {
+      const same = await prisma.tunedVariantVersion.findFirst({
+        where: { variantId: existing.id, label: verLabel },
+        orderBy: { version: "desc" },
+        select: { version: true },
       });
-      if (dup) return { error: `版番号 ${manualVersion} は既に使われています` };
+      if (same) verNameWarning = `同じver名が #${same.version} にもあります`;
     }
     const ver = await prisma.tunedVariantVersion.create({
       data: { variantId: existing.id, version: nextVer, label: verLabel, ...fileFields, replacedById: user.id },
@@ -1118,9 +1110,9 @@ export async function uploadVariation(
         createdById: user.id,
       },
     });
-    // 新規variantは版が無いので重複なし。手入力があればその版番号、無ければ 1。
+    // 新規variantは版が無いので内部連番は 1 から。
     const ver = await prisma.tunedVariantVersion.create({
-      data: { variantId: variant.id, version: manualVersion ?? 1, label: verLabel, ...fileFields, replacedById: user.id },
+      data: { variantId: variant.id, version: 1, label: verLabel, ...fileFields, replacedById: user.id },
     });
     await prisma.tunedVariant.update({
       where: { id: variant.id },
@@ -1174,7 +1166,10 @@ export async function uploadVariation(
   revalidatePath(PENDING_PATH);
   revalidatePath(`/hq/records/${recordId}`);
   revalidatePath(`/dealer/records/${recordId}`);
-  return { ok: true, data: { variantId, delivered: open.length, unified } };
+  return {
+    ok: true,
+    data: { variantId, delivered: open.length, unified, verNameWarning },
+  };
 }
 
 // 案件のバリエーション削除（間違ってアップした版を消す）。

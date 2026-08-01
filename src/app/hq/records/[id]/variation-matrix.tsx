@@ -46,6 +46,10 @@ type VRow = {
 
 const popsText = (pops: boolean, sport: boolean) => (pops ? (sport ? "スポーツ" : "全モード") : "—");
 
+// 表示用の「ver名（#内部連番）」。ver名(自由文字列)が空なら内部連番のみ「#12」。
+const verDisplay = (label: string, version: number) =>
+  label.trim() ? `${label.trim()} (#${version})` : `#${version}`;
+
 const STATUS_LABEL: Record<VRow["status"], string> = {
   DRAFT: "下書き",
   AVAILABLE: "配布可",
@@ -146,6 +150,8 @@ function VariationRow({
   const [deleting, startDelete] = useTransition();
   const [delError, setDelError] = useState<string | null>(null);
   const [showVersions, setShowVersions] = useState(false);
+  // 現行（公開中）版。表示の「ver名（#内部連番）」に使う。
+  const currentVer = row.versions.find((v) => v.isCurrent) ?? null;
   useEffect(() => {
     if (state.ok) {
       formRef.current?.reset();
@@ -254,17 +260,18 @@ function VariationRow({
         )}
       </td>
       <td className="px-3 py-1.5">
-        {/* ファイル名はフルで表示（長ければ折り返して2行になってもよい） */}
+        {/* ファイル名はフルで表示（長ければ折り返して2行になってもよい）。
+            現行版は「ver名（#内部連番）」で常に表示（ver名なしは「#12」）。 */}
         {row.fileName && (
           <div className="mb-1 break-all text-xs text-ink-soft">
             {row.fileName}
-            {(row.verLabel || row.verNote) && (
+            {currentVer && (
               <span
-                title={row.verNote || undefined}
+                title={currentVer.note || undefined}
                 className="ml-1.5 rounded bg-sky-50 px-1.5 py-0.5 text-[10px] font-semibold text-sky-700"
               >
-                {row.verLabel || "ver"}
-                {row.verNote ? `｜${row.verNote}` : ""}
+                {verDisplay(currentVer.label, currentVer.version)}
+                {currentVer.note ? `｜${currentVer.note}` : ""}
               </span>
             )}
           </div>
@@ -277,22 +284,13 @@ function VariationRow({
           <input type="hidden" name="pops" value={row.pops ? "1" : "0"} />
           <input type="hidden" name="popsSport" value={row.popsSport ? "1" : "0"} />
           <input type="hidden" name="optionTags" value={JSON.stringify(row.optionTags)} />
-          {/* 任意の「版番号」。整数を指定するとその番号で版を作る（空なら自動採番＝max+1）。 */}
-          <input
-            type="number"
-            name="versionNumber"
-            min={1}
-            step={1}
-            placeholder="版番号"
-            title="この版の版番号(整数)を指定（空なら自動＝最大版+1）。同一行で既存番号と重複不可・欠番可。"
-            className="w-20 shrink-0 rounded-md border border-line px-2 py-1.5 text-xs text-ink placeholder:text-ink-soft/60"
-          />
-          {/* 任意の「ver名」。差し替えでアップする版に付く（空なら無し）。 */}
+          {/* 任意の「ver名」（自由文字列）。差し替えでアップする版に付く（空なら無し）。
+              内部連番(version)は自動採番・一意性は強制しない。 */}
           <input
             type="text"
             name="verLabel"
             placeholder="ver名(任意)"
-            title="この差し替えでアップする版に付く呼び名（例: ver2・-15 2000~）。空でも可。"
+            title="この差し替えでアップする版に付く呼び名（例: 強め・-15 2000~）。空でも可・重複可。"
             className="w-24 shrink-0 rounded-md border border-line px-2 py-1.5 text-xs text-ink placeholder:text-ink-soft/60"
           />
           <input
@@ -362,6 +360,10 @@ function VariationRow({
             <span className="text-xs text-ink-soft">
               同じ構成の重複{String(state.data?.unified)}件も同じファイルに揃えました
             </span>
+          )}
+          {/* ver名の重複は非ブロッキング警告（保存は通っている・注意喚起のみ） */}
+          {state.ok && typeof state.data?.verNameWarning === "string" && (
+            <span className="text-xs text-amber-700">{state.data.verNameWarning}</span>
           )}
         </form>
         {row.variantId && showVersions && row.versions.length > 0 && (
@@ -443,12 +445,8 @@ function VersionRow({
       }`}
     >
       <div className="flex flex-wrap items-center gap-1.5">
-        <span className="font-semibold text-ink">v{ver.version}</span>
-        {ver.label && (
-          <span className="rounded bg-sky-50 px-1.5 py-0.5 text-[10px] font-semibold text-sky-700">
-            {ver.label}
-          </span>
-        )}
+        {/* 「ver名（#内部連番）」で常に両方表示。ver名なしは「#12」。 */}
+        <span className="font-semibold text-ink">{verDisplay(ver.label, ver.version)}</span>
         {ver.isCurrent ? (
           <span className="rounded-full bg-green-100 px-2 py-0.5 text-[10px] font-bold text-green-700">
             公開中
@@ -667,22 +665,12 @@ function AddVariation({
         <input type="hidden" name="pops" value={pops ? "1" : "0"} />
         <input type="hidden" name="popsSport" value={popsSport ? "1" : "0"} />
         <input type="hidden" name="optionTags" value={JSON.stringify(selected)} />
-        {/* 任意の「版番号」。整数を指定するとその番号で版を作る（空なら自動＝新規は1／既存はmax+1）。 */}
-        <input
-          type="number"
-          name="versionNumber"
-          min={1}
-          step={1}
-          placeholder="版番号"
-          title="この版の版番号(整数)を指定（空なら自動）。同一行で既存番号と重複不可・欠番可。"
-          className="w-24 rounded-lg border border-line px-2.5 py-2 text-sm text-ink placeholder:text-ink-soft/60"
-        />
-        {/* 任意の「ver名」。アップする版に付く（空なら無し・内部連番は自動）。 */}
+        {/* 任意の「ver名」（自由文字列）。アップする版に付く（空なら無し・内部連番は自動採番）。 */}
         <input
           type="text"
           name="verLabel"
           placeholder="ver名(任意)"
-          title="アップする版に付く呼び名（例: ver1・初版）。空でも可。"
+          title="アップする版に付く呼び名（例: 初版・強め）。空でも可・重複可。"
           className="w-28 rounded-lg border border-line px-2.5 py-2 text-sm text-ink placeholder:text-ink-soft/60"
         />
         <input
@@ -707,6 +695,10 @@ function AddVariation({
           <span className="text-xs font-semibold text-green-700">
             反映しました{(state.data?.delivered as number) > 0 ? "・依頼を納品" : ""}
           </span>
+        )}
+        {/* ver名の重複は非ブロッキング警告（保存は通っている・注意喚起のみ） */}
+        {state.ok && typeof state.data?.verNameWarning === "string" && (
+          <span className="text-xs text-amber-700">{state.data.verNameWarning}</span>
         )}
       </form>
     </div>
