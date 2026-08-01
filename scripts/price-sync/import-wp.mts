@@ -18,6 +18,14 @@
  *   価格/工賃/出力/店舗/リモート/ECU）。備考★は layout.askStarColumns のブランド規則＋
  *   PriceVehicle.notes（ノート有無）から再現。<tr> の data-{p}-search は派生インデックス
  *   （意味データではない）ため実測値を持ち回る（レポートで明示）。
+ *
+ *   ── Step A' 予定（ゼロ差分の前提を崩すため Step A では入れない・Claude Home判断2/3） ──
+ *   ② lexus の裸「0」→ ¥0 正規化。Step A は裸 0 のまま通す。A' で正規化する際は
+ *      (a) 0 を falsy 判定で空欄扱い→LINEボタン化しない（0 と null を明確に区別）、
+ *      (b) 「工賃0円」か「工賃概念なし(—/not_offered)」かを lexus 実データで判断、を守る。
+ *   ③ data-{p}-search は A では実測値を持ち回る。A' で layout.searchIndexRule
+ *      （例 ["car","grade","engine","engineFamily","series","generation"]）から規則生成に切替。
+ *      主要検索語（車種名・型式・エンジン型番）がヒットするテストを A' に含める。
  */
 
 import { spawnSync } from "node:child_process";
@@ -36,9 +44,20 @@ import type {
 } from "../../src/lib/prices/generated-template";
 import { REMOTE_TOOLS, type RemoteFlags } from "../../src/lib/prices/types";
 
-// ── 既存DBの brand id（人手レビュー用の対応表・WP=正で入れ直す方針） ──
-// prefix を id にするのが既定。既存本番id を壊さないため、既知の対応を明示する。
-const PREFIX_TO_EXISTING_ID: Record<string, string> = {
+// ── brand id 方針（Claude Home判断: 案B確定 = 全ブランド prefix を id にする） ──
+// 「後で移行」はしない。取込前に旧idを削除して prefix で作り直す。
+//   理由: prefix と id が乖離すると CSS名前空間 / data属性 / 要素ID / brand_layout 参照が
+//   全て「1段の間接参照」経由になる。7/31に data-{p}-series と data-{p}-filter-series の
+//   取り違えで27ブランド全滅した事故と同じ構図。間接層は増やさない。
+//   prefix は生成HTMLに物理的に埋まる（bmw-cell-car / data-bmw-search / bmwTableBody）ので、
+//   「HTMLが正」ならDBのキーもHTMLの値（=prefix）に合わせるのが筋。
+//
+// 現DBは Airtable由来の5行で、7/31改修（Stage2/TCU新設・列順変更・iframe→HTML化）が未反映。
+// 移行する価値のあるデータを持たないため、取込前に丸ごと削除する（人手のpg_dump退避が前提）。
+// ここに載る5つが「削除対象の旧id」。うち lambo/mb/mbd は prefix と乖離、audi/bmw は同名。
+const LEGACY_BRAND_IDS = ["lamborghini", "mercedes_gasoline", "mercedes_diesel", "audi", "bmw"];
+// prefix → 旧id（レポートで「この旧行を消して prefix で作り直す」ことを明示するためだけに使う）。
+const PREFIX_TO_LEGACY_ID: Record<string, string> = {
   lambo: "lamborghini",
   mb: "mercedes_gasoline",
   mbd: "mercedes_diesel",
@@ -458,30 +477,59 @@ const pilotIds = new Set(PILOTS.map((x) => x.id));
 
 /**
  * --commit（本番VPSでのみ実行。Step A では実行しない）:
- *   PriceBrand を upsert、PriceVehicle は source='html' 行を洗い替え（deleteMany→createMany）。
- *   派生インデックス data-search は保存しない（公開時に再生成する想定）。
- *   brand id は prefix（PREFIX_TO_EXISTING_ID の既存id は人間レビューで確定してから）。
+ *   0) 旧id（LEGACY_BRAND_IDS）を丸ごと削除（案B: prefix で作り直すため）。
+ *   1) PriceBrand を prefix id で upsert。
+ *   2) PriceVehicle は source='html' 行を洗い替え（deleteMany→createMany）を **1ブランド1トランザクション**で。
+ *   派生インデックス data-search は保存しない（公開時に再生成する想定＝Step A' で searchIndexRule 化）。
+ *
+ * ガード（Claude Home判断4）:
+ *   (a) 件数フロア: parse が 0行、または live の <tr> 数と不一致なら **そのブランドを中止**。
+ *       洗い替えは delete→create の順で、create が失敗すると delete だけ済む事故になるため、
+ *       トランザクションで囲んだ上で、書く前に「消してよい行数」を実測 tr 数と突き合わせる。
+ *   (b) 手動行との重複: 洗い替え後、source='manual' と source='html' が同じ
+ *       (carName+grade+engine) で衝突していたら警告（公開時は manual 優先を別途実装）。
  */
 async function runCommit(): Promise<void> {
   // 型の摩擦を避けるため any 経由（このパスは Step A では実行しない）。
   const { PrismaClient } = (await import("../../src/generated/prisma/client")) as { PrismaClient: new (o: unknown) => unknown };
   const { PrismaPg } = (await import("@prisma/adapter-pg")) as { PrismaPg: new (s: string) => unknown };
   const adapter = new PrismaPg(process.env.DATABASE_URL as string);
+  type Veh = { carName: string; grade: string | null; engine: string; source: string };
   const prisma = new PrismaClient({ adapter }) as {
-    priceBrand: { upsert: (a: unknown) => Promise<unknown> };
+    priceBrand: { upsert: (a: unknown) => Promise<unknown>; deleteMany: (a: unknown) => Promise<unknown> };
     priceVehicle: {
       deleteMany: (a: unknown) => Promise<unknown>;
       createMany: (a: unknown) => Promise<unknown>;
+      findMany: (a: unknown) => Promise<Veh[]>;
     };
+    $transaction: (ops: unknown[]) => Promise<unknown>;
     $disconnect: () => Promise<void>;
   };
+
+  // 0) 旧id（Airtable由来5行）を purge。prefix で作り直すため残さない。
+  await prisma.priceVehicle.deleteMany({ where: { brandId: { in: LEGACY_BRAND_IDS } } });
+  await prisma.priceBrand.deleteMany({ where: { id: { in: LEGACY_BRAND_IDS } } });
+  console.log(`旧id purge: ${LEGACY_BRAND_IDS.join(",")}`);
+
   const commitTables = discoverTables().filter((t) => (pilotOnly ? pilotIds.has(t.id) : true));
+  const collisions: string[] = [];
   for (const t of commitTables) {
-    const pb = parseWpBlock(loadFixture(t.pageId), t);
+    const html = loadFixture(t.pageId);
+    const pb = parseWpBlock(html, t);
     const brand = buildBrandPayload(pb);
     const remoteInfo = buildRemoteInfo(pb);
     const flags = brandFlags(pb);
     const vehicles = extractVehicles(pb, remoteInfo, flags);
+
+    // (a) 件数フロア: 実測 <tr> 数と一致しなければ中止（パーサー破綻の握り潰し防止）。
+    const liveTr = [...liveTbody(extractBlock(html, t.blockIndex)).matchAll(/<tr\b/g)].length;
+    if (vehicles.length === 0 || vehicles.length !== liveTr) {
+      throw new Error(
+        `[${t.id}] 件数フロア違反: parse=${vehicles.length}行 vs live<tr>=${liveTr}行。` +
+          `洗い替えを中止（DBは無変更）。パーサーを確認して。`,
+      );
+    }
+
     const brandData = {
       slug: brand.slug,
       displayName: brand.displayName,
@@ -495,34 +543,57 @@ async function runCommit(): Promise<void> {
       layout: brand.layout,
       displayOrder: brand.displayOrder,
     };
-    await prisma.priceBrand.upsert({
-      where: { id: brand.id },
-      create: { id: brand.id, ...brandData },
-      update: brandData,
+    // 洗い替えは 1ブランド 1トランザクション（delete と create を不可分に）。
+    await prisma.$transaction([
+      prisma.priceBrand.upsert({
+        where: { id: brand.id },
+        create: { id: brand.id, ...brandData },
+        update: brandData,
+      }),
+      prisma.priceVehicle.deleteMany({ where: { brandId: brand.id, source: "html" } }),
+      prisma.priceVehicle.createMany({
+        data: vehicles.map((v) => ({
+          brandId: brand.id,
+          market: v.market,
+          source: v.source,
+          seriesGroup: v.seriesGroup,
+          carName: v.carName,
+          grade: v.grade,
+          engine: v.engine,
+          engineFamily: v.engineFamily,
+          ecuType: v.ecuType,
+          stockOutput: v.stockOutput,
+          stage1Gain: v.stage1Gain,
+          prices: v.prices,
+          labor: v.labor,
+          shops: v.shops,
+          remote: v.remote,
+          notes: v.notes,
+          displayOrder: v.displayOrder,
+        })),
+      }),
+    ]);
+
+    // (b) 手動行との重複検知（公開時 manual 優先の判断材料）。
+    const manual = await prisma.priceVehicle.findMany({
+      where: { brandId: brand.id, source: "manual" },
+      select: { carName: true, grade: true, engine: true },
     });
-    await prisma.priceVehicle.deleteMany({ where: { brandId: brand.id, source: "html" } });
-    await prisma.priceVehicle.createMany({
-      data: vehicles.map((v) => ({
-        brandId: brand.id,
-        market: v.market,
-        source: v.source,
-        seriesGroup: v.seriesGroup,
-        carName: v.carName,
-        grade: v.grade,
-        engine: v.engine,
-        engineFamily: v.engineFamily,
-        ecuType: v.ecuType,
-        stockOutput: v.stockOutput,
-        stage1Gain: v.stage1Gain,
-        prices: v.prices,
-        labor: v.labor,
-        shops: v.shops,
-        remote: v.remote,
-        notes: v.notes,
-        displayOrder: v.displayOrder,
-      })),
-    });
-    console.log(`upsert ${brand.id}: PriceBrand + PriceVehicle ${vehicles.length}行`);
+    if (manual.length) {
+      const key = (v: { carName: string; grade: string | null; engine: string }) =>
+        `${v.carName}${v.grade ?? ""}${v.engine}`;
+      const htmlKeys = new Set(vehicles.map(key));
+      for (const m of manual)
+        if (htmlKeys.has(key(m)))
+          collisions.push(`  ${brand.id}: ${m.carName} / ${m.grade ?? "—"} / ${m.engine}`);
+    }
+    console.log(`commit ${brand.id}: PriceBrand + PriceVehicle(html) ${vehicles.length}行`);
+  }
+  if (collisions.length) {
+    console.warn(
+      `\n⚠ manual と html の重複 ${collisions.length}件（公開時は manual 優先ルールで解決する必要がある）:`,
+    );
+    for (const c of collisions) console.warn(c);
   }
   await prisma.$disconnect();
   console.log("--commit 完了。");
@@ -572,13 +643,13 @@ for (const t of tables) {
   const zero = dControls.count + dThead.count + dTbody.count === 0 && vehicles.length === [...liveTbody(block).matchAll(/<tr\b/g)].length;
   if (!zero) anyFail = true;
 
-  const idNote = PREFIX_TO_EXISTING_ID[t.id] ? `既存id=${PREFIX_TO_EXISTING_ID[t.id]}` : "新規(既存id無し)";
+  const idNote = PREFIX_TO_LEGACY_ID[t.id] ? `旧id=${PREFIX_TO_LEGACY_ID[t.id]}を削除→prefixで作成` : "新規(旧行なし)";
   const tag = pilotIds.has(t.id) ? "★" : " ";
-  summary.push(`${tag}${t.id.padEnd(10)} 行${String(vehicles.length).padStart(3)}  ${zero ? "ゼロ差分" : `残差 c${dControls.count}/h${dThead.count}/b${dTbody.count}`}  brandId案=${t.id} (${idNote})`);
+  summary.push(`${tag}${t.id.padEnd(10)} 行${String(vehicles.length).padStart(3)}  ${zero ? "ゼロ差分" : `残差 c${dControls.count}/h${dThead.count}/b${dTbody.count}`}  brandId=${t.id} (案B確定・${idNote})`);
 
   if (pilotOnly || !zero) {
     console.log(`\n──── ${t.id} (page ${t.pageId} block ${t.blockIndex}) ────`);
-    console.log(`  brandId案: "${t.id}"  slug="${brand.slug}"  displayName="${brand.displayName}"  ${idNote}`);
+    console.log(`  brandId: "${t.id}"（案B確定）  slug="${brand.slug}"  displayName="${brand.displayName}"  ${idNote}`);
     console.log(`  layout: naming=${pb.layout.naming} askStarColumns=[${pb.layout.askStarColumns.join(",")}] hasMaker=${pb.layout.hasMakerColumn}`);
     console.log(fieldCoverage(vehicles));
     console.log(`  再構成→生成 差分: controls=${dControls.count} thead=${dThead.count} tbody=${dTbody.count}`);
