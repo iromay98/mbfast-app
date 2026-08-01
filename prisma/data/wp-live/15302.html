@@ -1,0 +1,187 @@
+<!-- wp:html -->
+
+
+
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"Service","name":"ダイハツ ECUチューニング施工","provider":{"@type":"AutoRepair","name":"mbFAST Tuning","url":"https://mbfasttuning.com/"},"areaServed":"JP","serviceType":"ECU Tuning / Pops and Bangs","description":"DAIHATSU車種対応のECUチューニング施工サービス。"}
+</script>
+
+<div class="daihatsu-price-wrapper">
+  <div class="daihatsu-intro"><p>DAIHATSU <strong>1モデル</strong>のECUチューニング価格表です。価格は全て<strong>税込JPY</strong>です。</p></div>
+  <div class="daihatsu-controls">
+    <div class="daihatsu-search-wrap">
+      <input type="search" id="daihatsuSearch" class="daihatsu-search" placeholder="&#x1f50d; 車種・エンジンで検索" autocomplete="off">
+      <button type="button" id="daihatsuClear" class="daihatsu-clear" aria-label="クリア">×</button>
+    </div>
+    
+    <div class="daihatsu-result-count"><span id="daihatsuResultCount">1</span> / 1 件表示中</div>
+  </div>
+  <div class="daihatsu-table-wrap">
+    <table class="daihatsu-price-table">
+      <thead><tr>
+          <th class="daihatsu-sortable" data-daihatsu-sort="car">車種</th><th class="daihatsu-col-price daihatsu-sortable" data-daihatsu-sort="c1">Stage1</th><th class="daihatsu-col-price daihatsu-sortable" data-daihatsu-sort="c2">Stage2</th><th class="daihatsu-col-price daihatsu-sortable" data-daihatsu-sort="c3">TCU<br>チューニング</th><th class="daihatsu-sortable" data-daihatsu-sort="c4">工賃</th><th class="daihatsu-sortable" data-daihatsu-sort="c5">純正出力</th>
+      </tr></thead>
+      <tbody id="daihatsuTableBody">
+<tr data-daihatsu-search="ハイゼット hijet" data-daihatsu-series="">
+    <td class="daihatsu-cell-car"><strong>ハイゼット HIJET</strong> <span class="daihatsu-cell-note" title="ECU単体を到着から1週間ほど預かります。">★</span></td>
+    <td class="daihatsu-cell-price-stage1">¥125,000</td>
+    <td class="daihatsu-cell-price-stage2"><a href="https://lin.ee/8yOXuPJ" target="_blank" rel="noopener" class="daihatsu-ask-btn" data-car="ハイゼット HIJET" data-label="Stage2" title="LINEで問い合わせ:【Stage2見積希望】ハイゼット HIJET"><span class="daihatsu-ask-icon">&#x1f4ac;</span><span class="daihatsu-ask-text">LINE</span></a></td>
+    <td class="daihatsu-cell-tcu"><a href="https://lin.ee/8yOXuPJ" target="_blank" rel="noopener" class="daihatsu-ask-btn" data-car="ハイゼット HIJET" data-label="TCUチューニング" title="LINEで問い合わせ:【TCUチューニング見積希望】ハイゼット HIJET"><span class="daihatsu-ask-icon">&#x1f4ac;</span><span class="daihatsu-ask-text">LINE</span></a></td>
+    <td class="daihatsu-cell-labor">+36,300</td>
+    <td class="daihatsu-cell-stock">46ps/60Nm</td>
+  </tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="daihatsu-no-results" id="daihatsuNoResults" hidden>該当する車種が見つかりませんでした。</div>
+  <div class="daihatsu-table-note">
+    <p>&#x1f4cc; <span class="daihatsu-ask-btn-inline">&#x1f4ac; LINE</span> ボタンのセルはLINEで個別お見積りいたします。</p>
+    <p>&#x1f4cc; 車種横の <span class="daihatsu-cell-note">★</span> マーク: マウスオーバー(タップ)で備考を表示します。</p>
+  </div>
+</div>
+
+<style>
+
+.daihatsu-price-wrapper{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;color:#1a1a1a;max-width:100%;margin:0 0 2em 0;background:#fff;padding:1.8em;border-radius:12px;border:1px solid #e5e5e5;box-shadow:0 2px 16px rgba(0,0,0,.05);position:relative;overflow:hidden}
+.daihatsu-price-wrapper::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,#b8941f 20%,#d4af37 50%,#b8941f 80%,transparent)}
+.daihatsu-intro{background:linear-gradient(135deg,#fafafa,#f5f5f5);border-left:3px solid #b8941f;padding:1.1em 1.4em;margin-bottom:1.5em;border-radius:2px}
+.daihatsu-intro p{margin:0;line-height:1.7;color:#333;font-size:.95rem}
+.daihatsu-intro strong{color:#8a6d14;font-weight:700}
+.daihatsu-controls{background:#fafafa;border:1px solid #e5e5e5;border-radius:8px;padding:1.2em 1.4em;margin-bottom:1em}
+.daihatsu-search-wrap{position:relative;margin-bottom:1.2em}
+.daihatsu-search{width:100%;padding:.85em 2.5em .85em 1.1em;font-size:1rem;background:#fff;border:1px solid #d0d0d0;border-radius:6px;box-sizing:border-box;color:#1a1a1a;font-family:inherit}
+.daihatsu-search:focus{outline:none;border-color:#b8941f;box-shadow:0 0 0 3px rgba(184,148,31,.12)}
+.daihatsu-clear{position:absolute;right:10px;top:50%;transform:translateY(-50%);background:#ddd;border:none;color:#666;width:28px;height:28px;border-radius:50%;cursor:pointer;font-size:1rem;line-height:1;display:none}
+.daihatsu-clear:hover{background:#b8941f;color:#fff}
+.daihatsu-search:not(:placeholder-shown)~.daihatsu-clear{display:block}
+.daihatsu-filter-group{display:flex;flex-wrap:wrap;gap:.4em;align-items:center;margin-bottom:.7em}
+.daihatsu-filter-label{font-size:.78rem;color:#666;font-weight:600;margin-right:.5em;min-width:68px;letter-spacing:.05em;text-transform:uppercase}
+.daihatsu-filter-chip{padding:.4em .95em;font-size:.82rem;background:#fff;border:1px solid #d5d5d5;border-radius:3px;cursor:pointer;color:#555;font-family:inherit;font-weight:500}
+.daihatsu-filter-chip:hover{background:#f0f0f0;border-color:#b0b0b0;color:#1a1a1a}
+.daihatsu-filter-chip.daihatsu-active{background:linear-gradient(135deg,#d4af37,#b8941f);color:#fff;border-color:#b8941f;font-weight:700;box-shadow:0 2px 6px rgba(184,148,31,.25)}
+.daihatsu-result-count{margin-top:1em;padding-top:1em;border-top:1px solid #e5e5e5;font-size:.82rem;color:#666}
+.daihatsu-result-count span{font-weight:700;color:#8a6d14;font-size:1.05rem}
+.daihatsu-table-wrap{overflow-x:auto;overflow-y:auto;max-height:70vh;border:1px solid #e0e0e0;border-radius:6px;background:#fff}
+.daihatsu-price-table{width:100%;border-collapse:collapse;font-size:.88rem;min-width:900px;color:#1a1a1a}
+.daihatsu-price-table thead th{background:linear-gradient(180deg,#2a2a2a,#1a1a1a);color:#d4af37;padding:1em .7em;text-align:left;font-weight:600;font-size:.78rem;letter-spacing:.08em;text-transform:uppercase;white-space:nowrap;position:sticky;top:0;z-index:1;border-bottom:2px solid #b8941f}
+.daihatsu-price-table thead th small{font-weight:400;opacity:.75;font-size:.68rem;letter-spacing:0;text-transform:none;display:block;margin-top:2px;color:#bbb}
+.daihatsu-price-table thead th.daihatsu-sortable{cursor:pointer;user-select:none}
+.daihatsu-price-table thead th.daihatsu-sortable:hover{background:#333;color:#f0c850}
+.daihatsu-price-table thead th.daihatsu-sortable::after{content:' ⇅';opacity:.5;font-size:.8em}
+.daihatsu-price-table thead th.daihatsu-sort-asc::after{content:' ▲';opacity:1;color:#d4af37}
+.daihatsu-price-table thead th.daihatsu-sort-desc::after{content:' ▼';opacity:1;color:#d4af37}
+.daihatsu-price-table tbody tr:nth-child(even){background:#fafafa}
+.daihatsu-price-table tbody td{padding:.85em .7em;border-bottom:1px solid #eee;vertical-align:middle}
+.daihatsu-price-table tbody tr:hover{background:#fff8e7}
+.daihatsu-price-table tbody tr.daihatsu-hidden{display:none}
+.daihatsu-cell-car{white-space:nowrap}
+.daihatsu-cell-car strong{font-weight:700}
+.daihatsu-cell-grade{white-space:nowrap;font-weight:700;color:#a8851a}
+.daihatsu-cell-maker{white-space:nowrap;font-weight:700;color:#a8851a}
+.daihatsu-cell-engine,.daihatsu-cell-ecu-tcu{white-space:nowrap;font-family:'SF Mono',Menlo,Consolas,monospace;font-size:.8rem;color:#555}
+.daihatsu-cell-stock{white-space:nowrap;font-size:.84rem;color:#666}
+.daihatsu-cell-stage1-gain{white-space:nowrap;font-size:.84rem;color:#c62828;font-weight:600}
+.daihatsu-col-price,.daihatsu-cell-price-stage1,.daihatsu-cell-price-stage2,.daihatsu-cell-tcu,.daihatsu-cell-price-babble,.daihatsu-cell-labor{white-space:nowrap;text-align:right;font-variant-numeric:tabular-nums;font-size:.88rem}
+td.daihatsu-cell-price-stage1{font-weight:700;color:#8a6d14;font-size:.92rem}
+td.daihatsu-cell-price-stage2{font-weight:700;color:#c62828;font-size:.92rem}
+td.daihatsu-cell-tcu{font-weight:700;color:#8a6d14;font-size:.92rem}
+td.daihatsu-cell-price-babble{font-weight:700;color:#8a6d14;font-size:.92rem}
+.daihatsu-cell-labor{color:#777;font-size:.82rem}
+.daihatsu-cell-note{display:inline-block;margin-left:.4em;color:#d4af37;font-size:.85rem;cursor:help}
+.daihatsu-ask-btn{display:inline-flex;align-items:center;gap:.3em;padding:.35em .75em;background:linear-gradient(135deg,#06c755,#04a043);color:#fff !important;text-decoration:none !important;font-size:.78rem;font-weight:700;border-radius:4px;white-space:nowrap;box-shadow:0 1px 3px rgba(6,199,85,.3);font-family:inherit}
+.daihatsu-ask-btn:hover{background:linear-gradient(135deg,#05b54e,#03933d);color:#fff !important}
+.daihatsu-ask-btn-inline{display:inline-flex;align-items:center;gap:.25em;padding:.15em .5em;background:linear-gradient(135deg,#06c755,#04a043);color:#fff;font-size:.72rem;font-weight:700;border-radius:3px;vertical-align:middle}
+.daihatsu-badge{display:inline-block;padding:.18em .5em;font-size:.66rem;border-radius:2px;font-weight:700;margin-left:.25em;font-family:'SF Mono',Menlo,Consolas,monospace}
+.daihatsu-badge-remote{background:rgba(46,125,50,.1);color:#2e7d32;border:1px solid rgba(46,125,50,.3);margin-right:.25em}
+.daihatsu-muted{color:#ccc;font-size:.9em}
+.daihatsu-no-results{padding:3em 2em;text-align:center;color:#666;background:#fafafa;border:1px solid #e5e5e5;border-radius:6px;margin-top:1em}
+.daihatsu-table-note{margin-top:1.2em;padding:1.2em 1.4em;background:#fafafa;border:1px solid #e5e5e5;border-left:3px solid #b8941f;border-radius:2px;font-size:.82rem;color:#555;line-height:1.7}
+.daihatsu-table-note p{margin:.35em 0}
+.daihatsu-table-note strong{color:#8a6d14}
+@media (max-width:768px){.daihatsu-price-wrapper{padding:1em}.daihatsu-price-table{font-size:.78rem;min-width:800px}.daihatsu-price-table thead th,.daihatsu-price-table tbody td{padding:.55em .45em}.daihatsu-ask-btn{font-size:.72rem;padding:.3em .6em}}
+
+</style>
+
+<script>
+(function(){
+  'use strict';
+  var tbody=document.getElementById('daihatsuTableBody');
+  if(!tbody)return;
+  var rows=Array.prototype.slice.call(tbody.querySelectorAll('tr'));
+  var searchInput=document.getElementById('daihatsuSearch');
+  var clearBtn=document.getElementById('daihatsuClear');
+  var countEl=document.getElementById('daihatsuResultCount');
+  var noResultsEl=document.getElementById('daihatsuNoResults');
+  var tableWrap=document.querySelector('.daihatsu-table-wrap');
+  var state={query:'',series:'all'};
+  function trim(s){return s.replace(/^\s+|\s+$/g,'');}
+  function applyFilters(){
+    var q=trim(state.query).toLowerCase();
+    var visible=0;
+    for(var i=0;rows.length>i;i++){
+      var row=rows[i];
+      var t=row.getAttribute('data-daihatsu-search')||'';
+      var s=row.getAttribute('data-daihatsu-series')||'';
+      var ms=!q||t.indexOf(q)!==-1;
+      var mr=state.series==='all'||s===state.series;
+      var show=false;
+      if(ms){if(mr){show=true;}}
+      if(show){row.classList.remove('daihatsu-hidden');visible++;}
+      else{row.classList.add('daihatsu-hidden');}
+    }
+    if(countEl)countEl.textContent=visible;
+    if(noResultsEl)noResultsEl.hidden=visible>0;
+    if(tableWrap)tableWrap.style.display=visible>0?'':'none';
+  }
+  if(searchInput){searchInput.addEventListener('input',function(e){state.query=e.target.value;applyFilters();});}
+  if(clearBtn){clearBtn.addEventListener('click',function(){if(searchInput)searchInput.value='';state.query='';applyFilters();if(searchInput)searchInput.focus();});}
+  var btns=document.querySelectorAll('[data-daihatsu-filter-series]');
+  Array.prototype.forEach.call(btns,function(b){
+    b.addEventListener('click',function(){
+      Array.prototype.forEach.call(btns,function(x){x.classList.remove('daihatsu-active');});
+      b.classList.add('daihatsu-active');
+      state.series=b.getAttribute('data-daihatsu-filter-series');
+      applyFilters();
+    });
+  });
+  function cellText(row,idx){
+    var td=row.children[idx];
+    return td?trim(td.textContent):'';
+  }
+  function isBlank(t){
+    if(!t)return true;
+    if(t.indexOf('LINE')!==-1)return true;
+    return /^[—\-\s]*$/.test(t);
+  }
+  function numOf(t){
+    var s=t.replace(/,/g,'');
+    var m=s.match(/-?\d+(\.\d+)?/);
+    return m?parseFloat(m[0]):null;
+  }
+  var headers=document.querySelectorAll('.daihatsu-price-table th.daihatsu-sortable');
+  var ss={idx:null,asc:true};
+  Array.prototype.forEach.call(headers,function(th,idx){
+    th.addEventListener('click',function(){
+      if(ss.idx===idx){ss.asc=!ss.asc;}else{ss.idx=idx;ss.asc=true;}
+      Array.prototype.forEach.call(headers,function(h){h.classList.remove('daihatsu-sort-asc','daihatsu-sort-desc');});
+      th.classList.add(ss.asc?'daihatsu-sort-asc':'daihatsu-sort-desc');
+      var dir=ss.asc?1:-1;
+      var sorted=rows.slice().sort(function(a,b){
+        var av=cellText(a,idx),bv=cellText(b,idx);
+        var ab=isBlank(av),bb=isBlank(bv);
+        if(ab){if(bb)return 0;}
+        if(ab)return 1;
+        if(bb)return -1;
+        var an=numOf(av),bn=numOf(bv);
+        if(an!==null){if(bn!==null){if(an!==bn)return (an-bn)*dir;}}
+        return av.localeCompare(bv,'ja')*dir;
+      });
+      for(var i=0;sorted.length>i;i++){tbody.appendChild(sorted[i]);}
+    });
+  });
+})();
+</script>
+
+
+
+<!-- /wp:html -->
