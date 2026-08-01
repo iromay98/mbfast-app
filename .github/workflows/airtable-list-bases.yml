@@ -1,0 +1,108 @@
+# Airtable の Base 一覧（id と名前）を出す。**読み取りのみ・書き込みはしない。**
+#
+# 目的: AIRTABLE_PRICE_BASE_ID が分からなくなったときに、PAT だけで思い出せるようにする。
+#   Base ID は秘密情報ではない（公開ページの埋め込みURLに載っていた値）ので、ログに出して良い。
+#   PAT は GitHub がマスクするうえ、こちらでも一切表示しない。
+#
+# VPSにもDBにも触らない（Airtable の Meta API を叩くだけ）ため、
+# 本番の .env に値が無くても実行できる＝鶏と卵を回避できる。
+#
+# 必要な Secret: AIRTABLE_PAT のみ
+# 使い方: Actions →「Airtable: list bases」→ Run workflow
+name: "Airtable: list bases"
+
+on:
+  workflow_dispatch:
+    inputs:
+      show_tables:
+        description: "各Baseのテーブル名も出す（どれが価格表か見分けるため）"
+        type: choice
+        options: ["yes", "no"]
+        default: "yes"
+
+# VPSを触らないので deploy-production の排他には入れない（他のジョブを蹴らない）。
+concurrency:
+  group: airtable-list-bases
+  cancel-in-progress: false
+
+jobs:
+  list:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Base 一覧を取得
+        env:
+          AIRTABLE_PAT: ${{ secrets.AIRTABLE_PAT }}
+          SHOW_TABLES: ${{ inputs.show_tables }}
+        run: |
+          set -euo pipefail
+          if [ -z "${AIRTABLE_PAT:-}" ]; then
+            echo "::error::AIRTABLE_PAT が未登録です。Settings → Secrets and variables → Actions → Repository secrets に AIRTABLE_PAT を登録してください。"
+            exit 1
+          fi
+
+          # Meta API: 自分がアクセスできる Base の一覧（要スコープ schema.bases:read）
+          code=$(curl -sS -o /tmp/bases.json -w '%{http_code}' \
+            -H "Authorization: Bearer ${AIRTABLE_PAT}" \
+            "https://api.airtable.com/v0/meta/bases?pageSize=100" || echo 000)
+
+          if [ "$code" != "200" ]; then
+            echo "::error::Airtable Meta API が HTTP ${code} を返しました。"
+            # 本文にトークンは含まれないが、念のため長さを制限して出す
+            echo "--- レスポンス（先頭300文字） ---"
+            head -c 300 /tmp/bases.json || true
+            echo ""
+            echo "よくある原因: PATに schema.bases:read スコープが無い / Baseへのアクセスを許可していない / トークンが失効"
+            exit 1
+          fi
+
+          echo "════════ アクセスできる Airtable Base ════════"
+          python3 - <<'PY'
+          import json
+          d = json.load(open("/tmp/bases.json"))
+          bases = d.get("bases", [])
+          print(f"{len(bases)} 件")
+          print("")
+          for b in bases:
+              print(f"  Base ID: {b.get('id')}")
+              print(f"    名前: {b.get('name')}")
+              print(f"    権限: {b.get('permissionLevel')}")
+              print("")
+          with open("/tmp/base-ids.txt", "w") as f:
+              for b in bases:
+                  f.write(f"{b.get('id')}\t{b.get('name')}\n")
+          PY
+
+          if [ "${SHOW_TABLES:-yes}" != "yes" ]; then
+            echo "（テーブル名の表示はスキップ）"
+            exit 0
+          fi
+
+          echo "════════ 各Baseのテーブル名（価格表を見分けるため） ════════"
+          while IFS=$'\t' read -r bid bname; do
+            [ -n "$bid" ] || continue
+            tcode=$(curl -sS -o /tmp/tables.json -w '%{http_code}' \
+              -H "Authorization: Bearer ${AIRTABLE_PAT}" \
+              "https://api.airtable.com/v0/meta/bases/${bid}/tables" || echo 000)
+            if [ "$tcode" != "200" ]; then
+              echo "■ ${bid}（${bname}）: テーブル取得に失敗 HTTP ${tcode}"
+              continue
+            fi
+            echo "■ ${bid}（${bname}）"
+            BID="$bid" python3 - <<'PY'
+          import json, os
+          d = json.load(open("/tmp/tables.json"))
+          names = [t.get("name") for t in d.get("tables", [])]
+          print(f"    テーブル{len(names)}件: " + ", ".join(names[:40]))
+          # 価格表らしさの判定材料（15ブランドのテーブル名がどれだけ含まれるか）
+          expect = {"Toyota","Nissan","Lexus","Honda","Fuso","Porsche","Mini","Ferrari",
+                    "Maserati","McLaren","Land Rover","Jaguar","Chevrolet","Ford","Dodge"}
+          hit = expect & set(names)
+          print(f"    価格表の既知テーブルと一致: {len(hit)}/15" + (f"  → {sorted(hit)}" if hit else ""))
+          if len(hit) >= 10:
+              print(f"    ★これが価格Baseの可能性が高い（AIRTABLE_PRICE_BASE_ID={os.environ['BID']}）")
+          PY
+            echo ""
+          done < /tmp/base-ids.txt
+
+          echo "※ Base ID は秘密情報ではありません。PATは表示していません。"
