@@ -78,7 +78,9 @@ export function VehiclesClient({
   initialCustomerId?: string;
 }) {
   const router = useRouter();
+  // fileRef: 写真とPDFの両方（ファイル選択）／cameraRef: 撮影専用（capture付き）
   const fileRef = useRef<HTMLInputElement>(null);
+  const cameraRef = useRef<HTMLInputElement>(null);
   // 顧客カルテから来たときは、その顧客を選んだ状態で始める（カルテ→車両追加を往復させない）
   const blank = (): VehicleFormInput => ({ ...EMPTY, customerId: initialCustomerId ?? "" });
   const [form, setForm] = useState<VehicleFormInput | null>(null);
@@ -217,14 +219,29 @@ export function VehiclesClient({
         <Card className="border-gold-300">
           <h3 className="text-sm font-bold text-ink">車検証を読み取って登録</h3>
           <p className="mt-1 text-xs text-ink-soft">
-            <span className="font-semibold text-ink">QRから読むのがいちばん確実です</span>
-            （車台番号・型式を誤読なく取れます）。氏名・住所はQRに入っていないため、続けて車検証の
-            写真を撮ると残りが埋まります。読み取った内容は登録前に確認・修正できます。
+            <span className="font-semibold text-ink">いまの車検証（A6の電子車検証）は、車検証閲覧アプリのPDFがいちばん確実です</span>
+            。券面には記載が省略されている項目が多く、写真やQRでは有効期間・住所などが取れません。
+            PDFならICチップの中身なので、まとめて埋まります。
             <br />
-            <span className="font-semibold text-ink">車検証の画像は保存されません</span>（読み取り後に破棄します）。
+            紙の旧車検証なら写真でも読めます。QRは車台番号・型式だけ誤読なく取れますが、氏名・住所は入っていません。
+            読み取った内容は登録前に確認・修正できます。
+            <br />
+            <span className="font-semibold text-ink">車検証の画像もPDFも保存されません</span>（読み取り後に破棄します）。
           </p>
+          {/* 写真とPDFの両方を受ける。capture は付けない（付けるとカメラ固定でPDFを選べない） */}
           <input
             ref={fileRef}
+            type="file"
+            accept="image/*,application/pdf,.pdf"
+            className="hidden"
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) void read(f);
+            }}
+          />
+          {/* 撮影専用の入口は別に用意する（カメラをすぐ開きたいとき用） */}
+          <input
+            ref={cameraRef}
             type="file"
             accept="image/*"
             capture="environment"
@@ -235,7 +252,19 @@ export function VehiclesClient({
             }}
           />
           <div className="mt-3 flex flex-wrap items-center gap-2">
-            {/* QRは文字認識ではないので車台番号・型式の誤読が起きない。まずこれを勧める */}
+            {/*
+              電子車検証では券面の記載が省略されているため、閲覧アプリのPDFを最優先で勧める。
+              PDFはICチップの中身なので、有効期間・氏名・住所まで揃う。
+            */}
+            <button
+              type="button"
+              disabled={!ocrEnabled || reading}
+              onClick={() => fileRef.current?.click()}
+              className="rounded-lg bg-gold-500 px-4 py-2.5 text-sm font-bold text-white disabled:opacity-50"
+            >
+              {reading ? "読み取り中…" : "📄 車検証PDFを選ぶ（推奨）"}
+            </button>
+            {/* QRは文字認識ではないので車台番号・型式の誤読が起きない */}
             <button
               type="button"
               disabled={reading}
@@ -244,17 +273,17 @@ export function VehiclesClient({
                 setScanned({ chassis: null, modelCode: null, expiry: null });
                 setScanning(true);
               }}
-              className="rounded-lg bg-gold-500 px-4 py-2.5 text-sm font-bold text-white disabled:opacity-50"
+              className="rounded-lg border border-gold-300 px-3 py-2.5 text-sm font-bold text-ink disabled:opacity-50"
             >
-              🔎 車検証のQRを読む
+              🔎 QRを読む
             </button>
             <button
               type="button"
               disabled={!ocrEnabled || reading}
-              onClick={() => fileRef.current?.click()}
+              onClick={() => cameraRef.current?.click()}
               className="rounded-lg border border-gold-300 px-3 py-2.5 text-sm font-bold text-ink disabled:opacity-50"
             >
-              {reading ? "読み取り中…" : "📷 車検証を撮る／選ぶ"}
+              {reading ? "読み取り中…" : "📷 車検証を撮る"}
             </button>
             <button
               type="button"

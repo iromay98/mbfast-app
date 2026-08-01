@@ -247,3 +247,66 @@ export async function readShakenImage(
   }
   return { result: normalizeShakenFields(input) };
 }
+
+/*
+ * 車検証閲覧アプリ（国交省）のPDFを読み取る。
+ *
+ * なぜ必要か: 2023年以降の電子車検証はA6サイズで**券面の記載が大幅に省略**されており、
+ * カメラで券面を撮っても・二次元コードを読んでも取れない項目が多い（有効期間や住所など）。
+ * 一方、車検証閲覧アプリはICチップの中身をPDFに出力できるので、そちらを読むのが確実。
+ *
+ * 実装方針: Anthropic API はPDFを document ブロックで直接受け取れるため、
+ * **PDF処理ライブラリを新たに入れない**。画像OCRと同じ TOOL / 正規化を使い回すので、
+ * 出力の形も警告の出し方も画像経路と完全に同じ（画面側の分岐が増えない）。
+ *
+ * PDFは保存しない（画像と同じ扱い。呼び出し側もメモリで捨てる）。
+ */
+export async function readShakenPdf(
+  pdf: Buffer,
+): Promise<{ result?: ShakenReadResult; error?: string }> {
+  if (!shakenOcrEnabled()) return { error: "読み取り機能が未設定です（本部にお問い合わせください）" };
+  const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+  let msg: Anthropic.Message;
+  try {
+    msg = await client.messages.create({
+      model: MODEL,
+      max_tokens: 900,
+      system: SYSTEM,
+      tools: [TOOL],
+      tool_choice: { type: "tool", name: "report_shaken" },
+      messages: [
+        {
+          role: "user",
+          content: [
+            {
+              type: "document",
+              source: { type: "base64", media_type: "application/pdf", data: pdf.toString("base64") },
+            },
+            {
+              type: "text",
+              // 閲覧アプリのPDFは券面と違い記載が省略されていないので、A6券面向けの
+              // 「無理に埋めない」注意より「書かれている項目は全て拾う」を優先させる。
+              text:
+                "これは車検証閲覧アプリから出力した自動車検査証のPDFです。" +
+                "券面の省略版ではなく記載が揃っているため、PDFに書かれている項目はすべて report_shaken で報告してください。" +
+                "ただしPDFに書かれていない項目は空文字にし、推測で埋めないでください。",
+            },
+          ],
+        },
+      ],
+    });
+  } catch (e) {
+    console.error("mbPIT: 車検証PDFの読み取りに失敗", e instanceof Error ? e.message : "unknown");
+    return { error: "PDFの読み取りに失敗しました。別のPDFを試すか、手入力で進めてください" };
+  }
+  const block = msg.content.find((b): b is Anthropic.ToolUseBlock => b.type === "tool_use");
+  if (!block) return { error: "読み取り結果を受け取れませんでした。手入力で進めてください" };
+  const input = block.input as Partial<Record<keyof ShakenFields, string>> & { unreadable?: boolean };
+  if (input.unreadable) {
+    return {
+      error:
+        "車検証のPDFとして読み取れませんでした。車検証閲覧アプリで出力したPDFかどうか確認してください",
+    };
+  }
+  return { result: normalizeShakenFields(input) };
+}

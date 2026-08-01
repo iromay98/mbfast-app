@@ -1,10 +1,16 @@
 import type { NextRequest } from "next/server";
 import sharp from "sharp";
 import { getSessionUser } from "@/lib/authz";
-import { readShakenImage, shakenOcrEnabled } from "@/server/pit/shaken-ocr";
+import { readShakenImage, readShakenPdf, shakenOcrEnabled } from "@/server/pit/shaken-ocr";
 
 /*
  * 車検証の読み取り。返すのは「フォームに入れる候補値」だけで、DBには何も保存しない。
+ *
+ * 受け付けるのは2種類:
+ *  - 写真（image/*）… 紙の車検証。ただし2023年以降のA6の電子車検証は券面の記載が省略されて
+ *    いるため取れない項目が多い
+ *  - **PDF（application/pdf）… 車検証閲覧アプリの出力**。ICチップの中身なので記載が揃っており、
+ *    有効期間・住所まで取れる。電子車検証ではこちらが本命
  *
  *  - 画像はメモリ上でのみ扱い、保存しない（氏名・住所・車台番号が写っているため）
  *  - 読み取った値はログに出さない
@@ -31,8 +37,24 @@ export async function POST(request: NextRequest) {
   }
 
   const file = form.get("file");
-  if (!(file instanceof File)) return json(400, { error: "車検証の写真を選択してください" });
-  if (file.size > MAX_BYTES) return json(413, { error: "画像が大きすぎます（15MBまで）" });
+  if (!(file instanceof File)) {
+    return json(400, { error: "車検証の写真、または車検証閲覧アプリのPDFを選択してください" });
+  }
+  if (file.size > MAX_BYTES) return json(413, { error: "ファイルが大きすぎます（15MBまで）" });
+
+  /*
+   * PDF（車検証閲覧アプリの出力）はそのままClaudeへ渡す。
+   * 判定は MIME だけに頼らず先頭バイト（%PDF）も見る
+   * （スマホから送られると type が空や application/octet-stream になることがある）。
+   */
+  const head = Buffer.from(await file.slice(0, 5).arrayBuffer());
+  const isPdf = file.type === "application/pdf" || head.toString("latin1") === "%PDF-";
+  if (isPdf) {
+    const pdf = Buffer.from(await file.arrayBuffer());
+    const r = await readShakenPdf(pdf);
+    if (!r.result) return json(422, { error: r.error ?? "読み取れませんでした" });
+    return json(200, r.result);
+  }
 
   let jpeg: Buffer;
   try {
