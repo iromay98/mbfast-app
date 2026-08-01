@@ -1,0 +1,67 @@
+# 価格表フィクスチャ（LIVEスナップショット）を取得してリポジトリにコミットする。
+# 仕組み: ランナーが WordPress REST から27テーブル/26ページの content.raw を直接取得し、
+#   prisma/data/wp-live/{pageId}.html に保存 → そのブランチへコミット&プッシュ。
+# fetch-wp.mts は Node標準の fetch のみ（外部依存なし）なのでSSH不要・ランナー完結。
+#
+# 必要な一度きりの設定（Settings → Secrets and variables → Actions → New repository secret）:
+#   WP_USER          : WordPress のユーザー名
+#   WP_APP_PASSWORD  : WordPress のアプリケーションパスワード（Basic認証）
+# ※認証情報はコードに書かない。Secret から env で渡す。
+#
+# 起動: Actions タブ →「Fetch price fixtures」→ Run workflow（対象ブランチを選ぶ）。
+#   または API（workflow_dispatch）から起動する。
+name: Fetch price fixtures
+
+on:
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+concurrency:
+  group: fetch-price-fixtures
+  cancel-in-progress: false
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: チェックアウト（起動したブランチ）
+        uses: actions/checkout@v4
+
+      - name: Node 準備
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: WP認証チェック
+        env:
+          WP_USER: ${{ secrets.WP_USER }}
+          WP_APP_PASSWORD: ${{ secrets.WP_APP_PASSWORD }}
+        run: |
+          if [ -z "$WP_USER" ] || [ -z "$WP_APP_PASSWORD" ]; then
+            echo "::error::WP_USER / WP_APP_PASSWORD の Secret が未設定です。Settings → Secrets and variables → Actions で登録してください。"
+            exit 1
+          fi
+
+      - name: LIVE価格HTMLを取得（26ページ）
+        env:
+          WP_USER: ${{ secrets.WP_USER }}
+          WP_APP_PASSWORD: ${{ secrets.WP_APP_PASSWORD }}
+          WP_BASE_URL: https://mbfasttuning.com
+        run: npx -y tsx scripts/price-sync/fetch-wp.mts
+
+      - name: コミット & プッシュ
+        run: |
+          git config user.name "Claude"
+          git config user.email "noreply@anthropic.com"
+          git add prisma/data/wp-live/
+          if git diff --cached --quiet; then
+            echo "::notice::フィクスチャに変更はありません（LIVEと同一）。"
+            exit 0
+          fi
+          count=$(git diff --cached --name-only | grep -c 'prisma/data/wp-live/' || true)
+          git commit -m "価格表: wp-live LIVEスナップショット（26ページ・CI取得 ${count}ファイル）"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
+          echo "::notice::${count} ファイルを ${GITHUB_REF_NAME} にコミットしました。"
