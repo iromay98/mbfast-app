@@ -277,6 +277,16 @@ function VariationRow({
           <input type="hidden" name="pops" value={row.pops ? "1" : "0"} />
           <input type="hidden" name="popsSport" value={row.popsSport ? "1" : "0"} />
           <input type="hidden" name="optionTags" value={JSON.stringify(row.optionTags)} />
+          {/* 任意の「版番号」。整数を指定するとその番号で版を作る（空なら自動採番＝max+1）。 */}
+          <input
+            type="number"
+            name="versionNumber"
+            min={1}
+            step={1}
+            placeholder="版番号"
+            title="この版の版番号(整数)を指定（空なら自動＝最大版+1）。同一行で既存番号と重複不可・欠番可。"
+            className="w-20 shrink-0 rounded-md border border-line px-2 py-1.5 text-xs text-ink placeholder:text-ink-soft/60"
+          />
           {/* 任意の「ver名」。差し替えでアップする版に付く（空なら無し）。 */}
           <input
             type="text"
@@ -657,6 +667,16 @@ function AddVariation({
         <input type="hidden" name="pops" value={pops ? "1" : "0"} />
         <input type="hidden" name="popsSport" value={popsSport ? "1" : "0"} />
         <input type="hidden" name="optionTags" value={JSON.stringify(selected)} />
+        {/* 任意の「版番号」。整数を指定するとその番号で版を作る（空なら自動＝新規は1／既存はmax+1）。 */}
+        <input
+          type="number"
+          name="versionNumber"
+          min={1}
+          step={1}
+          placeholder="版番号"
+          title="この版の版番号(整数)を指定（空なら自動）。同一行で既存番号と重複不可・欠番可。"
+          className="w-24 rounded-lg border border-line px-2.5 py-2 text-sm text-ink placeholder:text-ink-soft/60"
+        />
         {/* 任意の「ver名」。アップする版に付く（空なら無し・内部連番は自動）。 */}
         <input
           type="text"
