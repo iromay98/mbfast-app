@@ -53,7 +53,8 @@ export async function POST(request: NextRequest) {
     const pdf = Buffer.from(await file.arrayBuffer());
     const r = await readShakenPdf(pdf);
     if (!r.result) return json(422, { error: r.error ?? "読み取れませんでした" });
-    return json(200, r.result);
+    // source: "text"=PDFの文字を直接読んだ（誤読なし）／"ai"=画像PDFのため画像認識
+    return json(200, { ...r.result, source: r.source ?? "text" });
   }
 
   let jpeg: Buffer;
@@ -70,7 +71,7 @@ export async function POST(request: NextRequest) {
 
   const { result, error } = await readShakenImage(jpeg, "image/jpeg");
   if (!result) return json(422, { error: error ?? "読み取れませんでした" });
-  return json(200, result);
+  return json(200, { ...result, source: "photo" });
 }
 
 function json(status: number, body: unknown) {

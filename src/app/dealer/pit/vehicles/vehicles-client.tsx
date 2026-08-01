@@ -78,9 +78,13 @@ export function VehiclesClient({
   initialCustomerId?: string;
 }) {
   const router = useRouter();
-  // fileRef: 写真とPDFの両方（ファイル選択）／cameraRef: 撮影専用（capture付き）
-  const fileRef = useRef<HTMLInputElement>(null);
-  const cameraRef = useRef<HTMLInputElement>(null);
+  /*
+   * 入口を用途ごとに分ける。iPhoneでは accept に image/* を混ぜると
+   * ファイル選択が写真ライブラリ寄りになりPDFを選びにくいため、**PDF専用の入口**を用意する。
+   */
+  const pdfRef = useRef<HTMLInputElement>(null); // PDFのみ（iPhoneでは「ファイル」が開く）
+  const cameraRef = useRef<HTMLInputElement>(null); // 撮影（capture付き）
+  const photoRef = useRef<HTMLInputElement>(null); // アルバムから写真
   // 顧客カルテから来たときは、その顧客を選んだ状態で始める（カルテ→車両追加を往復させない）
   const blank = (): VehicleFormInput => ({ ...EMPTY, customerId: initialCustomerId ?? "" });
   const [form, setForm] = useState<VehicleFormInput | null>(null);
@@ -134,6 +138,8 @@ export function VehiclesClient({
         error?: string;
         fields?: Record<string, string>;
         warnings?: string[];
+        /** text=PDFの文字を直接読んだ（誤読なし）／ai=画像PDF／photo=写真 */
+        source?: "text" | "ai" | "photo";
       };
       if (!res.ok || !body.fields) {
         setError(body.error ?? "読み取れませんでした。手入力で進めてください");
@@ -141,12 +147,22 @@ export function VehiclesClient({
         return;
       }
       const f = body.fields;
+      /*
+       * PDFの文字を直接読めた場合（source="text"）は、値が確定しているうえに
+       * 車検証そのものの記載なのでQRより優先する。
+       * 逆に写真OCR（誤読があり得る）ではQRの値を守る。
+       */
+      const pdfExact = body.source === "text";
+      const vinMismatch = pdfExact && !!qrVin && !!f.vin && qrVin !== f.vin;
       setForm((prev) => ({
         ...blank(),
         ...(prev ?? {}),
-        // 車台番号・型式はQRで取れていればそれを使う（写真の誤読で上書きさせない）
-        vin: qrVin ?? f.vin ?? "",
-        modelCode: qrVin && prev?.modelCode ? prev.modelCode : (f.modelCode ?? ""),
+        vin: pdfExact ? (f.vin ?? qrVin ?? "") : (qrVin ?? f.vin ?? ""),
+        modelCode: pdfExact
+          ? (f.modelCode ?? "")
+          : qrVin && prev?.modelCode
+            ? prev.modelCode
+            : (f.modelCode ?? ""),
         registrationNumber: f.registrationNumber ?? "",
         maker: f.makerName ?? "",
         firstRegistered: f.firstRegistered ?? "",
@@ -156,15 +172,30 @@ export function VehiclesClient({
         customerAddress: f.userAddress ?? "",
       }));
       setNotes([
-        ...(body.warnings ?? []).filter((w) => !(qrVin && w.includes("車台番号"))),
-        ...(qrVin ? ["車台番号はQRで読み取った値を使っています（写真の読み取りでは上書きしません）"] : []),
+        // 経路を明示する（PDF直読みは誤読が起きないので、その旨を伝えて安心して確認できるようにする）
+        ...(body.source === "text"
+          ? ["✅ PDFの文字をそのまま読み取りました（画像認識ではないので誤読はありません）"]
+          : body.source === "ai"
+            ? ["このPDFは画像だったため画像認識で読み取りました。値をよく確認してください"]
+            : []),
+        ...(vinMismatch
+          ? [
+              `⚠ QRで読んだ車台番号（${qrVin}）とPDFの車台番号（${f.vin}）が違います。` +
+                "別の車両のPDFを選んでいないか確認してください（PDFの値を入れています）",
+            ]
+          : []),
+        ...(body.warnings ?? []).filter((w) => !(!pdfExact && qrVin && w.includes("車台番号"))),
+        ...(!pdfExact && qrVin
+          ? ["車台番号はQRで読み取った値を使っています（写真の読み取りでは上書きしません）"]
+          : []),
       ]);
     } catch {
       setError("通信エラーが発生しました。手入力で進めてください");
       setForm((f) => f ?? blank());
     } finally {
       setReading(false);
-      if (fileRef.current) fileRef.current.value = "";
+      // 同じファイルを選び直せるように値をクリアする（3つの入口すべて）
+      for (const r of [pdfRef, cameraRef, photoRef]) if (r.current) r.current.value = "";
     }
   };
 
@@ -228,11 +259,22 @@ export function VehiclesClient({
             <br />
             <span className="font-semibold text-ink">車検証の画像もPDFも保存されません</span>（読み取り後に破棄します）。
           </p>
-          {/* 写真とPDFの両方を受ける。capture は付けない（付けるとカメラ固定でPDFを選べない） */}
+          {/* PDF専用（iPhoneで「ファイル」アプリが直接開くよう image/* を混ぜない） */}
           <input
-            ref={fileRef}
+            ref={pdfRef}
             type="file"
-            accept="image/*,application/pdf,.pdf"
+            accept="application/pdf,.pdf"
+            className="hidden"
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) void read(f);
+            }}
+          />
+          {/* アルバムに保存済みの写真から選ぶ */}
+          <input
+            ref={photoRef}
+            type="file"
+            accept="image/*"
             className="hidden"
             onChange={(e) => {
               const f = e.target.files?.[0];
@@ -259,7 +301,7 @@ export function VehiclesClient({
             <button
               type="button"
               disabled={!ocrEnabled || reading}
-              onClick={() => fileRef.current?.click()}
+              onClick={() => pdfRef.current?.click()}
               className="rounded-lg bg-gold-500 px-4 py-2.5 text-sm font-bold text-white disabled:opacity-50"
             >
               {reading ? "読み取り中…" : "📄 車検証PDFを選ぶ（推奨）"}
@@ -287,6 +329,14 @@ export function VehiclesClient({
             </button>
             <button
               type="button"
+              disabled={!ocrEnabled || reading}
+              onClick={() => photoRef.current?.click()}
+              className="rounded-lg border border-line px-3 py-2.5 text-sm font-semibold text-ink disabled:opacity-50"
+            >
+              🖼 写真を選ぶ
+            </button>
+            <button
+              type="button"
               onClick={() => {
                 setForm(blank());
                 setNotes([]);
@@ -302,6 +352,38 @@ export function VehiclesClient({
               読み取り機能が未設定のため、いまは手入力のみご利用いただけます。
             </p>
           )}
+
+          {/*
+            PDFの取り方の案内。iPhoneはWebアプリを共有先に出せない（iOSがWeb Share Targetに
+            非対応）ため、「ファイルに保存 → ここで選ぶ」の2手順を案内するのがいちばん確実。
+            折りたたみにして、慣れた人の邪魔をしない。
+          */}
+          <details className="mt-3 rounded-lg border border-line bg-surface-2 p-2.5">
+            <summary className="cursor-pointer text-xs font-bold text-ink">
+              車検証PDFの取り方（iPhone / Android）
+            </summary>
+            <div className="mt-2 space-y-2 text-[11px] leading-relaxed text-ink-soft">
+              <p className="font-semibold text-ink">iPhone</p>
+              <ol className="list-decimal space-y-0.5 pl-4">
+                <li>「車検証閲覧アプリ」でICタグを読み取る</li>
+                <li>PDFを表示して <span className="font-semibold text-ink">共有 → ファイルに保存</span></li>
+                <li>保存先はどこでもOK（「このiPhone内」で十分）</li>
+                <li>
+                  この画面に戻って <span className="font-semibold text-ink">「📄 車検証PDFを選ぶ」</span>{" "}
+                  → 保存したPDFを選ぶ
+                </li>
+              </ol>
+              <p className="font-semibold text-ink">Android</p>
+              <ol className="list-decimal space-y-0.5 pl-4">
+                <li>同じくPDFを保存（ダウンロードでOK）</li>
+                <li>「📄 車検証PDFを選ぶ」から選ぶ</li>
+              </ol>
+              <p>
+                iPhoneでは、他のアプリの「共有」メニューにこのアプリを出すことができません（iOSの仕様）。
+                お手数ですが一度保存してから選んでください。
+              </p>
+            </div>
+          </details>
         </Card>
       )}
 
