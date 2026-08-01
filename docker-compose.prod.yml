@@ -60,6 +60,10 @@ services:
       WP_BASE_URL: "${WP_BASE_URL:-https://mbfasttuning.com}"
       WP_USER: "${WP_USER:-}"
       WP_APP_PASSWORD: "${WP_APP_PASSWORD:-}"
+      # 価格表のAirtable書き戻し（代理店が貼っているAirtable埋め込みを最新に保つ）。
+      # 未設定なら prices:airtable-* は起動時に止まる（書き込みはしない）。
+      AIRTABLE_PAT: "${AIRTABLE_PAT:-}"
+      AIRTABLE_PRICE_BASE_ID: "${AIRTABLE_PRICE_BASE_ID:-}"
       PIT_ARTICLE_MODEL: "${PIT_ARTICLE_MODEL:-claude-sonnet-5}"
       AUTO_PUBLISH: "${AUTO_PUBLISH:-true}"
       STEALTH_MODE: "${STEALTH_MODE:-true}"

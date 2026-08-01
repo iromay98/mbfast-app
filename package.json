@@ -41,6 +41,8 @@
     "prices:cleanup": "tsx scripts/price-sync/cleanup-legacy.mts --commit",
     "prices:wp-diff": "tsx -r dotenv/config scripts/prices-wp-diff.mts",
     "prices:wp-push": "tsx -r dotenv/config scripts/prices-wp-push.mts",
+    "prices:airtable-diff": "tsx -r dotenv/config scripts/price-sync/airtable-push.mts",
+    "prices:airtable-push": "tsx -r dotenv/config scripts/price-sync/airtable-push.mts",
     "report:pit-usage": "tsx -r dotenv/config scripts/report-pit-certificates.mts"
   },
   "dependencies": {
