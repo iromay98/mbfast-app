@@ -75,49 +75,91 @@ jobs:
           fi
           ssh-keyscan -H 162.43.42.72 >> ~/.ssh/known_hosts 2>/dev/null
 
+      # リモートで走らせるスクリプトを**ファイルとして**作る。
+      # ここを ssh の stdin に流し込んではいけない: docker compose exec は stdin を読むため、
+      # 最初の exec が「スクリプトの残り全部」を食べてしまい、何もせず success になる
+      # （実際に run#1 がそれで空振りした）。ファイル渡し＋各execに </dev/null で二重に防ぐ。
+      - name: リモートスクリプト生成
+        run: |
+          cat > /tmp/mbfast-import.sh <<'REMOTE'
+          set -euo pipefail
+          COMPOSE="docker compose -f /root/mbfast-app/docker-compose.prod.yml"
+          PILOT_FLAG=""
+          if [ "${SCOPE:-}" = "pilot" ]; then PILOT_FLAG="--pilot"; fi
+          echo "== scope=${SCOPE:-} (flag='${PILOT_FLAG:-（27本）}') =="
+
+          # 0) precheck: --commitパスを含む新コードがコンテナに入っているか（未デプロイ検出）
+          if ! $COMPOSE exec -T app grep -q LEGACY_BRAND_IDS scripts/price-sync/import-wp.mts </dev/null; then
+            echo "::error::本番コンテナに新スクリプト(--commit)が未デプロイです。先に main をデプロイしてください。"
+            exit 1
+          fi
+          # 取込に必要なフィクスチャがコンテナにあるか（無いと0行扱いになる恐れ）
+          FX=$($COMPOSE exec -T app sh -c 'ls prisma/data/wp-live/*.html 2>/dev/null | wc -l' </dev/null | tr -d '\r')
+          echo "フィクスチャ: ${FX} ファイル"
+          if [ "${FX:-0}" -lt 26 ]; then
+            echo "::error::フィクスチャが不足（${FX}/26）。取込を中止。"
+            exit 1
+          fi
+
+          # 1) 退避（PriceBrand/PriceVehicle）。0バイトなら中止。
+          TS=$(date +%Y%m%d%H%M%S)
+          BK="/root/pricebackup_${TS}.sql"
+          $COMPOSE exec -T postgres pg_dump -U mbfast -d mbfast \
+            -t '"PriceBrand"' -t '"PriceVehicle"' </dev/null > "$BK"
+          SZ=$(stat -c%s "$BK" 2>/dev/null || echo 0)
+          echo "退避: $BK (${SZ} bytes)"
+          if [ "$SZ" -lt 100 ]; then
+            echo "::error::pg_dump が空です（${SZ}バイト）。DB接続を確認。取込を中止。"
+            exit 1
+          fi
+          # 取込前の件数（後で増減を確認する）
+          echo "== 取込前の件数 =="
+          $COMPOSE exec -T postgres psql -U mbfast -d mbfast -A -F' | ' -c \
+            'SELECT source, count(*) FROM "PriceVehicle" GROUP BY source ORDER BY source;' </dev/null || true
+
+          # 2) dry-run で最終差分を確認（DB無変更）
+          echo "== dry-run（意味ペイロード→再構成→生成の差分） =="
+          $COMPOSE exec -T app npx tsx scripts/price-sync/import-wp.mts --dry-run $PILOT_FLAG </dev/null || true
+
+          # 3) commit（件数フロア＋1ブランド1トランザクションはスクリプト内蔵）
+          echo "== commit（本番DB書き込み） =="
+          $COMPOSE exec -T app npx tsx scripts/price-sync/import-wp.mts \
+            --commit $PILOT_FLAG --i-have-backed-up </dev/null
+
+          # 4) 取込後の件数
+          echo "== 取込後の件数 =="
+          $COMPOSE exec -T postgres psql -U mbfast -d mbfast -A -F' | ' -c \
+            'SELECT source, count(*) FROM "PriceVehicle" GROUP BY source ORDER BY source;' </dev/null || true
+          $COMPOSE exec -T postgres psql -U mbfast -d mbfast -A -F' | ' -c \
+            'SELECT id, "blockIndex", (SELECT count(*) FROM "PriceVehicle" v WHERE v."brandId"=b.id) AS rows FROM "PriceBrand" b ORDER BY id;' </dev/null || true
+
+          # 5) 検証: DB生成HTML vs WP live（読み取りのみ・書き込みはしない）
+          echo "== 検証 prices:wp-diff（DB生成 vs WP live・読み取りのみ） =="
+          $COMPOSE exec -T app npm run prices:wp-diff </dev/null || true
+
+          echo "== 完了。退避ファイル: $BK（問題時は psql で復元可） =="
+          # 完走したことの印。これが出ない実行は「空振り」なので workflow 側で失敗させる。
+          echo "MBFAST_IMPORT_COMPLETED"
+          REMOTE
+          sed -i 's/^          //' /tmp/mbfast-import.sh
+          echo "--- 生成したスクリプト行数: $(wc -l < /tmp/mbfast-import.sh) ---"
+
       - name: 取込実行（退避→precheck→commit→検証）
         env:
           SCOPE: ${{ inputs.scope }}
         run: |
+          # スクリプトはbase64でリモートのファイルに落として実行する（stdin経由にしない）。
+          B64=$(base64 -w0 /tmp/mbfast-import.sh)
+          set -o pipefail
           ssh -i ~/.ssh/deploy_key \
               -o ConnectTimeout=15 -o ServerAliveInterval=15 -o ServerAliveCountMax=8 \
-              root@162.43.42.72 "SCOPE='${SCOPE}' bash -s" <<'REMOTE'
-            set -euo pipefail
-            COMPOSE="docker compose -f /root/mbfast-app/docker-compose.prod.yml"
-            PILOT_FLAG=""
-            if [ "$SCOPE" = "pilot" ]; then PILOT_FLAG="--pilot"; fi
-            echo "== scope=$SCOPE (flag='${PILOT_FLAG:-（27本）}') =="
+              root@162.43.42.72 \
+              "echo '$B64' | base64 -d > /tmp/mbfast-import.sh && SCOPE='${SCOPE}' bash /tmp/mbfast-import.sh; c=\$?; rm -f /tmp/mbfast-import.sh; exit \$c" \
+              2>&1 | tee /tmp/import-out.log
 
-            # 0) precheck: --commitパスを含む新コードがコンテナに入っているか（未デプロイ検出）
-            if ! $COMPOSE exec -T app grep -q LEGACY_BRAND_IDS scripts/price-sync/import-wp.mts; then
-              echo "::error::本番コンテナに新スクリプト(--commit)が未デプロイです。先に main をデプロイしてください。"
-              exit 1
-            fi
-
-            # 1) 退避（PriceBrand/PriceVehicle）。0バイトなら中止。
-            TS=$(date +%Y%m%d%H%M%S)
-            BK="/root/pricebackup_${TS}.sql"
-            $COMPOSE exec -T postgres pg_dump -U mbfast -d mbfast \
-              -t '"PriceBrand"' -t '"PriceVehicle"' > "$BK"
-            SZ=$(stat -c%s "$BK" 2>/dev/null || echo 0)
-            echo "退避: $BK (${SZ} bytes)"
-            if [ "$SZ" -lt 100 ]; then
-              echo "::error::pg_dump が空です（${SZ}バイト）。DB接続を確認。取込を中止。"
-              exit 1
-            fi
-
-            # 2) dry-run で最終差分を確認（DB無変更）
-            echo "== dry-run（意味ペイロード→再構成→生成の差分） =="
-            $COMPOSE exec -T app npx tsx scripts/price-sync/import-wp.mts --dry-run $PILOT_FLAG || true
-
-            # 3) commit（件数フロア＋1ブランド1トランザクションはスクリプト内蔵）
-            echo "== commit（本番DB書き込み） =="
-            $COMPOSE exec -T app npx tsx scripts/price-sync/import-wp.mts \
-              --commit $PILOT_FLAG --i-have-backed-up
-
-            # 4) 検証: DB生成HTML vs WP live（読み取りのみ）
-            echo "== 検証 prices:wp-diff（DB生成 vs WP live・読み取りのみ） =="
-            $COMPOSE exec -T app npm run prices:wp-diff || true
-
-            echo "== 完了。退避ファイル: $BK（問題時は psql で復元可） =="
-          REMOTE
+          # 空振り検出: 完走の印が無ければ失敗させる（run#1 の silent success 再発防止）。
+          if ! grep -q MBFAST_IMPORT_COMPLETED /tmp/import-out.log; then
+            echo "::error::取込が完走していません（完了マーカーなし）。DBは未変更の可能性が高いですがログを確認してください。"
+            exit 1
+          fi
+          echo "::notice::取込が完走しました。"
