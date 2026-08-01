@@ -5,24 +5,38 @@
  * 画面もホーム画面追加時の名前も mbPIT）。にもかかわらずアイコンだけが共通で、
  * 加盟店のホーム画面に mbFAST のアイコンが並ぶ状態だった。
  *
- * ここで作るのは **暫定アイコン**（黒地×ゴールドの mbPIT ワードマーク）。
- * 既存のmbPIT表現（記事トップバー: 背景#0d0d0d・下線#c9a227、アプリUIも黒×金）に合わせている。
- * **正式なロゴ画像を受け取ったら `--from <ロゴファイル>` で差し替える**（下記）。
+ * 既定では **正式なmbPITロゴ**（public/brand/mbpit-logo.jpg）から生成する。
+ * ロゴが手元に無いときだけ --wordmark で暫定のワードマークを作れる。
+ * 地色はmbPITの黒（#0d0d0d。記事トップバーやアプリUIと同じ）。
  *
  * 使い方:
- *   npx tsx scripts/make-pwa-icons.mts              … ワードマークから生成（暫定）
- *   npx tsx scripts/make-pwa-icons.mts --from logo.png … 正式ロゴから生成（余白付きで中央に配置）
+ *   npx tsx scripts/make-pwa-icons.mts                       … 既定のロゴ(public/brand/mbpit-logo.jpg)から生成
+ *   npx tsx scripts/make-pwa-icons.mts --from <画像>          … 別のロゴから生成
+ *   npx tsx scripts/make-pwa-icons.mts --wordmark            … ロゴが無いときの暫定ワードマーク
+ *
+ * ロゴが横長のときの扱い（mbPITロゴは約4.2:1）:
+ *  - まず**周囲の余地を自動で切る**（trim）。切らずに縮めると文字が小さくなりすぎる
+ *  - `any` 用は幅88%まで使う（読める大きさを優先）
+ *  - `maskable` 用は幅76%に抑える。Androidは中央の円（直径80%）だけを安全域として
+ *    外側を切るため、横長ロゴは端が欠ける。円に収まる幅は
+ *    w = D / sqrt(1 + 1/比^2) ≒ 0.97D なので、D=80% から余裕を見て76%とする
  */
 import sharp from "sharp";
 import { writeFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 
 const OUT = join(process.cwd(), "public", "icons");
-const BG = "#0d0d0d"; // mbPITの地色（記事トップバーと同じ）
+/*
+ * 地色は**純黒**にする。ロゴ画像の背景が #000000 のため、#0d0d0d のような
+ * 「ほぼ黒」だと合成後にロゴの矩形だけが色違いになって四角い枠が見える（実際にそうなった）。
+ */
+const BG = "#000000";
 const GOLD = "#d4af37";
 
 const fromIndex = process.argv.indexOf("--from");
-const logoPath = fromIndex > 0 ? process.argv[fromIndex + 1] : null;
+const useWordmark = process.argv.includes("--wordmark");
+const DEFAULT_LOGO = join(process.cwd(), "public", "brand", "mbpit-logo.jpg");
+const logoPath = useWordmark ? null : fromIndex > 0 ? process.argv[fromIndex + 1] : DEFAULT_LOGO;
 
 /** ワードマークのSVG。maskable用に中央80%へ収める（端が切られても文字が残る） */
 function wordmarkSvg(size: number): string {
@@ -42,39 +56,43 @@ async function fromWordmark(size: number): Promise<Buffer> {
   return sharp(Buffer.from(wordmarkSvg(size))).png().toBuffer();
 }
 
-/** 正式ロゴから作る場合: 黒地の中央に、周囲20%の余白をとって配置する */
-async function fromLogo(src: string, size: number): Promise<Buffer> {
-  const inner = Math.round(size * 0.6);
-  const logo = await sharp(src)
-    .resize(inner, inner, { fit: "inside", withoutEnlargement: false, background: { r: 0, g: 0, b: 0, alpha: 0 } })
+/**
+ * 正式ロゴから作る。黒地の中央に、指定した幅の割合で配置する。
+ * widthRatio: アイコン幅に対するロゴの幅（any=0.88 / maskable=0.76）
+ */
+async function fromLogo(src: string, size: number, widthRatio: number): Promise<Buffer> {
+  // 周囲の余地を切ってロゴ本体だけにする（切らないと文字が小さくなりすぎる）
+  const trimmed = await sharp(src).trim({ threshold: 15 }).toBuffer();
+  const w = Math.round(size * widthRatio);
+  const logo = await sharp(trimmed)
+    .resize(w, undefined, { fit: "inside", withoutEnlargement: false })
     .png()
     .toBuffer();
-  return sharp({
-    create: { width: size, height: size, channels: 4, background: BG },
-  })
+  return sharp({ create: { width: size, height: size, channels: 4, background: BG } })
     .composite([{ input: logo, gravity: "center" }])
     .png()
     .toBuffer();
 }
 
-const make = (size: number) => (logoPath ? fromLogo(logoPath, size) : fromWordmark(size));
+const make = (size: number, widthRatio: number) =>
+  logoPath ? fromLogo(logoPath, size, widthRatio) : fromWordmark(size);
 
 if (logoPath && !existsSync(logoPath)) {
   console.error(`ロゴファイルが見つかりません: ${logoPath}`);
   process.exit(2);
 }
 
-for (const [name, size] of [
-  ["pit-icon-192.png", 192],
-  ["pit-icon-512.png", 512],
-  ["pit-apple-touch-icon.png", 180],
+for (const [name, size, ratio] of [
+  // any: 通常表示（そのまま出るので大きめに使う）
+  ["pit-icon-192.png", 192, 0.88],
+  ["pit-icon-512.png", 512, 0.88],
+  // maskable: Androidが円などに切り抜くため安全域に収める
+  ["pit-icon-512-maskable.png", 512, 0.76],
+  // iOSのホーム画面（角丸は端末側で付く）
+  ["pit-apple-touch-icon.png", 180, 0.88],
 ] as const) {
-  const buf = await make(size);
+  const buf = await make(size, ratio);
   writeFileSync(join(OUT, name), buf);
-  console.log(`生成: public/icons/${name}  ${size}x${size}  ${buf.length} bytes`);
+  console.log(`生成: public/icons/${name}  ${size}x${size}  幅${Math.round(ratio * 100)}%  ${buf.length} bytes`);
 }
-console.log(
-  logoPath
-    ? "正式ロゴから生成しました。"
-    : "※ 暫定のワードマークです。正式なmbPITロゴを受け取ったら --from <ロゴ> で作り直してください。",
-);
+console.log(logoPath ? `ロゴから生成しました: ${logoPath}` : "※ 暫定のワードマークから生成しました。");
