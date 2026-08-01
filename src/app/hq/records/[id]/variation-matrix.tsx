@@ -46,9 +46,10 @@ type VRow = {
 
 const popsText = (pops: boolean, sport: boolean) => (pops ? (sport ? "スポーツ" : "全モード") : "—");
 
-// 表示用の「ver名（#内部連番）」。ver名(自由文字列)が空なら内部連番のみ「#12」。
+// 表示用の「ver名（ver内部連番）」。ver名(自由文字列)が空なら内部連番のみ「ver12」。
+// # は使わない（ファイル名やURLで誤解される恐れがあるため ver 表記に統一）。
 const verDisplay = (label: string, version: number) =>
-  label.trim() ? `${label.trim()} (#${version})` : `#${version}`;
+  label.trim() ? `${label.trim()} (ver${version})` : `ver${version}`;
 
 const STATUS_LABEL: Record<VRow["status"], string> = {
   DRAFT: "下書き",

@@ -28,8 +28,8 @@ export async function GET(
       popsAndBangs: true,
       popsSport: true,
       optionTags: true,
-      // 現行版の ver名（ファイル名に付けて、どの版のbinかを識別できるようにする）
-      currentVersion: { select: { label: true } },
+      // 現行版の ver名と内部連番（ファイル名に付けて、どの版のbinかを識別できるようにする）
+      currentVersion: { select: { label: true, version: true } },
       baseFile: {
         select: { model: true, generation: true, calNumber: true, swNumber: true, method: true, tool: true, driver: true, unit: true },
       },
@@ -64,11 +64,18 @@ export async function GET(
     ip: request.headers.get("x-forwarded-for"),
   });
 
-  // 本部Bin命名: 車種 [顧客名様] Cal(無ければSW/Driver) AT_方法_内容[_ver名]
+  // 本部Bin命名: 車種 [顧客名様] Cal(無ければSW/Driver) AT_方法_内容[_ver表記]
+  // ver表記は「ver名」があればそれを、無ければ内部連番で「ver12」。
+  // # はファイル名で誤解を招くため使わない（ver に統一）。
   const verLabel = (v.currentVersion?.label ?? "").trim();
+  const verTag = verLabel
+    ? verLabel
+    : v.currentVersion
+      ? `ver${v.currentVersion.version}`
+      : "";
   const content =
     composeContent(v.stage, v.popsAndBangs, v.optionTags, v.popsSport) +
-    (verLabel ? `_${verLabel}` : "");
+    (verTag ? `_${verTag}` : "");
   const name = buildDownloadName({
     model: v.baseFile.model,
     generation: v.baseFile.generation,
