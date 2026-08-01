@@ -28,7 +28,15 @@ import {
 } from "@/lib/shaken/parse";
 
 type Props = {
-  onParsed: (info: ShakenVehicleInfo, raw: ShakenRaw) => void;
+  /**
+   * 読み取り結果。extra は二次元コードには入っていない項目（PDFから読めたときだけ入る）。
+   * 既存の呼び出し側を壊さないよう第3引数は任意にしている。
+   */
+  onParsed: (
+    info: ShakenVehicleInfo,
+    raw: ShakenRaw,
+    extra?: { makerName?: string; userName?: string; userAddress?: string },
+  ) => void;
   className?: string;
 };
 
@@ -74,6 +82,65 @@ function assembleGroup(frags: Map<number, Uint8Array>): string {
 }
 
 export function ShakenScanner({ onParsed, className }: Props) {
+  /*
+   * PDF読み取り（車検証閲覧アプリの出力）。
+   * 2023年以降のA6電子車検証は券面の記載が省略されており、二次元コードにも
+   * 有効期間・氏名・住所が入っていない。閲覧アプリのPDFはICチップの中身なので
+   * 全部揃う。mbPIT側の車両登録と同じAPIを使う（読み取りの実装を二重に持たない）。
+   */
+  const pdfRef = useRef<HTMLInputElement>(null);
+  const [pdfReading, setPdfReading] = useState(false);
+  const [pdfNote, setPdfNote] = useState<string | null>(null);
+  const [pdfError, setPdfError] = useState<string | null>(null);
+
+  const readFile = async (file: File) => {
+    setPdfReading(true);
+    setPdfNote(null);
+    setPdfError(null);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const res = await fetch("/api/pit/shaken-ocr", { method: "POST", body: fd });
+      const body = (await res.json()) as {
+        error?: string;
+        fields?: Record<string, string>;
+        warnings?: string[];
+        source?: "text" | "ai" | "photo";
+      };
+      if (!res.ok || !body.fields) {
+        setPdfError(body.error ?? "読み取れませんでした。手入力で進めてください");
+        return;
+      }
+      const f = body.fields;
+      // ShakenVehicleInfo（二次元コードと同じ形）へ寄せてから既存の流れに載せる
+      const year = /^(\d{4})-\d{2}$/.exec(f.firstRegistered ?? "")?.[1];
+      onParsed(
+        {
+          vin: f.vin || undefined,
+          registrationNumber: f.registrationNumber || undefined,
+          vehicleModelCode: f.modelCode || undefined,
+          firstRegistration: f.firstRegistered || undefined,
+          carYear: year ? Number(year) : undefined,
+          inspectionExpiry: (f.inspectionExpiry ?? "").length === 10 ? f.inspectionExpiry : undefined,
+        },
+        {},
+        { makerName: f.makerName || undefined, userName: f.userName || undefined, userAddress: f.userAddress || undefined },
+      );
+      setPdfNote(
+        body.source === "text"
+          ? "✅ PDFの文字をそのまま読み取りました（画像認識ではないので誤読はありません）。内容をご確認ください"
+          : body.source === "ai"
+            ? "このPDFは画像だったため画像認識で読み取りました。値をよく確認してください"
+            : "写真から読み取りました。誤読があり得るので値をよく確認してください",
+      );
+    } catch {
+      setPdfError("通信エラーが発生しました。手入力で進めてください");
+    } finally {
+      setPdfReading(false);
+      if (pdfRef.current) pdfRef.current.value = "";
+    }
+  };
+
   const [phase, setPhase] = useState<Phase>("idle");
   const [error, setError] = useState<string | null>(null);
   const [captured, setCaptured] = useState<Captured>({});
@@ -251,14 +318,15 @@ export function ShakenScanner({ onParsed, className }: Props) {
     <div className={`rounded-xl border border-line bg-surface p-3 ${className ?? ""}`}>
       <div className="flex items-center justify-between gap-2">
         <div>
-          <p className="text-sm font-bold text-ink">車検証QRを読み取る</p>
+          <p className="text-sm font-bold text-ink">車検証から車両情報を読み取る</p>
           <p className="text-xs text-ink-soft">
-            電子車検証の二次元コード（コード2・コード3）から車両情報を自動入力します。
+            <span className="font-semibold text-ink">PDF（車検証閲覧アプリ）がいちばん確実です</span>
+            。いまのA6の電子車検証は券面の記載が省略されており、二次元コードにも有効期間・氏名・住所が入っていません。
           </p>
         </div>
         {phase === "idle" && (
-          <Button type="button" onClick={startScan}>
-            読み取り開始
+          <Button type="button" variant="secondary" onClick={startScan}>
+            QRを読む
           </Button>
         )}
         {(phase === "scanning" || phase === "error") && (
@@ -267,6 +335,36 @@ export function ShakenScanner({ onParsed, className }: Props) {
           </Button>
         )}
       </div>
+
+      {/* PDF/写真の入口。iPhoneでは accept に image/* を混ぜるとPDFを選びにくいので分ける */}
+      {phase === "idle" && (
+        <div className="mt-2">
+          <input
+            ref={pdfRef}
+            type="file"
+            accept="application/pdf,.pdf"
+            className="hidden"
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) void readFile(f);
+            }}
+          />
+          <button
+            type="button"
+            disabled={pdfReading}
+            onClick={() => pdfRef.current?.click()}
+            className="rounded-lg bg-gold-500 px-4 py-2 text-sm font-bold text-white disabled:opacity-50"
+          >
+            {pdfReading ? "読み取り中…" : "📄 車検証PDFを選ぶ（推奨）"}
+          </button>
+          {pdfNote && <p className="mt-2 text-xs font-semibold text-green-700">{pdfNote}</p>}
+          {pdfError && <p className="mt-2 text-xs font-semibold text-red-600">{pdfError}</p>}
+          <p className="mt-1.5 text-[11px] text-ink-soft">
+            iPhoneは「車検証閲覧アプリ」で共有 →「ファイルに保存」してから選んでください（iOSの仕様で共有先にこのアプリを出せません）。
+            車検証のPDF・画像は保存されません。
+          </p>
+        </div>
+      )}
 
       {/* スキャン中 */}
       {phase === "scanning" && (

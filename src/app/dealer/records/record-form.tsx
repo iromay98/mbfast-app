@@ -44,7 +44,20 @@ export function RecordForm({ today }: { today: string }) {
   const set = (k: keyof ScanFields) => (e: React.ChangeEvent<HTMLInputElement>) =>
     setScan((s) => ({ ...s, [k]: e.target.value }));
 
-  const onParsed = (info: ShakenVehicleInfo, raw: ShakenRaw) => {
+  /*
+   * 車検証PDFから読めた項目のうち、二次元コードには入っていないもの（車名＝メーカー・使用者名）。
+   * 空のときだけ入れる＝手で直したものを上書きしない。
+   */
+  const [maker, setMaker] = useState("");
+  const [customerName, setCustomerName] = useState("");
+
+  const onParsed = (
+    info: ShakenVehicleInfo,
+    raw: ShakenRaw,
+    extra?: { makerName?: string; userName?: string },
+  ) => {
+    if (extra?.makerName) setMaker((v) => v || extra.makerName!);
+    if (extra?.userName) setCustomerName((v) => v || extra.userName!);
     setScan((s) => ({
       vin: info.vin ?? s.vin,
       carYear: info.carYear ? String(info.carYear) : s.carYear,
@@ -64,12 +77,23 @@ export function RecordForm({ today }: { today: string }) {
         <ShakenScanner onParsed={onParsed} />
 
         <Field label="顧客名" hint={fe.customerName}>
-          <Input name="customerName" placeholder="例: 柳田 様" />
+          <Input
+            name="customerName"
+            placeholder="例: 柳田 様"
+            value={customerName}
+            onChange={(e) => setCustomerName(e.target.value)}
+          />
         </Field>
 
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label="メーカー *" hint={fe.carMaker}>
-            <Input name="carMaker" placeholder="Audi" required />
+            <Input
+              name="carMaker"
+              placeholder="Audi"
+              required
+              value={maker}
+              onChange={(e) => setMaker(e.target.value)}
+            />
           </Field>
           <Field label="車種 *" hint={fe.carModel}>
             <Input name="carModel" placeholder="S3 8V" required />

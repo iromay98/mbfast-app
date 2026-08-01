@@ -61,11 +61,18 @@ export function SupplementForm({
     inspectionExpiry: defaults.inspectionExpiry ?? "",
   });
   const [rawJson, setRawJson] = useState("");
+  // 車検証PDFから読めた使用者名（二次元コードには入っていない）。空のときだけ入れる
+  const [customerName, setCustomerName] = useState(defaults.customerName ?? "");
 
   const set = (k: keyof ScanFields) => (e: React.ChangeEvent<HTMLInputElement>) =>
     setScan((s) => ({ ...s, [k]: e.target.value }));
 
-  const onParsed = (info: ShakenVehicleInfo, raw: ShakenRaw) => {
+  const onParsed = (
+    info: ShakenVehicleInfo,
+    raw: ShakenRaw,
+    extra?: { makerName?: string; userName?: string },
+  ) => {
+    if (extra?.userName) setCustomerName((v) => v || extra.userName!);
     setScan((s) => ({
       vin: info.vin ?? s.vin,
       carYear: info.carYear ? String(info.carYear) : s.carYear,
@@ -89,7 +96,12 @@ export function SupplementForm({
         <ShakenScanner onParsed={onParsed} />
 
         <Field label="顧客名">
-          <Input name="customerName" placeholder="例: 柳田 様" defaultValue={defaults.customerName ?? ""} />
+          <Input
+            name="customerName"
+            placeholder="例: 柳田 様"
+            value={customerName}
+            onChange={(e) => setCustomerName(e.target.value)}
+          />
         </Field>
 
         <div className="grid gap-4 sm:grid-cols-2">
