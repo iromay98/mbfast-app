@@ -252,15 +252,41 @@ export default async function HQRecordDetailPage({
               fileRef: true,
               fileName: true,
               createdAt: true,
+              currentVersionId: true,
               // 現行ファイルの ver名・特徴メモ。最新版ではなく「現行版」を見る
               // （旧版に戻した後も表示が実際の配信内容と一致するように）。
               currentVersion: { select: { label: true, note: true } },
+              // 版一覧（この行の全 TunedVariantVersion）。公開版の選び直し・履歴表示に使う。
+              versions: {
+                orderBy: { version: "desc" },
+                select: {
+                  id: true,
+                  version: true,
+                  label: true,
+                  note: true,
+                  fileName: true,
+                  fileSize: true,
+                  replacedAt: true,
+                  replacedBy: { select: { name: true } },
+                },
+              },
             },
           },
         },
       })
     : null;
 
+  type VVer = {
+    id: string;
+    version: number;
+    label: string;
+    note: string;
+    fileName: string | null;
+    fileSize: number | null;
+    replacedAtLabel: string;
+    replacedByName: string;
+    isCurrent: boolean;
+  };
   type VRow = {
     variantId: string | null;
     verLabel: string;
@@ -278,6 +304,8 @@ export default async function HQRecordDetailPage({
     extraTags: string[];
     // 同じ構成で残っている重複行の数（0=なし）。差し替え時は同じファイルに揃える。
     dupes: number;
+    // この行の全版（公開版の選び直し・履歴表示）。version 降順。
+    versions: VVer[];
   };
   let builderProps: {
     stages: { value: string; label: string }[];
@@ -336,6 +364,17 @@ export default async function HQRecordDetailPage({
           requested: openLabels.includes(label),
           extraTags: optionTags.filter((t) => !allowedTags.has(t)),
           dupes: (dupeCount.get(label) ?? 1) - 1,
+          versions: (v.versions ?? []).map((ver) => ({
+            id: ver.id,
+            version: ver.version,
+            label: ver.label ?? "",
+            note: ver.note ?? "",
+            fileName: ver.fileName ?? null,
+            fileSize: ver.fileSize ?? null,
+            replacedAtLabel: formatDateTime(ver.replacedAt),
+            replacedByName: ver.replacedBy?.name ?? "",
+            isCurrent: ver.id === v.currentVersionId,
+          })),
           _score: score,
         });
       }

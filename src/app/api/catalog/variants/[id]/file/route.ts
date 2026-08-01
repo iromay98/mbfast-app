@@ -18,6 +18,7 @@ export async function GET(
   const v = await prisma.tunedVariant.findUnique({
     where: { id },
     select: {
+      baseFileId: true,
       fileRef: true,
       fileName: true,
       fileHash: true,
@@ -27,12 +28,29 @@ export async function GET(
       popsAndBangs: true,
       popsSport: true,
       optionTags: true,
+      // 現行版の ver名（ファイル名に付けて、どの版のbinかを識別できるようにする）
+      currentVersion: { select: { label: true } },
       baseFile: {
-        select: { model: true, generation: true, calNumber: true, method: true, tool: true, driver: true, unit: true },
+        select: { model: true, generation: true, calNumber: true, swNumber: true, method: true, tool: true, driver: true, unit: true },
       },
     },
   });
   if (!v || !v.fileRef) return new Response("Not Found", { status: 404 });
+
+  // 記録スコープ（?recordId=）が付いていれば顧客名をファイル名に載せる。
+  // 誤って別の記録の顧客名が付かないよう、その記録の照合先(matchedBaseFile)が
+  // この variant のベースと一致することを確認する（不一致・不存在なら顧客名なしでフォールバック）。
+  const recordId = request.nextUrl.searchParams.get("recordId");
+  let customerName: string | null = null;
+  if (recordId) {
+    const rec = await prisma.serviceRecord.findUnique({
+      where: { id: recordId },
+      select: { matchedBaseFileId: true, customerName: true },
+    });
+    if (rec && rec.matchedBaseFileId === v.baseFileId) {
+      customerName = rec.customerName;
+    }
+  }
 
   const file = await storage.read(v.fileRef);
   if (!file) return new Response("Not Found", { status: 404 });
@@ -46,15 +64,22 @@ export async function GET(
     ip: request.headers.get("x-forwarded-for"),
   });
 
+  // 本部Bin命名: 車種 [顧客名様] Cal(無ければSW/Driver) AT_方法_内容[_ver名]
+  const verLabel = (v.currentVersion?.label ?? "").trim();
+  const content =
+    composeContent(v.stage, v.popsAndBangs, v.optionTags, v.popsSport) +
+    (verLabel ? `_${verLabel}` : "");
   const name = buildDownloadName({
     model: v.baseFile.model,
     generation: v.baseFile.generation,
-    // カタログ命名: 車種 Cal（無ければDriver） AT_方法_内容
-    cal: v.baseFile.calNumber || v.baseFile.driver,
+    // Cal を最優先。無ければ SW、それも無ければ Driver。
+    cal: v.baseFile.calNumber || v.baseFile.swNumber || v.baseFile.driver,
     method: v.baseFile.method,
     tool: v.baseFile.tool,
-    content: composeContent(v.stage, v.popsAndBangs, v.optionTags, v.popsSport),
+    content,
     unit: v.baseFile.unit,
+    // 記録スコープ時のみ顧客名を付与（本部Bin DLのみ・.slave側の命名は不変）
+    customerName,
     ext: extFromName(v.fileName, "bin"),
   });
   return fileResponse(file, name, v.contentType);

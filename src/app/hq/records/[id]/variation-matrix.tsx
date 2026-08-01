@@ -3,10 +3,29 @@
 import { useActionState, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { emptyFormState } from "@/lib/actions/form-state";
-import { uploadVariation, deleteVariation, setVariantStatus, updateVariant } from "@/lib/actions/catalog";
+import {
+  uploadVariation,
+  deleteVariation,
+  setVariantStatus,
+  updateVariant,
+  setCurrentVersion,
+  updateVersionMeta,
+} from "@/lib/actions/catalog";
 import { tuningContentLabel, stripPopsStrongIfNoPops, POPS_STRONG_TAG } from "@/lib/catalog/options";
 
 type Stage = { value: string; label: string };
+// この行の1版（TunedVariantVersion）。公開版の選び直し・履歴表示に使う。
+type VVer = {
+  id: string;
+  version: number; // 内部連番
+  label: string; // 本部が付ける ver名
+  note: string; // 特徴メモ
+  fileName: string | null;
+  fileSize: number | null;
+  replacedAtLabel: string;
+  replacedByName: string;
+  isCurrent: boolean; // 現行＝公開中の版か
+};
 type VRow = {
   variantId: string | null; // 状態切替（下書き⇄配布可⇄無効）用
   verLabel: string; // 現行ファイルの ver名（カタログの版履歴で編集）
@@ -22,6 +41,7 @@ type VRow = {
   requested: boolean;
   extraTags: string[]; // この純正の選択肢に無いOP（チェック列に出ないので明示）
   dupes: number; // 同じ構成で残っている重複行の数
+  versions: VVer[]; // この行の全版（version 降順）
 };
 
 const popsText = (pops: boolean, sport: boolean) => (pops ? (sport ? "スポーツ" : "全モード") : "—");
@@ -125,6 +145,7 @@ function VariationRow({
   const router = useRouter();
   const [deleting, startDelete] = useTransition();
   const [delError, setDelError] = useState<string | null>(null);
+  const [showVersions, setShowVersions] = useState(false);
   useEffect(() => {
     if (state.ok) {
       formRef.current?.reset();
@@ -248,7 +269,7 @@ function VariationRow({
             )}
           </div>
         )}
-        <form ref={formRef} action={formAction} className="flex items-center gap-1.5">
+        <form ref={formRef} action={formAction} className="flex flex-wrap items-center gap-1.5">
           {/* 差し替えは行そのもの(variantId)を狙う。構成から引き直すと選択肢外のOPが落ちて
               別の行を書き換えてしまう（＝差し替えたのに差し替わらない）ため。 */}
           {row.variantId && <input type="hidden" name="variantId" value={row.variantId} />}
@@ -256,6 +277,14 @@ function VariationRow({
           <input type="hidden" name="pops" value={row.pops ? "1" : "0"} />
           <input type="hidden" name="popsSport" value={row.popsSport ? "1" : "0"} />
           <input type="hidden" name="optionTags" value={JSON.stringify(row.optionTags)} />
+          {/* 任意の「ver名」。差し替えでアップする版に付く（空なら無し）。 */}
+          <input
+            type="text"
+            name="verLabel"
+            placeholder="ver名(任意)"
+            title="この差し替えでアップする版に付く呼び名（例: ver2・-15 2000~）。空でも可。"
+            className="w-24 shrink-0 rounded-md border border-line px-2 py-1.5 text-xs text-ink placeholder:text-ink-soft/60"
+          />
           <input
             ref={fileRef}
             type="file"
@@ -265,12 +294,13 @@ function VariationRow({
               if (e.target.files?.length) formRef.current?.requestSubmit();
             }}
           />
-          {/* 本部DL: .bin=登録されている生チューニング / .slave=この車用に再暗号化 */}
+          {/* 本部DL: .bin=登録されている生チューニング / .slave=この車用に再暗号化。
+              .bin は ?recordId でファイル名に顧客名が入る（本部のみ）。 */}
           {row.variantId && row.fileName && (
             <a
-              href={`/api/catalog/variants/${row.variantId}/file`}
+              href={`/api/catalog/variants/${row.variantId}/file?recordId=${recordId}`}
               download
-              title="登録されているチューニング済みbin（本店のみ）"
+              title="登録されているチューニング済みbin（本店のみ・ファイル名にCal＋顧客名）"
               className="shrink-0 rounded-md border border-line px-2.5 py-1.5 text-xs font-semibold text-ink-soft hover:bg-surface-2"
             >
               .bin
@@ -294,6 +324,18 @@ function VariationRow({
           >
             {pending ? "…" : "差し替え"}
           </button>
+          {/* 版一覧（過去の版を選び直す導線）。1版以上あるときだけ出す。 */}
+          {row.variantId && row.versions.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setShowVersions((s) => !s)}
+              className="shrink-0 rounded-md border border-line px-2.5 py-1.5 text-xs font-semibold text-ink-soft hover:bg-surface-2"
+              title="この行の版履歴を開いて公開する版を選び直す"
+            >
+              版 {row.versions.length}
+              {showVersions ? " ▲" : " ▼"}
+            </button>
+          )}
           <button
             type="button"
             onClick={onDelete}
@@ -312,8 +354,159 @@ function VariationRow({
             </span>
           )}
         </form>
+        {row.variantId && showVersions && row.versions.length > 0 && (
+          <VersionList recordId={recordId} variantId={row.variantId} versions={row.versions} />
+        )}
       </td>
     </tr>
+  );
+}
+
+// 版一覧（この行の全 TunedVariantVersion）。公開する版の選び直しと ver名/メモ編集。
+function VersionList({
+  recordId,
+  variantId,
+  versions,
+}: {
+  recordId: string;
+  variantId: string;
+  versions: VVer[];
+}) {
+  const router = useRouter();
+  const [busy, startBusy] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+
+  const onPublish = (versionId: string) => {
+    startBusy(async () => {
+      setError(null);
+      const r = await setCurrentVersion(variantId, versionId, recordId);
+      if (r.error) setError(r.error);
+      else router.refresh();
+    });
+  };
+
+  return (
+    <div className="mt-2 rounded-lg border border-line bg-surface-2/50 p-2">
+      <div className="mb-1.5 text-[11px] font-semibold text-ink-soft">版の履歴（公開する版を選べます）</div>
+      <div className="space-y-1.5">
+        {versions.map((ver) => (
+          <VersionRow key={ver.id} ver={ver} busy={busy} onPublish={() => onPublish(ver.id)} />
+        ))}
+      </div>
+      {error && <div className="mt-1 text-xs text-red-600">{error}</div>}
+    </div>
+  );
+}
+
+function VersionRow({
+  ver,
+  busy,
+  onPublish,
+}: {
+  ver: VVer;
+  busy: boolean;
+  onPublish: () => void;
+}) {
+  const router = useRouter();
+  const [editing, setEditing] = useState(false);
+  const [label, setLabel] = useState(ver.label);
+  const [note, setNote] = useState(ver.note);
+  const [saving, startSave] = useTransition();
+  const [saveError, setSaveError] = useState<string | null>(null);
+
+  const onSave = () => {
+    startSave(async () => {
+      setSaveError(null);
+      const r = await updateVersionMeta(ver.id, { label, note });
+      if (r.error) setSaveError(r.error);
+      else {
+        setEditing(false);
+        router.refresh();
+      }
+    });
+  };
+
+  return (
+    <div
+      className={`rounded-md border px-2 py-1.5 text-xs ${
+        ver.isCurrent ? "border-green-300 bg-green-50" : "border-line bg-white"
+      }`}
+    >
+      <div className="flex flex-wrap items-center gap-1.5">
+        <span className="font-semibold text-ink">v{ver.version}</span>
+        {ver.label && (
+          <span className="rounded bg-sky-50 px-1.5 py-0.5 text-[10px] font-semibold text-sky-700">
+            {ver.label}
+          </span>
+        )}
+        {ver.isCurrent ? (
+          <span className="rounded-full bg-green-100 px-2 py-0.5 text-[10px] font-bold text-green-700">
+            公開中
+          </span>
+        ) : (
+          <button
+            type="button"
+            onClick={onPublish}
+            disabled={busy}
+            className="rounded-md border border-gold-300 px-2 py-0.5 text-[11px] font-semibold text-gold-700 hover:bg-gold-50 disabled:opacity-50"
+            title="この版を現行（公開）にする。次回DLからこの版が出ます。"
+          >
+            {busy ? "…" : "この版を公開"}
+          </button>
+        )}
+        {/* 版ごとの本部bin（履歴確認用・ファイル名に v番号が入る） */}
+        {ver.fileName && (
+          <a
+            href={`/api/catalog/versions/${ver.id}/file`}
+            download
+            title="この版のチューニング済みbin（本店のみ）"
+            className="rounded-md border border-line px-2 py-0.5 text-[11px] font-semibold text-ink-soft hover:bg-surface-2"
+          >
+            .bin
+          </a>
+        )}
+        <button
+          type="button"
+          onClick={() => setEditing((e) => !e)}
+          className="rounded-md border border-line px-2 py-0.5 text-[11px] font-semibold text-ink-soft hover:bg-surface-2"
+        >
+          {editing ? "閉じる" : "ver名/メモ"}
+        </button>
+      </div>
+      {ver.fileName && <div className="mt-0.5 break-all text-[11px] text-ink-soft">{ver.fileName}</div>}
+      {ver.note && !editing && <div className="mt-0.5 text-[11px] text-ink-soft">{ver.note}</div>}
+      <div className="mt-0.5 text-[10px] text-ink-soft/80">
+        {ver.replacedAtLabel}
+        {ver.replacedByName ? `・${ver.replacedByName}` : ""}
+      </div>
+      {editing && (
+        <div className="mt-1.5 flex flex-wrap items-center gap-1.5 border-t border-line pt-1.5">
+          <input
+            type="text"
+            value={label}
+            onChange={(e) => setLabel(e.target.value)}
+            placeholder="ver名"
+            className="w-24 rounded-md border border-line px-2 py-1 text-[11px] text-ink"
+          />
+          <input
+            type="text"
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            placeholder="特徴メモ"
+            className="min-w-[10rem] flex-1 rounded-md border border-line px-2 py-1 text-[11px] text-ink"
+          />
+          <button
+            type="button"
+            onClick={onSave}
+            disabled={saving}
+            className="rounded-md bg-gold-500 px-2.5 py-1 text-[11px] font-semibold text-white disabled:opacity-50"
+          >
+            {saving ? "保存中…" : "保存"}
+          </button>
+          {saveError && <span className="text-[11px] text-red-600">{saveError}</span>}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -464,6 +657,14 @@ function AddVariation({
         <input type="hidden" name="pops" value={pops ? "1" : "0"} />
         <input type="hidden" name="popsSport" value={popsSport ? "1" : "0"} />
         <input type="hidden" name="optionTags" value={JSON.stringify(selected)} />
+        {/* 任意の「ver名」。アップする版に付く（空なら無し・内部連番は自動）。 */}
+        <input
+          type="text"
+          name="verLabel"
+          placeholder="ver名(任意)"
+          title="アップする版に付く呼び名（例: ver1・初版）。空でも可。"
+          className="w-28 rounded-lg border border-line px-2.5 py-2 text-sm text-ink placeholder:text-ink-soft/60"
+        />
         <input
           ref={fileRef}
           type="file"

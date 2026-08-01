@@ -493,6 +493,51 @@ export async function restoreVariantVersion(
   return { ok: true };
 }
 
+// 「公開する版」を選び直す（本店のみ）。現行版ポインタ(currentVersionId)を張り替え、
+// 表示・照合・配信が参照するキャッシュ列(fileRef/fileHash/fileName/fileSize/contentType)を
+// その版の値で上書きする。狙うのは指定 versionId の行そのもの。version が別の variant の
+// ものなら拒否し、別の同構成行には一切触れない。
+// .slave は配信のたびに fileHash ベースのキャッシュキー(encryptedCacheKey)で再暗号化されるため、
+// 現行が変われば次回DLから新しい版が出る（古い版の誤配信は起きない）。
+export async function setCurrentVersion(
+  variantId: string,
+  versionId: string,
+  recordId?: string,
+): Promise<FormState> {
+  await requireHQ();
+  const ver = await prisma.tunedVariantVersion.findUnique({
+    where: { id: versionId },
+    select: {
+      variantId: true,
+      fileRef: true,
+      fileHash: true,
+      fileName: true,
+      fileSize: true,
+      contentType: true,
+    },
+  });
+  // 指定 version がこの variant のものであることを厳密に検証（別行を書き換えない）。
+  if (!ver || ver.variantId !== variantId) return { error: "対象の版が見つかりません" };
+  await prisma.tunedVariant.update({
+    where: { id: variantId },
+    data: {
+      currentVersionId: versionId,
+      fileRef: ver.fileRef,
+      fileHash: ver.fileHash,
+      fileName: ver.fileName,
+      fileSize: ver.fileSize,
+      contentType: ver.contentType,
+    },
+  });
+  revalidatePath(CATALOG_PATH);
+  revalidatePath(PENDING_PATH);
+  if (recordId) {
+    revalidatePath(`/hq/records/${recordId}`);
+    revalidatePath(`/dealer/records/${recordId}`);
+  }
+  return { ok: true };
+}
+
 const PENDING_PATH = "/hq/catalog/pending";
 
 // 純正(BaseFile)の保存済み原本binをAIで読み直して Cal/SW/HW を更新（本店のみ）。
@@ -937,6 +982,9 @@ export async function uploadVariation(
   });
   const optionTags = norm.tags;
 
+  // 本部が付ける「ver名」（任意）。内部連番(version)とは別に、この版の呼び名として保存。
+  const verLabel = String(formData.get("verLabel") ?? "").trim() || null;
+
   // 既存行の差し替え（一覧の「差し替え」ボタン）は行そのもの(variantId)を狙う。
   // 構成から引き直すと、選択肢に無いOP（燃料を直した後のEGR等）が落ちて
   // 別構成の行を書き換えてしまう＝「差し替えたのに差し替わらない」の原因になる。
@@ -1020,7 +1068,7 @@ export async function uploadVariation(
   if (existing) {
     const nextVer = (existing.versions[0]?.version ?? 0) + 1;
     const ver = await prisma.tunedVariantVersion.create({
-      data: { variantId: existing.id, version: nextVer, ...fileFields, replacedById: user.id },
+      data: { variantId: existing.id, version: nextVer, label: verLabel, ...fileFields, replacedById: user.id },
     });
     await prisma.tunedVariant.update({
       where: { id: existing.id },
@@ -1050,7 +1098,7 @@ export async function uploadVariation(
       },
     });
     const ver = await prisma.tunedVariantVersion.create({
-      data: { variantId: variant.id, version: 1, ...fileFields, replacedById: user.id },
+      data: { variantId: variant.id, version: 1, label: verLabel, ...fileFields, replacedById: user.id },
     });
     await prisma.tunedVariant.update({
       where: { id: variant.id },

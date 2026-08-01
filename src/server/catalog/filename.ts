@@ -35,14 +35,18 @@ export function buildDownloadName(opts: {
 
   // 代理店名(顧客名+日付) セグメント（車種名の直後）
   const dealerName = clean(opts.dealerName);
+  const customer = clean(opts.customerName).replace(/\s+/g, "");
   let dealerSeg = "";
   if (dealerName) {
     // 店名(顧客名 日付)。顧客名内のスペースは詰め、顧客名と日付は半角スペースで区切る。
     // 例: 東京店(山田様 2026-06-15)
-    const inner = [clean(opts.customerName).replace(/\s+/g, ""), clean(opts.dateLabel)]
-      .filter(Boolean)
-      .join(" ");
+    const inner = [customer, clean(opts.dateLabel)].filter(Boolean).join(" ");
     dealerSeg = ` ${dealerName}${inner ? `(${inner})` : ""}`;
+  } else if (customer) {
+    // 代理店名なし・顧客名のみ（本部Bin DL）。車種名の直後に「顧客名様」を付ける。
+    // 既に敬称が付いていれば二重に付けない。例: LC500 山田様 CAL12345 AT_OBD_ECU_Stage1.bin
+    const honored = /(様|さん|殿|氏)$/.test(customer) ? customer : `${customer}様`;
+    dealerSeg = ` ${honored}`;
   }
 
   // ユニット(ECU/TCU)は method の直後に入れる（例 AT_OBD_ECU_Stage1.slave）
