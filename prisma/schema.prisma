@@ -675,10 +675,12 @@ model PriceBrand {
   namespacePrefix   String // "bmw-" 等（CSS/ID衝突防止）
   seriesGroups      String[] @default([]) // フィルタチップ
   columns           Json     @default("[]") // ColumnDefinition[]
-  csvMapping        Json     @default("{}") // Airtable列名 → 内部キー（列変更に追従）
+  csvMapping        Json     @default("{}") // CSV列名 → 内部キー（一括編集/バックアップの入出力用）
   intro             String   @default("") // 表の導入文（HTML可）
   jsonLdDescription String   @default("") // SEO(JSON-LD Service)
   wordPressPageId   Int? // Phase 2: 反映先WPページID
+  blockIndex        Int      @default(0) // 同一WPページ内の対象 wp:html ブロック位置（例: mbd=2。mb と同居）
+  layout            Json     @default("{}") // ライブHTMLから実測した版面: {naming, ids, classes, minWidth, note ...} — parse-wp.mts の BrandLayout 形
   displayOrder      Int      @default(0)
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt

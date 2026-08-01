@@ -59,7 +59,7 @@ export async function updateVehicleCell(
     } else if (/^ASK$/i.test(raw)) {
       prices[patch.priceKey] = "ASK";
     } else {
-      // "¥165,000" や "'+22,000"（Airtable由来）→ 数字のみに寄せる。数字でなければ原文保持。
+      // "¥165,000" や "'+22,000"（CSV/HTML由来）→ 数字のみに寄せる。数字でなければ原文保持。
       const cleaned = raw.replace(/^'/, "").replace(/[¥￥,\s]/g, "");
       prices[patch.priceKey] = /^\d+$/.test(cleaned) ? cleaned : raw.replace(/^'/, "");
     }

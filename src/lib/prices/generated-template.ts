@@ -1,4 +1,4 @@
-// Airtable由来15ブランドの公開HTMLテンプレートを columns(Json) から機械生成する。
+// HTML由来ブランドの公開HTMLテンプレートを columns(Json) から機械生成する。
 // 既存4ブランド（templates.ts = ライブHTML抽出）と同じデザインシステム（白×ゴールド・LINE緑グラデ）。
 // 制約: ブランド別CSSプレフィックス必須 / .active .hidden というクラス名は禁止 / <script> は ES5 のみ。
 // scripts/check-generated-templates.mts が全ブランドの出力をチェックする。
@@ -503,4 +503,230 @@ td[class^="${p}cell-price-"] { font-weight: 700; color: #8a6d14; font-size: 0.92
 `;
 
   return { head, chip, foot };
+}
+
+// ════════════════════════════════════════════════════════════════════
+//  Step A: ライブWordPress HTMLを正とした「版面駆動」生成
+// ════════════════════════════════════════════════════════════════════
+// パイロット各ブランド（lambo/ferrari/mbd/others）はライブHTMLごとに命名規約
+// (camel/kebab)・id・クラス・列構成・cellクラスが異なる。これらを parse-wp.mts が
+// 実測して ParsedBlock として渡し、ここが「データを担う領域」＝検索/フィルタ操作部・
+// thead・tbody を再生成する。<style>/<script>/導入文/注記は版面固有の“ガワ”として
+// layout に実測文字列で保持し（parse-wp.mts が抽出）、生成側は触らない。
+// ラウンドトリップ検証(roundtrip.mts)は「価格値・行数・列構成・クラス名・ID」＝
+// この3領域を突き合わせる。分岐（camel/kebab・id・class）はこの1関数群に閉じる。
+
+/** ライブHTMLから実測した版面。DBの PriceBrand.layout(Json) に入る形。 */
+export type BrandLayout = {
+  namespacePrefix: string; // 素のプレフィックス "lambo"（クラスは "lambo-…"、data属性は "data-lambo-…"）
+  naming: "camel" | "kebab"; // id の綴り方（search id に "-" があれば kebab）
+  ids: {
+    search: string;
+    clear: string;
+    count: string;
+    noResults: string;
+    tbody: string;
+    table: string;
+    wrapper: string | null;
+  };
+  classes: { hidden: string; active: string }; // 行非表示クラス / チップ選択クラス（プレフィックス込み実測値）
+  minWidth: number; // .price-table の min-width(px)
+  series: string[]; // フィルタチップ（"all" を除く）
+  hasFilterGroup: boolean;
+  filterLabel: string; // "モデル:" 等
+  filterAria: string; // "モデルで絞り込み" 等
+  placeholder: string; // 検索欄 placeholder（エンティティ保持）
+  askHref: string; // LINE ask-btn の href
+  hasGradeColumn: boolean; // grade 列があるか（ask-btn の data-grade 有無を決める）
+  // ── 版面固有の“ガワ”（実測文字列・生成側は再構成しない） ──
+  headerComment: string;
+  jsonLd: string;
+  introHtml: string;
+  tableNoteHtml: string;
+  styleHtml: string;
+  scriptHtml: string;
+  noResultsHtml: string;
+  noResultsHidden: "hidden" | "style"; // no-results の隠し方（hidden 属性 or style=display:none）
+  note: string; // 人間用メモ（ページID/ブロック等）
+};
+
+/** thead 1列 + その列の cell 生成規約。 */
+export type ParsedColumn = {
+  index: number;
+  sortKey: string; // "car"/"grade"/"engine"/"maker" or "c{index}"
+  cellClassSuffix: string; // "cell-car" / "cell-price-stage1" / "cell-tcu" 等（プレフィックス無し）
+  role: "car" | "grade" | "engine" | "maker" | "price" | "tcu" | "labor" | "text";
+  headerHtml: string; // <th> の中身（<br><small> 保持）
+  colPrice: boolean; // th に {p}-col-price を付けるか
+  sortable: boolean; // th に {p}-sortable を付けるか
+  askLabel: string | null; // ask-btn の data-label（その列で初めて現れた ask から実測）
+  titleLabel: string | null; // title の【…見積希望】部分
+};
+
+/** 価格系セル（price/tcu/labor）の正規化値（spec 2.2）。 */
+export type CellValue =
+  | { kind: "yen"; value: number } // "¥198,000" → 198000
+  | { kind: "raw"; text: string } // "+¥11,000" / "ロック解除必要" 等はそのまま
+  | { kind: "not_offered" } // "—"（上位グレード非提供）
+  // 空欄 / ASK / LINEボタン → 価格NULL。ask-btn の data-grade は
+  // ライブHTMLで同一行内でも列により ★ の有無が揺れる（ルール化不能な原本ノイズ）。
+  // 生成で辻褄を合わせず、その列セルの data-grade を実測して保持する。
+  | { kind: "ask"; askGrade?: string };
+
+/** tbody 1行。text 系セルは実測 innerHTML を保持（そのまま再出力）。 */
+export type ParsedRow = {
+  series: string; // data-{p}-series
+  searchText: string; // data-{p}-search（派生インデックス。実測値を保持）
+  askCar: string | null; // 行の ask-btn の data-car（生値。others は "maker car"、空行は " "）
+  gradeClean: string; // grade セルの本文（★ノート除去・trim 済み）
+  hasStar: boolean; // grade セルに ★ノートが付くか
+  cells: CellCell[];
+};
+
+export type CellCell =
+  | { role: "value"; value: CellValue } // price/tcu/labor 列
+  | { role: "verbatim"; innerHtml: string }; // それ以外（実測 innerHTML）
+
+export type ParsedBlock = {
+  pageId: number;
+  blockIndex: number;
+  layout: BrandLayout;
+  columns: ParsedColumn[];
+  rows: ParsedRow[];
+};
+
+// ── 命名規約ヘルパ ───────────────────────────────────────────────
+const cls = (p: string, name: string) => `${p}-${name}`; // クラス（常に kebab プレフィックス）
+const dataAttr = (p: string, name: string) => `data-${p}-${name}`; // data属性
+
+/** 数値 → "¥198,000"（en-US 桁区切り・全角¥は使わない） */
+function yen(n: number): string {
+  return "¥" + n.toLocaleString("en-US");
+}
+
+/** ask-btn 1個の HTML を版面規約で再構成する（grade は実測 askGrade を優先）。 */
+function buildAskBtn(
+  layout: BrandLayout,
+  col: ParsedColumn,
+  row: ParsedRow,
+  askGrade: string | undefined,
+): string {
+  const p = layout.namespacePrefix;
+  const car = row.askCar ?? "";
+  // その列セルの実測 data-grade（無ければ grade セル本文へフォールバック）
+  const gradeVal = askGrade ?? (layout.hasGradeColumn ? row.gradeClean : "");
+  const dataGradeAttr = layout.hasGradeColumn ? ` data-grade="${gradeVal}"` : "";
+  // title 末尾: 車名(trim) + grade列があれば " grade"。空なら付けない
+  const base = car.trim();
+  const gradeTail = layout.hasGradeColumn && gradeVal !== "" ? " " + gradeVal : "";
+  const title = `LINEで問い合わせ:【${col.titleLabel ?? ""}見積希望】${base}${gradeTail}`;
+  return (
+    `<a href="${layout.askHref}" target="_blank" rel="noopener" class="${cls(p, "ask-btn")}"` +
+    ` data-car="${car}"${dataGradeAttr} data-label="${col.askLabel ?? ""}" title="${title}">` +
+    `<span class="${cls(p, "ask-icon")}">&#x1f4ac;</span>` +
+    `<span class="${cls(p, "ask-text")}">LINE</span></a>`
+  );
+}
+
+/** price/tcu/labor セルの中身を正規化値から再構成する。 */
+function buildValueInner(
+  layout: BrandLayout,
+  col: ParsedColumn,
+  row: ParsedRow,
+  v: CellValue,
+): string {
+  const p = layout.namespacePrefix;
+  switch (v.kind) {
+    case "yen":
+      return yen(v.value);
+    case "raw":
+      return v.text;
+    case "not_offered":
+      return `<span class="${cls(p, "muted")}">—</span>`;
+    case "ask":
+      return buildAskBtn(layout, col, row, v.askGrade);
+  }
+}
+
+/** 1セルの <td> を生成する。 */
+function buildCell(layout: BrandLayout, col: ParsedColumn, row: ParsedRow, cell: CellCell): string {
+  const p = layout.namespacePrefix;
+  const klass = `${p}-${col.cellClassSuffix}`;
+  const inner =
+    cell.role === "verbatim"
+      ? cell.innerHtml
+      : buildValueInner(layout, col, row, cell.value);
+  return `    <td class="${klass}">${inner}</td>`;
+}
+
+/** 検索/フィルタ操作部（<div class="{p}-controls"> の中身）を生成する。 */
+export function buildControlsRegion(pb: ParsedBlock): string {
+  const { layout } = pb;
+  const p = layout.namespacePrefix;
+  const total = pb.rows.length;
+  const search = `    <div class="${cls(p, "search-wrap")}">
+      <input type="search" id="${layout.ids.search}" class="${cls(p, "search")}" placeholder="${layout.placeholder}" autocomplete="off">
+      <button type="button" id="${layout.ids.clear}" class="${cls(p, "clear")}" aria-label="クリア">×</button>
+    </div>`;
+
+  let filter = "";
+  if (layout.hasFilterGroup) {
+    const chips = [
+      `      <button type="button" class="${cls(p, "filter-chip")} ${layout.classes.active}" ${dataAttr(p, "filter-series")}="all">すべて</button>`,
+      ...layout.series.map(
+        (s) =>
+          `      <button type="button" class="${cls(p, "filter-chip")}" ${dataAttr(p, "filter-series")}="${s}">${s}</button>`,
+      ),
+    ].join("\n");
+    filter = `\n    <div class="${cls(p, "filter-group")}" role="group" aria-label="${layout.filterAria}">
+      <div class="${cls(p, "filter-label")}">${layout.filterLabel}</div>
+${chips}
+    </div>`;
+  }
+
+  const count = `    <div class="${cls(p, "result-count")}">
+      <span id="${layout.ids.count}">${total}</span> / ${total} 件表示中
+    </div>`;
+
+  return `${search}${filter}\n${count}`;
+}
+
+/** thead の <tr>…</tr> を生成する。 */
+export function buildTheadRegion(pb: ParsedBlock): string {
+  const { layout, columns } = pb;
+  const p = layout.namespacePrefix;
+  const ths = columns
+    .map((c) => {
+      const classes = [c.colPrice ? cls(p, "col-price") : null, c.sortable ? cls(p, "sortable") : null]
+        .filter(Boolean)
+        .join(" ");
+      return `          <th class="${classes}" ${dataAttr(p, "sort")}="${c.sortKey}">${c.headerHtml}</th>`;
+    })
+    .join("\n");
+  return `<tr>\n${ths}\n        </tr>`;
+}
+
+/** tbody の全 <tr> を生成する。 */
+export function buildTbodyRegion(pb: ParsedBlock): string {
+  const { layout, columns, rows } = pb;
+  const p = layout.namespacePrefix;
+  return rows
+    .map((row) => {
+      const cells = columns.map((col, i) => buildCell(layout, col, row, row.cells[i])).join("\n");
+      return `<tr ${dataAttr(p, "search")}="${row.searchText}" ${dataAttr(p, "series")}="${row.series}">\n${cells}\n  </tr>`;
+    })
+    .join("\n");
+}
+
+/** 3領域をまとめて返す（roundtrip 比較用）。 */
+export function buildRegionsFromParsed(pb: ParsedBlock): {
+  controls: string;
+  thead: string;
+  tbody: string;
+} {
+  return {
+    controls: buildControlsRegion(pb),
+    thead: buildTheadRegion(pb),
+    tbody: buildTbodyRegion(pb),
+  };
 }

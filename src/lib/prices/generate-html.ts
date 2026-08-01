@@ -154,7 +154,7 @@ export const BRAND_HTML_SPECS: Record<string, BrandHtmlSpec> = {
   },
 };
 
-// Airtable由来ブランド: columns(Json) から行仕様を組み立てる（テンプレートは generated-template.ts）
+// HTML由来ブランド: columns(Json) から行仕様を組み立てる（テンプレートは generated-template.ts）
 export function specFromColumns(brand: BrandRow): BrandHtmlSpec {
   // 列順ルール適用（工賃は価格列の直後）。thead側の buildGeneratedTemplate と必ず同じ順にする
   const columns = applyColumnOrderRule(brand.columns);
@@ -361,7 +361,7 @@ function priceCellClass(brandId: string, ns: string, key: string): string {
 
 export function generatePriceTableHtml(brand: BrandRow, vehicles: VehicleRow[]): string {
   // 既存4ブランドはライブHTML抽出テンプレート（ゴールデンテスト対象）、
-  // Airtable由来ブランドは columns から機械生成する。
+  // HTML由来ブランドは columns から機械生成する。
   const tpl = PRICE_HTML_TEMPLATES[brand.id] ?? buildGeneratedTemplate(brand);
   const spec = BRAND_HTML_SPECS[brand.id] ?? specFromColumns(brand);
 

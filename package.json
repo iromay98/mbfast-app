@@ -34,6 +34,7 @@
     "gbp:auth": "tsx -r dotenv/config scripts/gbp-auth.mts",
     "gbp:v4check": "tsx -r dotenv/config scripts/gbp-v4check.mts",
     "check:price-columns": "tsx scripts/check-price-columns.mts",
+    "check:price-roundtrip": "tsx scripts/price-sync/roundtrip.mts",
     "prices:wp-diff": "tsx -r dotenv/config scripts/prices-wp-diff.mts",
     "prices:wp-push": "tsx -r dotenv/config scripts/prices-wp-push.mts",
     "report:pit-usage": "tsx -r dotenv/config scripts/report-pit-certificates.mts"
