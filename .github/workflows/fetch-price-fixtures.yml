@@ -26,6 +26,12 @@ jobs:
   fetch:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    # Secret名の揺れを吸収する: ユーザー名は WP_USER / WP_USERNAME、
+    # パスワードは WP_APP_PASSWORD / WP_APP_PASS のどちらでも受ける（spec は WP_APP_PASS 表記）。
+    env:
+      WP_USER: ${{ secrets.WP_USER || secrets.WP_USERNAME }}
+      WP_APP_PASSWORD: ${{ secrets.WP_APP_PASSWORD || secrets.WP_APP_PASS }}
+      WP_BASE_URL: https://mbfasttuning.com
     steps:
       - name: チェックアウト（起動したブランチ）
         uses: actions/checkout@v4
@@ -36,20 +42,13 @@ jobs:
           node-version: 22
 
       - name: WP認証チェック
-        env:
-          WP_USER: ${{ secrets.WP_USER }}
-          WP_APP_PASSWORD: ${{ secrets.WP_APP_PASSWORD }}
         run: |
           if [ -z "$WP_USER" ] || [ -z "$WP_APP_PASSWORD" ]; then
-            echo "::error::WP_USER / WP_APP_PASSWORD の Secret が未設定です。Settings → Secrets and variables → Actions で登録してください。"
+            echo "::error::WP認証が空です。Settings → Secrets and variables → Actions で WP_USER と、パスワードを WP_APP_PASSWORD（または WP_APP_PASS）で登録してください。現在: WP_USER=$([ -n \"$WP_USER\" ] && echo set || echo empty) / PASSWORD=$([ -n \"$WP_APP_PASSWORD\" ] && echo set || echo empty)"
             exit 1
           fi
 
       - name: LIVE価格HTMLを取得（26ページ）
-        env:
-          WP_USER: ${{ secrets.WP_USER }}
-          WP_APP_PASSWORD: ${{ secrets.WP_APP_PASSWORD }}
-          WP_BASE_URL: https://mbfasttuning.com
         run: npx -y tsx scripts/price-sync/fetch-wp.mts
 
       - name: コミット & プッシュ
