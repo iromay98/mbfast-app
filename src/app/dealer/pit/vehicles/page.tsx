@@ -9,6 +9,8 @@ import { isLegalRecordFacility } from "@/server/pit/cert-fields";
 import { VehiclesClient, type VehicleRow, type CustomerOption } from "./vehicles-client";
 import { PitSubNav } from "../pit-sub-nav";
 import { countUnissuedDrafts } from "@/server/pit/certificate";
+import { cookies } from "next/headers";
+import { SHARED_COOKIE } from "@/app/api/shaken-share/route";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = pitMetadata("mbPIT 車両登録");
@@ -21,9 +23,36 @@ export default async function PitVehiclesPage({
   searchParams,
 }: {
   // 顧客カルテの「＋ 車両を追加」から来たとき、その顧客を選んだ状態で始める
-  searchParams: Promise<{ customerId?: string }>;
+  searchParams: Promise<{ customerId?: string; shared?: string }>;
 }) {
-  const { customerId } = await searchParams;
+  const { customerId, shared } = await searchParams;
+
+  /*
+   * Androidの共有シートから車検証PDFを受け取った直後（?shared=1）。
+   * PDFはAPI側で読み取って捨てており、ここには**読み取った項目だけ**が
+   * 短命クッキー経由で渡ってくる。DBには何も保存していない。
+   */
+  let sharedFields: Record<string, string> | null = null;
+  let sharedError: string | null = null;
+  if (shared === "1") {
+    const raw = (await cookies()).get(SHARED_COOKIE)?.value;
+    if (raw) {
+      try {
+        sharedFields = JSON.parse(raw) as Record<string, string>;
+      } catch {
+        sharedFields = null;
+      }
+    }
+    if (!sharedFields) sharedError = "共有された内容を受け取れませんでした（時間が経ちすぎた可能性）。もう一度お試しください";
+  } else if (shared === "notpdf") {
+    sharedError = "共有されたファイルがPDFではありませんでした。車検証閲覧アプリのPDFを共有してください";
+  } else if (shared === "unreadable") {
+    sharedError = "共有されたPDFから車検証を読み取れませんでした。手入力で進めてください";
+  } else if (shared === "toobig") {
+    sharedError = "共有されたファイルが大きすぎます（15MBまで）";
+  } else if (shared === "error") {
+    sharedError = "共有された内容を受け取れませんでした";
+  }
   const own = await ownPitStore();
   if (!own.store) {
     return (
@@ -73,6 +102,8 @@ export default async function PitVehiclesPage({
         initialCustomerId={
           customerId && options.some((o) => o.id === customerId) ? customerId : undefined
         }
+        sharedFields={sharedFields}
+        sharedError={sharedError}
       />
     </div>
   );

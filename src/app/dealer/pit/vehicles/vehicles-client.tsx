@@ -67,6 +67,10 @@ export function VehiclesClient({
   basePath = "/dealer/pit",
   /** 顧客カルテから「車両を追加」で来たときの対象顧客（最初から選ばれた状態にする） */
   initialCustomerId,
+  /** Androidの共有シートから車検証PDFを受け取ったときの読み取り結果（サーバー側で解析済み） */
+  sharedFields,
+  /** 共有の受け取りに失敗したときの説明 */
+  sharedError,
 }: {
   vehicles: VehicleRow[];
   customers: CustomerOption[];
@@ -76,6 +80,8 @@ export function VehiclesClient({
   storeId?: string;
   basePath?: string;
   initialCustomerId?: string;
+  sharedFields?: Record<string, string> | null;
+  sharedError?: string | null;
 }) {
   const router = useRouter();
   /*
@@ -87,7 +93,27 @@ export function VehiclesClient({
   const photoRef = useRef<HTMLInputElement>(null); // アルバムから写真
   // 顧客カルテから来たときは、その顧客を選んだ状態で始める（カルテ→車両追加を往復させない）
   const blank = (): VehicleFormInput => ({ ...EMPTY, customerId: initialCustomerId ?? "" });
-  const [form, setForm] = useState<VehicleFormInput | null>(null);
+  /*
+   * 共有シートから来たときは、最初からフォームを開いて値を入れておく
+   * （共有した直後に「PDFを選ぶ」を押させるのは二度手間）。
+   */
+  const sharedInitial = (): VehicleFormInput | null => {
+    if (!sharedFields) return null;
+    const f = sharedFields;
+    return {
+      ...EMPTY,
+      customerId: initialCustomerId ?? "",
+      vin: f.vin ?? "",
+      registrationNumber: f.registrationNumber ?? "",
+      maker: f.makerName ?? "",
+      modelCode: f.modelCode ?? "",
+      firstRegistered: f.firstRegistered ?? "",
+      inspectionExpiry: (f.inspectionExpiry ?? "").length === 10 ? f.inspectionExpiry : "",
+      customerName: f.userName ?? "",
+      customerAddress: f.userAddress ?? "",
+    };
+  };
+  const [form, setForm] = useState<VehicleFormInput | null>(sharedInitial);
   const [reading, setReading] = useState(false);
   const [scanning, setScanning] = useState(false);
   // QRで読み取った車台番号は確定扱い（写真OCRの値で上書きしない＝誤読で壊さない）
@@ -117,8 +143,12 @@ export function VehiclesClient({
     ]);
   };
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [notes, setNotes] = useState<string[]>([]);
+  const [error, setError] = useState<string | null>(sharedError ?? null);
+  const [notes, setNotes] = useState<string[]>(
+    sharedFields
+      ? ["✅ 共有から車検証PDFを受け取り、そのまま読み取りました（誤読はありません）。内容をご確認ください"]
+      : [],
+  );
   const [done, setDone] = useState<string | null>(null);
   // 修正パネル（入力ミスを直すための上書き編集）。UIは顧客カルテと共通。
   const [editVehicleId, setEditVehicleId] = useState<string | null>(null);
