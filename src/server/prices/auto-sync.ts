@@ -21,6 +21,12 @@ const QUIET_MS = 3 * 60 * 1000; // 編集が落ち着くまで待つ時間
 const INTERVAL_MS = 10 * 60 * 1000;
 const BOOT_DELAY_MS = 5 * 60 * 1000; // 起動直後は避ける（デプロイ直後の連続再起動対策）
 
+const g = globalThis as unknown as {
+  __priceAutoSyncTimer?: ReturnType<typeof setInterval>;
+  /** 直前に送った通知の本文。同じ内容の連投を抑える */
+  __priceAutoSyncLastDigest?: string;
+};
+
 let running = false;
 
 export async function runPriceAutoSync(): Promise<void> {
@@ -66,8 +72,20 @@ export async function runPriceAutoSync(): Promise<void> {
         // 編集なし: 反映済みなら何もしない。前回が保留/失敗でも、生成内容が前回と
         // 同じなら再試行しない（同じ結果になるだけ＝10分ごとの再通知スパム防止）。
         if (lastLog!.status === "success") continue;
-        const { payloadHash } = await buildPagePayload(pageId);
-        if (payloadHash === lastLog!.payloadHash) continue;
+        /*
+         * 前回が保留/失敗のとき、生成内容が前回と同じなら再試行しない（再通知スパム防止）。
+         * ここで buildPagePayload が **例外を投げる**ことがある（生成器が未対応の列を持つブランド）。
+         * その場合も「状況は前回と同じ」なので静かに見送る。
+         * 以前は例外が自動同期全体を巻き込み、ページごとの判定が壊れていた。
+         */
+        let sameAsLast = false;
+        try {
+          const { payloadHash } = await buildPagePayload(pageId);
+          sameAsLast = payloadHash === lastLog!.payloadHash;
+        } catch {
+          sameAsLast = true; // 生成できない＝前回と同じ結果になるだけなので通知しない
+        }
+        if (sameAsLast) continue;
         // 内容が変わっている（コード修正後など）→ 再試行する
       } else if (now - lastEdit < QUIET_MS) {
         continue; // 編集直後は見送り（次の周期で拾う）
@@ -90,12 +108,22 @@ export async function runPriceAutoSync(): Promise<void> {
       }
     }
 
-    // 1回の実行につき通知は1通にまとめる（連投防止）
+    /*
+     * 1回の実行につき通知は1通にまとめる（連投防止）。
+     * さらに **前回と同じ内容の通知は送らない**。生成器が直るまで保留/失敗が続く状況で、
+     * 10分ごとに同じ文面が届くのを防ぐ（実際にそうなって通知が溢れた）。
+     * 反映（success）があるときは、内容が同じでも必ず知らせる。
+     */
     if (synced.length > 0 || held.length > 0 || failed.length > 0) {
       const lines: string[] = [];
       if (synced.length > 0) lines.push(`✅ 反映: ${synced.join(" / ")}`);
       if (held.length > 0) lines.push(...held.map((h) => `⏸ 保留: ${h}`));
       if (failed.length > 0) lines.push(...failed.map((f) => `❌ 失敗: ${f}`));
+      const digest = lines.join("\n");
+      if (synced.length === 0 && digest === g.__priceAutoSyncLastDigest) {
+        return; // 前回と同じ「保留/失敗だけ」の通知は送らない
+      }
+      g.__priceAutoSyncLastDigest = digest;
       await notify({
         type: "PRICE_AUTO_SYNC",
         title:
@@ -113,7 +141,6 @@ export async function runPriceAutoSync(): Promise<void> {
 }
 
 // サーバー起動時に1回だけ呼ぶ（instrumentation.ts から）。HMR での二重起動を防ぐ。
-const g = globalThis as unknown as { __priceAutoSyncTimer?: ReturnType<typeof setInterval> };
 export function startPriceAutoSync(): void {
   if (g.__priceAutoSyncTimer) return;
   g.__priceAutoSyncTimer = setInterval(() => void runPriceAutoSync(), INTERVAL_MS);
