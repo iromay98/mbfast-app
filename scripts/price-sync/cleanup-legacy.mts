@@ -124,8 +124,24 @@ console.log("");
 console.log(
   `合計: airtable ${airtableRowsToDelete}行 / 旧idブランド ${deletableLegacy.length}件(${legacyRowsToDelete}行)`,
 );
+/*
+ * (a)で保持したブランドの内訳を分けて出す。
+ * 「html行が無い」ものの中には、(b)で旧idごと消えるもの（新idに移ったので旧id側にhtml行が無い）と、
+ * 本当にどこにも取込まれていないものがある。前者に「WP取込が必要」と出すと誤解を招くため区別する。
+ */
 if (keptAirtable.length) {
-  console.log(`※ html行が無く保持したブランド: ${keptAirtable.join(", ")}（先にWP取込が必要）`);
+  const movedToNewId = keptAirtable.filter((b) => deletableLegacy.includes(b));
+  const trulyMissing = keptAirtable.filter((b) => !deletableLegacy.includes(b));
+  if (movedToNewId.length) {
+    console.log(
+      `※ (a)では保持したが(b)で旧idごと削除: ${movedToNewId
+        .map((b) => `${b}→${LEGACY_TO_NEW[b]}`)
+        .join(", ")}（新idへ移行済み。WP取込は不要）`,
+    );
+  }
+  if (trulyMissing.length) {
+    console.log(`※ html行が無いため残すブランド: ${trulyMissing.join(", ")}（先にWP取込が必要）`);
+  }
 }
 
 if (!commit) {
