@@ -37,6 +37,8 @@
     "check:price-roundtrip": "tsx scripts/price-sync/roundtrip.mts",
     "prices:import-dry": "tsx scripts/price-sync/import-wp.mts --dry-run",
     "prices:import-commit": "tsx scripts/price-sync/import-wp.mts --commit",
+    "prices:cleanup-dry": "tsx scripts/price-sync/cleanup-legacy.mts",
+    "prices:cleanup": "tsx scripts/price-sync/cleanup-legacy.mts --commit",
     "prices:wp-diff": "tsx -r dotenv/config scripts/prices-wp-diff.mts",
     "prices:wp-push": "tsx -r dotenv/config scripts/prices-wp-push.mts",
     "report:pit-usage": "tsx -r dotenv/config scripts/report-pit-certificates.mts"
