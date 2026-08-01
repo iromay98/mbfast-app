@@ -42,9 +42,11 @@ jobs:
           fi
 
           # Meta API: 自分がアクセスできる Base の一覧（要スコープ schema.bases:read）
+          # 注意: このエンドポイントは pageSize を受け付けない（付けると HTTP 422）。
+          # ページングは offset のみ。ここでは先頭ページ（最大100件）で十分。
           code=$(curl -sS -o /tmp/bases.json -w '%{http_code}' \
             -H "Authorization: Bearer ${AIRTABLE_PAT}" \
-            "https://api.airtable.com/v0/meta/bases?pageSize=100" || echo 000)
+            "https://api.airtable.com/v0/meta/bases" || echo 000)
 
           if [ "$code" != "200" ]; then
             echo "::error::Airtable Meta API が HTTP ${code} を返しました。"
