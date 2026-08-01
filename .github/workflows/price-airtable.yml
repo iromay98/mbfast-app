@@ -20,9 +20,9 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: "diff=差分を見るだけ（書き込まない） / push=Airtableへ書き戻す"
+        description: "findbase=Base IDを本番DBから調べる / diff=差分を見るだけ / push=Airtableへ書き戻す"
         type: choice
-        options: [diff, push]
+        options: [findbase, diff, push]
         default: diff
       brand:
         description: "1ブランドだけに絞る場合はid（例 toyota）。空なら15ブランド全部"
@@ -89,6 +89,15 @@ jobs:
           if ! $COMPOSE exec -T app test -f scripts/price-sync/airtable-push.mts </dev/null; then
             echo "::error::本番コンテナに airtable-push.mts がありません。先に main をデプロイしてください。"
             exit 1
+          fi
+
+          # findbase: Airtable認証は不要（本番DBのバックアップHTMLからBase IDを拾うだけ）。
+          # 認証チェックの前に済ませて終わる。
+          if [ "${MODE:-diff}" = "findbase" ]; then
+            echo "== Base ID を本番DBから復元（読み取りのみ・Airtableへは接続しない） =="
+            $COMPOSE exec -T app npx tsx scripts/price-sync/find-airtable-base.mts </dev/null
+            echo "MBFAST_AIRTABLE_COMPLETED"
+            exit 0
           fi
 
           # 認証情報がコンテナに渡っているかを先に確認する（PATの値は絶対に出さない）。
