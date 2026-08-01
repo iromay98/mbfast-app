@@ -1,0 +1,123 @@
+# 価格表インポート（WP=正 → 本番DBへ洗い替え）を「ワンボタン」で撃つ。
+# 仕組み: deploy.yml と同じSSH方式で本番VPSへ入り、本番コンテナの中で
+#   import-wp.mts --commit を実行する。DBはホスト非公開なのでコンテナ内実行が必須。
+#
+# 前提（重要）: このスクリプト(--commitパス)を含むコードが**本番に既にデプロイ済み**
+#   であること。＝先に main へマージして deploy.yml が回り、コンテナが作り直された後に叩く。
+#   未デプロイなら precheck（LEGACY_BRAND_IDS マーカー確認）で明示的に落とす。
+#
+# 安全策:
+#   - confirm 入力に "IMPORT" を打たないと動かない（誤爆防止）。
+#   - 先に pg_dump 退避（PriceBrand/PriceVehicle）。0バイトなら中止。
+#   - --commit 自体が「件数フロア（parse=live<tr>不一致で中止）」＋
+#     「1ブランド1トランザクション（delete→createを不可分）」を内蔵。
+#   - 実行後 prices:wp-diff（読み取りのみ）で DB生成 vs WP live を突き合わせて出力。
+#
+# 必要な Secret（deploy.yml と共用）: VPS_SSH_KEY
+# 起動: Actions →「Price import (commit to prod DB)」→ Run workflow
+#   scope=pilot（既定・lambo/ferrari/mbd/others の4本）→ 確認後 scope=all で27本。
+name: Price import (commit to prod DB)
+
+on:
+  workflow_dispatch:
+    inputs:
+      scope:
+        description: "取込範囲: pilot=4本 / all=27本"
+        type: choice
+        options: [pilot, all]
+        default: pilot
+      confirm:
+        description: '本番DBを書き換えます。実行するなら IMPORT と入力'
+        type: string
+        required: true
+
+# deploy と同時に走らせない（ビルド/DBの競合防止）。
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  import:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: 確認ワードチェック
+        run: |
+          if [ "${{ inputs.confirm }}" != "IMPORT" ]; then
+            echo "::error::confirm に IMPORT と入力されていません（誤爆防止のため中止）。"
+            exit 1
+          fi
+
+      - name: Secret 設定チェック
+        id: check
+        env:
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+        run: |
+          if [ -z "$VPS_SSH_KEY" ]; then
+            echo "::error::VPS_SSH_KEY が未設定です。Settings → Secrets and variables → Actions で登録してください。"
+            exit 1
+          fi
+
+      - name: SSH 準備
+        env:
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+        run: |
+          mkdir -p ~/.ssh
+          if [[ "$VPS_SSH_KEY" == "-----BEGIN"* ]]; then
+            printf '%s\n' "$VPS_SSH_KEY" > ~/.ssh/deploy_key
+          else
+            echo "$VPS_SSH_KEY" | tr -d ' \n' | base64 -d > ~/.ssh/deploy_key
+          fi
+          chmod 600 ~/.ssh/deploy_key
+          if ! ssh-keygen -y -f ~/.ssh/deploy_key > /dev/null 2>&1; then
+            echo "::error::VPS_SSH_KEY が秘密鍵として読めません。"
+            exit 1
+          fi
+          ssh-keyscan -H 162.43.42.72 >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: 取込実行（退避→precheck→commit→検証）
+        env:
+          SCOPE: ${{ inputs.scope }}
+        run: |
+          ssh -i ~/.ssh/deploy_key \
+              -o ConnectTimeout=15 -o ServerAliveInterval=15 -o ServerAliveCountMax=8 \
+              root@162.43.42.72 "SCOPE='${SCOPE}' bash -s" <<'REMOTE'
+            set -euo pipefail
+            COMPOSE="docker compose -f /root/mbfast-app/docker-compose.prod.yml"
+            PILOT_FLAG=""
+            if [ "$SCOPE" = "pilot" ]; then PILOT_FLAG="--pilot"; fi
+            echo "== scope=$SCOPE (flag='${PILOT_FLAG:-（27本）}') =="
+
+            # 0) precheck: --commitパスを含む新コードがコンテナに入っているか（未デプロイ検出）
+            if ! $COMPOSE exec -T app grep -q LEGACY_BRAND_IDS scripts/price-sync/import-wp.mts; then
+              echo "::error::本番コンテナに新スクリプト(--commit)が未デプロイです。先に main をデプロイしてください。"
+              exit 1
+            fi
+
+            # 1) 退避（PriceBrand/PriceVehicle）。0バイトなら中止。
+            TS=$(date +%Y%m%d%H%M%S)
+            BK="/root/pricebackup_${TS}.sql"
+            $COMPOSE exec -T postgres pg_dump -U mbfast -d mbfast \
+              -t '"PriceBrand"' -t '"PriceVehicle"' > "$BK"
+            SZ=$(stat -c%s "$BK" 2>/dev/null || echo 0)
+            echo "退避: $BK (${SZ} bytes)"
+            if [ "$SZ" -lt 100 ]; then
+              echo "::error::pg_dump が空です（${SZ}バイト）。DB接続を確認。取込を中止。"
+              exit 1
+            fi
+
+            # 2) dry-run で最終差分を確認（DB無変更）
+            echo "== dry-run（意味ペイロード→再構成→生成の差分） =="
+            $COMPOSE exec -T app npx tsx scripts/price-sync/import-wp.mts --dry-run $PILOT_FLAG || true
+
+            # 3) commit（件数フロア＋1ブランド1トランザクションはスクリプト内蔵）
+            echo "== commit（本番DB書き込み） =="
+            $COMPOSE exec -T app npx tsx scripts/price-sync/import-wp.mts \
+              --commit $PILOT_FLAG --i-have-backed-up
+
+            # 4) 検証: DB生成HTML vs WP live（読み取りのみ）
+            echo "== 検証 prices:wp-diff（DB生成 vs WP live・読み取りのみ） =="
+            $COMPOSE exec -T app npm run prices:wp-diff || true
+
+            echo "== 完了。退避ファイル: $BK（問題時は psql で復元可） =="
+          REMOTE
