@@ -538,6 +538,11 @@ export type BrandLayout = {
   placeholder: string; // 検索欄 placeholder（エンティティ保持）
   askHref: string; // LINE ask-btn の href
   hasGradeColumn: boolean; // grade 列があるか（ask-btn の data-grade 有無を決める）
+  hasMakerColumn: boolean; // maker 列があるか（others のみ。data-car = "maker car"）
+  // 備考★の付く列（cellClassSuffix）。ノート付き行の ask-btn は、grade列があれば data-grade に、
+  // 無ければ data-car に " ★" を付ける。付く列はブランド＋列で一貫（実測してここに保持）。
+  askStarColumns: string[];
+  columnKeys: string[]; // 取込(実測)時点の列キー集合（cellClassSuffix）。A1の前方互換ガード用
   // ── 版面固有の“ガワ”（実測文字列・生成側は再構成しない） ──
   headerComment: string;
   jsonLd: string;

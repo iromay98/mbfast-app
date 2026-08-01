@@ -115,16 +115,24 @@ const jsBody = (pb: ParsedBlock) =>
 type Assert = { ok: boolean; missing: string[] };
 
 // A1: 各列の cellクラスに対応するCSSルールが保持<style>内に在る。
-// 専用ルールが無い列（例: cell-remote）は、その列セルが内側で使うクラス
-// （badge-remote / muted 等）が全てCSS定義済みなら「装飾あり」と見なす
-// ＝新列追加でCSS未定義（無装飾）になる事故だけを捕まえる。
+//  ・取込(実測)時点で在った列（suffix ∈ layout.columnKeys）＝緩い被覆判定でOK
+//    （専用ルール、または price総称セレクタ、または内側クラス（badge-remote/muted等）が
+//     全て定義済みなら「装飾あり」と見なす）。
+//  ・生成時に新規追加された列（suffix ∉ layout.columnKeys）＝ `.{p}-{suffix}` 直接ルール必須
+//    に厳格化（新列をCSS未定義のまま足す＝無装飾事故を前方互換で防ぐ）。差分ゼロの現状は不発火。
 function assertColumnCss(pb: ParsedBlock): Assert {
   const p = pb.layout.namespacePrefix;
   const css = pb.layout.styleHtml;
+  const known = new Set(pb.layout.columnKeys);
   const missing: string[] = [];
   for (const c of pb.columns) {
     const suf = c.cellClassSuffix;
     const exact = css.includes(`.${p}-${suf}`);
+    if (!known.has(suf)) {
+      // 新規列: 直接ルール必須
+      if (!exact) missing.push(`${suf}(${c.sortKey}) [新規列・直接CSSルール必須]`);
+      continue;
+    }
     const priceGeneric =
       suf.startsWith("cell-price-") &&
       (css.includes(`[class^="${p}-cell-price-"]`) || css.includes(`.${p}-col-price`));
@@ -151,12 +159,19 @@ function assertGetById(pb: ParsedBlock, skeleton: string): Assert {
 }
 
 // A3: JS querySelector(All)/getAttribute が参照するクラス/data属性が生成スケルトンに在る
-function assertSelectors(pb: ParsedBlock, skeleton: string): Assert {
+// A3: JS querySelector(All)/getAttribute が参照するクラス/data属性が生成スケルトンに在る。
+//  分岐は seriesChips 個数（layout.series 長・HTML実測）で行う:
+//   ・チップ0個 → filter-series 参照は空NodeListで無害＝除外OK。
+//   ・チップ1個以上 → filter-series をアサート必須。さらに tr側 data-{p}-series と
+//     ボタン側 data-{p}-filter-series を **別々に** 生成HTMLへ突合（片方だけ見て通さない
+//     ＝27ブランドで実際に取り違え事故があった箇所）。
+function assertSelectors(pb: ParsedBlock, gen: { controls: string; tbody: string }, skeleton: string): Assert {
+  const p = pb.layout.namespacePrefix;
   const js = jsBody(pb);
   const missing: string[] = [];
-  // フィルタチップが無い版面（hasFilterGroup=false）では、統一JSが持つ
-  // filter-series 参照は空NodeListを返すだけで無害＝欠落として扱わない。
-  const skip = (tok: string) => !pb.layout.hasFilterGroup && tok.includes("filter-series");
+  const hasChips = pb.layout.series.length >= 1;
+  const skip = (tok: string) => !hasChips && tok.includes("filter-series");
+
   // getAttribute('data-…') → スケルトンに data属性として在るか
   for (const m of js.matchAll(/getAttribute\(\s*['"]([^'"]+)['"]\s*\)/g)) {
     const a = m[1];
@@ -169,6 +184,14 @@ function assertSelectors(pb: ParsedBlock, skeleton: string): Assert {
       if (!skeleton.includes(`${cm[1]}`) && !skip(cm[1])) missing.push(`class:.${cm[1]} (in "${sel}")`);
     for (const am of sel.matchAll(/\[([\w-]+)(?:[~^$*|]?=)?[^\]]*\]/g))
       if (!skeleton.includes(`${am[1]}`) && !skip(am[1])) missing.push(`attr:[${am[1]}] (in "${sel}")`);
+  }
+
+  // チップ有り版面: tr側 series と ボタン側 filterSeries を別々に必須チェック
+  if (hasChips) {
+    if (!new RegExp(`<tr\\b[^>]*\\bdata-${p}-series="`).test(gen.tbody))
+      missing.push(`tr側 data-${p}-series が生成tbodyに無い`);
+    if (!new RegExp(`<button\\b[^>]*\\bdata-${p}-filter-series="`).test(gen.controls))
+      missing.push(`ボタン側 data-${p}-filter-series が生成controlsに無い`);
   }
   return { ok: missing.length === 0, missing: [...new Set(missing)] };
 }
@@ -221,7 +244,7 @@ for (const t of tables) {
   const asserts: { key: string; a: Assert }[] = [
     { key: "A1css", a: assertColumnCss(pb) },
     { key: "A2ids", a: assertGetById(pb, skeleton) },
-    { key: "A3sel", a: assertSelectors(pb, skeleton) },
+    { key: "A3sel", a: assertSelectors(pb, g, skeleton) },
     { key: "A4amp", a: assertNoAmpLt(pb) },
     { key: "A5chk", a: assertNodeCheck(pb, tmp, `${t.id}_${t.blockIndex}`) },
   ];

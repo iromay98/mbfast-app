@@ -232,6 +232,25 @@ export function parseWpBlock(
     return { series, searchText, dataAttrs, cells };
   });
 
+  // ---- 備考★の付く列を実測（ノート付き行で ask の data-car/data-grade に ★ が入る列） ----
+  // ノート＝名前セル（grade列があれば grade、無ければ car）に cell-note がある行。
+  const nameRole = hasGradeColumn ? "grade" : "car";
+  const nameColIdx = columns.findIndex((c) => c.role === nameRole);
+  const starSet = new Set<string>();
+  for (const row of rows) {
+    const nameCell = nameColIdx >= 0 ? row.cells[nameColIdx] : undefined;
+    const hasNote = nameCell?.role === "verbatim" && /cell-note/.test(nameCell.innerHtml);
+    if (!hasNote) continue;
+    columns.forEach((c, i) => {
+      const cell = row.cells[i];
+      if (cell.role === "value" && cell.value.kind === "ask") {
+        const raw = hasGradeColumn ? cell.value.askGrade ?? "" : cell.value.askCar;
+        if (raw.includes("★")) starSet.add(c.cellClassSuffix);
+      }
+    });
+  }
+  const hasMakerColumn = columns.some((c) => c.role === "maker");
+
   const layout: BrandLayout = {
     namespacePrefix: p,
     naming,
@@ -253,6 +272,9 @@ export function parseWpBlock(
     placeholder,
     askHref: askHrefVal,
     hasGradeColumn,
+    hasMakerColumn,
+    askStarColumns: [...starSet],
+    columnKeys: columns.map((c) => c.cellClassSuffix),
     headerComment,
     jsonLd,
     introHtml,
