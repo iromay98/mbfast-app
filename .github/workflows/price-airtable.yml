@@ -1,0 +1,140 @@
+# アプリ（価格マスター）→ Airtable の書き戻しをワンボタンで撃つ。
+# 代理店が自分のサイトに貼っている Airtable 埋め込みを、本部の新料金に追従させるため。
+#
+# 仕組みは price-import-commit.yml / price-cleanup.yml と同じ:
+#   本番VPSへSSH → 本番コンテナ内で実行（DBもAirtable認証もコンテナ内にしか無い）。
+#
+# 前提: 本番の /root/mbfast-app/.env に AIRTABLE_PAT と AIRTABLE_PRICE_BASE_ID があり、
+#   コンテナが作り直されていること（docker compose up -d）。無いときは分かりやすく失敗する。
+#
+# 安全策:
+#   - mode=diff（既定）は **Airtableへ書き込まない**（差分レポートのみ）
+#   - mode=push のときだけ書き込み。confirm に AIRTABLE と入力も必須
+#   - スクリプト側で「既存レコードの価格列のみ更新／作成削除なし／対応付け8割未満は書かない」
+#   - 完了マーカーが無ければ workflow を失敗させる（空振りを success にしない）
+#
+# 必要な Secret: VPS_SSH_KEY（deploy.yml と共用）
+name: Price Airtable sync (app to Airtable)
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "diff=差分を見るだけ（書き込まない） / push=Airtableへ書き戻す"
+        type: choice
+        options: [diff, push]
+        default: diff
+      brand:
+        description: "1ブランドだけに絞る場合はid（例 toyota）。空なら15ブランド全部"
+        type: string
+        required: false
+      confirm:
+        description: "push のときは AIRTABLE と入力（diff では不要）"
+        type: string
+        required: false
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  airtable:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: 確認ワードチェック
+        env:
+          MODE: ${{ inputs.mode }}
+          CONFIRM: ${{ inputs.confirm }}
+        run: |
+          if [ "$MODE" = "push" ] && [ "$CONFIRM" != "AIRTABLE" ]; then
+            echo "::error::mode=push のときは confirm に AIRTABLE と入力してください（誤爆防止）。"
+            exit 1
+          fi
+
+      - name: Secret 設定チェック
+        env:
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+        run: |
+          if [ -z "$VPS_SSH_KEY" ]; then
+            echo "::error::VPS_SSH_KEY が未設定です。"
+            exit 1
+          fi
+
+      - name: SSH 準備
+        env:
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+        run: |
+          mkdir -p ~/.ssh
+          if [[ "$VPS_SSH_KEY" == "-----BEGIN"* ]]; then
+            printf '%s\n' "$VPS_SSH_KEY" > ~/.ssh/deploy_key
+          else
+            echo "$VPS_SSH_KEY" | tr -d ' \n' | base64 -d > ~/.ssh/deploy_key
+          fi
+          chmod 600 ~/.ssh/deploy_key
+          if ! ssh-keygen -y -f ~/.ssh/deploy_key > /dev/null 2>&1; then
+            echo "::error::VPS_SSH_KEY が秘密鍵として読めません。"
+            exit 1
+          fi
+          ssh-keyscan -H 162.43.42.72 >> ~/.ssh/known_hosts 2>/dev/null
+
+      # リモートスクリプトはファイルで渡す（ssh の stdin に流すと docker compose exec が食べる）
+      - name: リモートスクリプト生成
+        run: |
+          cat > /tmp/mbfast-airtable.sh <<'REMOTE'
+          set -euo pipefail
+          COMPOSE="docker compose -f /root/mbfast-app/docker-compose.prod.yml"
+          echo "== mode=${MODE:-diff} brand=${BRAND:-（全部）} =="
+
+          if ! $COMPOSE exec -T app test -f scripts/price-sync/airtable-push.mts </dev/null; then
+            echo "::error::本番コンテナに airtable-push.mts がありません。先に main をデプロイしてください。"
+            exit 1
+          fi
+
+          # 認証情報がコンテナに渡っているかを先に確認する（PATの値は絶対に出さない）。
+          if ! $COMPOSE exec -T app sh -c '[ -n "$AIRTABLE_PAT" ] && [ -n "$AIRTABLE_PRICE_BASE_ID" ]' </dev/null; then
+            echo "::error::コンテナに AIRTABLE_PAT / AIRTABLE_PRICE_BASE_ID が渡っていません。/root/mbfast-app/.env に2行を追記し、docker compose -f /root/mbfast-app/docker-compose.prod.yml up -d でコンテナを作り直してください。"
+            exit 1
+          fi
+          echo "認証情報: コンテナに渡っています（Base ID の末尾4桁のみ表示）"
+          $COMPOSE exec -T app sh -c 'echo "  AIRTABLE_PRICE_BASE_ID=...${AIRTABLE_PRICE_BASE_ID#"${AIRTABLE_PRICE_BASE_ID%????}"}"' </dev/null || true
+
+          BRAND_ARG=""
+          if [ -n "${BRAND:-}" ]; then BRAND_ARG="--brand=${BRAND}"; fi
+
+          # まず必ず差分（読み取りのみ）を出す
+          echo "== 差分レポート（Airtableへ書き込まない） =="
+          $COMPOSE exec -T app npx tsx scripts/price-sync/airtable-push.mts $BRAND_ARG </dev/null
+
+          if [ "${MODE:-diff}" = "push" ]; then
+            echo "== Airtableへ書き戻す =="
+            $COMPOSE exec -T app npx tsx scripts/price-sync/airtable-push.mts $BRAND_ARG --yes </dev/null
+            echo "== 書き戻し後の再確認（差分が消えているはず） =="
+            $COMPOSE exec -T app npx tsx scripts/price-sync/airtable-push.mts $BRAND_ARG </dev/null
+          else
+            echo "（diff モードのため書き込んでいません）"
+          fi
+
+          echo "MBFAST_AIRTABLE_COMPLETED"
+          REMOTE
+          sed -i 's/^          //' /tmp/mbfast-airtable.sh
+          echo "--- 生成行数: $(wc -l < /tmp/mbfast-airtable.sh) ---"
+
+      - name: 実行
+        env:
+          MODE: ${{ inputs.mode }}
+          BRAND: ${{ inputs.brand }}
+        run: |
+          B64=$(base64 -w0 /tmp/mbfast-airtable.sh)
+          set -o pipefail
+          ssh -i ~/.ssh/deploy_key \
+              -o ConnectTimeout=15 -o ServerAliveInterval=15 -o ServerAliveCountMax=8 \
+              root@162.43.42.72 \
+              "echo '$B64' | base64 -d > /tmp/mbfast-airtable.sh && MODE='${MODE}' BRAND='${BRAND}' bash /tmp/mbfast-airtable.sh; c=\$?; rm -f /tmp/mbfast-airtable.sh; exit \$c" \
+              2>&1 | tee /tmp/airtable-out.log
+
+          if ! grep -q MBFAST_AIRTABLE_COMPLETED /tmp/airtable-out.log; then
+            echo "::error::完走していません（完了マーカーなし）。ログを確認してください。"
+            exit 1
+          fi
+          echo "::notice::完走しました。"
