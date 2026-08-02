@@ -1,0 +1,129 @@
+# mbPIT: 既存のWP記事に施工区分のタグを遡って付ける。
+#
+# ポータル側のジャンル絞り込みが記事タグを参照するため、
+# tags 未実装の時期に投稿された記事にも後からタグを付ける必要がある。
+#
+# 仕組みは他の運用ワークフローと同じ:
+#   本番VPSへSSH → 本番コンテナ内で実行（DBもWP認証もコンテナ内にしか無い）。
+#
+# 安全策:
+#   - mode=diff（既定）は **WPへ書き込まない**（何を付けるかを出すだけ）
+#   - mode=push のときだけ書き込み。confirm に TAGS と入力も必須
+#   - push でも必ず先に diff を出してから実行する
+#   - スクリプト側で「タグは足すだけ（既存タグを消さない）／本文・状態・カテゴリには触れない」
+#   - 完了マーカーが無ければ workflow を失敗させる（空振りを success にしない）
+#
+# 必要な Secret: VPS_SSH_KEY（deploy.yml と共用）
+name: mbPIT backfill tags
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "diff=付ける内容を見るだけ / push=WPへ書き込む"
+        type: choice
+        options: [diff, push]
+        default: diff
+      confirm:
+        description: "push のときは TAGS と入力（diff では不要）"
+        type: string
+        required: false
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  tags:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: 確認ワードチェック
+        env:
+          MODE: ${{ inputs.mode }}
+          CONFIRM: ${{ inputs.confirm }}
+        run: |
+          if [ "$MODE" = "push" ] && [ "$CONFIRM" != "TAGS" ]; then
+            echo "::error::mode=push のときは confirm に TAGS と入力してください（誤爆防止）。"
+            exit 1
+          fi
+
+      - name: Secret 設定チェック
+        env:
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+        run: |
+          if [ -z "$VPS_SSH_KEY" ]; then
+            echo "::error::VPS_SSH_KEY が未設定です。"
+            exit 1
+          fi
+
+      - name: SSH 準備
+        env:
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+        run: |
+          mkdir -p ~/.ssh
+          if [[ "$VPS_SSH_KEY" == "-----BEGIN"* ]]; then
+            printf '%s\n' "$VPS_SSH_KEY" > ~/.ssh/deploy_key
+          else
+            echo "$VPS_SSH_KEY" | tr -d ' \n' | base64 -d > ~/.ssh/deploy_key
+          fi
+          chmod 600 ~/.ssh/deploy_key
+          if ! ssh-keygen -y -f ~/.ssh/deploy_key > /dev/null 2>&1; then
+            echo "::error::VPS_SSH_KEY が秘密鍵として読めません。"
+            exit 1
+          fi
+          ssh-keyscan -H 162.43.42.72 >> ~/.ssh/known_hosts 2>/dev/null
+
+      # リモートスクリプトはファイルで渡す（ssh の stdin に流すと docker compose exec が食べる）
+      - name: リモートスクリプト生成
+        run: |
+          cat > /tmp/mbfast-pit-tags.sh <<'REMOTE'
+          set -euo pipefail
+          COMPOSE="docker compose -f /root/mbfast-app/docker-compose.prod.yml"
+          echo "== mode=${MODE:-diff} =="
+
+          if ! $COMPOSE exec -T app test -f scripts/pit-backfill-tags.mts </dev/null; then
+            echo "::error::本番コンテナに pit-backfill-tags.mts がありません。先に main をデプロイしてください。"
+            exit 1
+          fi
+
+          # WP認証がコンテナに渡っているかを先に確認する（値は絶対に出さない）
+          if ! $COMPOSE exec -T app sh -c '[ -n "$WP_USER" ] && [ -n "$WP_APP_PASSWORD" ]' </dev/null; then
+            echo "::error::コンテナに WP_USER / WP_APP_PASSWORD が渡っていません。"
+            exit 1
+          fi
+
+          # まず必ず差分（読み取りのみ）を出す
+          echo "== 付与内容の確認（WPへ書き込まない） =="
+          $COMPOSE exec -T app npx tsx scripts/pit-backfill-tags.mts </dev/null
+
+          if [ "${MODE:-diff}" = "push" ]; then
+            echo "== WPへタグを付与 =="
+            $COMPOSE exec -T app npx tsx scripts/pit-backfill-tags.mts --commit </dev/null
+            echo "== 付与後の再確認（すべて「既に付与済み」になるはず） =="
+            $COMPOSE exec -T app npx tsx scripts/pit-backfill-tags.mts </dev/null
+          else
+            echo "（diff モードのため書き込んでいません）"
+          fi
+
+          echo "MBFAST_PIT_TAGS_COMPLETED"
+          REMOTE
+          sed -i 's/^          //' /tmp/mbfast-pit-tags.sh
+
+      - name: 実行
+        env:
+          MODE: ${{ inputs.mode }}
+        run: |
+          B64=$(base64 -w0 /tmp/mbfast-pit-tags.sh)
+          set -o pipefail
+          ssh -i ~/.ssh/deploy_key \
+              -o ConnectTimeout=15 -o ServerAliveInterval=15 -o ServerAliveCountMax=8 \
+              root@162.43.42.72 \
+              "echo '$B64' | base64 -d > /tmp/mbfast-pit-tags.sh && MODE='${MODE}' bash /tmp/mbfast-pit-tags.sh; c=\$?; rm -f /tmp/mbfast-pit-tags.sh; exit \$c" \
+              2>&1 | tee /tmp/pit-tags-out.log
+
+          if ! grep -q MBFAST_PIT_TAGS_COMPLETED /tmp/pit-tags-out.log; then
+            echo "::error::完走していません（完了マーカーなし）。ログを確認してください。"
+            exit 1
+          fi
+          echo "::notice::完走しました。"

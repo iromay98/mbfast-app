@@ -7,6 +7,31 @@ const API = `${BASE}/wp-json/wp/v2`;
 // mbPIT 親カテゴリ（確定ID）
 export const MBPIT_PARENT_CATEGORY_ID = 545;
 
+/*
+ * 施工区分 → WPタグ（term ID）。ポータル側でジャンル絞り込みに使う。
+ *
+ * 事前にWP側で作成済みの固定IDを持つ方式にしている。投稿のたびに /wp/v2/tags を
+ * 引いて無ければ作る方式は、同時投稿で**同名タグが重複作成**される事故があるため採らない。
+ *
+ * ecu だけ表示名が「ECUチューニング（施工記録）」なのは、mbFAST本体のブログが使っている
+ * 既存タグ「ECUチューニング」(ID 365) と**意図的に分けている**ため。共用すると
+ * mbPITの施工記録とmbFAST本体の記事が同じタグアーカイブに混ざり、ブランド分離が崩れる。
+ * **365 をここに書かないこと。**
+ */
+export const PIT_CATEGORY_TAG_IDS: Record<string, number> = {
+  ecu: 671, // ECUチューニング（施工記録） slug=ecu
+  coating: 663, // コーティング
+  polish: 665, // 磨き
+  maintenance: 667, // メンテナンス
+  other: 669, // その他
+};
+
+/** 施工区分に対応するWPタグID（未知の区分は付けない＝勝手に other にしない） */
+export function tagIdsForCategory(category: string): number[] {
+  const id = PIT_CATEGORY_TAG_IDS[category];
+  return id ? [id] : [];
+}
+
 // mbPIT OGP画像（本部指定・全記事共通）
 const MBPIT_OGP_URL = "https://mbfasttuning.com/wp-content/uploads/2026/07/mbpit-ogp.jpg";
 
@@ -144,6 +169,35 @@ export async function updatePost(
   });
 }
 
+/*
+ * 既存記事にタグを**足す**（既に付いているタグは消さない）。
+ *
+ * WPの POST /posts/{id} は tags を渡すと**丸ごと置き換える**ので、
+ * 必ず現在値を読んでから和集合を書く。既に全部付いていれば書き込まない。
+ * 戻り値: 実際に書き込んだら true、変更不要なら false。
+ */
+export async function addPostTags(postId: number, tagIds: number[]): Promise<boolean> {
+  if (!tagIds.length) return false;
+  const res = await wpFetch(`/posts/${postId}?context=edit&_fields=id,tags`, { method: "GET" });
+  const cur = (await res.json()) as { tags?: number[] };
+  const before = cur.tags ?? [];
+  const merged = [...new Set([...before, ...tagIds])];
+  if (merged.length === before.length) return false;
+  await wpFetch(`/posts/${postId}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ tags: merged }),
+  });
+  return true;
+}
+
+/** 記事に現在付いているタグID（遡及付与の事前確認用） */
+export async function fetchPostTags(postId: number): Promise<number[]> {
+  const res = await wpFetch(`/posts/${postId}?context=edit&_fields=id,tags`, { method: "GET" });
+  const p = (await res.json()) as { tags?: number[] };
+  return p.tags ?? [];
+}
+
 // 記事をゴミ箱へ（完全削除しない＝誤操作から復元できるようにする）
 export async function trashPost(postId: number): Promise<void> {
   await wpFetch(`/posts/${postId}`, {
@@ -187,6 +241,8 @@ export type WpPostInput = {
   slug: string;
   contentHtml: string;
   categoryIds: number[];
+  /** 施工区分のWPタグ（tagIdsForCategory で引く）。空なら tags を送らない */
+  tagIds?: number[];
   featuredMediaId?: number;
   metaDescription?: string;
   focusKeyword?: string;
@@ -212,6 +268,8 @@ export async function publishPost(input: WpPostInput): Promise<WpPost> {
     status: input.forceDraft || !autoPublish() ? "draft" : "publish",
     categories: input.categoryIds,
   };
+  // 空配列を送るとWP側は「タグ全消し」と解釈する。付けるものが無いならキー自体を出さない
+  if (input.tagIds?.length) body.tags = input.tagIds;
   if (input.featuredMediaId) body.featured_media = input.featuredMediaId;
   body.aioseo_meta_data = {
     ...(input.metaDescription ? { description: input.metaDescription } : {}),

@@ -24,6 +24,7 @@
     "predev": "node scripts/copy-ort-wasm.mjs",
     "check:cert-privacy": "tsx scripts/check-cert-privacy.mts",
     "check:pit-branding": "tsx scripts/check-pit-branding.mts",
+    "check:pit-tags": "tsx scripts/check-pit-tags.mts",
     "check:shaken-ocr": "tsx scripts/check-shaken-ocr.mts",
     "check:shaken-pdf": "tsx scripts/check-shaken-pdf.mts",
     "check:photo-ocr": "tsx scripts/check-photo-ocr.mts",
@@ -45,7 +46,9 @@
     "prices:wp-push": "tsx -r dotenv/config scripts/prices-wp-push.mts",
     "prices:airtable-diff": "tsx -r dotenv/config scripts/price-sync/airtable-push.mts",
     "prices:airtable-push": "tsx -r dotenv/config scripts/price-sync/airtable-push.mts",
-    "report:pit-usage": "tsx -r dotenv/config scripts/report-pit-certificates.mts"
+    "report:pit-usage": "tsx -r dotenv/config scripts/report-pit-certificates.mts",
+    "pit:backfill-tags": "tsx -r dotenv/config scripts/pit-backfill-tags.mts",
+    "pit:backfill-tags-commit": "tsx -r dotenv/config scripts/pit-backfill-tags.mts --commit"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.104.2",

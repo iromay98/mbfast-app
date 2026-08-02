@@ -7,7 +7,13 @@ import { notify } from "@/server/notifications";
 import { processPhoto, seoFilename, PIT_IMAGE_MIME } from "./images";
 import { runGuard, CAUTION_HTML } from "./guard";
 import { generateArticle, CATEGORY_LABELS, MBPIT_HUB_URL, storePageUrl } from "./generate";
-import { uploadMedia, publishPost, MBPIT_PARENT_CATEGORY_ID, type WpMedia } from "./wordpress";
+import {
+  uploadMedia,
+  publishPost,
+  MBPIT_PARENT_CATEGORY_ID,
+  tagIdsForCategory,
+  type WpMedia,
+} from "./wordpress";
 import { parseVideoUrl, videoEmbedHtml } from "./video-embed";
 import { compressVideo } from "./video";
 
@@ -187,6 +193,8 @@ export async function runPitPipeline(opts: {
       slug: article.slug,
       contentHtml: body,
       categoryIds: [store.wpCategoryId, MBPIT_PARENT_CATEGORY_ID],
+      // 施工区分のタグ（ポータルのジャンル絞り込みが参照する）
+      tagIds: tagIdsForCategory(opts.category),
       featuredMediaId: medias[0]?.id,
       metaDescription: article.meta_description,
       focusKeyword: article.focus_keyword,
