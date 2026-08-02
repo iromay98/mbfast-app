@@ -3,8 +3,11 @@
 #   job=tags  … 既存記事に施工区分のタグを遡って付ける
 #               （ポータルのジャンル絞り込みが記事タグを参照するため。
 #                 tags 未実装の時期に投稿された記事にはタグが無い）
+#   job=slug  … WP側のカテゴリslugに合わせてアプリの店舗slugを揃える（slugのみ／DB）
 #   job=links … 記事末尾の「施工店」リンクを現在の店舗slugに直す
 #               （slugは投稿時に焼き込まれるので、改名すると過去記事だけ404になる）
+#
+# 店舗が改名したときは slug → links の順に回す（アプリのslugを直してから記事を直す）。
 #
 # 仕組みは他の運用ワークフローと同じ:
 #   本番VPSへSSH → 本番コンテナ内で実行（DBもWP認証もコンテナ内にしか無い）。
@@ -24,9 +27,9 @@ on:
   workflow_dispatch:
     inputs:
       job:
-        description: "tags=施工区分タグの遡及付与 / links=店舗リンクの修正"
+        description: "tags=施工区分タグの遡及付与 / slug=店舗slugをWPに合わせる / links=店舗リンクの修正"
         type: choice
-        options: [tags, links]
+        options: [tags, slug, links]
         default: tags
       mode:
         description: "diff=内容を見るだけ / push=WPへ書き込む"
@@ -34,7 +37,7 @@ on:
         options: [diff, push]
         default: diff
       confirm:
-        description: "push のときは TAGS と入力（diff では不要）"
+        description: "push のときは job名を大文字で入力（TAGS / SLUG / LINKS）。diff では不要"
         type: string
         required: false
 
@@ -49,11 +52,13 @@ jobs:
     steps:
       - name: 確認ワードチェック
         env:
+          JOB: ${{ inputs.job }}
           MODE: ${{ inputs.mode }}
           CONFIRM: ${{ inputs.confirm }}
         run: |
-          if [ "$MODE" = "push" ] && [ "$CONFIRM" != "TAGS" ]; then
-            echo "::error::mode=push のときは confirm に TAGS と入力してください（誤爆防止）。"
+          WANT=$(echo "$JOB" | tr '[:lower:]' '[:upper:]')
+          if [ "$MODE" = "push" ] && [ "$CONFIRM" != "$WANT" ]; then
+            echo "::error::mode=push のときは confirm に $WANT と入力してください（誤爆防止）。"
             exit 1
           fi
 
@@ -93,6 +98,7 @@ jobs:
 
           case "${JOB:-tags}" in
             tags)  SCRIPT=scripts/pit-backfill-tags.mts ;;
+            slug)  SCRIPT=scripts/pit-sync-store-slug.mts ;;
             links) SCRIPT=scripts/pit-fix-store-links.mts ;;
             *) echo "::error::未知のジョブ: ${JOB:-}"; exit 1 ;;
           esac
@@ -113,7 +119,16 @@ jobs:
           $COMPOSE exec -T app npx tsx "$SCRIPT" </dev/null
 
           if [ "${MODE:-diff}" = "push" ]; then
-            echo "== WPへ書き込み =="
+            # job=slug は本番DBを書き換える。1行2列とはいえ戻せるようにしてから触る
+            if [ "${JOB:-tags}" = "slug" ]; then
+              STAMP=$(date +%Y%m%d-%H%M%S)
+              echo "== 書き込み前に PitStore をダンプ（/root/backups/pitstore-$STAMP.sql） =="
+              mkdir -p /root/backups
+              $COMPOSE exec -T postgres pg_dump -U mbfast -d mbfast -t '"PitStore"' </dev/null \
+                > "/root/backups/pitstore-$STAMP.sql"
+              echo "  $(wc -l < "/root/backups/pitstore-$STAMP.sql") 行"
+            fi
+            echo "== 書き込み =="
             $COMPOSE exec -T app npx tsx "$SCRIPT" --commit </dev/null
             echo "== 書き込み後の再確認（差分が消えているはず） =="
             $COMPOSE exec -T app npx tsx "$SCRIPT" </dev/null
