@@ -47,6 +47,7 @@
     "prices:airtable-diff": "tsx -r dotenv/config scripts/price-sync/airtable-push.mts",
     "prices:airtable-push": "tsx -r dotenv/config scripts/price-sync/airtable-push.mts",
     "report:pit-usage": "tsx -r dotenv/config scripts/report-pit-certificates.mts",
+    "pit:fix-store-links": "tsx -r dotenv/config scripts/pit-fix-store-links.mts",
     "pit:backfill-tags": "tsx -r dotenv/config scripts/pit-backfill-tags.mts",
     "pit:backfill-tags-commit": "tsx -r dotenv/config scripts/pit-backfill-tags.mts --commit"
   },

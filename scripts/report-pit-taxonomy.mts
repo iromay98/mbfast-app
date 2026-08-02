@@ -113,13 +113,49 @@ console.log("");
 console.log("════════ 店舗マスタ ════════");
 console.log(`総数: ${stores.length}（有効 ${stores.filter((s) => s.active).length} / 停止 ${stores.filter((s) => !s.active).length}）`);
 console.log("");
-console.log("店舗名 | slug | WPカテゴリID | 状態 | 種別 | 対応内容(mbpit_tags) | 登録日");
+console.log("店舗名 | slug(アプリ) | WPカテゴリslug | WPカテゴリID | 状態 | 種別 | 対応内容(mbpit_tags) | 登録日");
 for (const s of stores) {
   const kind = s.dealerId ? "加盟店" : "本店直営";
   const d = s.createdAt.toLocaleDateString("sv-SE", { timeZone: "Asia/Tokyo" });
   console.log(
-    `${s.displayName} | ${s.slug} | ${s.wpCategoryId} | ${s.active ? "有効" : "停止"} | ${kind} | ${s.serviceTags || "（未設定）"} | ${d}`,
+    `${s.displayName} | ${s.slug} | ${s.wpCategorySlug || "（未取込）"} | ${s.wpCategoryId} | ${s.active ? "有効" : "停止"} | ${kind} | ${s.serviceTags || "（未設定）"} | ${d}`,
   );
+}
+
+/*
+ * 記事末尾の「施工店」リンクは storePageUrl(store.slug) で組まれるため、
+ * アプリのslugとWP側の実ページが食い違うと**リンクが404になる**。
+ * WP側の実値を読んで（GETのみ）突き合わせる。
+ */
+console.log("");
+console.log("── アプリ ⇄ WordPress のslug突き合わせ（GETのみ） ──");
+try {
+  const { fetchMbpitCategories, wpConfigured } = await import("../src/server/pit/wordpress");
+  if (!wpConfigured()) {
+    console.log("  WP認証が無いためスキップ（WP_USER / WP_APP_PASSWORD 未設定）");
+  } else {
+    const terms = await fetchMbpitCategories();
+    console.log(`  WP側 親545配下のカテゴリ: ${terms.length}件`);
+    for (const t of terms) {
+      const s = stores.find((x) => x.wpCategoryId === t.id);
+      console.log(
+        `    ${String(t.id).padStart(4)} name="${t.name}" slug="${t.slug}" 記事${t.count}件` +
+          (s ? ` ⇄ アプリ「${s.displayName}」slug=${s.slug}` : "  ← アプリ側に対応する店舗が無い"),
+      );
+      if (s && s.wpCategorySlug && s.wpCategorySlug !== t.slug) {
+        console.log(`         ⚠ 取込時のWPカテゴリslug(${s.wpCategorySlug})から変わっています`);
+      }
+      if (s && t.name !== s.displayName) {
+        console.log(`         ⚠ 店舗名がWP("${t.name}")とアプリ("${s.displayName}")で違います`);
+      }
+    }
+    const orphan = stores.filter((s) => !terms.some((t) => t.id === s.wpCategoryId));
+    for (const s of orphan) {
+      console.log(`    ⚠ アプリ「${s.displayName}」のカテゴリID ${s.wpCategoryId} がWP側の545配下に見つかりません`);
+    }
+  }
+} catch (e) {
+  console.log(`  WP照会に失敗（レポートは続行）: ${e instanceof Error ? e.message : String(e)}`);
 }
 
 // 問い合わせのあった店舗名を明示的に照合する

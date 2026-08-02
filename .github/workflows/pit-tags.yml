@@ -1,26 +1,35 @@
-# mbPIT: 既存のWP記事に施工区分のタグを遡って付ける。
+# mbPIT: 公開済みWP記事の後追いメンテナンス。
 #
-# ポータル側のジャンル絞り込みが記事タグを参照するため、
-# tags 未実装の時期に投稿された記事にも後からタグを付ける必要がある。
+#   job=tags  … 既存記事に施工区分のタグを遡って付ける
+#               （ポータルのジャンル絞り込みが記事タグを参照するため。
+#                 tags 未実装の時期に投稿された記事にはタグが無い）
+#   job=links … 記事末尾の「施工店」リンクを現在の店舗slugに直す
+#               （slugは投稿時に焼き込まれるので、改名すると過去記事だけ404になる）
 #
 # 仕組みは他の運用ワークフローと同じ:
 #   本番VPSへSSH → 本番コンテナ内で実行（DBもWP認証もコンテナ内にしか無い）。
 #
 # 安全策:
-#   - mode=diff（既定）は **WPへ書き込まない**（何を付けるかを出すだけ）
+#   - mode=diff（既定）は **WPへ書き込まない**（何をするかを出すだけ）
 #   - mode=push のときだけ書き込み。confirm に TAGS と入力も必須
 #   - push でも必ず先に diff を出してから実行する
-#   - スクリプト側で「タグは足すだけ（既存タグを消さない）／本文・状態・カテゴリには触れない」
+#   - tags: タグは足すだけ（既存タグを消さない）／本文・状態・カテゴリには触れない
+#   - links: `<HUB>/<1セグメント>/` のURLだけ置換／他店舗のslugを指すリンクは触らない
 #   - 完了マーカーが無ければ workflow を失敗させる（空振りを success にしない）
 #
 # 必要な Secret: VPS_SSH_KEY（deploy.yml と共用）
-name: mbPIT backfill tags
+name: mbPIT post maintenance
 
 on:
   workflow_dispatch:
     inputs:
+      job:
+        description: "tags=施工区分タグの遡及付与 / links=店舗リンクの修正"
+        type: choice
+        options: [tags, links]
+        default: tags
       mode:
-        description: "diff=付ける内容を見るだけ / push=WPへ書き込む"
+        description: "diff=内容を見るだけ / push=WPへ書き込む"
         type: choice
         options: [diff, push]
         default: diff
@@ -80,10 +89,16 @@ jobs:
           cat > /tmp/mbfast-pit-tags.sh <<'REMOTE'
           set -euo pipefail
           COMPOSE="docker compose -f /root/mbfast-app/docker-compose.prod.yml"
-          echo "== mode=${MODE:-diff} =="
+          echo "== job=${JOB:-tags} mode=${MODE:-diff} =="
 
-          if ! $COMPOSE exec -T app test -f scripts/pit-backfill-tags.mts </dev/null; then
-            echo "::error::本番コンテナに pit-backfill-tags.mts がありません。先に main をデプロイしてください。"
+          case "${JOB:-tags}" in
+            tags)  SCRIPT=scripts/pit-backfill-tags.mts ;;
+            links) SCRIPT=scripts/pit-fix-store-links.mts ;;
+            *) echo "::error::未知のジョブ: ${JOB:-}"; exit 1 ;;
+          esac
+
+          if ! $COMPOSE exec -T app test -f "$SCRIPT" </dev/null; then
+            echo "::error::本番コンテナに $SCRIPT がありません。先に main をデプロイしてください。"
             exit 1
           fi
 
@@ -94,14 +109,14 @@ jobs:
           fi
 
           # まず必ず差分（読み取りのみ）を出す
-          echo "== 付与内容の確認（WPへ書き込まない） =="
-          $COMPOSE exec -T app npx tsx scripts/pit-backfill-tags.mts </dev/null
+          echo "== 内容の確認（WPへ書き込まない） =="
+          $COMPOSE exec -T app npx tsx "$SCRIPT" </dev/null
 
           if [ "${MODE:-diff}" = "push" ]; then
-            echo "== WPへタグを付与 =="
-            $COMPOSE exec -T app npx tsx scripts/pit-backfill-tags.mts --commit </dev/null
-            echo "== 付与後の再確認（すべて「既に付与済み」になるはず） =="
-            $COMPOSE exec -T app npx tsx scripts/pit-backfill-tags.mts </dev/null
+            echo "== WPへ書き込み =="
+            $COMPOSE exec -T app npx tsx "$SCRIPT" --commit </dev/null
+            echo "== 書き込み後の再確認（差分が消えているはず） =="
+            $COMPOSE exec -T app npx tsx "$SCRIPT" </dev/null
           else
             echo "（diff モードのため書き込んでいません）"
           fi
@@ -112,6 +127,7 @@ jobs:
 
       - name: 実行
         env:
+          JOB: ${{ inputs.job }}
           MODE: ${{ inputs.mode }}
         run: |
           B64=$(base64 -w0 /tmp/mbfast-pit-tags.sh)
@@ -119,7 +135,7 @@ jobs:
           ssh -i ~/.ssh/deploy_key \
               -o ConnectTimeout=15 -o ServerAliveInterval=15 -o ServerAliveCountMax=8 \
               root@162.43.42.72 \
-              "echo '$B64' | base64 -d > /tmp/mbfast-pit-tags.sh && MODE='${MODE}' bash /tmp/mbfast-pit-tags.sh; c=\$?; rm -f /tmp/mbfast-pit-tags.sh; exit \$c" \
+              "echo '$B64' | base64 -d > /tmp/mbfast-pit-tags.sh && JOB='${JOB}' MODE='${MODE}' bash /tmp/mbfast-pit-tags.sh; c=\$?; rm -f /tmp/mbfast-pit-tags.sh; exit \$c" \
               2>&1 | tee /tmp/pit-tags-out.log
 
           if ! grep -q MBFAST_PIT_TAGS_COMPLETED /tmp/pit-tags-out.log; then
