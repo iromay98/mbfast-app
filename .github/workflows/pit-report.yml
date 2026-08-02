@@ -1,0 +1,99 @@
+# mbPIT の読み取り専用レポートを本番で実行する（DBには一切書き込まない）。
+#
+# 本番DBはホストに公開していないため、コンテナ内で実行する必要がある。
+# 書き込み系（取込・掃除・Airtable）とは別ワークフローにして、
+# **読み取りしかしないもの**だけをここに集める（誤って書き込む余地を作らない）。
+#
+# 必要な Secret: VPS_SSH_KEY（deploy.yml と共用）
+name: mbPIT report (read only)
+
+on:
+  workflow_dispatch:
+    inputs:
+      report:
+        description: "実行するレポート"
+        type: choice
+        options:
+          - taxonomy # 投稿の区分と店舗マスタの棚卸し
+          - usage # 店舗ごとの証明書・車両・投稿の件数
+        default: taxonomy
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Secret 設定チェック
+        env:
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+        run: |
+          if [ -z "$VPS_SSH_KEY" ]; then
+            echo "::error::VPS_SSH_KEY が未設定です。"
+            exit 1
+          fi
+
+      - name: SSH 準備
+        env:
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+        run: |
+          mkdir -p ~/.ssh
+          if [[ "$VPS_SSH_KEY" == "-----BEGIN"* ]]; then
+            printf '%s\n' "$VPS_SSH_KEY" > ~/.ssh/deploy_key
+          else
+            echo "$VPS_SSH_KEY" | tr -d ' \n' | base64 -d > ~/.ssh/deploy_key
+          fi
+          chmod 600 ~/.ssh/deploy_key
+          if ! ssh-keygen -y -f ~/.ssh/deploy_key > /dev/null 2>&1; then
+            echo "::error::VPS_SSH_KEY が秘密鍵として読めません。"
+            exit 1
+          fi
+          ssh-keyscan -H 162.43.42.72 >> ~/.ssh/known_hosts 2>/dev/null
+
+      # リモートスクリプトはファイルで渡す（ssh の stdin に流すと docker compose exec が食べる）
+      - name: リモートスクリプト生成
+        run: |
+          cat > /tmp/mbfast-report.sh <<'REMOTE'
+          set -euo pipefail
+          COMPOSE="docker compose -f /root/mbfast-app/docker-compose.prod.yml"
+          echo "== report=${REPORT:-taxonomy} （読み取りのみ） =="
+
+          case "${REPORT:-taxonomy}" in
+            taxonomy)
+              if ! $COMPOSE exec -T app test -f scripts/report-pit-taxonomy.mts </dev/null; then
+                echo "::error::本番コンテナに report-pit-taxonomy.mts がありません。先に main をデプロイしてください。"
+                exit 1
+              fi
+              $COMPOSE exec -T app npx tsx scripts/report-pit-taxonomy.mts </dev/null
+              ;;
+            usage)
+              $COMPOSE exec -T app npm run report:pit-usage </dev/null
+              ;;
+            *)
+              echo "::error::未知のレポート: ${REPORT:-}"; exit 1 ;;
+          esac
+
+          echo "MBFAST_REPORT_COMPLETED"
+          REMOTE
+          sed -i 's/^          //' /tmp/mbfast-report.sh
+
+      - name: 実行
+        env:
+          REPORT: ${{ inputs.report }}
+        run: |
+          B64=$(base64 -w0 /tmp/mbfast-report.sh)
+          set -o pipefail
+          ssh -i ~/.ssh/deploy_key \
+              -o ConnectTimeout=15 -o ServerAliveInterval=15 -o ServerAliveCountMax=8 \
+              root@162.43.42.72 \
+              "echo '$B64' | base64 -d > /tmp/mbfast-report.sh && REPORT='${REPORT}' bash /tmp/mbfast-report.sh; c=\$?; rm -f /tmp/mbfast-report.sh; exit \$c" \
+              2>&1 | tee /tmp/report-out.log
+
+          if ! grep -q MBFAST_REPORT_COMPLETED /tmp/report-out.log; then
+            echo "::error::レポートが完走していません。ログを確認してください。"
+            exit 1
+          fi
+          echo "::notice::完走しました。"
