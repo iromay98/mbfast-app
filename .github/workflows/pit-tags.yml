@@ -4,6 +4,8 @@
 #               （ポータルのジャンル絞り込みが記事タグを参照するため。
 #                 tags 未実装の時期に投稿された記事にはタグが無い）
 #   job=slug  … WP側のカテゴリslugに合わせてアプリの店舗slugを揃える（slugのみ／DB）
+#   job=name  … 店舗の表示名を変える（store_slug と store_name の入力が必要／DB）
+#               命名の原則は「slugは英小文字・表示名は日本語」
 #   job=links … 記事末尾の「施工店」リンクを現在の店舗slugに直す
 #               （slugは投稿時に焼き込まれるので、改名すると過去記事だけ404になる）
 #
@@ -27,10 +29,18 @@ on:
   workflow_dispatch:
     inputs:
       job:
-        description: "tags=施工区分タグの遡及付与 / slug=店舗slugをWPに合わせる / links=店舗リンクの修正"
+        description: "tags=区分タグの遡及付与 / slug=店舗slugをWPに合わせる / name=店舗表示名の変更 / links=店舗リンクの修正"
         type: choice
-        options: [tags, slug, links]
+        options: [tags, slug, name, links]
         default: tags
+      store_slug:
+        description: "job=name のときの対象店舗slug（例 pleasure）"
+        type: string
+        required: false
+      store_name:
+        description: "job=name のときの新しい表示名（日本語。例 プレジャー）"
+        type: string
+        required: false
       mode:
         description: "diff=内容を見るだけ / push=WPへ書き込む"
         type: choice
@@ -96,10 +106,20 @@ jobs:
           COMPOSE="docker compose -f /root/mbfast-app/docker-compose.prod.yml"
           echo "== job=${JOB:-tags} mode=${MODE:-diff} =="
 
+          ARGS=""
           case "${JOB:-tags}" in
             tags)  SCRIPT=scripts/pit-backfill-tags.mts ;;
             slug)  SCRIPT=scripts/pit-sync-store-slug.mts ;;
             links) SCRIPT=scripts/pit-fix-store-links.mts ;;
+            name)
+              SCRIPT=scripts/pit-set-store-name.mts
+              if [ -z "${STORE_SLUG:-}" ] || [ -z "${STORE_NAME_B64:-}" ]; then
+                echo "::error::job=name には store_slug と store_name の両方が必要です。"
+                exit 1
+              fi
+              # 表示名は日本語なので base64 で渡す（シェルの引用符事故を避ける）
+              ARGS="--slug=${STORE_SLUG} --name-b64=${STORE_NAME_B64}"
+              ;;
             *) echo "::error::未知のジョブ: ${JOB:-}"; exit 1 ;;
           esac
 
@@ -115,12 +135,12 @@ jobs:
           fi
 
           # まず必ず差分（読み取りのみ）を出す
-          echo "== 内容の確認（WPへ書き込まない） =="
-          $COMPOSE exec -T app npx tsx "$SCRIPT" </dev/null
+          echo "== 内容の確認（書き込まない） =="
+          $COMPOSE exec -T app npx tsx "$SCRIPT" $ARGS </dev/null
 
           if [ "${MODE:-diff}" = "push" ]; then
-            # job=slug は本番DBを書き換える。1行2列とはいえ戻せるようにしてから触る
-            if [ "${JOB:-tags}" = "slug" ]; then
+            # slug / name は本番DBを書き換える。1行1〜2列とはいえ戻せるようにしてから触る
+            if [ "${JOB:-tags}" = "slug" ] || [ "${JOB:-tags}" = "name" ]; then
               STAMP=$(date +%Y%m%d-%H%M%S)
               echo "== 書き込み前に PitStore をダンプ（/root/backups/pitstore-$STAMP.sql） =="
               mkdir -p /root/backups
@@ -129,9 +149,9 @@ jobs:
               echo "  $(wc -l < "/root/backups/pitstore-$STAMP.sql") 行"
             fi
             echo "== 書き込み =="
-            $COMPOSE exec -T app npx tsx "$SCRIPT" --commit </dev/null
+            $COMPOSE exec -T app npx tsx "$SCRIPT" $ARGS --commit </dev/null
             echo "== 書き込み後の再確認（差分が消えているはず） =="
-            $COMPOSE exec -T app npx tsx "$SCRIPT" </dev/null
+            $COMPOSE exec -T app npx tsx "$SCRIPT" $ARGS </dev/null
           else
             echo "（diff モードのため書き込んでいません）"
           fi
@@ -144,13 +164,24 @@ jobs:
         env:
           JOB: ${{ inputs.job }}
           MODE: ${{ inputs.mode }}
+          STORE_SLUG: ${{ inputs.store_slug }}
+          STORE_NAME: ${{ inputs.store_name }}
         run: |
+          # 表示名は日本語や空白を含むので base64 にしてから渡す（ssh のコマンド行で壊さない）
+          STORE_NAME_B64=""
+          if [ -n "$STORE_NAME" ]; then STORE_NAME_B64=$(printf '%s' "$STORE_NAME" | base64 -w0); fi
+          # slug は英小文字・数字・ハイフンのみ（ここで弾いておく＝ssh のコマンド行に変な文字を載せない）
+          if [ -n "$STORE_SLUG" ] && ! printf '%s' "$STORE_SLUG" | grep -qE '^[a-z0-9-]+$'; then
+            echo "::error::store_slug は英小文字・数字・ハイフンのみです。"
+            exit 1
+          fi
+
           B64=$(base64 -w0 /tmp/mbfast-pit-tags.sh)
           set -o pipefail
           ssh -i ~/.ssh/deploy_key \
               -o ConnectTimeout=15 -o ServerAliveInterval=15 -o ServerAliveCountMax=8 \
               root@162.43.42.72 \
-              "echo '$B64' | base64 -d > /tmp/mbfast-pit-tags.sh && JOB='${JOB}' MODE='${MODE}' bash /tmp/mbfast-pit-tags.sh; c=\$?; rm -f /tmp/mbfast-pit-tags.sh; exit \$c" \
+              "echo '$B64' | base64 -d > /tmp/mbfast-pit-tags.sh && JOB='${JOB}' MODE='${MODE}' STORE_SLUG='${STORE_SLUG}' STORE_NAME_B64='${STORE_NAME_B64}' bash /tmp/mbfast-pit-tags.sh; c=\$?; rm -f /tmp/mbfast-pit-tags.sh; exit \$c" \
               2>&1 | tee /tmp/pit-tags-out.log
 
           if ! grep -q MBFAST_PIT_TAGS_COMPLETED /tmp/pit-tags-out.log; then
