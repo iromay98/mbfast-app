@@ -1,9 +1,12 @@
 import type { Metadata } from "next";
+import { PIT_APP_ICONS } from "@/lib/pit-metadata";
 import Link from "next/link";
 
 export const metadata: Metadata = {
   title: "mbPIT 利用規約",
   robots: { index: false, follow: false },
+  ...PIT_APP_ICONS,
+  appleWebApp: { capable: true, title: "mbPIT", statusBarStyle: "default" },
 };
 
 const h = "mt-6 text-sm font-bold text-white";

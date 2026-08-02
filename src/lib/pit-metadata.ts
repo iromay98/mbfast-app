@@ -1,6 +1,21 @@
 import type { Metadata } from "next";
 
 /*
+ * mbPITブランドのホーム画面設定（マニフェスト＋アイコン）。
+ * ルートlayoutはmbFASTなので、**mbPITとして見せるページは全部これを混ぜる**。
+ * 混ぜ忘れると、そのページからホーム画面に追加したときだけmbFASTのアイコンになる
+ * （実際に /pit/join・/pit/terms・/mycar が漏れていた）。
+ * iOSはmanifestのiconsを見ないため apple-touch-icon の指定が必須。
+ */
+export const PIT_APP_ICONS = {
+  manifest: "/manifest-pit.webmanifest",
+  icons: {
+    icon: [{ url: "/icons/pit-icon-192.png", sizes: "192x192", type: "image/png" }],
+    apple: [{ url: "/icons/pit-apple-touch-icon.png", sizes: "180x180", type: "image/png" }],
+  },
+} satisfies Pick<Metadata, "manifest" | "icons">;
+
+/*
  * mbPIT加盟店向け画面のメタデータ（mbFASTの名前を出さない・別ブランド運用）。
  * ルートlayoutのmetadataを上書きするため、title/description/appleWebAppを必ず明示する。
  *
@@ -13,12 +28,8 @@ export function pitMetadata(title: string): Metadata {
   return {
     title,
     description: "mbPIT 加盟店ポータル（施工記録の投稿・顧客カルテ・店舗情報）",
-    manifest: "/manifest-pit.webmanifest",
+    ...PIT_APP_ICONS,
     appleWebApp: { capable: true, title: "mbPIT", statusBarStyle: "default" },
-    icons: {
-      icon: [{ url: "/icons/pit-icon-192.png", sizes: "192x192", type: "image/png" }],
-      apple: [{ url: "/icons/pit-apple-touch-icon.png", sizes: "180x180", type: "image/png" }],
-    },
   };
 }
 
@@ -35,9 +46,6 @@ export function publicCertMetadata(title: string, description: string): Metadata
     robots: { index: false, follow: false },
     appleWebApp: { capable: true, title, statusBarStyle: "default" },
     // お客様がこのページをホーム画面に追加してもmbFASTのアイコンにならないようにする
-    icons: {
-      icon: [{ url: "/icons/pit-icon-192.png", sizes: "192x192", type: "image/png" }],
-      apple: [{ url: "/icons/pit-apple-touch-icon.png", sizes: "180x180", type: "image/png" }],
-    },
+    ...PIT_APP_ICONS,
   };
 }

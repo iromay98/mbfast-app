@@ -1,9 +1,13 @@
 import type { Metadata } from "next";
+import { PIT_APP_ICONS } from "@/lib/pit-metadata";
 import { JoinForm } from "./join-form";
 
 export const metadata: Metadata = {
   title: "mbPIT 加盟店登録",
   robots: { index: false, follow: false }, // mbPITセクションが限定公開の間はnoindex（STEALTH解除時に見直し）
+  // 加盟店候補が最初に見る公開ページ。ホーム画面に追加してもmbFASTのアイコンにしない
+  ...PIT_APP_ICONS,
+  appleWebApp: { capable: true, title: "mbPIT", statusBarStyle: "default" },
 };
 
 // mbPIT加盟店の自己登録ページ（公開・ログイン不要）。

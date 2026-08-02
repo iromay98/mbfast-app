@@ -1,10 +1,14 @@
 import type { ReactNode } from "react";
 import type { Metadata } from "next";
+import { PIT_APP_ICONS } from "@/lib/pit-metadata";
 
 export const metadata: Metadata = {
   title: "mbPIT — クルマのお薬手帳",
   description: "車検証のQRで、あなたの車の施工履歴と施工証明を確認できます。",
   robots: { index: false }, // ステルス運用（URLを知る人だけ）
+  // お客様のページ。ホーム画面に追加してもmbFASTのアイコン・名前にしない
+  ...PIT_APP_ICONS,
+  appleWebApp: { capable: true, title: "mbPIT", statusBarStyle: "default" },
 };
 
 // 顧客向けページはmbPITブランド（ダーク×ゴールド）。アプリのAppShellは使わない
