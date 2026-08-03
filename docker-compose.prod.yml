@@ -64,6 +64,21 @@ services:
       # 未設定なら prices:airtable-* は起動時に止まる（書き込みはしない）。
       AIRTABLE_PAT: "${AIRTABLE_PAT:-}"
       AIRTABLE_PRICE_BASE_ID: "${AIRTABLE_PRICE_BASE_ID:-}"
+      # mbPIT: Googleビジネスプロフィール（Googleマップ投稿）。
+      # 方式A＝認可するGoogleアカウントはmbFASTの1つだけ。認証情報は環境変数のみ（DBに置かない）。
+      # 未設定なら gbp:accounts / gbp:v4check は「未設定」で止まり、投稿もしない。
+      GBP_CLIENT_ID: "${GBP_CLIENT_ID:-}"
+      GBP_CLIENT_SECRET: "${GBP_CLIENT_SECRET:-}"
+      GBP_REFRESH_TOKEN: "${GBP_REFRESH_TOKEN:-}"
+      # 手動指定モード（一覧APIの割り当てが未承認でも先に進むための経路）。
+      # この2つは識別子で秘密情報ではない。DBの紐付けがあればそちらが優先される。
+      GBP_ACCOUNT_ID: "${GBP_ACCOUNT_ID:-}"
+      GBP_LOCATION_MAP: "${GBP_LOCATION_MAP:-}"
+      # 加盟店が管理者として招待する宛先（画面に表示する識別子。秘密情報ではない）
+      GBP_MANAGER_EMAIL: "${GBP_MANAGER_EMAIL:-}"
+      # 1日の投稿上限。投稿機能の実装時に効く（今はまだ読んでいない）。
+      # ここに載せておかないと .env に書いてもコンテナに渡らないため先に通しておく。
+      GBP_DAILY_POST_LIMIT: "${GBP_DAILY_POST_LIMIT:-80}"
       PIT_ARTICLE_MODEL: "${PIT_ARTICLE_MODEL:-claude-sonnet-5}"
       AUTO_PUBLISH: "${AUTO_PUBLISH:-true}"
       STEALTH_MODE: "${STEALTH_MODE:-true}"
@@ -76,6 +91,10 @@ services:
       AUTOTUNER_API_KEY: "${AUTOTUNER_API_KEY:-}"
       AUTOTUNER_TIMEOUT_MS: "${AUTOTUNER_TIMEOUT_MS:-30000}"
       AUTOTUNER_MAX_RETRIES: "${AUTOTUNER_MAX_RETRIES:-5}"
+      # 施工証明書の共有URL・検証QRの絶対URL。未設定なら AUTH_URL→リクエストヘッダの順で決まる
+      PUBLIC_BASE_URL: "${PUBLIC_BASE_URL:-}"
+      # ECU抽出: 何件以上のファイルに出る値を「共通の定数」として候補から外すか
+      ECU_COMMON_THRESHOLD: "${ECU_COMMON_THRESHOLD:-3}"
       SEED_ON_START: "${SEED_ON_START:-0}"
       NODE_ENV: "production"
     depends_on:

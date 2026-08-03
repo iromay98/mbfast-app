@@ -12,7 +12,7 @@ HQ（mbFAST Tuning本店）⇄ 代理店のポータル。Next.js 16 App Router 
 ## 絶対に守るセキュリティルール
 
 - 代理店には Cal/HW/SW/TCU/復号bin/専門情報を**絶対に見せない**（配布は .slave のみ。`hideTechnical` 系の設計を崩さない）
-- `.env` は**絶対にコミット・同期しない**。本番のsecret追記はユーザー自身が行う（新しい環境変数を足したら docker-compose.prod.yml の `environment:` 一覧への追加を忘れない — 一覧に無い変数はコンテナに渡らない）
+- `.env` は**絶対にコミット・同期しない**。本番のsecret追記はユーザー自身が行う（新しい環境変数を足したら docker-compose.prod.yml の `environment:` 一覧への追加を忘れない — 一覧に無い変数はコンテナに渡らない。`npm run check:env-allowlist` が突き合わせる＝**足し忘れると静かに未設定として動く**ので必ず通す）
 - パスワードは初期発行時のみ平文を表示。以後はハッシュのみ
 - ファイルは推測不能キーで保存し、認可付きルート経由でのみ配信
 
