@@ -169,8 +169,16 @@ jobs:
             fi
             echo "== 書き込み =="
             $COMPOSE exec -T app npx tsx "$SCRIPT" $ARGS --commit </dev/null
-            echo "== 書き込み後の再確認（差分が消えているはず） =="
-            $COMPOSE exec -T app npx tsx "$SCRIPT" $ARGS </dev/null
+            # 書き込み後の確認。job=add だけは**同じスクリプトを再実行できない**
+            # （新規登録は冪等ではなく、2回目は「slugが既にある」と正しく拒否する＝
+            #   それを失敗と数えてはいけない）。店舗一覧が出る読み取り専用の方で確かめる。
+            if [ "${JOB:-tags}" = "add" ]; then
+              echo "== 登録後の確認（店舗一覧・読み取りのみ） =="
+              $COMPOSE exec -T app npx tsx scripts/pit-sync-store-slug.mts </dev/null
+            else
+              echo "== 書き込み後の再確認（差分が消えているはず） =="
+              $COMPOSE exec -T app npx tsx "$SCRIPT" $ARGS </dev/null
+            fi
           else
             echo "（diff モードのため書き込んでいません）"
           fi
