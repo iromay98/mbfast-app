@@ -6,6 +6,8 @@
 #   job=slug  … WP側のカテゴリslugに合わせてアプリの店舗slugを揃える（slugのみ／DB）
 #   job=name  … 店舗の表示名を変える（store_slug と store_name の入力が必要／DB）
 #               命名の原則は「slugは英小文字・表示名は日本語」
+#   job=add   … WPにカテゴリはあるがアプリに無い店舗を店舗マスタへ登録する
+#               （store_slug / store_name / wp_category の入力が必要／DB）
 #   job=links … 記事末尾の「施工店」リンクを現在の店舗slugに直す
 #               （slugは投稿時に焼き込まれるので、改名すると過去記事だけ404になる）
 #
@@ -29,16 +31,24 @@ on:
   workflow_dispatch:
     inputs:
       job:
-        description: "tags=区分タグの遡及付与 / slug=店舗slugをWPに合わせる / name=店舗表示名の変更 / links=店舗リンクの修正"
+        description: "tags=区分タグの遡及付与 / slug=店舗slugをWPに合わせる / name=表示名の変更 / add=店舗の新規登録 / links=店舗リンクの修正"
         type: choice
-        options: [tags, slug, name, links]
+        options: [tags, slug, name, add, links]
         default: tags
       store_slug:
-        description: "job=name のときの対象店舗slug（例 pleasure）"
+        description: "job=name / add のときの店舗slug（英小文字。例 glanzcoat）"
         type: string
         required: false
       store_name:
-        description: "job=name のときの新しい表示名（日本語。例 プレジャー）"
+        description: "job=name / add のときの表示名（日本語形があれば日本語。例 プレジャー）"
+        type: string
+        required: false
+      wp_category:
+        description: "job=add のときのWPカテゴリID（親545直下。例 555）"
+        type: string
+        required: false
+      dealer_id:
+        description: "job=add で既存代理店に紐付ける場合の代理店ID。空なら本店直営として登録"
         type: string
         required: false
       mode:
@@ -120,6 +130,15 @@ jobs:
               # 表示名は日本語なので base64 で渡す（シェルの引用符事故を避ける）
               ARGS="--slug=${STORE_SLUG} --name-b64=${STORE_NAME_B64}"
               ;;
+            add)
+              SCRIPT=scripts/pit-add-store.mts
+              if [ -z "${STORE_SLUG:-}" ] || [ -z "${STORE_NAME_B64:-}" ] || [ -z "${WP_CATEGORY:-}" ]; then
+                echo "::error::job=add には store_slug / store_name / wp_category が必要です。"
+                exit 1
+              fi
+              ARGS="--slug=${STORE_SLUG} --name-b64=${STORE_NAME_B64} --wp-category=${WP_CATEGORY}"
+              if [ -n "${DEALER_ID:-}" ]; then ARGS="$ARGS --dealer=${DEALER_ID}"; fi
+              ;;
             *) echo "::error::未知のジョブ: ${JOB:-}"; exit 1 ;;
           esac
 
@@ -139,8 +158,8 @@ jobs:
           $COMPOSE exec -T app npx tsx "$SCRIPT" $ARGS </dev/null
 
           if [ "${MODE:-diff}" = "push" ]; then
-            # slug / name は本番DBを書き換える。1行1〜2列とはいえ戻せるようにしてから触る
-            if [ "${JOB:-tags}" = "slug" ] || [ "${JOB:-tags}" = "name" ]; then
+            # slug / name / add は本番DBを書き換える。小さい変更でも戻せるようにしてから触る
+            if [ "${JOB:-tags}" = "slug" ] || [ "${JOB:-tags}" = "name" ] || [ "${JOB:-tags}" = "add" ]; then
               STAMP=$(date +%Y%m%d-%H%M%S)
               echo "== 書き込み前に PitStore をダンプ（/root/backups/pitstore-$STAMP.sql） =="
               mkdir -p /root/backups
@@ -166,6 +185,8 @@ jobs:
           MODE: ${{ inputs.mode }}
           STORE_SLUG: ${{ inputs.store_slug }}
           STORE_NAME: ${{ inputs.store_name }}
+          WP_CATEGORY: ${{ inputs.wp_category }}
+          DEALER_ID: ${{ inputs.dealer_id }}
         run: |
           # 表示名は日本語や空白を含むので base64 にしてから渡す（ssh のコマンド行で壊さない）
           STORE_NAME_B64=""
@@ -175,13 +196,22 @@ jobs:
             echo "::error::store_slug は英小文字・数字・ハイフンのみです。"
             exit 1
           fi
+          # ID・数値もコマンド行に載るので形式を先に確認する
+          if [ -n "$WP_CATEGORY" ] && ! printf '%s' "$WP_CATEGORY" | grep -qE '^[0-9]+$'; then
+            echo "::error::wp_category は数字のみです。"
+            exit 1
+          fi
+          if [ -n "$DEALER_ID" ] && ! printf '%s' "$DEALER_ID" | grep -qE '^[A-Za-z0-9_-]+$'; then
+            echo "::error::dealer_id の形式が不正です。"
+            exit 1
+          fi
 
           B64=$(base64 -w0 /tmp/mbfast-pit-tags.sh)
           set -o pipefail
           ssh -i ~/.ssh/deploy_key \
               -o ConnectTimeout=15 -o ServerAliveInterval=15 -o ServerAliveCountMax=8 \
               root@162.43.42.72 \
-              "echo '$B64' | base64 -d > /tmp/mbfast-pit-tags.sh && JOB='${JOB}' MODE='${MODE}' STORE_SLUG='${STORE_SLUG}' STORE_NAME_B64='${STORE_NAME_B64}' bash /tmp/mbfast-pit-tags.sh; c=\$?; rm -f /tmp/mbfast-pit-tags.sh; exit \$c" \
+              "echo '$B64' | base64 -d > /tmp/mbfast-pit-tags.sh && JOB='${JOB}' MODE='${MODE}' STORE_SLUG='${STORE_SLUG}' STORE_NAME_B64='${STORE_NAME_B64}' WP_CATEGORY='${WP_CATEGORY}' DEALER_ID='${DEALER_ID}' bash /tmp/mbfast-pit-tags.sh; c=\$?; rm -f /tmp/mbfast-pit-tags.sh; exit \$c" \
               2>&1 | tee /tmp/pit-tags-out.log
 
           if ! grep -q MBFAST_PIT_TAGS_COMPLETED /tmp/pit-tags-out.log; then
