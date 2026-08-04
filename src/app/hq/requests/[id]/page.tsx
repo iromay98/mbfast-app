@@ -7,6 +7,7 @@ import { RequestInfo } from "@/components/request-info";
 import { RequestTimeline } from "@/components/request-timeline";
 import { updateRequestByHQ } from "@/lib/actions/requests";
 import { HQRequestForm } from "./hq-request-form";
+import { PriorityToggle } from "@/components/priority-toggle";
 
 export default async function HQRequestDetailPage({
   params,
@@ -60,6 +61,24 @@ export default async function HQRequestDetailPage({
           </LinkButton>
         }
       />
+      {/*
+        重要（★）の切り替え。一覧の行にもあるが、詳細を開いて処理しながら立てたい場面が多いので
+        ここにも置く（一覧に戻ってから押し直させない）。本店だけの印で代理店には見せない。
+      */}
+      <Card className={request.priority ? "border-rose-300 bg-rose-50" : ""}>
+        <div className="flex items-center gap-2">
+          <PriorityToggle requestId={request.id} priority={request.priority} size="md" />
+          <div>
+            <p className="text-sm font-bold text-ink">
+              {request.priority ? "重要（一覧の最上位に固定中）" : "重要にする"}
+            </p>
+            <p className="text-xs text-ink-soft">
+              急ぎ・トラブル対応の見落としを防ぐための印です。代理店には表示されません。
+            </p>
+          </div>
+        </div>
+      </Card>
+
       <RequestInfo request={request} />
 
       <HQRequestForm
