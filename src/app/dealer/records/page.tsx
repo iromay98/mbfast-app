@@ -14,6 +14,7 @@ import { ActivityFeed, getActivity } from "@/components/activity-feed";
 import { vehicleLabel, engineNameOf } from "@/lib/catalog/vehicle";
 import { SlaveUpload } from "./slave-upload";
 import { MasterFileUpload } from "./master-upload";
+import { RestoreScroll } from "@/components/restore-scroll";
 
 export default async function DealerRecordsPage() {
   const user = await requireFullDealer();
@@ -181,6 +182,9 @@ export default async function DealerRecordsPage() {
           <ActivityFeed items={activity} showDealer={false} />
         )}
       </div>
+
+      {/* 案件の詳細から戻ったとき、さっき見ていた位置に戻す */}
+      <RestoreScroll storageKey="dealer-records" />
     </div>
   );
 }

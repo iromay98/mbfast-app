@@ -1,16 +1,27 @@
 "use client";
 
-import { useActionState, useEffect, useRef } from "react";
+import { useActionState, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button, Card, FormError } from "@/components/ui";
 import { emptyFormState } from "@/lib/actions/form-state";
 import { uploadSlaveRecordByHQ } from "@/lib/actions/records";
 
-// 本部代行アップロード：代理店を指定してスレーブを登録（過去案件の取込など）
+/*
+ * 本部代行アップロード：代理店を指定してスレーブを登録（過去案件の取込など）。
+ *
+ * 既定は閉じている。毎回使うものではないのに一覧の一番上を占めていて、
+ * 依頼や記録を見るたびにスクロールさせられていたため。
+ * 送信中・エラー表示中は閉じない（結果が見えないまま畳まれないようにする）。
+ */
 export function HQSlaveUpload({ dealers }: { dealers: { id: string; name: string }[] }) {
   const [state, formAction, pending] = useActionState(uploadSlaveRecordByHQ, emptyFormState);
   const formRef = useRef<HTMLFormElement>(null);
   const router = useRouter();
+  const [opened, setOpened] = useState(false);
+  // エラー中は必ず開いた状態にする（閉じた裏でエラーが埋もれないように）。
+  // stateから導出するので、effectで開き直す必要がない
+  const open = opened || !!state.error;
+  const setOpen = setOpened;
 
   useEffect(() => {
     if (state.ok) {
@@ -21,12 +32,42 @@ export function HQSlaveUpload({ dealers }: { dealers: { id: string; name: string
     }
   }, [state, router]);
 
+  if (!open) {
+    return (
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="mb-4 flex w-full items-center justify-between gap-3 rounded-xl border border-gold-200 bg-gold-50 px-4 py-3 text-left hover:bg-gold-100"
+      >
+        <span>
+          <span className="text-sm font-bold text-ink">本部代行アップロード（スレーブ）</span>
+          <span className="mt-0.5 block text-xs text-ink-soft">
+            代理店を指定してスレーブを登録します
+          </span>
+        </span>
+        <span className="shrink-0 text-sm font-bold text-gold-700">開く ＋</span>
+      </button>
+    );
+  }
+
   return (
     <Card className="mb-4 border-gold-200 bg-gold-50">
-      <h2 className="text-sm font-bold text-ink">本部代行アップロード（スレーブ）</h2>
-      <p className="mt-0.5 text-xs text-ink-soft">
-        代理店を指定してスレーブを登録します。自動で復号・照合まで完了し、その記録から施工内容を選べます。
-      </p>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h2 className="text-sm font-bold text-ink">本部代行アップロード（スレーブ）</h2>
+          <p className="mt-0.5 text-xs text-ink-soft">
+            代理店を指定してスレーブを登録します。自動で復号・照合まで完了し、その記録から施工内容を選べます。
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => setOpen(false)}
+          disabled={pending}
+          className="shrink-0 rounded-lg px-2 py-1 text-xs font-semibold text-ink-soft hover:bg-gold-100 disabled:opacity-50"
+        >
+          閉じる ✕
+        </button>
+      </div>
       <form ref={formRef} action={formAction} className="mt-3 space-y-3">
         <div className="grid gap-3 sm:grid-cols-2">
           <label className="block">

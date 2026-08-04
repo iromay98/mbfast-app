@@ -89,6 +89,109 @@ function AreaSelect({ value, onChange }: { value: string; onChange: (v: string) 
   );
 }
 
+/*
+ * 所在地の入力。保存値は従来どおり**1つの文字列**（例: 大阪府堺市北区長曽根町3-1-2 mbFASTビル）
+ * なのでWP連携（mbpit_address）の契約は変わらない。
+ *
+ * 変えたのは入力のさせ方。
+ * - 「都道府県＋市区町村」はエリアで既に選んでいるので、**読み取り専用の見出しとして出す**。
+ *   以前は所在地の欄にも自動入力していて、同じものを2回入れている見た目になっていた。
+ * - 町域（区の下の町・大字）は手入力させずプルダウンから選ぶ（表記ゆれを防ぐ）。
+ *   一覧が取れない場合は手入力に落ちる（入力自体は止めない）。
+ * - 手で書くのは**番地・建物名だけ**。
+ */
+function AddressFields({
+  area,
+  value,
+  onChange,
+}: {
+  area: string;
+  value: string;
+  onChange: (v: string) => void;
+}) {
+  const { pref, city } = splitArea(area);
+  const prefix = `${pref}${city}`;
+  const [towns, setTowns] = useState<string[] | null>(null);
+  const [townFailed, setTownFailed] = useState(false);
+
+  // 保存値から「エリアの後ろ」を取り出す。エリアで始まっていない旧データはそのまま扱う
+  const rest = value.startsWith(prefix) && prefix ? value.slice(prefix.length) : value;
+  // 取得済みの町域一覧のうち、残り部分の先頭に一致するものを「選択中の町域」とみなす
+  const town = (towns ?? []).find((t) => rest.startsWith(t)) ?? "";
+  const banchi = town ? rest.slice(town.length) : rest;
+
+  useEffect(() => {
+    let cancelled = false;
+    setTowns(null);
+    setTownFailed(false);
+    if (!pref || !city) return;
+    void fetch(`/api/towns?pref=${encodeURIComponent(pref)}&city=${encodeURIComponent(city)}`)
+      .then((r) => r.json())
+      .then((d: { towns?: string[] }) => {
+        if (cancelled) return;
+        if (d.towns && d.towns.length > 0) setTowns(d.towns);
+        else setTownFailed(true);
+      })
+      .catch(() => {
+        if (!cancelled) setTownFailed(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [pref, city]);
+
+  const compose = (t: string, b: string) => onChange(`${prefix}${t}${b}`);
+  const cls = "mt-0.5 w-full rounded border border-line bg-surface px-2 py-1 text-xs font-semibold text-ink";
+
+  return (
+    <div className="mt-0.5 space-y-1.5">
+      {prefix ? (
+        <p className="rounded border border-line bg-surface-2 px-2 py-1 text-xs font-semibold text-ink-soft">
+          {prefix}
+          <span className="ml-1 text-[10px] font-normal">（エリアで選択済み）</span>
+        </p>
+      ) : (
+        <p className="text-[11px] text-amber-700">先に「エリア」で都道府県と市区町村を選んでください。</p>
+      )}
+      {/*
+        町域一覧が取れない（オフライン・API不調）ときは町域と番地を分けられないので、
+        1つの手入力に落とす。分けられないまま2つの欄を出すと、どちらに何を書くのか
+        わからなくなるため。
+      */}
+      {townFailed || !prefix ? (
+        <input
+          value={rest}
+          placeholder="町域・番地・建物名（例: 長曽根町3-1-2 mbFASTビル1F）"
+          onChange={(e) => onChange(`${prefix}${e.target.value}`)}
+          className={cls}
+        />
+      ) : (
+        <div className="grid gap-1.5 sm:grid-cols-2">
+          <select
+            value={town}
+            disabled={towns === null}
+            onChange={(e) => compose(e.target.value, banchi)}
+            className={cls}
+          >
+            <option value="">{towns === null ? "読み込み中…" : "町域を選択"}</option>
+            {(towns ?? []).map((t) => (
+              <option key={t} value={t}>
+                {t}
+              </option>
+            ))}
+          </select>
+          <input
+            value={banchi}
+            placeholder="番地・建物名（例: 3-1-2 mbFASTビル1F）"
+            onChange={(e) => compose(town, e.target.value)}
+            className={cls}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
 export type StoreInfoTarget = {
   id: string;
   displayName: string;
@@ -139,13 +242,26 @@ export function StoreInfoEditor({
         setZipMsg(d.error ?? "住所が見つかりませんでした");
         return;
       }
-      setInfo((old) => ({
-        ...old,
-        area: `${d.prefecture}${d.city ?? ""}`,
-        // 所在地は空のときだけ前半を自動入力（入力済みの番地を消さない）
-        address: old.address.trim() ? old.address : `${d.prefecture}${d.city ?? ""}${d.town ?? ""}`,
-      }));
-      setZipMsg("✓ エリアと所在地に反映しました（番地はご自身で追記してください）");
+      /*
+       * エリア（都道府県＋市区町村）と、所在地の町域までを埋める。
+       * 所在地は「エリア＋町域」までを入れ、**番地から先だけを残す**。
+       * 以前は入力済みなら何もしなかったため、市区町村を直したのに所在地が古いまま、
+       * という食い違いが起きていた。番地・建物名（既に手で書いた分）は消さない。
+       */
+      const nextArea = `${d.prefecture}${d.city ?? ""}`;
+      setInfo((old) => {
+        // 旧値から番地以降を取り出す。旧エリア＋町域で始まっていればその後ろが番地
+        const oldHead = `${old.area}`;
+        const tail = oldHead && old.address.startsWith(oldHead)
+          ? old.address.slice(oldHead.length).replace(new RegExp(`^${d.town ?? ""}`), "")
+          : "";
+        return {
+          ...old,
+          area: nextArea,
+          address: `${nextArea}${d.town ?? ""}${tail}`,
+        };
+      });
+      setZipMsg("✓ エリアと町域まで入れました（番地・建物名だけご入力ください）");
     } catch {
       setZipMsg("検索に失敗しました。手入力してください");
     } finally {
@@ -266,6 +382,12 @@ export function StoreInfoEditor({
             {label}
             {field === "area" ? (
               <AreaSelect value={info.area} onChange={(v) => set("area", v)} />
+            ) : field === "address" ? (
+              <AddressFields
+                area={info.area}
+                value={info.address}
+                onChange={(v) => set("address", v)}
+              />
             ) : field === "intro" ? (
               <textarea
                 value={info[field]}

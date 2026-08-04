@@ -368,6 +368,9 @@ model FileRequest {
   requestNote     String? // 依頼内容
   inputFilePath   String? // 代理店がアップしたスレーブ/読み出しファイル(ストレージ参照キー)
   status          RequestStatus  @default(RECEIVED)
+  // 本店が「重要」を立てた依頼。一覧で最上位に固定する（急ぎ・トラブル対応の見落とし防止）。
+  // 状態(status)とは独立＝作業中でも新規でも立てられる。
+  priority        Boolean        @default(false)
   // 誤リクエストのキャンセルフロー: 代理店が依頼→本店が承諾(status=CANCELLED)/却下。
   cancelRequestedAt DateTime?
   cancelReason      String?

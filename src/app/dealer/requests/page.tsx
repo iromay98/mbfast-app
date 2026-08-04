@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { formatDate } from "@/lib/labels";
 import { PageTitle, LinkButton } from "@/components/ui";
 import { RequestTable, type RequestRow } from "@/components/request-table";
+import { RestoreScroll } from "@/components/restore-scroll";
 
 export default async function DealerRequestsPage() {
   const user = await requireFullDealer();
@@ -42,6 +43,9 @@ export default async function DealerRequestsPage() {
         action={<LinkButton href="/dealer/requests/new">＋ 新規依頼</LinkButton>}
       />
       <RequestTable rows={rows} forHQ={false} hrefBase="/dealer/requests" />
+
+      {/* 詳細から戻ったとき、さっき見ていた位置に戻す */}
+      <RestoreScroll storageKey="dealer-requests" />
     </div>
   );
 }

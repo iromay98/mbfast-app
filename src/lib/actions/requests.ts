@@ -477,6 +477,31 @@ export async function createRecordTicket(
   return { ok: true };
 }
 
+/*
+ * ── 本店: 依頼の「重要」の切り替え ──────────────────────────
+ *
+ * 一覧の最上位に固定するための印。状態(status)とは独立させている
+ * （作業中でも新規でも立てられる＝急ぎ案件は状態が何であれ上に出したい）。
+ * 代理店には見せない本店の運用フラグなので、通知も監査イベントも作らない。
+ */
+export async function toggleRequestPriority(
+  requestId: string,
+  priority: boolean,
+): Promise<{ ok?: true; error?: string }> {
+  await requireHQ();
+  const req = await prisma.fileRequest.findUnique({
+    where: { id: requestId },
+    select: { id: true },
+  });
+  if (!req) return { error: "依頼が見つかりません" };
+  await prisma.fileRequest.update({ where: { id: requestId }, data: { priority } });
+  // 一覧（記録側にも未返却の依頼を出している）と詳細を作り直す
+  revalidatePath("/hq/requests");
+  revalidatePath("/hq/records");
+  revalidatePath(`/hq/requests/${requestId}`);
+  return { ok: true };
+}
+
 // ── 本店: 依頼更新（ステータス/コメント/成果ファイル/紐付け） ──
 export async function updateRequestByHQ(
   requestId: string,

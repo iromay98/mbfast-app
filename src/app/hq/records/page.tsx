@@ -13,6 +13,8 @@ import { PageTitle, Card, Badge, EmptyState, Button, Input, Select, Field } from
 import type { Prisma } from "@/generated/prisma/client";
 import { vehicleLabel, engineNameOf } from "@/lib/catalog/vehicle";
 import { HQSlaveUpload } from "./hq-slave-upload";
+import { PriorityToggle } from "@/components/priority-toggle";
+import { RestoreScroll } from "@/components/restore-scroll";
 
 // 一覧の車両名: 照合した純正(カタログ)の "メーカー 車種(世代) グレード" を優先。
 function recordTitle(r: {
@@ -95,14 +97,16 @@ export default async function HQRecordsPage({
         },
       },
     }),
-    // 未返却（納品/キャンセル以外）の依頼 — 一覧トップに出し、記録行にもバッジ表示
+    // 未返却（納品/キャンセル以外）の依頼 — 一覧トップに出し、記録行にもバッジ表示。
+    // 重要(★)を最上位に固定し、同じ重要度なら新しい順
     prisma.fileRequest.findMany({
       where: { status: { notIn: ["DELIVERED", "CANCELLED"] } },
-      orderBy: { createdAt: "desc" },
+      orderBy: [{ priority: "desc" }, { createdAt: "desc" }],
       select: {
         id: true,
         title: true,
         status: true,
+        priority: true,
         createdAt: true,
         serviceRecordId: true,
         requestNote: true,
@@ -113,6 +117,10 @@ export default async function HQRecordsPage({
       },
     }),
   ]);
+  // 「対応中（作業中）」と「新規リクエスト（未着手）」を分ける。
+  // どちらも未返却だが、着手済みかどうかで見るべきものが違う（着手済みは納品漏れ、未着手は取りこぼし）。
+  const inProgress = openRequests.filter((r) => r.status === "IN_PROGRESS");
+  const received = openRequests.filter((r) => r.status !== "IN_PROGRESS");
   // 未返却の依頼を持つ記録ID
   const openByRecord = new Set(
     openRequests.map((r) => r.serviceRecordId).filter((x): x is string => !!x),
@@ -175,52 +183,82 @@ export default async function HQRecordsPage({
       {/* 本部代行アップロード（代理店を指定してスレーブを登録） */}
       <HQSlaveUpload dealers={dealers} />
 
-      {/* 未返却の依頼（記録に紐づくものは記録へ、それ以外は依頼詳細へ） */}
-      {openRequests.length > 0 && (
-        <Card className="mb-4 border-amber-200 bg-amber-50">
-          <h3 className="mb-2 text-sm font-bold text-amber-900">
-            未返却の依頼（{openRequests.length}）
-          </h3>
-          <div className="divide-y divide-amber-200/60">
-            {openRequests.map((r) => {
-              // どんなリクエストか一目で: requestNote の「内容」を抽出してチップ表示
-              const label = r.requestNote?.match(/「(.+?)」/)?.[1];
-              const car = r.serviceRecord
-                ? `${r.serviceRecord.carMaker ?? ""} ${r.serviceRecord.carModel ?? ""}`.trim()
-                : "";
-              return (
-                <Link
-                  key={r.id}
-                  href={r.serviceRecordId ? `/hq/records/${r.serviceRecordId}` : `/hq/requests/${r.id}`}
-                  className="flex items-center justify-between gap-3 py-2 hover:bg-amber-100/40"
-                >
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-1.5">
-                      {label && (
-                        <span className="rounded bg-amber-600 px-1.5 py-0.5 text-[11px] font-bold text-white">
-                          {label}
-                        </span>
-                      )}
-                      <span className="truncate text-sm font-medium text-ink">
-                        {car || r.title}
-                      </span>
-                    </div>
-                    <div className="mt-0.5 text-xs text-ink-soft">
-                      {r.dealer.name}
-                      {r.serviceRecord?.customerName ? `・${r.serviceRecord.customerName}` : ""}
-                      ・{formatDate(r.createdAt)}
-                      {label && car ? `・${r.title}` : ""}
-                    </div>
+      {/*
+        未返却の依頼を「対応中」と「新規リクエスト」の2枠に分ける。
+        記録に紐づくものは記録へ、それ以外は依頼詳細へ飛ばす（従来どおり）。
+        ★は本店だけの印で、押しても詳細へ遷移しない。
+      */}
+      {[
+        { title: "対応中の依頼", rows: inProgress, tone: "amber" as const },
+        { title: "新規リクエスト（未着手）", rows: received, tone: "rose" as const },
+      ]
+        .filter((g) => g.rows.length > 0)
+        .map((g) => (
+          <Card
+            key={g.title}
+            className={`mb-4 ${
+              g.tone === "amber" ? "border-amber-200 bg-amber-50" : "border-rose-200 bg-rose-50"
+            }`}
+          >
+            <h3
+              className={`mb-2 text-sm font-bold ${
+                g.tone === "amber" ? "text-amber-900" : "text-rose-900"
+              }`}
+            >
+              {g.title}（{g.rows.length}）
+            </h3>
+            <div className={`divide-y ${g.tone === "amber" ? "divide-amber-200/60" : "divide-rose-200/60"}`}>
+              {g.rows.map((r) => {
+                // どんなリクエストか一目で: requestNote の「内容」を抽出してチップ表示
+                const label = r.requestNote?.match(/「(.+?)」/)?.[1];
+                const car = r.serviceRecord
+                  ? `${r.serviceRecord.carMaker ?? ""} ${r.serviceRecord.carModel ?? ""}`.trim()
+                  : "";
+                return (
+                  <div key={r.id} className="flex items-center gap-1.5 py-2">
+                    <PriorityToggle requestId={r.id} priority={r.priority} />
+                    <Link
+                      href={
+                        r.serviceRecordId
+                          ? `/hq/records/${r.serviceRecordId}`
+                          : `/hq/requests/${r.id}`
+                      }
+                      className={`flex min-w-0 flex-1 items-center justify-between gap-3 rounded-lg px-1 ${
+                        g.tone === "amber" ? "hover:bg-amber-100/40" : "hover:bg-rose-100/40"
+                      }`}
+                    >
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          {label && (
+                            <span
+                              className={`rounded px-1.5 py-0.5 text-[11px] font-bold text-white ${
+                                g.tone === "amber" ? "bg-amber-600" : "bg-rose-600"
+                              }`}
+                            >
+                              {label}
+                            </span>
+                          )}
+                          <span className="truncate text-sm font-medium text-ink">
+                            {car || r.title}
+                          </span>
+                        </div>
+                        <div className="mt-0.5 text-xs text-ink-soft">
+                          {r.dealer.name}
+                          {r.serviceRecord?.customerName ? `・${r.serviceRecord.customerName}` : ""}
+                          ・{formatDate(r.createdAt)}
+                          {label && car ? `・${r.title}` : ""}
+                        </div>
+                      </div>
+                      <Badge color={requestStatusColors[r.status]}>
+                        {requestStatusLabels[r.status]}
+                      </Badge>
+                    </Link>
                   </div>
-                  <Badge color={requestStatusColors[r.status]}>
-                    {requestStatusLabels[r.status]}
-                  </Badge>
-                </Link>
-              );
-            })}
-          </div>
-        </Card>
-      )}
+                );
+              })}
+            </div>
+          </Card>
+        ))}
 
       {/* 検索フォーム（GETでURLに反映） */}
       <Card className="mb-4">
@@ -392,6 +430,9 @@ export default async function HQRecordsPage({
           })}
         </Card>
       )}
+
+      {/* 記録の詳細から戻ったとき、さっき見ていた位置に戻す */}
+      <RestoreScroll storageKey="hq-records" />
     </div>
   );
 }

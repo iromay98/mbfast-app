@@ -48,6 +48,7 @@
     "prices:airtable-diff": "tsx -r dotenv/config scripts/price-sync/airtable-push.mts",
     "prices:airtable-push": "tsx -r dotenv/config scripts/price-sync/airtable-push.mts",
     "report:pit-usage": "tsx -r dotenv/config scripts/report-pit-certificates.mts",
+    "report:dealers": "tsx -r dotenv/config scripts/report-dealers.mts",
     "pit:sync-store-slug": "tsx -r dotenv/config scripts/pit-sync-store-slug.mts",
     "pit:set-store-name": "tsx -r dotenv/config scripts/pit-set-store-name.mts",
     "pit:add-store": "tsx -r dotenv/config scripts/pit-add-store.mts",

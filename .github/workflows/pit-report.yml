@@ -16,6 +16,7 @@ on:
         options:
           - taxonomy # 投稿の区分と店舗マスタの棚卸し
           - usage # 店舗ごとの証明書・車両・投稿の件数
+          - dealers # 代理店の棚卸し（ECU画面に入れない理由の切り分け）
         default: taxonomy
 
 concurrency:
@@ -71,6 +72,13 @@ jobs:
               ;;
             usage)
               $COMPOSE exec -T app npm run report:pit-usage </dev/null
+              ;;
+            dealers)
+              if ! $COMPOSE exec -T app test -f scripts/report-dealers.mts </dev/null; then
+                echo "::error::本番コンテナに report-dealers.mts がありません。先に main をデプロイしてください。"
+                exit 1
+              fi
+              $COMPOSE exec -T app npx tsx scripts/report-dealers.mts </dev/null
               ;;
             *)
               echo "::error::未知のレポート: ${REPORT:-}"; exit 1 ;;

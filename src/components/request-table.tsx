@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Card, EmptyState } from "@/components/ui";
 import { formatDate } from "@/lib/labels";
+import { PriorityToggle } from "@/components/priority-toggle";
 
 export type RequestRow = {
   id: string;
@@ -11,6 +12,7 @@ export type RequestRow = {
   status: "RECEIVED" | "IN_PROGRESS" | "DELIVERED" | "CANCELLED";
   autoDelivered: boolean; // 納品(自動)か
   dealer?: string | null; // 本店表示用
+  priority?: boolean; // 本店が立てた「重要」（一覧の最上位に固定）
   updatedAtLabel: string;
 };
 
@@ -53,6 +55,8 @@ export function RequestTable({
         <table className="w-full min-w-[46rem] text-xs">
           <thead className="bg-surface-2 text-left text-[11px] text-ink-soft">
             <tr>
+              {/* 重要（本店のみ。押しても詳細へ飛ばない） */}
+              {forHQ && <th className="w-8 px-1 py-1.5 font-semibold" />}
               {forHQ && <th className="px-2 py-1.5 font-semibold">代理店</th>}
               <th className="px-2 py-1.5 font-semibold">顧客名</th>
               <th className="px-2 py-1.5 font-semibold">車両</th>
@@ -65,7 +69,15 @@ export function RequestTable({
             {rows.map((r) => {
               const st = statusView(r, forHQ);
               return (
-                <tr key={r.id} className="hover:bg-surface-2">
+                <tr
+                  key={r.id}
+                  className={`hover:bg-surface-2 ${r.priority ? "bg-rose-50/60" : ""}`}
+                >
+                  {forHQ && (
+                    <td className="px-1 py-1.5 align-middle">
+                      <PriorityToggle requestId={r.id} priority={!!r.priority} />
+                    </td>
+                  )}
                   {forHQ && (
                     <td className="max-w-[9rem] truncate px-2 py-1.5 font-medium text-ink">
                       {r.dealer ?? "—"}
