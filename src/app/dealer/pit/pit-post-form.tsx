@@ -321,12 +321,21 @@ export function PitPostForm({
   useEffect(() => {
     memoRef.current = memo;
   }, [memo]);
+  /*
+   * このセッションの土台になる本文（＝録音開始時の本文）。
+   * 認識結果は「土台＋今回の確定文の全部」で**置き換える**ので、
+   * Androidが確定済みを再通知しても本文が増殖しない。
+   */
+  const baseRef = useRef("");
+  // 再開待ちのタイマー。停止・離脱時に必ず止める（止め忘れると勝手に再開する）
+  const restartTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
     setSpeechOk(getSpeechRecognition() !== null);
     return () => {
       // 画面を離れるときは再開させない（stopだけだとonendで再開してしまう）
       wantRecRef.current = false;
+      if (restartTimerRef.current !== null) clearTimeout(restartTimerRef.current);
       recRef.current?.abort();
     };
   }, []);
@@ -470,47 +479,67 @@ export function PitPostForm({
     rec.lang = "ja-JP";
     rec.continuous = true;
     rec.interimResults = true;
+    /*
+     * ここが重複バグの本体だった。
+     *
+     * Android Chrome は `resultIndex` を信用できず、**確定済みの結果をもう一度通知**してくる。
+     * 「resultIndex から後ろの isFinal を本文に追記する」方式だと、同じ言葉が何度も足され、
+     * 喋るほど増殖して最後は上限に当たって止まる（iPhoneでは起きにくい）。
+     *
+     * なので追記をやめ、**毎回 results 全体から作り直して置き換える**。
+     *   本文 = 録音開始時の本文(baseRef) + このセッションの確定文の全部
+     * 同じ結果が何度通知されても、組み立て直した文字列は同じなので増えない。
+     */
     rec.onresult = (e) => {
       let interimText = "";
-      let finalText = "";
-      for (let i = e.resultIndex; i < e.results.length; i++) {
+      let sessionFinal = "";
+      for (let i = 0; i < e.results.length; i++) {
         const r = e.results[i];
-        if (r.isFinal) finalText += r[0].transcript;
+        if (r.isFinal) sessionFinal += r[0].transcript;
         else interimText += r[0].transcript;
       }
       // 声が届いた＝生きているので、再開回数の数え直し
-      if (finalText || interimText) restartsRef.current = 0;
-      if (finalText) {
-        /*
-         * 現在値は ref から読む。setMemo の更新関数の中で停止処理やメッセージ表示（副作用）を
-         * やると、React が更新関数を2回呼ぶ場面で二重に走るため。
-         */
-        const next = memoRef.current + finalText;
-        if (next.length > MEMO_MAX) {
-          // 上限に達したら黙って切り捨てるのではなく、止めて理由を伝える
-          wantRecRef.current = false;
-          recRef.current?.stop();
-          setSpeechMsg(`メモが上限（${MEMO_MAX}文字）に達したので録音を止めました。`);
-          memoRef.current = next.slice(0, MEMO_MAX);
-        } else {
-          memoRef.current = next;
-        }
-        setMemo(memoRef.current);
+      if (sessionFinal || interimText) restartsRef.current = 0;
+
+      const next = baseRef.current + sessionFinal;
+      if (next.length > MEMO_MAX) {
+        // 上限に達したら黙って切り捨てるのではなく、止めて理由を伝える
+        wantRecRef.current = false;
+        recRef.current?.stop();
+        setSpeechMsg(`メモが上限（${MEMO_MAX}文字）に達したので録音を止めました。`);
+        setMemo(next.slice(0, MEMO_MAX));
+      } else {
+        setMemo(next);
       }
       setInterim(interimText);
     };
     rec.onend = () => {
       setInterim("");
       recRef.current = null;
-      // 利用者がまだ録音したいなら、勝手に終わった分はこちらで再開する
+      /*
+       * 利用者がまだ録音したいなら、勝手に終わった分はこちらで再開する。
+       * 再開時は**このセッションの確定文が本文に入り切っている**ので、
+       * 次のセッションの土台を今の本文にし直す（しないと次の結果で前半が消える）。
+       */
       if (wantRecRef.current) {
+        baseRef.current = memoRef.current;
         if (restartsRef.current++ < 20) {
-          try {
-            startRecognition();
-            return;
-          } catch {
-            // start が投げた場合はそのまま停止扱いに落ちる
-          }
+          /*
+           * すぐ start() すると、前のセッションが完全に終わっていないAndroidで
+           * InvalidStateError になることがある。少し待ってから開始する。
+           */
+          restartTimerRef.current = window.setTimeout(() => {
+            restartTimerRef.current = null;
+            if (!wantRecRef.current) return;
+            try {
+              startRecognition();
+            } catch {
+              wantRecRef.current = false;
+              setRecording(false);
+              setSpeechMsg("音声認識を再開できませんでした。もう一度タップしてください。");
+            }
+          }, 300);
+          return;
         }
         setSpeechMsg("音声認識が繰り返し中断されたため停止しました。もう一度タップしてください。");
       }
@@ -535,12 +564,19 @@ export function PitPostForm({
     if (recording) {
       // 停止は「もう続けない」を先に立てる（onendでの自動再開を止めるため）
       wantRecRef.current = false;
+      if (restartTimerRef.current !== null) {
+        clearTimeout(restartTimerRef.current);
+        restartTimerRef.current = null;
+      }
       recRef.current?.stop();
       return;
     }
     if (!getSpeechRecognition()) return;
     setSpeechMsg(null);
+    setInterim("");
     restartsRef.current = 0;
+    // 今の本文を土台にして、そこへ今回の認識結果を足していく
+    baseRef.current = memoRef.current;
     wantRecRef.current = true;
     setRecording(true);
     try {
@@ -550,6 +586,23 @@ export function PitPostForm({
       setRecording(false);
       setSpeechMsg("音声認識を開始できませんでした。もう一度お試しください。");
     }
+  };
+
+  /*
+   * 録音中に本文を手で直したとき。
+   * 土台を「直した後の本文」にし、認識セッションを作り直す
+   * （作り直さないと、次の通知で今回のセッションの確定文がもう一度足され、直した内容が戻る）。
+   */
+  const onMemoEdit = (v: string) => {
+    setMemo(v);
+    memoRef.current = v;
+    if (!recording) return;
+    baseRef.current = v;
+    // 編集による作り直しは「失敗」ではないので、再開回数に数えない
+    // （数えると連続入力で上限に達し、勝手に録音が止まる）
+    restartsRef.current = 0;
+    // abort → onend で自動再開される（stopだと最後の確定結果が飛んできて上書きされる）
+    recRef.current?.abort();
   };
 
   const submit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -828,7 +881,7 @@ export function PitPostForm({
           rows={4}
           maxLength={MEMO_MAX}
           value={memo}
-          onChange={(e) => setMemo(e.target.value)}
+          onChange={(e) => onMemoEdit(e.target.value)}
           placeholder="音声認識の結果がここに入ります。手入力・修正もOK（任意。空でもAIが写真から記事を作ります）"
           className={`w-full rounded-xl border-2 bg-surface px-3 py-2.5 text-sm leading-relaxed text-ink ${
             recording ? "border-red-400" : "border-gold-500"
