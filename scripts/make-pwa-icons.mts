@@ -10,9 +10,13 @@
  * 地色はmbPITの黒（#0d0d0d。記事トップバーやアプリUIと同じ）。
  *
  * 使い方:
- *   npx tsx scripts/make-pwa-icons.mts                       … 既定のロゴ(public/brand/mbpit-logo.jpg)から生成
+ *   npx tsx scripts/make-pwa-icons.mts                       … mbPIT（既定・黒地）
+ *   npx tsx scripts/make-pwa-icons.mts --brand mbfast        … mbFAST（白地・ロゴが黒なので反転させない）
  *   npx tsx scripts/make-pwa-icons.mts --from <画像>          … 別のロゴから生成
  *   npx tsx scripts/make-pwa-icons.mts --wordmark            … ロゴが無いときの暫定ワードマーク
+ *
+ * ブランドで変わるのは「地色」と「出力ファイル名」だけ。ロゴの置き方の理屈は共通なので
+ * 1つのスクリプトに寄せる（2本に分けると片方だけ直して食い違う）。
  *
  * ロゴが横長のときの扱い（mbPITロゴは約4.2:1）:
  *  - まず**周囲の余地を自動で切る**（trim）。切らずに縮めると文字が小さくなりすぎる
@@ -26,17 +30,49 @@ import { writeFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 
 const OUT = join(process.cwd(), "public", "icons");
-/*
- * 地色は**純黒**にする。ロゴ画像の背景が #000000 のため、#0d0d0d のような
- * 「ほぼ黒」だと合成後にロゴの矩形だけが色違いになって四角い枠が見える（実際にそうなった）。
- */
-const BG = "#000000";
 const GOLD = "#d4af37";
+
+const brandIndex = process.argv.indexOf("--brand");
+const brand = brandIndex > 0 ? process.argv[brandIndex + 1] : "pit";
+if (brand !== "pit" && brand !== "mbfast") {
+  console.error(`--brand は pit か mbfast です（受け取った値: ${brand}）`);
+  process.exit(2);
+}
+
+/*
+ * 地色はロゴ画像の背景と**同じ色**にする。少しでも違うと合成後にロゴの矩形だけが
+ * 色違いになって四角い枠が見える（mbPITで実際にそうなった。#0d0d0d と #000000 の差）。
+ *   mbPIT : ロゴ背景が純黒 → #000000
+ *   mbFAST: ロゴが白地に黒の文字 → #ffffff（反転させない。ブランドは白・グレー・ゴールド）
+ */
+const BRANDS = {
+  pit: {
+    bg: "#000000",
+    logo: join(process.cwd(), "public", "brand", "mbpit-logo.jpg"),
+    files: {
+      any192: "pit-icon-192.png",
+      any512: "pit-icon-512.png",
+      maskable512: "pit-icon-512-maskable.png",
+      apple: "pit-apple-touch-icon.png",
+    },
+  },
+  mbfast: {
+    bg: "#ffffff",
+    logo: join(process.cwd(), "public", "brand", "mbfast-logo.png"),
+    files: {
+      any192: "icon-192.png",
+      any512: "icon-512.png",
+      maskable512: "icon-512-maskable.png",
+      apple: "apple-touch-icon.png",
+    },
+  },
+} as const;
+const B = BRANDS[brand];
+const BG = B.bg;
 
 const fromIndex = process.argv.indexOf("--from");
 const useWordmark = process.argv.includes("--wordmark");
-const DEFAULT_LOGO = join(process.cwd(), "public", "brand", "mbpit-logo.jpg");
-const logoPath = useWordmark ? null : fromIndex > 0 ? process.argv[fromIndex + 1] : DEFAULT_LOGO;
+const logoPath = useWordmark ? null : fromIndex > 0 ? process.argv[fromIndex + 1] : B.logo;
 
 /** ワードマークのSVG。maskable用に中央80%へ収める（端が切られても文字が残る） */
 function wordmarkSvg(size: number): string {
@@ -48,7 +84,7 @@ function wordmarkSvg(size: number): string {
         rx="${size * 0.08}" fill="none" stroke="${GOLD}" stroke-width="${ring}" opacity="0.8"/>
   <text x="50%" y="50%" dy="0.36em" text-anchor="middle"
         font-family="DejaVu Sans, sans-serif" font-size="${fs}" font-weight="700" fill="${GOLD}"
-        letter-spacing="${size * 0.005}">mbPIT</text>
+        letter-spacing="${size * 0.005}">${brand === "mbfast" ? "mbFAST" : "mbPIT"}</text>
 </svg>`;
 }
 
@@ -84,15 +120,15 @@ if (logoPath && !existsSync(logoPath)) {
 
 for (const [name, size, ratio] of [
   // any: 通常表示（そのまま出るので大きめに使う）
-  ["pit-icon-192.png", 192, 0.88],
-  ["pit-icon-512.png", 512, 0.88],
+  [B.files.any192, 192, 0.88],
+  [B.files.any512, 512, 0.88],
   // maskable: Androidが円などに切り抜くため安全域に収める
-  ["pit-icon-512-maskable.png", 512, 0.76],
+  [B.files.maskable512, 512, 0.76],
   // iOSのホーム画面（角丸は端末側で付く）
-  ["pit-apple-touch-icon.png", 180, 0.88],
+  [B.files.apple, 180, 0.88],
 ] as const) {
   const buf = await make(size, ratio);
   writeFileSync(join(OUT, name), buf);
   console.log(`生成: public/icons/${name}  ${size}x${size}  幅${Math.round(ratio * 100)}%  ${buf.length} bytes`);
 }
-console.log(logoPath ? `ロゴから生成しました: ${logoPath}` : "※ 暫定のワードマークから生成しました。");
+console.log(logoPath ? `ロゴから生成しました: ${logoPath}（brand=${brand} 地色=${BG}）` : "※ 暫定のワードマークから生成しました。");

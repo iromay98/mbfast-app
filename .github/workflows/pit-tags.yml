@@ -8,6 +8,8 @@
 #               命名の原則は「slugは英小文字・表示名は日本語」
 #   job=add   … WPにカテゴリはあるがアプリに無い店舗を店舗マスタへ登録する
 #               （store_slug / store_name / wp_category の入力が必要／DB）
+#   job=merge … 同じ店舗が2つに分かれた代理店を統合する
+#               （merge_from / merge_into の入力が必要。allow_ecu でECU画面を開放／DB）
 #   job=links … 記事末尾の「施工店」リンクを現在の店舗slugに直す
 #               （slugは投稿時に焼き込まれるので、改名すると過去記事だけ404になる）
 #
@@ -31,9 +33,9 @@ on:
   workflow_dispatch:
     inputs:
       job:
-        description: "tags=区分タグの遡及付与 / slug=店舗slugをWPに合わせる / name=表示名の変更 / add=店舗の新規登録 / links=店舗リンクの修正"
+        description: "tags=区分タグ遡及 / slug=店舗slug / name=表示名 / add=店舗登録 / merge=代理店の統合 / links=店舗リンク修正"
         type: choice
-        options: [tags, slug, name, add, links]
+        options: [tags, slug, name, add, merge, links]
         default: tags
       store_slug:
         description: "job=name / add のときの店舗slug（英小文字。例 glanzcoat）"
@@ -51,13 +53,25 @@ on:
         description: "job=add で既存代理店に紐付ける場合の代理店ID。空なら本店直営として登録"
         type: string
         required: false
+      merge_from:
+        description: "job=merge の移動元の代理店ID（空になるが削除しない）"
+        type: string
+        required: false
+      merge_into:
+        description: "job=merge の移動先の代理店ID（ここに寄せる）"
+        type: string
+        required: false
+      allow_ecu:
+        description: "job=merge で移動先の pitOnly を false にする（ECU系画面＝技術情報を開放する）"
+        type: boolean
+        default: false
       mode:
         description: "diff=内容を見るだけ / push=WPへ書き込む"
         type: choice
         options: [diff, push]
         default: diff
       confirm:
-        description: "push のときは job名を大文字で入力（TAGS / SLUG / LINKS）。diff では不要"
+        description: "push のときは job名を大文字で入力（TAGS / SLUG / NAME / ADD / MERGE / LINKS）。diff では不要"
         type: string
         required: false
 
@@ -139,6 +153,15 @@ jobs:
               ARGS="--slug=${STORE_SLUG} --name-b64=${STORE_NAME_B64} --wp-category=${WP_CATEGORY}"
               if [ -n "${DEALER_ID:-}" ]; then ARGS="$ARGS --dealer=${DEALER_ID}"; fi
               ;;
+            merge)
+              SCRIPT=scripts/merge-dealer.mts
+              if [ -z "${MERGE_FROM:-}" ] || [ -z "${MERGE_INTO:-}" ]; then
+                echo "::error::job=merge には merge_from と merge_into が必要です。"
+                exit 1
+              fi
+              ARGS="--from=${MERGE_FROM} --into=${MERGE_INTO}"
+              if [ "${ALLOW_ECU:-false}" = "true" ]; then ARGS="$ARGS --allow-ecu"; fi
+              ;;
             *) echo "::error::未知のジョブ: ${JOB:-}"; exit 1 ;;
           esac
 
@@ -147,10 +170,13 @@ jobs:
             exit 1
           fi
 
-          # WP認証がコンテナに渡っているかを先に確認する（値は絶対に出さない）
-          if ! $COMPOSE exec -T app sh -c '[ -n "$WP_USER" ] && [ -n "$WP_APP_PASSWORD" ]' </dev/null; then
-            echo "::error::コンテナに WP_USER / WP_APP_PASSWORD が渡っていません。"
-            exit 1
+          # WP認証がコンテナに渡っているかを先に確認する（値は絶対に出さない）。
+          # merge はWordPressに一切触らないのでこの確認は要らない
+          if [ "${JOB:-tags}" != "merge" ]; then
+            if ! $COMPOSE exec -T app sh -c '[ -n "$WP_USER" ] && [ -n "$WP_APP_PASSWORD" ]' </dev/null; then
+              echo "::error::コンテナに WP_USER / WP_APP_PASSWORD が渡っていません。"
+              exit 1
+            fi
           fi
 
           # まず必ず差分（読み取りのみ）を出す
@@ -158,11 +184,18 @@ jobs:
           $COMPOSE exec -T app npx tsx "$SCRIPT" $ARGS </dev/null
 
           if [ "${MODE:-diff}" = "push" ]; then
-            # slug / name / add は本番DBを書き換える。小さい変更でも戻せるようにしてから触る
-            if [ "${JOB:-tags}" = "slug" ] || [ "${JOB:-tags}" = "name" ] || [ "${JOB:-tags}" = "add" ]; then
-              STAMP=$(date +%Y%m%d-%H%M%S)
+            # DBを書き換えるジョブは、戻せるようにしてから触る。
+            # merge は複数テーブル（記録・依頼・ユーザー・既読・DL・Dealer）に跨るので**全体**を取る。
+            # slug / name / add は PitStore の1行しか触らないのでそのテーブルだけで足りる。
+            STAMP=$(date +%Y%m%d-%H%M%S)
+            mkdir -p /root/backups
+            if [ "${JOB:-tags}" = "merge" ]; then
+              echo "== 書き込み前にDB全体をダンプ（/root/backups/db-$STAMP.sql） =="
+              $COMPOSE exec -T postgres pg_dump -U mbfast -d mbfast </dev/null \
+                > "/root/backups/db-$STAMP.sql"
+              echo "  $(wc -l < "/root/backups/db-$STAMP.sql") 行"
+            elif [ "${JOB:-tags}" = "slug" ] || [ "${JOB:-tags}" = "name" ] || [ "${JOB:-tags}" = "add" ]; then
               echo "== 書き込み前に PitStore をダンプ（/root/backups/pitstore-$STAMP.sql） =="
-              mkdir -p /root/backups
               $COMPOSE exec -T postgres pg_dump -U mbfast -d mbfast -t '"PitStore"' </dev/null \
                 > "/root/backups/pitstore-$STAMP.sql"
               echo "  $(wc -l < "/root/backups/pitstore-$STAMP.sql") 行"
@@ -195,6 +228,9 @@ jobs:
           STORE_NAME: ${{ inputs.store_name }}
           WP_CATEGORY: ${{ inputs.wp_category }}
           DEALER_ID: ${{ inputs.dealer_id }}
+          MERGE_FROM: ${{ inputs.merge_from }}
+          MERGE_INTO: ${{ inputs.merge_into }}
+          ALLOW_ECU: ${{ inputs.allow_ecu }}
         run: |
           # 表示名は日本語や空白を含むので base64 にしてから渡す（ssh のコマンド行で壊さない）
           STORE_NAME_B64=""
@@ -213,13 +249,19 @@ jobs:
             echo "::error::dealer_id の形式が不正です。"
             exit 1
           fi
+          for v in "$MERGE_FROM" "$MERGE_INTO"; do
+            if [ -n "$v" ] && ! printf '%s' "$v" | grep -qE '^[A-Za-z0-9_-]+$'; then
+              echo "::error::merge_from / merge_into の形式が不正です。"
+              exit 1
+            fi
+          done
 
           B64=$(base64 -w0 /tmp/mbfast-pit-tags.sh)
           set -o pipefail
           ssh -i ~/.ssh/deploy_key \
               -o ConnectTimeout=15 -o ServerAliveInterval=15 -o ServerAliveCountMax=8 \
               root@162.43.42.72 \
-              "echo '$B64' | base64 -d > /tmp/mbfast-pit-tags.sh && JOB='${JOB}' MODE='${MODE}' STORE_SLUG='${STORE_SLUG}' STORE_NAME_B64='${STORE_NAME_B64}' WP_CATEGORY='${WP_CATEGORY}' DEALER_ID='${DEALER_ID}' bash /tmp/mbfast-pit-tags.sh; c=\$?; rm -f /tmp/mbfast-pit-tags.sh; exit \$c" \
+              "echo '$B64' | base64 -d > /tmp/mbfast-pit-tags.sh && JOB='${JOB}' MODE='${MODE}' STORE_SLUG='${STORE_SLUG}' STORE_NAME_B64='${STORE_NAME_B64}' WP_CATEGORY='${WP_CATEGORY}' DEALER_ID='${DEALER_ID}' MERGE_FROM='${MERGE_FROM}' MERGE_INTO='${MERGE_INTO}' ALLOW_ECU='${ALLOW_ECU}' bash /tmp/mbfast-pit-tags.sh; c=\$?; rm -f /tmp/mbfast-pit-tags.sh; exit \$c" \
               2>&1 | tee /tmp/pit-tags-out.log
 
           if ! grep -q MBFAST_PIT_TAGS_COMPLETED /tmp/pit-tags-out.log; then

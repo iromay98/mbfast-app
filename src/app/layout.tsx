@@ -6,6 +6,18 @@ export const metadata: Metadata = {
   title: "mbFAST 連携アプリ",
   description: "mbFAST 本店⇄代理店 連携アプリ（施工台帳・作業依頼・お知らせ）",
   manifest: "/manifest.webmanifest",
+  /*
+   * ホーム画面アイコン。**iOSはmanifestのiconsを見ない**ので apple を別に指定する。
+   * ここが無いと、iPhoneでホーム画面に追加したときにページの縮小画像になる
+   * （実際に「無地のまま」に見えていた原因）。
+   */
+  icons: {
+    icon: [
+      { url: "/icons/icon-192.png", sizes: "192x192", type: "image/png" },
+      { url: "/icons/icon-512.png", sizes: "512x512", type: "image/png" },
+    ],
+    apple: [{ url: "/icons/apple-touch-icon.png", sizes: "180x180", type: "image/png" }],
+  },
   appleWebApp: {
     capable: true,
     title: "mbFAST",
