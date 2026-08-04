@@ -113,7 +113,29 @@ type SpeechRecognitionLike = {
   onerror: ((e: { error?: string }) => void) | null;
   start(): void;
   stop(): void;
+  abort(): void;
 };
+
+/*
+ * 音声認識のエラーを日本語にする。黙って止まるのが一番困るので、必ず理由を出す。
+ * no-speech / aborted は「異常ではない」ので、この関数はメッセージを返さない扱いにする。
+ */
+function speechErrorMessage(code: string | undefined): string | null {
+  switch (code) {
+    case "not-allowed":
+    case "service-not-allowed":
+      return "マイクの使用が許可されていません。ブラウザのアドレスバーの🔒からマイクを許可してください。";
+    case "audio-capture":
+      return "マイクが見つかりません。端末のマイクを確認してください。";
+    case "network":
+      return "音声認識サーバーに接続できませんでした（通信環境をご確認ください）。";
+    case "no-speech":
+    case "aborted":
+      return null; // 無音・停止操作。エラー表示はしない
+    default:
+      return code ? `音声認識が停止しました（${code}）。もう一度お試しください。` : null;
+  }
+}
 
 function getSpeechRecognition(): (new () => SpeechRecognitionLike) | null {
   if (typeof window === "undefined") return null;
@@ -122,6 +144,9 @@ function getSpeechRecognition(): (new () => SpeechRecognitionLike) | null {
     | (new () => SpeechRecognitionLike)
     | null;
 }
+
+/** メモの上限。textarea の maxLength と音声入力の打ち切り判定で同じ値を使う */
+const MEMO_MAX = 1000;
 
 // 送信中に順番に見せる進捗メッセージ（実際の処理段階に対応）
 const LOADING_STEPS = [
@@ -278,11 +303,32 @@ export function PitPostForm({
   const [interim, setInterim] = useState("");
   const [recording, setRecording] = useState(false);
   const [speechOk, setSpeechOk] = useState(false);
+  const [speechMsg, setSpeechMsg] = useState<string | null>(null);
   const recRef = useRef<SpeechRecognitionLike | null>(null);
+  /*
+   * 「利用者がまだ録音を続けたいか」。continuous=true でも実際には無音や回線の都揃いで
+   * onend が勝手に飛ぶ（＝録音が黙って止まる）ので、意図と実際の状態を分けて持つ。
+   * これが true のまま onend が来たら、こちらから再開する。
+   */
+  const wantRecRef = useRef(false);
+  // 再開の暴走止め。連続で失敗し続けるときは諦めてメッセージを出す
+  const restartsRef = useRef(0);
+  /*
+   * memo の現在値。認識結果の追記は onresult（Reactの外）から来るので、
+   * 上限判定に使う値をここから読む（setMemoの更新関数内で副作用を起こさないため）。
+   */
+  const memoRef = useRef("");
+  useEffect(() => {
+    memoRef.current = memo;
+  }, [memo]);
 
   useEffect(() => {
     setSpeechOk(getSpeechRecognition() !== null);
-    return () => recRef.current?.stop();
+    return () => {
+      // 画面を離れるときは再開させない（stopだけだとonendで再開してしまう）
+      wantRecRef.current = false;
+      recRef.current?.abort();
+    };
   }, []);
 
   // ── 下書き（端末内保存）: 入力途中でアプリが閉じても消えないようにする ──
@@ -416,11 +462,8 @@ export function PitPostForm({
     return () => clearInterval(iv);
   }, [busy]);
 
-  const toggleVoice = () => {
-    if (recording) {
-      recRef.current?.stop();
-      return;
-    }
+  // 認識インスタンスを1つ作って動かす。onendでの自動再開もここから呼ぶ
+  const startRecognition = () => {
     const Ctor = getSpeechRecognition();
     if (!Ctor) return;
     const rec = new Ctor();
@@ -435,21 +478,78 @@ export function PitPostForm({
         if (r.isFinal) finalText += r[0].transcript;
         else interimText += r[0].transcript;
       }
-      if (finalText) setMemo((m) => (m + finalText).slice(0, 1000));
+      // 声が届いた＝生きているので、再開回数の数え直し
+      if (finalText || interimText) restartsRef.current = 0;
+      if (finalText) {
+        /*
+         * 現在値は ref から読む。setMemo の更新関数の中で停止処理やメッセージ表示（副作用）を
+         * やると、React が更新関数を2回呼ぶ場面で二重に走るため。
+         */
+        const next = memoRef.current + finalText;
+        if (next.length > MEMO_MAX) {
+          // 上限に達したら黙って切り捨てるのではなく、止めて理由を伝える
+          wantRecRef.current = false;
+          recRef.current?.stop();
+          setSpeechMsg(`メモが上限（${MEMO_MAX}文字）に達したので録音を止めました。`);
+          memoRef.current = next.slice(0, MEMO_MAX);
+        } else {
+          memoRef.current = next;
+        }
+        setMemo(memoRef.current);
+      }
       setInterim(interimText);
     };
     rec.onend = () => {
-      setRecording(false);
       setInterim("");
       recRef.current = null;
-    };
-    rec.onerror = () => {
+      // 利用者がまだ録音したいなら、勝手に終わった分はこちらで再開する
+      if (wantRecRef.current) {
+        if (restartsRef.current++ < 20) {
+          try {
+            startRecognition();
+            return;
+          } catch {
+            // start が投げた場合はそのまま停止扱いに落ちる
+          }
+        }
+        setSpeechMsg("音声認識が繰り返し中断されたため停止しました。もう一度タップしてください。");
+      }
+      wantRecRef.current = false;
       setRecording(false);
+    };
+    rec.onerror = (e) => {
+      const msg = speechErrorMessage(e.error);
+      if (msg) {
+        // 許可が無い・マイクが無い等は再開しても同じなので、ここで打ち切る
+        wantRecRef.current = false;
+        setSpeechMsg(msg);
+      }
       setInterim("");
+      // 実際の停止処理は onend が続けて呼ばれるのでそこに任せる
     };
     recRef.current = rec;
-    setRecording(true);
     rec.start();
+  };
+
+  const toggleVoice = () => {
+    if (recording) {
+      // 停止は「もう続けない」を先に立てる（onendでの自動再開を止めるため）
+      wantRecRef.current = false;
+      recRef.current?.stop();
+      return;
+    }
+    if (!getSpeechRecognition()) return;
+    setSpeechMsg(null);
+    restartsRef.current = 0;
+    wantRecRef.current = true;
+    setRecording(true);
+    try {
+      startRecognition();
+    } catch {
+      wantRecRef.current = false;
+      setRecording(false);
+      setSpeechMsg("音声認識を開始できませんでした。もう一度お試しください。");
+    }
   };
 
   const submit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -717,20 +817,35 @@ export function PitPostForm({
           )}
         </div>
 
+        {/*
+          確定した文字だけを入れる。
+          以前は途中結果(interim)も value に混ぜていたため、録音中に一文字でも触ると
+          途中結果が本文に確定してしまい、その後に来る確定結果と**二重に入っていた**。
+          途中結果は下に別表示する（送信されない・編集対象にもならない）。
+        */}
         <textarea
           name="memo"
           rows={4}
-          maxLength={1000}
-          value={memo + interim}
-          onChange={(e) => {
-            setMemo(e.target.value);
-            setInterim("");
-          }}
+          maxLength={MEMO_MAX}
+          value={memo}
+          onChange={(e) => setMemo(e.target.value)}
           placeholder="音声認識の結果がここに入ります。手入力・修正もOK（任意。空でもAIが写真から記事を作ります）"
           className={`w-full rounded-xl border-2 bg-surface px-3 py-2.5 text-sm leading-relaxed text-ink ${
             recording ? "border-red-400" : "border-gold-500"
           }`}
         />
+        {/* 認識途中の文字（確定すると上の欄に入る） */}
+        {interim && (
+          <p className="-mt-1 px-1 text-sm leading-relaxed text-ink-soft">
+            {interim}
+            <span className="ml-1 text-[11px] text-red-500">認識中…</span>
+          </p>
+        )}
+        {speechMsg && (
+          <p className="-mt-1 rounded-lg bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800">
+            {speechMsg}
+          </p>
+        )}
 
         {/* ── 車種・施工内容 ── */}
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
