@@ -184,7 +184,7 @@ export function PitPostForm({
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<
     | { kind: "published"; url: string; title: string; stats: PitStats | null; vehicleLinked: boolean }
-    | { kind: "held"; message: string }
+    | { kind: "held"; message: string; reviewPostId?: string }
     | null
   >(null);
   const formRef = useRef<HTMLFormElement>(null);
@@ -647,6 +647,7 @@ export function PitPostForm({
         url?: string;
         title?: string;
         message?: string;
+        postId?: string; // review: 完了画面から確認プレビューへ直行するため
         error?: string;
         stats?: PitStats | null;
         vehicleLinked?: boolean;
@@ -673,7 +674,12 @@ export function PitPostForm({
         setRestored(false);
         router.refresh();
       } else if (data.status === "review" || data.status === "held") {
-        setDone({ kind: "held", message: data.message ?? "本部確認となりました。" });
+        setDone({
+          kind: "held",
+          message: data.message ?? "本部確認となりました。",
+          // 公開前確認: 完了画面から確認プレビューへ直行できるようにIDを持つ
+          reviewPostId: data.status === "review" ? data.postId : undefined,
+        });
         formRef.current?.reset();
         setMemo("");
         setVehicle("");
@@ -762,9 +768,29 @@ export function PitPostForm({
           </>
         ) : (
           <>
-            <p className="text-3xl">🕐</p>
-            <p className="text-sm font-bold">本部確認となりました</p>
+            <p className="text-3xl">{done.reviewPostId ? "📝" : "🕐"}</p>
+            <p className="text-sm font-bold">
+              {done.reviewPostId ? "記事ができました（公開前の確認待ち）" : "本部確認となりました"}
+            </p>
             <p className="text-xs text-ink-soft">{done.message}</p>
+            {/*
+              公開前確認の店舗は、ここから確認プレビューへ直行できるようにする。
+              以前は一覧から自分で該当投稿を探して「本文を読む」を押す必要があり、
+              確認フローをONにした店舗ほど手間が増えていた。
+              storeId がある＝本部の代理投稿なので、行き先は本部の一覧にする。
+            */}
+            {done.reviewPostId && (
+              <a
+                href={
+                  storeId
+                    ? "/hq/pit"
+                    : `/dealer/pit?preview=${encodeURIComponent(done.reviewPostId)}`
+                }
+                className="inline-block rounded-full bg-gold-500 px-5 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-gold-600"
+              >
+                内容を確認して公開する
+              </a>
+            )}
           </>
         )}
         <div>

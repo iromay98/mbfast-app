@@ -201,8 +201,9 @@ export async function POST(request: NextRequest) {
        */
       return json(200, {
         status: "review",
+        postId: result.postId, // 完了画面から確認プレビューへ直行するためのリンク先
         title: result.title,
-        message: "記事を作成しました。公開前確認のため、内容の承認後に公開されます。",
+        message: "記事を作成しました。内容を確認して「公開する」を押すと公開されます。",
       });
     case "held":
       // 理由の詳細（規制関連ワード）は店舗にそのまま返さず、確認中である旨のみ伝える

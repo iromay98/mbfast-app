@@ -36,7 +36,15 @@ const STATUS: Record<string, { label: string; cls: string }> = {
 
 // 公開後の記事の編集（タイトル・追記）と削除。
 // 本文の全書き換えはさせない（画像や表のブロックを壊すため）＝「追記」で訂正・補足する方式。
-export function PostList({ posts }: { posts: PostListRow[] }) {
+export function PostList({
+  posts,
+  // 投稿完了画面の「内容を確認して公開する」から ?preview=<id> で飛んできたとき、
+  // 該当投稿の本文を最初から開いておく（一覧から自分で探させない）
+  initialPreviewId,
+}: {
+  posts: PostListRow[];
+  initialPreviewId?: string;
+}) {
   const router = useRouter();
   const [editing, setEditing] = useState<PostListRow | null>(null);
   const [title, setTitle] = useState("");
@@ -44,7 +52,11 @@ export function PostList({ posts }: { posts: PostListRow[] }) {
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   // 公開前確認: 本文を開いている投稿
-  const [previewId, setPreviewId] = useState<string | null>(null);
+  const [previewId, setPreviewId] = useState<string | null>(
+    initialPreviewId && posts.some((p) => p.id === initialPreviewId && p.status === "review")
+      ? initialPreviewId
+      : null,
+  );
 
   /* 公開前確認の記事をそのまま公開する（WordPressの下書き→公開に切り替える） */
   const approve = async (p: PostListRow) => {

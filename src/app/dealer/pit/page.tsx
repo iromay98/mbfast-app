@@ -29,10 +29,10 @@ export default async function DealerPitPage({
   searchParams,
 }: {
   // ?from=<PitPost.id> … 施工証明のスタンバイ下書きから「投稿する」で来たとき
-  searchParams: Promise<{ from?: string }>;
+  searchParams: Promise<{ from?: string; preview?: string }>;
 }) {
   const user = await requireDealer();
-  const { from } = await searchParams;
+  const { from, preview } = await searchParams;
 
   const store = await prisma.pitStore.findUnique({
     where: { dealerId: user.dealerId },
@@ -183,6 +183,7 @@ export default async function DealerPitPage({
       <Card>
         <h3 className="mb-2 text-sm font-bold text-ink">これまでの投稿（直近{posts.length}件）</h3>
         <PostList
+          initialPreviewId={preview}
           posts={posts.map((p) => ({
             id: p.id,
             vehicle: p.vehicle,
