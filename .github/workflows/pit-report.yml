@@ -18,6 +18,7 @@ on:
           - usage # 店舗ごとの証明書・車両・投稿の件数
           - dealers # 代理店の棚卸し（ECU画面に入れない理由の切り分け）
           - gbp # Googleビジネスプロフィールの接続確認（GETのみ・投稿は作らない）
+          - failures # 直近の投稿失敗の理由（PitPost.errorMessage・読み取りのみ）
         default: taxonomy
 
 concurrency:
@@ -73,6 +74,16 @@ jobs:
               ;;
             usage)
               $COMPOSE exec -T app npm run report:pit-usage </dev/null
+              ;;
+            failures)
+              # 直近の投稿失敗。errorMessage はWP/AIのエラー本文を含むことがあるので300文字で切る。
+              # コンテナ内のスクリプトに依存しない（デプロイ待ちなしで使える）ようpsqlで直接引く。
+              echo "-- 直近の PitPost（failed / processing）--"
+              $COMPOSE exec -T postgres psql -U mbfast -d mbfast -c \
+                "SELECT to_char(\"createdAt\" AT TIME ZONE 'Asia/Tokyo','MM-DD HH24:MI') AS jst, status, vehicle, left(coalesce(\"errorMessage\",''),300) AS error FROM \"PitPost\" WHERE status IN ('failed','processing') ORDER BY \"createdAt\" DESC LIMIT 10;" </dev/null
+              echo ""
+              echo "-- 直近のアプリログ（mbPIT関連のエラーのみ） --"
+              docker logs --tail 400 mbfast-app-app-1 2>&1 | grep -iE "mbPIT|pit" | grep -iE "失敗|error|Error" | tail -30 || echo "（該当ログなし）"
               ;;
             gbp)
               # 接続確認。**投稿は作らない**（accounts/locations の一覧と localPosts のGETのみ）。
