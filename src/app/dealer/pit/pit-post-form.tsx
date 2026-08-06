@@ -672,7 +672,7 @@ export function PitPostForm({
         void clearDraftPhotos(dkey);
         setRestored(false);
         router.refresh();
-      } else if (data.status === "held") {
+      } else if (data.status === "review" || data.status === "held") {
         setDone({ kind: "held", message: data.message ?? "本部確認となりました。" });
         formRef.current?.reset();
         setMemo("");

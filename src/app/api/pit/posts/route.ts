@@ -193,6 +193,17 @@ export async function POST(request: NextRequest) {
         vehicleLinked: !!vehicleId,
       });
     }
+    case "review":
+      /*
+       * 公開前確認がONの店舗。記事は作成済みで、承認されると公開される。
+       * このcaseが無かった時期は応答が壊れ、成功なのに「送信に失敗」と出て
+       * 加盟店が連打→同じ記事のreviewが量産されていた（実害あり）。
+       */
+      return json(200, {
+        status: "review",
+        title: result.title,
+        message: "記事を作成しました。公開前確認のため、内容の承認後に公開されます。",
+      });
     case "held":
       // 理由の詳細（規制関連ワード）は店舗にそのまま返さず、確認中である旨のみ伝える
       return json(200, {
