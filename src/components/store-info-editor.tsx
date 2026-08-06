@@ -291,7 +291,12 @@ export function StoreInfoEditor({
   };
 
   const doCommit = async () => {
+    // 1回で完結する主経路なので、項目ごとのエラーはここで出す（サーバーに投げる前に）
+    const errs = validateStoreInfo(info);
+    setErrors(errs);
+    if (Object.keys(errs).length > 0) return;
     setBusy(true);
+    setResult(null);
     try {
       const r = isHq
         ? await commitStoreInfo(store.id, info, { contactPerson, internalNote })
@@ -430,14 +435,27 @@ export function StoreInfoEditor({
           </>
         )}
       </div>
+      {/*
+        主ボタンは1回で完結: 保存 → WPへ即時反映まで一気に行う。
+        以前は 保存→差分プレビュー→確定 の2段で、毎回2回押す必要があった。
+        差分を見てから反映したい人のために「変更内容を確認」を副ボタンで残す。
+      */}
       <div className="mt-2 flex flex-wrap items-center gap-2">
         <button
           type="button"
           disabled={busy}
-          onClick={doPreview}
+          onClick={doCommit}
           className="rounded-lg bg-gold-500 px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50"
         >
-          保存（差分プレビュー）
+          {busy ? "保存中…" : "保存してWPへ反映"}
+        </button>
+        <button
+          type="button"
+          disabled={busy}
+          onClick={doPreview}
+          className="rounded-lg border border-line px-3 py-1.5 text-xs font-semibold hover:bg-surface disabled:opacity-50"
+        >
+          変更内容を確認
         </button>
         {isHq && (
           <>
