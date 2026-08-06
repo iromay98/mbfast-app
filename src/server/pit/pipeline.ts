@@ -88,17 +88,21 @@ export async function runPitPipeline(opts: {
     },
   });
 
-  // 2b. ブロック該当 → held 保存＋本店通知のみ（記事は生成しない）
+  /*
+   * 2b. 規制関連ワード（排ガスデバイス無効化等）の扱い。
+   * 以前は held（本部確認まで公開しない）だったが、本部の判断で**止めない**運用に変更した。
+   * 公開はそのまま進め、注意書きを必ず挿し、本部には事後のお知らせだけ送る
+   * （guardResult には従来どおり検知内容が残る＝後から追える）。
+   */
   if (guard.blocked) {
-    await prisma.pitPost.update({ where: { id: post.id }, data: { status: "held" } });
+    guard.cautionNeeded = true; // 記事末尾に定型の注意文言を必ず入れる
     await notify({
       type: "PIT_HELD",
-      title: "mbPIT投稿を保留しました",
+      title: "mbPIT投稿に規制関連ワードがあります（公開は止めていません）",
       message: `${store.displayName} / ${opts.vehicle}: ${guard.blockReasons.join("・")}`,
       dealerId: null,
       link: "/hq/pit",
     });
-    return { status: "held", postId: post.id, reasons: guard.blockReasons };
   }
 
   try {
