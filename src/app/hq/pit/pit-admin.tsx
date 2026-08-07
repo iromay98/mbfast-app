@@ -56,6 +56,7 @@ export type PostRow = {
   publishedUrl: string | null;
   guardResult: string | null;
   errorMessage: string | null;
+  photoCount: number; // 素材DL用（保存済みのぼかし済みWebPの枚数）
   createdAtLabel: string;
 };
 export type DealerOption = { id: string; name: string };
@@ -755,6 +756,7 @@ function PostLog({ posts }: { posts: PostRow[] }) {
               <th>内容</th>
               <th>状態</th>
               <th>記事</th>
+              <th>素材</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-line">
@@ -780,12 +782,31 @@ function PostLog({ posts }: { posts: PostRow[] }) {
                       <span className="text-ink-soft">{p.errorMessage ?? "—"}</span>
                     )}
                   </td>
+                  {/* 素材: 投稿に使われた写真（ぼかし済みWebP）を本部が二次利用用に落とす */}
+                  <td className="whitespace-nowrap">
+                    {p.photoCount > 0 ? (
+                      <span className="space-x-1">
+                        {Array.from({ length: p.photoCount }, (_, i) => (
+                          <a
+                            key={i}
+                            href={`/api/pit/post-photos/${p.id}?i=${i}`}
+                            className="text-[11px] text-gold-700 hover:underline"
+                            title={`写真${i + 1}をダウンロード`}
+                          >
+                            📷{i + 1}
+                          </a>
+                        ))}
+                      </span>
+                    ) : (
+                      <span className="text-ink-soft">—</span>
+                    )}
+                  </td>
                 </tr>
               );
             })}
             {posts.length === 0 && (
               <tr>
-                <td colSpan={6} className="py-4 text-center text-ink-soft">
+                <td colSpan={7} className="py-4 text-center text-ink-soft">
                   まだ投稿がありません。
                 </td>
               </tr>

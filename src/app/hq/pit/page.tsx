@@ -112,6 +112,7 @@ export default async function HqPitPage() {
     publishedUrl: p.publishedUrl,
     guardResult: p.guardResult,
     errorMessage: p.errorMessage,
+    photoCount: Array.isArray(p.photoKeys) ? p.photoKeys.length : 0,
     createdAtLabel: formatDateTime(p.createdAt),
   }));
   const dealerOptions: DealerOption[] = dealers.map((d) => ({ id: d.id, name: d.name }));
