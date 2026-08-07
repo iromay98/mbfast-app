@@ -64,6 +64,9 @@ export function PriceViewer({ brand }: { brand: ViewerBrand }) {
             )}
           </span>
         );
+      case "maker":
+        // メーカー列（「その他」ブランドのみ）。値はシリーズ名と同一
+        return v.seriesGroup || "—";
       case "stockOutput":
         return v.stockOutput || "—";
       case "stage1Gain":

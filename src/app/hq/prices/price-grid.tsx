@@ -152,6 +152,9 @@ function Row({
             />
           </div>
         );
+      case "maker":
+        // メーカー列（「その他」ブランドのみ）。値=シリーズ名。編集は先頭のシリーズ列で行う
+        return <span className="px-1 text-xs text-ink-soft">{v.seriesGroup}</span>;
       case "stockOutput":
         return <Cell value={v.stockOutput ?? ""} onSave={(val) => onRun(() => updateVehicleCell(v.id, { field: "stockOutput", value: val }))} w="w-28" />;
       case "stage1Gain":

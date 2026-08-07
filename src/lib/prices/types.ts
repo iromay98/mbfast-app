@@ -70,10 +70,41 @@ export type BrandRow = {
   vehicleCount: number;
 };
 
+/*
+ * WP取込（scripts/price-sync/import-wp.mts）の列は key=セルclass接尾辞（"cell-car" 等）・
+ * type=parse時のrole（"car"/"text"/"tcu" 等）のまま保存されている。
+ * 一方、アプリのUI（price-viewer / price-grid）と公開HTML生成（generate-html.ts）は
+ * レガシーの key/type 名前空間（car / stockOutput / type:"price" 等）で分岐している。
+ * この食い違いで「取込ブランドは価格列以外が全部 — 表示」になっていたため、
+ * Json→型の唯一の入口であるここで正規化する（取込データ自体は書き換えない）。
+ * cellClassSuffix / labelHtml / sortKey 等のparse拡張フィールドはspreadで温存する
+ * （生成テンプレート側が参照するため落とさない）。
+ */
+const IMPORTED_KEY_MAP: Record<string, { key: string; type: ColumnType }> = {
+  "cell-car": { key: "car", type: "text" },
+  "cell-grade": { key: "grade", type: "text" },
+  "cell-engine": { key: "engine", type: "text" },
+  "cell-maker": { key: "maker", type: "text" },
+  "cell-stock": { key: "stockOutput", type: "output" },
+  "cell-stage1-gain": { key: "stage1Gain", type: "output" },
+  "cell-shops": { key: "shops", type: "shops" },
+  "cell-remote": { key: "remote", type: "remote" },
+  "cell-ecu-tcu": { key: "ecuType", type: "ecu" },
+  "cell-labor": { key: "labor", type: "labor" },
+};
+
+function normalizeImportedColumn(c: ColumnDefinition): ColumnDefinition {
+  const mapped = IMPORTED_KEY_MAP[c.key];
+  if (mapped) return { ...c, key: mapped.key, type: mapped.type };
+  // TCUは価格列（値は prices["tcu"]）。取込roleの "tcu" のままだと価格分岐に入らない
+  if ((c.type as string) === "tcu") return { ...c, type: "price" };
+  return c;
+}
+
 // Json（unknown）→ 型への安全な正規化
 export function toColumns(v: unknown): ColumnDefinition[] {
   if (!Array.isArray(v)) return [];
-  return (v as ColumnDefinition[]).slice().sort((a, b) => a.order - b.order);
+  return (v as ColumnDefinition[]).map(normalizeImportedColumn).sort((a, b) => a.order - b.order);
 }
 export function toPrices(v: unknown): PriceMap {
   if (!v || typeof v !== "object" || Array.isArray(v)) return {};
