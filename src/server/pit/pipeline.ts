@@ -190,9 +190,20 @@ export async function runPitPipeline(opts: {
      * PitPost.status="review" で止める。店舗が本文を読んで承認すると publish に切り替わる
      * （lib/actions/pit-posts.ts の approveMyPitPost）。
      */
+    /*
+     * WP上の記事日付は施工日に合わせる（以前は投稿時刻のままで、まとめて後日投稿すると
+     * 全部その日の日付になっていた）。時刻は現在のJST時刻＝同じ施工日に複数投稿しても
+     * 投稿順に並ぶ。未来日は送らない（WPが予約投稿=future扱いにして表に出なくなるため）。
+     */
+    const todayJst = new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Tokyo" });
+    const timeJst = new Date().toLocaleTimeString("sv-SE", { timeZone: "Asia/Tokyo", hour12: false });
+    const wpDate =
+      opts.workDate && opts.workDate < todayJst ? `${opts.workDate}T${timeJst}` : undefined;
+
     const review = store.postReviewRequired === true;
     const wpPost = await publishPost({
       forceDraft: review,
+      date: wpDate,
       title: article.title,
       slug: article.slug,
       contentHtml: body,

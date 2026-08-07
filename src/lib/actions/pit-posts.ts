@@ -13,7 +13,7 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
 import { requireUser } from "@/lib/authz";
-import { fetchPostContent, updatePost, trashPost, wpConfigured } from "@/server/pit/wordpress";
+import { fetchPostContent, fetchPostDate, updatePost, trashPost, wpConfigured } from "@/server/pit/wordpress";
 
 const NOTE_START = "<!-- mbpit:note -->";
 const NOTE_END = "<!-- /mbpit:note -->";
@@ -158,7 +158,18 @@ export async function approveMyPitPost(
   if (!wpConfigured()) return { error: "WordPress接続が未設定のため公開できません" };
 
   try {
-    await updatePost(post.wpPostId, { status: "publish" });
+    /*
+     * 下書き→公開でWPが日付を「公開した時刻」で引き直すことがあるため、
+     * 下書きに付いている日付（＝施工日）を読んで status と一緒に再送して守る。
+     * 読めなくても公開自体は止めない（日付が投稿時刻になるだけ）。
+     */
+    let date: string | undefined;
+    try {
+      date = (await fetchPostDate(post.wpPostId)) ?? undefined;
+    } catch {
+      date = undefined;
+    }
+    await updatePost(post.wpPostId, { status: "publish", ...(date ? { date } : {}) });
   } catch (e) {
     return { error: e instanceof Error ? e.message : "公開に失敗しました" };
   }

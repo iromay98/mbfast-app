@@ -156,11 +156,22 @@ export async function fetchPostContent(
   return { title: p.title?.raw ?? p.title?.rendered ?? "", contentRaw: p.content?.raw ?? "" };
 }
 
+/*
+ * 記事の日付（サイトローカル時刻）を取得。
+ * 公開前確認の下書きを publish に切り替えるとき、WPが日付を「公開時刻」で
+ * 引き直すことがあるため、切替前に読んで status と一緒に再送して施工日を守る。
+ */
+export async function fetchPostDate(postId: number): Promise<string | null> {
+  const res = await wpFetch(`/posts/${postId}?context=edit&_fields=date`, { method: "GET" });
+  const p = (await res.json()) as { date?: string };
+  return p.date ?? null;
+}
+
 // 公開済み記事の更新（タイトル・本文の部分更新）
 export async function updatePost(
   postId: number,
   // status: 公開前確認（review）を通した記事を draft → publish に切り替えるのに使う
-  fields: { title?: string; content?: string; status?: "publish" | "draft" },
+  fields: { title?: string; content?: string; status?: "publish" | "draft"; date?: string },
 ): Promise<void> {
   await wpFetch(`/posts/${postId}`, {
     method: "POST",
@@ -251,6 +262,12 @@ export type WpPostInput = {
    * AUTO_PUBLISH に関係なく WordPress へ下書きで作る（店舗が読んでから公開する）。
    */
   forceDraft?: boolean;
+  /**
+   * 記事の公開日時（WPサイトのローカル時刻 "YYYY-MM-DDTHH:MM:SS"）。
+   * 施工日をまとめて後日投稿したとき、WP上の記事日付を実際の作業日にするために使う。
+   * 未指定なら投稿時刻（WP既定）。
+   */
+  date?: string;
 };
 
 export type WpPost = { id: number; link: string };
@@ -270,6 +287,7 @@ export async function publishPost(input: WpPostInput): Promise<WpPost> {
   };
   // 空配列を送るとWP側は「タグ全消し」と解釈する。付けるものが無いならキー自体を出さない
   if (input.tagIds?.length) body.tags = input.tagIds;
+  if (input.date) body.date = input.date;
   if (input.featuredMediaId) body.featured_media = input.featuredMediaId;
   body.aioseo_meta_data = {
     ...(input.metaDescription ? { description: input.metaDescription } : {}),
