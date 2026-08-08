@@ -81,7 +81,7 @@ services:
       GBP_DAILY_POST_LIMIT: "${GBP_DAILY_POST_LIMIT:-80}"
       PIT_ARTICLE_MODEL: "${PIT_ARTICLE_MODEL:-claude-sonnet-5}"
       AUTO_PUBLISH: "${AUTO_PUBLISH:-true}"
-      STEALTH_MODE: "${STEALTH_MODE:-true}"
+      STEALTH_MODE: "${STEALTH_MODE:-false}"
       SERVER_SECRET: "${SERVER_SECRET:-}"
       PIT_OCR_MODEL: "${PIT_OCR_MODEL:-claude-sonnet-5}"
       # 車台番号・登録番号の暗号化鍵（SERVER_SECRETとは別の鍵。docs/pii-key-management.md）

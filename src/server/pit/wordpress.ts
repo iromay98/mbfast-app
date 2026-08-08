@@ -57,10 +57,11 @@ function autoPublish(): boolean {
   return process.env.AUTO_PUBLISH !== "false";
 }
 
-// STEALTH_MODE: mbPITセクションがURL限定公開の間は記事に noindex を付ける。
-// 未設定なら true（誤ってインデックスさせない安全側）。公開解禁時に .env で false にする。
+// STEALTH_MODE: mbPITセクションをURL限定公開にしたい間だけ記事に noindex を付ける。
+// 2026-08 に検索へ載せる方針に切り替えたため**既定はOFF**（明示的に "true" のときだけ noindex）。
+// 過去のnoindex記事の後追い解除は scripts/pit-clear-noindex.mts（workflow job=noindex）。
 function stealthMode(): boolean {
-  return process.env.STEALTH_MODE !== "false";
+  return process.env.STEALTH_MODE === "true";
 }
 
 export function wpConfigured(): boolean {
@@ -154,6 +155,29 @@ export async function fetchPostContent(
     content?: { raw?: string };
   };
   return { title: p.title?.raw ?? p.title?.rendered ?? "", contentRaw: p.content?.raw ?? "" };
+}
+
+/*
+ * 既存記事の noindex を外す（STEALTH_MODE 時代に投稿された記事の後追い解除用）。
+ * 投稿時に設定していた2箇所（RESTの aioseo_meta_data と AIOSEO専用エンドポイント）を
+ * 両方とも「サイト既定に従う＝index可」へ戻す。noindex 以外のAIOSEO設定には触れない。
+ * 下書き（公開前確認中）に対しても status を変えずに安全に呼べる。
+ */
+export async function clearPostNoindex(postId: number): Promise<void> {
+  await wpFetch(`/posts/${postId}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ aioseo_meta_data: { robots_default: true, robots_noindex: false } }),
+  });
+  const res = await fetch(`${BASE}/wp-json/aioseo/v1/post`, {
+    method: "POST",
+    headers: { Authorization: authHeader(), "Content-Type": "application/json" },
+    body: JSON.stringify({ id: postId, default: true, noindex: false }),
+  });
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    throw new Error(`AIOSEO noindex解除に失敗 (post=${postId}) ${res.status}: ${body.slice(0, 200)}`);
+  }
 }
 
 /*
