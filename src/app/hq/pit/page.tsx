@@ -92,6 +92,7 @@ export default async function HqPitPage() {
         tel: s.tel,
         email: s.email,
         website: s.website,
+        lineUrl: s.lineUrl,
         serviceTags: s.serviceTags,
         intro: s.intro,
       },

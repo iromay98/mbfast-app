@@ -28,6 +28,7 @@ export default async function PitStorePage() {
       tel: true,
       email: true,
       website: true,
+      lineUrl: true,
       serviceTags: true,
       intro: true,
       // 証明書の体裁・記載範囲／AI記事の公開前確認（自店のみ編集可）
@@ -76,6 +77,7 @@ export default async function PitStorePage() {
               tel: store.tel,
               email: store.email,
               website: store.website,
+              lineUrl: store.lineUrl,
               serviceTags: store.serviceTags,
               intro: store.intro,
             },

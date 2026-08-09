@@ -23,6 +23,7 @@ export type StoreMetaField =
   | "tel"
   | "email"
   | "website"
+  | "lineUrl"
   | "serviceTags"
   | "intro";
 
@@ -42,6 +43,8 @@ export const STORE_META_FIELDS: {
   { field: "tel", metaKey: "mbpit_tel", label: "電話番号", maxLen: 20, placeholder: "072-000-0000" },
   { field: "email", metaKey: "mbpit_email", label: "メールアドレス", maxLen: 100, placeholder: "info@example.com" },
   { field: "website", metaKey: "mbpit_website", label: "ホームページURL", maxLen: 200, placeholder: "https://example.com" },
+  // 公式LINE。値が入るとHP（店舗ページ）に「LINEで問い合わせ」ボタンが出る（WP側テンプレートが mbpit_line を参照）
+  { field: "lineUrl", metaKey: "mbpit_line", label: "公式LINE URL", maxLen: 200, placeholder: "https://lin.ee/xxxxx" },
   { field: "serviceTags", metaKey: "mbpit_tags", label: "対応内容（読点区切り）", maxLen: 100, placeholder: "チューニング、メンテナンス" },
   { field: "intro", metaKey: "mbpit_intro", label: "紹介文（1〜3文・200字目安）", maxLen: 300, placeholder: "" },
 ];
@@ -91,9 +94,13 @@ export function validateStoreInfo(info: StoreInfo): Partial<Record<StoreMetaFiel
     if (/<[a-zA-Z/!]/.test(v)) errors[field] = `${label}: HTMLタグは使えません`;
     else if (v.length > maxLen) errors[field] = `${label}: ${maxLen}文字以内にしてください`;
   }
-  const { website, email, tel } = info;
+  const { website, email, tel, lineUrl } = info;
   if (website && !/^https?:\/\/\S+$/.test(website)) {
     errors.website = "ホームページURLは http:// または https:// で始まる形式にしてください";
+  }
+  // LINEの公式リンクだけを受け付ける（HP側で「LINEで問い合わせ」ボタンになるため、別サービスのURLを弾く）
+  if (lineUrl && !/^https:\/\/(lin\.ee|(?:[a-z0-9-]+\.)?line\.me)\/\S+$/.test(lineUrl)) {
+    errors.lineUrl = "公式LINEのURL（https://lin.ee/… または https://line.me/…）を入力してください";
   }
   if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     errors.email = "メールアドレスの形式が正しくありません";
