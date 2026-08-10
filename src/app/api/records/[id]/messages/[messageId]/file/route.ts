@@ -2,7 +2,7 @@ import type { NextRequest } from "next/server";
 import { getSessionUser } from "@/lib/authz";
 import { prisma } from "@/lib/db";
 import { storage } from "@/server/storage";
-import { fileResponse } from "@/server/catalog/download-log";
+import { contentDisposition } from "@/server/catalog/filename";
 
 // 案件メッセージの添付ファイルDL。本店は全件、代理店は自店の記録のみ。
 export async function GET(
@@ -43,7 +43,8 @@ export async function GET(
   if (user.role === "DEALER" && !msg.redownloadable) {
     return new Response("この添付はダウンロードできません（本部が公開を終了）", { status: 403 });
   }
-  const f = await storage.read(msg.filePath);
+  // ストリーミング配信（動画などの大容量添付をメモリに丸ごと載せない）
+  const f = await storage.stream(msg.filePath);
   if (!f) return new Response("Not Found", { status: 404 });
 
   // 相手がDLしたら「DL済み」を記録（自分の投稿の自己DLは除く）
@@ -53,9 +54,13 @@ export async function GET(
       .catch(() => {});
   }
 
-  return fileResponse(
-    { buffer: f.buffer, contentType: msg.contentType ?? "application/octet-stream", size: f.size },
-    msg.fileName ?? "file",
-    msg.contentType,
-  );
+  return new Response(f.stream, {
+    status: 200,
+    headers: {
+      "Content-Type": msg.contentType ?? f.contentType ?? "application/octet-stream",
+      "Content-Length": String(f.size),
+      "Content-Disposition": contentDisposition(msg.fileName ?? "file"),
+      "Cache-Control": "private, no-store",
+    },
+  });
 }

@@ -4,7 +4,14 @@ import { useActionState, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { postRecordMessage } from "@/lib/actions/messages";
 import { emptyFormState } from "@/lib/actions/form-state";
-import { MAX_UPLOAD_MB, MAX_UPLOAD_BYTES_CLIENT } from "@/lib/upload-limits";
+import {
+  MAX_UPLOAD_MB,
+  MAX_UPLOAD_BYTES_CLIENT,
+  CHUNK_SIZE_BYTES,
+  CHUNKED_MAX_MB,
+  CHUNKED_MAX_BYTES,
+  CHUNKED_THRESHOLD_BYTES,
+} from "@/lib/upload-limits";
 import { Button, FormError } from "@/components/ui";
 import { ProgressBar } from "@/components/slave-download-button";
 
@@ -42,31 +49,47 @@ export function MessageComposer({
   const [picked, setPicked] = useState<{ slot: Slot; name: string; sizeMb: number } | null>(null);
   const [sizeError, setSizeError] = useState<string | null>(null);
   const [encryptMode, setEncryptMode] = useState<"maps" | "backup">("maps");
+  // 分割アップロード（大容量動画）: 進捗% と、完了済みファイルのキー参照
+  const [uploadPct, setUploadPct] = useState<number | null>(null);
+  const [uploaded, setUploaded] = useState<{ key: string; name: string } | null>(null);
+  const uploading = uploadPct !== null && uploaded === null;
 
   useEffect(() => {
     if (state.ok) {
       formRef.current?.reset();
       setPicked(null);
       setEncryptMode("maps");
+      setUploaded(null);
+      setUploadPct(null);
       router.refresh();
     }
   }, [state, router]);
+
+  // 分割アップロードが完了したら、キー参照つきで本送信（hidden inputがDOMに載ってから）
+  useEffect(() => {
+    if (uploaded) formRef.current?.requestSubmit();
+  }, [uploaded]);
 
   // 1通=添付1点。あるスロットで選んだら他スロットはクリア。
   const onPick = (slot: Slot, input: HTMLInputElement | null) => {
     const f = input?.files?.[0];
     if (!f) return;
     // 上限超過は送信前にここで弾く（送信してから失敗すると、スマホ回線で数分待った
-    // 挙げ句に原因不明のエラーになる。動画で実際に起きた）
-    if (f.size > MAX_UPLOAD_BYTES_CLIENT) {
+    // 挙げ句に原因不明のエラーになる。動画で実際に起きた）。
+    // 自由添付は分割アップロードで送るため上限が大きい。slave変換は従来経路のまま。
+    const limit = slot === "slave" ? MAX_UPLOAD_BYTES_CLIENT : CHUNKED_MAX_BYTES;
+    const limitMb = slot === "slave" ? MAX_UPLOAD_MB : CHUNKED_MAX_MB;
+    if (f.size > limit) {
       if (input) input.value = "";
       setSizeError(
-        `「${f.name}」は ${Math.round(f.size / 1024 / 1024)}MB あり、上限 ${MAX_UPLOAD_MB}MB を超えています。` +
+        `「${f.name}」は ${Math.round(f.size / 1024 / 1024)}MB あり、上限 ${limitMb}MB を超えています。` +
           `動画は短く分けて撮るか、画質を下げて撮り直してください`,
       );
       return;
     }
     setSizeError(null);
+    setUploaded(null);
+    setUploadPct(null);
     if (slot !== "slave" && slaveRef.current) slaveRef.current.value = "";
     if (slot !== "file" && fileRef.current) fileRef.current.value = "";
     if (slot !== "camera" && cameraRef.current) cameraRef.current.value = "";
@@ -78,13 +101,93 @@ export function MessageComposer({
     if (cameraRef.current) cameraRef.current.value = "";
     setPicked(null);
     setSizeError(null);
+    setUploaded(null);
+    setUploadPct(null);
+  };
+
+  /*
+   * 大容量ファイル（CHUNKED_THRESHOLD_BYTES 超）は Server Action に載せず、
+   * 5MBずつの分割アップロードで先に送り切る。進捗%を表示し、チャンク単位で
+   * 自動リトライ（最大4回・指数バックオフ）。完了したらキー参照で本送信する。
+   */
+  const onSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    if (uploaded) return; // 分割アップロード完了後の本送信 → そのまま通す
+    const input =
+      picked?.slot === "file" ? fileRef.current : picked?.slot === "camera" ? cameraRef.current : null;
+    const f = input?.files?.[0];
+    if (!f || f.size <= CHUNKED_THRESHOLD_BYTES) return; // 小さいファイルは従来どおり
+    e.preventDefault();
+    setSizeError(null);
+    setUploadPct(0);
+    try {
+      const initRes = await fetch(`/api/records/${recordId}/upload?op=init`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ name: f.name, size: f.size, type: f.type || "application/octet-stream" }),
+      });
+      const init = (await initRes.json().catch(() => ({}))) as { uploadId?: string; error?: string };
+      if (!initRes.ok || !init.uploadId) throw new Error(init.error ?? "アップロードを開始できませんでした");
+
+      const totalChunks = Math.ceil(f.size / CHUNK_SIZE_BYTES);
+      let index = 0;
+      while (index < totalChunks) {
+        const blob = f.slice(index * CHUNK_SIZE_BYTES, Math.min((index + 1) * CHUNK_SIZE_BYTES, f.size));
+        let attempt = 0;
+        for (;;) {
+          try {
+            const r = await fetch(
+              `/api/records/${recordId}/upload?op=chunk&uploadId=${init.uploadId}&index=${index}`,
+              { method: "POST", body: blob },
+            );
+            const j = (await r.json().catch(() => ({}))) as { receivedBytes?: number; error?: string };
+            if (r.ok) break;
+            if (r.status === 409 && typeof j.receivedBytes === "number") {
+              // サーバーの受信済み位置と食い違い → その位置のチャンクからやり直す
+              index = Math.floor(j.receivedBytes / CHUNK_SIZE_BYTES) - 1;
+              break;
+            }
+            throw new Error(j.error ?? `送信に失敗しました (${r.status})`);
+          } catch (err) {
+            attempt++;
+            if (attempt >= 4) throw err instanceof Error ? err : new Error("送信に失敗しました");
+            await new Promise((res) => setTimeout(res, 1000 * 2 ** (attempt - 1))); // 1s/2s/4s
+          }
+        }
+        index++;
+        setUploadPct(Math.min(99, Math.round((Math.min(index * CHUNK_SIZE_BYTES, f.size) / f.size) * 100)));
+      }
+
+      const compRes = await fetch(`/api/records/${recordId}/upload?op=complete&uploadId=${init.uploadId}`, {
+        method: "POST",
+      });
+      const comp = (await compRes.json().catch(() => ({}))) as { key?: string; error?: string };
+      if (!compRes.ok || !comp.key) throw new Error(comp.error ?? "アップロードの確定に失敗しました");
+
+      // 本体は送信済みなので、Server Actionへはキー参照だけ渡す（巨大ファイルを二重送信しない）
+      if (fileRef.current) fileRef.current.value = "";
+      if (cameraRef.current) cameraRef.current.value = "";
+      setUploadPct(100);
+      setUploaded({ key: comp.key, name: f.name }); // → useEffect が requestSubmit する
+    } catch (err) {
+      setUploadPct(null);
+      setSizeError(
+        `${err instanceof Error ? err.message : "アップロードに失敗しました"}（電波の良い場所でもう一度お試しください）`,
+      );
+    }
   };
 
   const trigger =
     "inline-flex items-center gap-1 rounded-lg border border-line bg-white px-3 py-1.5 text-xs font-semibold text-ink-soft hover:bg-surface-2";
 
   return (
-    <form ref={formRef} action={formAction} className="space-y-2">
+    <form ref={formRef} action={formAction} onSubmit={onSubmit} className="space-y-2">
+      {/* 分割アップロード完了後のキー参照（本体はもうサーバーにある） */}
+      {uploaded && (
+        <>
+          <input type="hidden" name="uploadedKey" value={uploaded.key} />
+          <input type="hidden" name="uploadedName" value={uploaded.name} />
+        </>
+      )}
       <textarea
         name="body"
         rows={2}
@@ -130,8 +233,8 @@ export function MessageComposer({
         <button type="button" className={trigger} onClick={() => cameraRef.current?.click()}>
           📷 撮影（写真・動画）
         </button>
-        <Button type="submit" disabled={pending} className="ml-auto">
-          {pending ? "送信中…" : "送信"}
+        <Button type="submit" disabled={pending || uploading} className="ml-auto">
+          {uploading ? `送信中… ${uploadPct}%` : pending ? "送信中…" : "送信"}
         </Button>
       </div>
 
@@ -256,6 +359,17 @@ export function MessageComposer({
               className="min-w-0 flex-1 rounded-lg border border-line bg-surface px-2 py-1 font-mono text-xs"
             />
           </label>
+        </div>
+      )}
+
+      {/* 分割アップロードの進捗（大容量動画。チャンクごとに自動リトライ） */}
+      {uploading && (
+        <div className="space-y-1 rounded-lg border border-gold-200 bg-gold-50 px-3 py-2">
+          <div className="flex items-center gap-2 text-xs font-semibold text-gold-800">
+            <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-gold-500 border-t-transparent" />
+            アップロード中… {uploadPct}%（画面を閉じずにお待ちください。電波が切れても自動で再開します）
+          </div>
+          <ProgressBar pct={uploadPct} />
         </div>
       )}
 

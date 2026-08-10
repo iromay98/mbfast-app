@@ -116,8 +116,16 @@ export async function postRecordMessage(
   const slaveFile = ctx.user.role === "HQ_ADMIN" ? pick("slaveFile") : null;
   const freeFile = pick("file", "cameraFile");
   const file = slaveFile ?? freeFile;
-  const hasFile = !!file;
   const wantEncrypt = !!slaveFile;
+
+  /*
+   * 分割アップロード済みの大容量ファイル（/api/records/[id]/upload 経由）。
+   * 本体はもうストレージにあるので、ここではキーの検証とメタ取得だけ行う。
+   * キーは必ずこの記録の prefix 配下（＝アップロードAPIが記録の認可を通して
+   * 払い出したもの）でなければ受け付けない＝他記録のファイルを指せない。
+   */
+  const uploadedKey = String(formData.get("uploadedKey") ?? "").trim();
+  const hasFile = !!file || !!uploadedKey;
   if (!body && !hasFile) {
     return { error: "メッセージかファイルを入力してください" };
   }
@@ -128,7 +136,20 @@ export async function postRecordMessage(
     fileSize?: number;
     contentType?: string;
   } = {};
-  if (file) {
+  if (uploadedKey && !file) {
+    if (!uploadedKey.startsWith(`record-messages/${recordId}/`)) {
+      return { error: "アップロード参照が不正です" };
+    }
+    const st = await storage.stat(uploadedKey);
+    if (!st) return { error: "アップロードされたファイルが見つかりません。もう一度送信してください" };
+    const uploadedName = String(formData.get("uploadedName") ?? "").trim().slice(0, 200);
+    fileFields = {
+      filePath: uploadedKey,
+      fileName: uploadedName || uploadedKey.split("/").pop() || "file",
+      fileSize: st.size,
+      contentType: st.contentType,
+    };
+  } else if (file) {
     // slaveFile を選んだ場合、この車固有のIDで encrypt して焼ける .slave に。
     if (wantEncrypt) {
       const rec = await prisma.serviceRecord.findUnique({
