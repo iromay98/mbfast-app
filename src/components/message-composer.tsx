@@ -4,6 +4,7 @@ import { useActionState, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { postRecordMessage } from "@/lib/actions/messages";
 import { emptyFormState } from "@/lib/actions/form-state";
+import { MAX_UPLOAD_MB, MAX_UPLOAD_BYTES_CLIENT } from "@/lib/upload-limits";
 import { Button, FormError } from "@/components/ui";
 import { ProgressBar } from "@/components/slave-download-button";
 
@@ -38,7 +39,8 @@ export function MessageComposer({
   const fileRef = useRef<HTMLInputElement>(null);
   const cameraRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
-  const [picked, setPicked] = useState<{ slot: Slot; name: string } | null>(null);
+  const [picked, setPicked] = useState<{ slot: Slot; name: string; sizeMb: number } | null>(null);
+  const [sizeError, setSizeError] = useState<string | null>(null);
   const [encryptMode, setEncryptMode] = useState<"maps" | "backup">("maps");
 
   useEffect(() => {
@@ -54,16 +56,28 @@ export function MessageComposer({
   const onPick = (slot: Slot, input: HTMLInputElement | null) => {
     const f = input?.files?.[0];
     if (!f) return;
+    // 上限超過は送信前にここで弾く（送信してから失敗すると、スマホ回線で数分待った
+    // 挙げ句に原因不明のエラーになる。動画で実際に起きた）
+    if (f.size > MAX_UPLOAD_BYTES_CLIENT) {
+      if (input) input.value = "";
+      setSizeError(
+        `「${f.name}」は ${Math.round(f.size / 1024 / 1024)}MB あり、上限 ${MAX_UPLOAD_MB}MB を超えています。` +
+          `動画は短く分けて撮るか、画質を下げて撮り直してください`,
+      );
+      return;
+    }
+    setSizeError(null);
     if (slot !== "slave" && slaveRef.current) slaveRef.current.value = "";
     if (slot !== "file" && fileRef.current) fileRef.current.value = "";
     if (slot !== "camera" && cameraRef.current) cameraRef.current.value = "";
-    setPicked({ slot, name: f.name });
+    setPicked({ slot, name: f.name, sizeMb: f.size / 1024 / 1024 });
   };
   const clearPick = () => {
     if (slaveRef.current) slaveRef.current.value = "";
     if (fileRef.current) fileRef.current.value = "";
     if (cameraRef.current) cameraRef.current.value = "";
     setPicked(null);
+    setSizeError(null);
   };
 
   const trigger =
@@ -155,6 +169,10 @@ export function MessageComposer({
           <span className="font-semibold text-ink">
             {picked.slot === "slave" ? "🔧 " : picked.slot === "camera" ? "📷 " : "📎 "}
             {picked.name}
+            <span className="ml-1 font-normal text-ink-soft">
+              （{picked.sizeMb >= 1 ? Math.round(picked.sizeMb) : picked.sizeMb.toFixed(1)}MB
+              {picked.sizeMb > 30 ? "・送信に時間がかかることがあります" : ""}）
+            </span>
           </span>
           {picked.slot === "slave" && (
             <span className={encryptMode === "backup" ? "text-sky-700" : "text-gold-700"}>
@@ -256,7 +274,7 @@ export function MessageComposer({
         </div>
       )}
 
-      <FormError message={state.error} />
+      <FormError message={sizeError ?? state.error} />
     </form>
   );
 }

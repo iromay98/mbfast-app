@@ -18,9 +18,12 @@ function createStorage(): StorageProvider {
 
 export const storage: StorageProvider = createStorage();
 
+// 既定 200MB。50MBだった頃、案件チャットのスマホ動画（1分で60〜100MB超）が
+// 軒並み失敗していたため引き上げた。変更時は next.config.ts の bodySizeLimit /
+// proxyClientMaxBodySize と src/lib/upload-limits.ts（クライアント事前検査）も揃えること
 export const MAX_UPLOAD_BYTES = Number(
-  process.env.MAX_UPLOAD_BYTES ?? 52428800,
-); // 既定 50MB
+  process.env.MAX_UPLOAD_BYTES ?? 209715200,
+);
 
 // 拡張子は緩め（ECUファイルは多様）。サイズ上限と空ファイル拒否のみ。
 const IMAGE_EXT = new Set([".jpg", ".jpeg", ".png", ".gif", ".webp", ".heic"]);
