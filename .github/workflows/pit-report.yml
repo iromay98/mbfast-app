@@ -19,6 +19,7 @@ on:
           - dealers # 代理店の棚卸し（ECU画面に入れない理由の切り分け）
           - gbp # Googleビジネスプロフィールの接続確認（GETのみ・投稿は作らない）
           - failures # 直近の投稿失敗の理由（PitPost.errorMessage・読み取りのみ）
+          - system # VPSのメモリ・スワップ・ディスク・コンテナ使用量（読み取りのみ）
         default: taxonomy
 
 concurrency:
@@ -105,6 +106,20 @@ jobs:
               echo ""
               echo "-- v4の割り当て確認（GET localPosts のみ・投稿は作らない） --"
               $COMPOSE exec -T app npm run gbp:v4check </dev/null || echo "（gbp:v4check が失敗）"
+              ;;
+            system)
+              # VPSのリソース状況（アップロード上限の判断材料などに使う。読み取りのみ）
+              echo "-- メモリ・スワップ --"
+              free -m
+              echo ""
+              echo "-- ディスク --"
+              df -h / /root 2>/dev/null | sort -u
+              echo ""
+              echo "-- storageディレクトリの使用量 --"
+              du -sh /root/mbfast-app/storage 2>/dev/null || echo "（storage なし）"
+              echo ""
+              echo "-- コンテナごとの使用量（瞬間値） --"
+              docker stats --no-stream --format "table {{.Name}}\t{{.MemUsage}}\t{{.CPUPerc}}"
               ;;
             dealers)
               if ! $COMPOSE exec -T app test -f scripts/report-dealers.mts </dev/null; then
