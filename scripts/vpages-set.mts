@@ -10,7 +10,7 @@
  * 注意: ここで status を publish にしても、WPに反映されるのは vpages:wp-push を実行したときだけ。
  */
 import { prisma } from "../src/lib/db";
-import type { VehicleOptions } from "../src/lib/vehicle-pages/types";
+import { OPTION_KEYS, type VehicleOptions } from "../src/lib/vehicle-pages/options";
 
 const args = process.argv.slice(2);
 
@@ -19,7 +19,6 @@ function argAfter(flag: string): string | null {
   return i >= 0 && args[i + 1] ? args[i + 1] : null;
 }
 
-const OPTION_KEYS = ["babble", "coldStartOff", "idlingStopOff", "mapSwitch", "ecuUnlock", "limiterCut", "tcu"] as const;
 
 if (args.includes("--list")) {
   const brandId = args[args.indexOf("--list") + 1];
@@ -65,7 +64,7 @@ if (optIdx >= 0) {
   const options = { ...(page.options as VehicleOptions) };
   for (const pair of pairs) {
     const [k, v] = pair.split("=");
-    if (!(OPTION_KEYS as readonly string[]).includes(k) || !["on", "off"].includes(v)) {
+    if (!OPTION_KEYS.includes(k) || !["on", "off"].includes(v)) {
       console.log(`✗ 不正な指定: ${pair}（キー: ${OPTION_KEYS.join("/")}、値: on/off）`);
       process.exit(1);
     }

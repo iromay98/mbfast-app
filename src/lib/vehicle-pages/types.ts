@@ -4,16 +4,8 @@
 
 import type { RemoteFlags } from "../prices/types";
 
-/** 対応オプションの○×。キーは固定語彙（ラベルは generate-html.ts の OPTION_LABELS） */
-export type VehicleOptions = {
-  babble?: boolean; // バブリング（ポップス＆バングス）
-  coldStartOff?: boolean; // コールドスタートオフ
-  idlingStopOff?: boolean; // アイドリングストップ解除
-  mapSwitch?: boolean; // マップスイッチ
-  ecuUnlock?: boolean; // ECUアンロック（ベンチ）が必要
-  limiterCut?: boolean; // スピードリミッター解除
-  tcu?: boolean; // TCUチューニング
-};
+export type { VehicleOptions } from "./options"; // 語彙の単一の正は options.ts
+import type { VehicleOptions } from "./options";
 
 export type RelatedPost = { id?: number; title: string; url: string };
 

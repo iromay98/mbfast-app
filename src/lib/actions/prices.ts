@@ -370,6 +370,11 @@ export async function publishWpSync(brandId: string, force = false): Promise<{ o
   if (!b?.wordPressPageId) return { error: "WordPressページIDが未設定です（ブランド設定で登録してください）" };
   const { syncWpPage } = await import("@/server/prices/wp-sync");
   const result = await syncWpPage(b.wordPressPageId, { dryRun: false, force });
+  // 価格表を本番反映したタイミングで、新しい車両行のページ行(保留)を自動で用意する。
+  // 保留=生成対象外なので、ここから勝手に公開されることはない（公開の判断は /hq/vehicle-pages）。
+  const { seedVehiclePagesForBrand } = await import("@/lib/vehicle-pages/seed");
+  await seedVehiclePagesForBrand(brandId);
   revalidatePath(PRICES_PATH);
+  revalidatePath("/hq/vehicle-pages");
   return { ok: true, result };
 }

@@ -3,7 +3,8 @@
 // ＝価格表とページでラベルが食い違わない。
 
 import { toColumns, toPrices, toRemote } from "../prices/types";
-import type { PriceItem, RelatedPost, VehicleOptions, VehiclePageData } from "./types";
+import type { PriceItem, RelatedPost, VehiclePageData } from "./types";
+import { toOptions } from "./options";
 
 type BrandRowLike = {
   id: string;
@@ -42,15 +43,6 @@ export function priceItemsFor(brand: BrandRowLike, vehicle: VehicleRowLike): Pri
   }));
 }
 
-function toOptions(v: unknown): VehicleOptions {
-  if (!v || typeof v !== "object" || Array.isArray(v)) return {};
-  const o = v as Record<string, unknown>;
-  const out: VehicleOptions = {};
-  for (const k of ["babble", "coldStartOff", "idlingStopOff", "mapSwitch", "ecuUnlock", "limiterCut", "tcu"] as const) {
-    if (typeof o[k] === "boolean") out[k] = o[k] as boolean;
-  }
-  return out;
-}
 
 function toRelated(v: unknown): RelatedPost[] {
   if (!Array.isArray(v)) return [];
@@ -59,6 +51,29 @@ function toRelated(v: unknown): RelatedPost[] {
     if (item && typeof item === "object" && typeof (item as RelatedPost).url === "string" && typeof (item as RelatedPost).title === "string") {
       out.push({ id: (item as RelatedPost).id, title: (item as RelatedPost).title, url: (item as RelatedPost).url });
     }
+  }
+  return out;
+}
+
+/**
+ * 価格セルから自動判定できるオプション（手動設定が常に優先）。
+ * 価格 or ASK が入っている＝提供している(〇)、「—」＝提供しない(—)、空欄＝判定しない。
+ * 対応表: 価格列key → オプションkey
+ */
+const PRICE_DERIVED_OPTIONS: Record<string, string> = {
+  babble: "babble",
+  tcu: "tcu",
+  limiterCut: "limiterCut",
+};
+
+function deriveOptionsFromPrices(prices: PriceItem[]): Record<string, boolean> {
+  const out: Record<string, boolean> = {};
+  for (const p of prices) {
+    const optKey = PRICE_DERIVED_OPTIONS[p.key];
+    if (!optKey) continue;
+    const v = p.value.trim();
+    if (v === "—" || v === "-") out[optKey] = false;
+    else if (v !== "") out[optKey] = true; // 金額 or ASK
   }
   return out;
 }
@@ -73,6 +88,7 @@ export function resolveVehiclePageData(
     page.enPriceMode === "price" && vehicleEn
       ? { mode: "price", prices: priceItemsFor(brand, vehicleEn) }
       : { mode: "quote" };
+  const jpPrices = priceItemsFor(brand, vehicleJp);
   return {
     slug: page.slug,
     brandDisplayName: brand.displayName,
@@ -84,11 +100,11 @@ export function resolveVehiclePageData(
     ecuType: vehicleJp.ecuType,
     stockOutput: vehicleJp.stockOutput,
     stage1Gain: vehicleJp.stage1Gain,
-    prices: priceItemsFor(brand, vehicleJp),
+    prices: jpPrices,
     labor: vehicleJp.labor,
     remote: toRemote(vehicleJp.remote),
     notes: vehicleJp.notes,
-    options: toOptions(page.options),
+    options: { ...deriveOptionsFromPrices(jpPrices), ...toOptions(page.options) },
     related: toRelated(page.relatedPosts),
     en,
   };

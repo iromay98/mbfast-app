@@ -10,7 +10,8 @@
  * デザイン: JP=白地×ゴールド（本体サイトのトーン）/ EN=黒地×ゴールド（EN記事テンプレ準拠）。
  * CSSは .vpg- プレフィックスでスコープ（postid依存にしない＝ページ複製やIDズレに強い）。
  */
-import type { GeneratedPage, PriceItem, VehiclePageData, VehicleOptions } from "./types";
+import type { GeneratedPage, PriceItem, VehiclePageData } from "./types";
+import { OPTION_DEFS } from "./options";
 import { REMOTE_TOOLS } from "../prices/types";
 
 const LINE_URL = "https://lin.ee/8yOXuPJ";
@@ -20,15 +21,6 @@ const MARK_END = "<!-- END: 貼り付け範囲 -->";
 export const VPAGE_MARK_START = MARK_START;
 export const VPAGE_MARK_END = MARK_END;
 
-const OPTION_LABELS: { key: keyof VehicleOptions; jp: string; en: string }[] = [
-  { key: "babble", jp: "バブリング（ポップス＆バングス）", en: "Pops and Bangs (Burble)" },
-  { key: "coldStartOff", jp: "コールドスタートオフ", en: "Cold Start Off" },
-  { key: "idlingStopOff", jp: "アイドリングストップ解除", en: "Auto Start-Stop Off" },
-  { key: "mapSwitch", jp: "マップスイッチ", en: "Map Switch" },
-  { key: "ecuUnlock", jp: "ECUアンロック（要ベンチ作業）", en: "ECU Unlock (bench required)" },
-  { key: "limiterCut", jp: "スピードリミッター解除", en: "Speed Limiter Removal" },
-  { key: "tcu", jp: "TCUチューニング", en: "TCU Tuning" },
-];
 
 function esc(s: string): string {
   return s.replace(/&/g, "＆").replace(/</g, "‹").replace(/>/g, "›").replace(/"/g, "”");
@@ -157,7 +149,7 @@ function priceTable(items: PriceItem[], jp: boolean, withAskBtn: boolean): strin
 }
 
 function optionTable(d: VehiclePageData, jp: boolean): string {
-  const entries = OPTION_LABELS.filter((o) => d.options[o.key] !== undefined);
+  const entries = OPTION_DEFS.filter((o) => d.options[o.key] !== undefined);
   if (entries.length === 0) return "";
   const rows = entries
     .map((o) => {

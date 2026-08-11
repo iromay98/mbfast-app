@@ -11,6 +11,7 @@
  */
 import { prisma } from "../src/lib/db";
 import { vehicleSlug } from "../src/lib/vehicle-pages/resolve";
+import { seedVehiclePagesForBrand } from "../src/lib/vehicle-pages/seed";
 
 const args = process.argv.slice(2);
 const commit = args.includes("--commit");
@@ -45,9 +46,9 @@ for (const v of vehicles) {
   existing.add(slug);
   planned++;
   console.log(`${commit ? "+" : "（予定）"} ${v.brandId} ${v.carName} ${v.grade ?? ""} → /${slug}/`);
-  if (commit) {
-    await prisma.vehiclePage.create({ data: { vehicleId: v.id, slug, status: "hold" } });
-  }
+}
+if (commit) {
+  for (const brandId of brandIds) await seedVehiclePagesForBrand(brandId);
 }
 
 console.log("");
