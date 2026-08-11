@@ -55,6 +55,29 @@ function toRelated(v: unknown): RelatedPost[] {
   return out;
 }
 
+/**
+ * 価格セルから自動判定できるオプション（手動設定が常に優先）。
+ * 価格 or ASK が入っている＝提供している(〇)、「—」＝提供しない(—)、空欄＝判定しない。
+ * 対応表: 価格列key → オプションkey
+ */
+const PRICE_DERIVED_OPTIONS: Record<string, string> = {
+  babble: "babble",
+  tcu: "tcu",
+  limiterCut: "limiterCut",
+};
+
+function deriveOptionsFromPrices(prices: PriceItem[]): Record<string, boolean> {
+  const out: Record<string, boolean> = {};
+  for (const p of prices) {
+    const optKey = PRICE_DERIVED_OPTIONS[p.key];
+    if (!optKey) continue;
+    const v = p.value.trim();
+    if (v === "—" || v === "-") out[optKey] = false;
+    else if (v !== "") out[optKey] = true; // 金額 or ASK
+  }
+  return out;
+}
+
 export function resolveVehiclePageData(
   brand: BrandRowLike,
   vehicleJp: VehicleRowLike,
@@ -65,6 +88,7 @@ export function resolveVehiclePageData(
     page.enPriceMode === "price" && vehicleEn
       ? { mode: "price", prices: priceItemsFor(brand, vehicleEn) }
       : { mode: "quote" };
+  const jpPrices = priceItemsFor(brand, vehicleJp);
   return {
     slug: page.slug,
     brandDisplayName: brand.displayName,
@@ -76,11 +100,11 @@ export function resolveVehiclePageData(
     ecuType: vehicleJp.ecuType,
     stockOutput: vehicleJp.stockOutput,
     stage1Gain: vehicleJp.stage1Gain,
-    prices: priceItemsFor(brand, vehicleJp),
+    prices: jpPrices,
     labor: vehicleJp.labor,
     remote: toRemote(vehicleJp.remote),
     notes: vehicleJp.notes,
-    options: toOptions(page.options),
+    options: { ...deriveOptionsFromPrices(jpPrices), ...toOptions(page.options) },
     related: toRelated(page.relatedPosts),
     en,
   };

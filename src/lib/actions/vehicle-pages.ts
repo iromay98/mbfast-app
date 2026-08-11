@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
 import { requireHQ } from "@/lib/authz";
 import { toOptions } from "@/lib/vehicle-pages/options";
-import { vehicleSlug } from "@/lib/vehicle-pages/resolve";
+import { seedVehiclePagesForBrand } from "@/lib/vehicle-pages/seed";
 import { syncVehiclePage, type SyncEvent } from "@/lib/vehicle-pages/sync-core";
 import { wpConfigured } from "@/lib/vehicle-pages/wp-sync";
 
@@ -68,21 +68,7 @@ export async function removeVpageRelatedPost(pageId: string, wpPostId: number): 
 /** ページ行が無い車両（market=JP）に status=hold で行を用意する */
 export async function seedVpagesForBrand(brandId: string): Promise<{ ok?: true; created?: number; error?: string }> {
   await requireHQ();
-  const vehicles = await prisma.priceVehicle.findMany({
-    where: { brandId, market: "JP", page: null },
-    orderBy: { displayOrder: "asc" },
-  });
-  const existing = new Set((await prisma.vehiclePage.findMany({ select: { slug: true } })).map((p) => p.slug));
-  let created = 0;
-  for (const v of vehicles) {
-    let slug = vehicleSlug(v.carName, v.grade);
-    if (!slug) continue;
-    let n = 2;
-    while (existing.has(slug)) slug = `${vehicleSlug(v.carName, v.grade)}-${n++}`;
-    existing.add(slug);
-    await prisma.vehiclePage.create({ data: { vehicleId: v.id, slug, status: "hold" } });
-    created++;
-  }
+  const created = await seedVehiclePagesForBrand(brandId);
   revalidatePath(PATH);
   return { ok: true, created };
 }
