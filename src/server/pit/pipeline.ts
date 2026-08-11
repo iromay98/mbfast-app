@@ -37,7 +37,7 @@ type StoreInfo = {
 export async function runPitPipeline(opts: {
   store: StoreInfo;
   vehicle: string;
-  category: string; // ecu | coating | polish | maintenance | other
+  category: string; // 公式8ジャンルslug（src/config/mbpit-genres.json）。旧値 polish/other がDB既存行に残存
   memo: string | null;
   photos: { buffer: Buffer }[];
   // 施工動画（任意・1本）。バブリング等のサウンド系で効果大。

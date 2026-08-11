@@ -28,8 +28,9 @@ const { PrismaClient } = (await import("../src/generated/prisma/client")) as {
   PrismaClient: new (o: unknown) => unknown;
 };
 const { PrismaPg } = (await import("@prisma/adapter-pg")) as { PrismaPg: new (s: string) => unknown };
-const { addPostTags, fetchPostTags, tagIdsForCategory, PIT_CATEGORY_TAG_IDS, wpConfigured } =
+const { addPostTags, fetchPostTags, tagIdsForCategory, wpConfigured } =
   await import("../src/server/pit/wordpress");
+const { GENRES } = await import("../src/lib/mbpit-genres");
 
 if (!wpConfigured()) {
   console.error("WP_USER / WP_APP_PASSWORD が未設定です。WP認証のある環境で実行してください。");
@@ -53,7 +54,7 @@ const prisma = new PrismaClient({ adapter }) as {
 };
 
 console.log(commit ? "== 遡及タグ付与（書き込み） ==" : "== 遡及タグ付与（ドライラン・書き込みなし） ==");
-console.log("区分→タグID:", JSON.stringify(PIT_CATEGORY_TAG_IDS));
+console.log("区分→タグID:", JSON.stringify(Object.fromEntries(GENRES.map((g) => [g.slug, g.wpTagId]))));
 console.log("");
 
 const posts = await prisma.pitPost.findMany({

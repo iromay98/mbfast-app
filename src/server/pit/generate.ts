@@ -16,13 +16,9 @@ export function pitAiEnabled(): boolean {
   return !!process.env.ANTHROPIC_API_KEY;
 }
 
-export const CATEGORY_LABELS: Record<string, string> = {
-  ecu: "ECUチューニング",
-  coating: "コーティング",
-  polish: "磨き",
-  maintenance: "メンテナンス",
-  other: "その他",
-};
+// 公式8ジャンルのラベル（本部管理・src/config/mbpit-genres.json が単一の正）。
+// DBの既存行に残る旧区分(polish/other)のラベルも引ける
+export { GENRE_LABELS as CATEGORY_LABELS } from "@/lib/mbpit-genres";
 
 export type GeneratedArticle = {
   title: string;

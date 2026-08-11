@@ -8,13 +8,16 @@ import { upsertVehicle, vehicleFeatureEnabled } from "@/server/pit/vehicle";
 import { parseVideoUrl } from "@/server/pit/video-embed";
 import { notifyBadgeIfReached, storeStats } from "@/server/pit/gamification";
 import { consumeStagedDraft } from "@/server/pit/cert-blog-link";
+import { GENRE_SLUGS, normalizeGenreSlug } from "@/lib/mbpit-genres";
 
 // mbPIT 施工記録の投稿 → AI記事化 → WordPress自動公開。
 // 店舗IDは認証セッションから解決する（クライアントの申告値は信用しない）。
 // AI生成＋画像アップロードで数分かかりうるため maxDuration を延長。
 export const maxDuration = 300;
 
-const CATEGORIES = new Set(["ecu", "coating", "polish", "maintenance", "other"]);
+// 公式8ジャンル（本部管理・src/config/mbpit-genres.json が単一の正）。
+// 旧5区分の値(polish/other)が来た場合は normalizeGenreSlug で現行ジャンルに読み替えて受ける
+const CATEGORIES = GENRE_SLUGS;
 const MAX_PHOTOS = 10;
 const MAX_PHOTO_BYTES = 10 * 1024 * 1024; // 10MB/枚
 const MAX_VIDEO_BYTES = 100 * 1024 * 1024; // 動画は1本100MBまで（受信後にサーバーで720pへ圧縮する）
@@ -74,7 +77,7 @@ export async function POST(request: NextRequest) {
   }
 
   const vehicle = String(form.get("vehicle") ?? "").trim();
-  const category = String(form.get("category") ?? "").trim();
+  const category = normalizeGenreSlug(String(form.get("category") ?? "").trim());
   const memoRaw = String(form.get("memo") ?? "").trim();
 
   // 施工証明から用意したスタンバイ下書きを引き継ぐ場合の元ID（任意）。

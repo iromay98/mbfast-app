@@ -3,6 +3,8 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Card } from "@/components/ui";
+// 表示用ラベル（旧区分polish/otherの既存行も引ける）。選択肢UIは現行ジャンルのみのGENRESを使う
+import { GENRES, GENRE_LABELS as CATEGORY_LABELS } from "@/lib/mbpit-genres";
 import {
   upsertPitStore,
   resolvePitHeld,
@@ -61,13 +63,6 @@ export type PostRow = {
 };
 export type DealerOption = { id: string; name: string };
 
-const CATEGORY_LABELS: Record<string, string> = {
-  ecu: "ECUチューニング",
-  coating: "コーティング",
-  polish: "磨き",
-  maintenance: "メンテナンス",
-  other: "その他",
-};
 const STATUS_LABELS: Record<string, { label: string; cls: string }> = {
   published: { label: "公開済み", cls: "bg-green-100 text-green-800" },
   held: { label: "保留（要確認）", cls: "bg-red-100 text-red-800" },
@@ -705,7 +700,7 @@ function TestPublish({ stores }: { stores: StoreRow[] }) {
           <label className="block text-[11px] text-ink-soft">
             カテゴリ
             <select name="category" className="mt-0.5 w-full rounded border border-line bg-surface px-2 py-1 text-xs">
-              {Object.entries(CATEGORY_LABELS).map(([k, v]) => (
+              {GENRES.map(({ slug: k, label: v }) => (
                 <option key={k} value={k}>
                   {v}
                 </option>

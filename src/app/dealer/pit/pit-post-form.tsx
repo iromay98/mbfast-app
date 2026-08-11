@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { FileDropZone } from "@/components/file-drop-zone";
+import { GENRES, normalizeGenreSlug } from "@/lib/mbpit-genres";
 import { ShakenQrScanner, chassisFromQrText } from "@/components/shaken-qr-scanner";
 import { PlateMosaicEditor } from "@/components/plate-mosaic-editor";
 import {
@@ -156,13 +157,11 @@ const LOADING_STEPS = [
   "ブログに公開しています…",
 ];
 
-const CATEGORIES: { value: string; label: string }[] = [
-  { value: "ecu", label: "ECUチューニング" },
-  { value: "coating", label: "コーティング" },
-  { value: "polish", label: "磨き" },
-  { value: "maintenance", label: "メンテナンス" },
-  { value: "other", label: "その他" },
-];
+// 公式8ジャンル（本部管理）。定義は src/config/mbpit-genres.json が単一の正
+const CATEGORIES: { value: string; label: string }[] = GENRES.map((g) => ({
+  value: g.slug,
+  label: g.label,
+}));
 
 // 店舗の投稿フォーム。入力は最小限（写真・車種・カテゴリ・任意メモ）。
 // 送信 → サーバーでAI記事化＋WordPress公開 → 完了画面で公開URLを表示。
@@ -290,9 +289,11 @@ export function PitPostForm({
   // ── 下書き対象の入力（stateで持ち、localStorage/IndexedDBへ自動保存する） ──
   // 施工証明から来たときは車種・カテゴリを初期値に入れる（端末内の下書きがあればそちらが優先）
   const [vehicle, setVehicle] = useState(initialVehicle ?? "");
+  // 旧5区分時代の値（polish/other等）が下書きや施工証明から来ても現行ジャンルに読み替える
+  const initialGenre = initialCategory ? normalizeGenreSlug(initialCategory) : null;
   const [category, setCategory] = useState(
-    initialCategory && CATEGORIES.some((c) => c.value === initialCategory)
-      ? initialCategory
+    initialGenre && CATEGORIES.some((c) => c.value === initialGenre)
+      ? initialGenre
       : CATEGORIES[0].value,
   );
   const [workDate, setWorkDate] = useState(todayStr);
@@ -353,7 +354,10 @@ export function PitPostForm({
       if (t && !cancelled) {
         setMemo(t.memo);
         setVehicle(t.vehicle);
-        if (t.category) setCategory(t.category);
+        if (t.category) {
+          const g = normalizeGenreSlug(t.category);
+          if (CATEGORIES.some((c) => c.value === g)) setCategory(g);
+        }
         if (t.workDate) setWorkDate(t.workDate);
         setVideoUrl(t.videoUrl);
         if (t.chassisManual) {
