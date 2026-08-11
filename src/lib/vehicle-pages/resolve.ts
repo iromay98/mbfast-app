@@ -3,7 +3,8 @@
 // ＝価格表とページでラベルが食い違わない。
 
 import { toColumns, toPrices, toRemote } from "../prices/types";
-import type { PriceItem, RelatedPost, VehicleOptions, VehiclePageData } from "./types";
+import type { PriceItem, RelatedPost, VehiclePageData } from "./types";
+import { toOptions } from "./options";
 
 type BrandRowLike = {
   id: string;
@@ -42,15 +43,6 @@ export function priceItemsFor(brand: BrandRowLike, vehicle: VehicleRowLike): Pri
   }));
 }
 
-function toOptions(v: unknown): VehicleOptions {
-  if (!v || typeof v !== "object" || Array.isArray(v)) return {};
-  const o = v as Record<string, unknown>;
-  const out: VehicleOptions = {};
-  for (const k of ["babble", "coldStartOff", "idlingStopOff", "mapSwitch", "ecuUnlock", "limiterCut", "tcu"] as const) {
-    if (typeof o[k] === "boolean") out[k] = o[k] as boolean;
-  }
-  return out;
-}
 
 function toRelated(v: unknown): RelatedPost[] {
   if (!Array.isArray(v)) return [];
