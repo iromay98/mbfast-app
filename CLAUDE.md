@@ -52,3 +52,12 @@ HQ（mbFAST Tuning本店）⇄ 代理店のポータル。Next.js 16 App Router 
 - `node_modules/.bin/tsc --noEmit` を必ず通す
 - 画面はログインして確認（ローカルseed: admin@mbfast.jp / password123。本番の認証情報は聞くこと）
 - ブラウザ操作ツールが空を返す場合は curl + HTML断片アサーションで代替（過去に頻発）
+
+## 車両バリアント個別ページ（vpages）
+
+- 1バリアント=1レコード（`VehiclePage`・PriceVehicle market=JP に1:1）→ WPのJP/ENページ2枚を生成。マスタは価格表と同じ PriceVehicle＝**価格を直すのはアプリの価格表だけ**。ページ側で価格を持たない
+- URL: `/tuning/{brandSlug}/{slug}/`（親ページは push が slug 照合で自動作成）。ENは Polylang lang=en + translations 紐付け
+- EN価格は既定 quote（数字非表示・見積CTA）。`enPriceMode=price` にすると market=EN の PriceVehicle を (brandId, carName, grade) で照合して表示
+- status: hold（既定・生成対象外）→ draft → publish。**seed は必ず hold で作る**＝一斉公開させない設計。実績記事が紐づいた車種から順次 publish に上げる運用（スケールドコンテンツ対策）
+- 更新はマーカー区間（`<!-- START: 貼り付け範囲 -->`）だけ差し替え＝マーカー外の人の追記は保護。scriptタグ内の生アンパサンドは書込前に弾く（価格表と同じ理由）
+- コマンド: `npm run vpages:seed -- <brandId> [--commit]`（ドライラン既定）／ `vpages:wp-diff`（読み取りのみ）／ `vpages:wp-push -- --yes`（書込）／ `vpages:preview`（DB不要・.verify-out/ にサンプルHTML）

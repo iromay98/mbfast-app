@@ -719,6 +719,28 @@ model PriceVehicle {
 
   @@index([brandId, displayOrder])
   @@index([brandId, seriesGroup])
+
+  page VehiclePage?
+}
+
+// 車両バリアント個別ページ（/tuning/{brand}/{slug}/ のJP/EN 2枚を1レコードで管理）。
+// マスタは PriceVehicle（market=JP の行に紐付ける）。EN価格は market=EN の別レコードを
+// (brandId, carName, grade) で照合して読む。価格を直すのは PriceVehicle だけ＝ページは生成物。
+model VehiclePage {
+  id           String       @id @default(cuid())
+  vehicleId    String       @unique // market=JP の PriceVehicle
+  vehicle      PriceVehicle @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  slug         String       @unique // "c-w204-c63amg"（親ページ /tuning/{brandSlug}/ の下）
+  status       String       @default("hold") // hold(生成しない) | draft(WP下書き) | publish
+  options      Json         @default("{}") // { coldStartOff: true, ... } 対応オプションの○×
+  relatedPosts Json         @default("[]") // [{ id, title, url }] 同型式の施工実績記事
+  enPriceMode  String       @default("quote") // quote(価格非表示・見積CTA) | price(EN価格を表示)
+  wpPageIdJp   Int? // 生成先WPページID（push時に書き戻す）
+  wpPageIdEn   Int?
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  @@index([status])
 }
 
 // ── mbPIT: 施工記録→自動ブログ公開 ──
