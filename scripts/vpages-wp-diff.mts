@@ -13,7 +13,7 @@
  */
 import { prisma } from "../src/lib/db";
 import { generateVehiclePageEn, generateVehiclePageJp } from "../src/lib/vehicle-pages/generate-html";
-import { resolveVehiclePageData } from "../src/lib/vehicle-pages/resolve";
+import { brandUrlSlug, resolveVehiclePageData } from "../src/lib/vehicle-pages/resolve";
 import { fetchPageRaw, findUnsafeScriptContent, replaceMarkedRegion, wpConfigured } from "../src/lib/vehicle-pages/wp-sync";
 
 if (!wpConfigured()) {
@@ -67,7 +67,7 @@ for (const p of pages) {
       continue;
     }
     if (!wpId) {
-      console.log(`+ ${p.slug} [${label}] 新規作成（/tuning/${b.slug}/${p.slug}/ status=${p.status}）`);
+      console.log(`+ ${p.slug} [${label}] 新規作成（/tuning/${brandUrlSlug(b.id, b.slug)}/${p.slug}/ status=${p.status}）`);
       creates++;
     } else {
       const current = await fetchPageRaw(wpId);

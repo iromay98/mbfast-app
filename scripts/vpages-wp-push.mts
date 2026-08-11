@@ -17,7 +17,7 @@
  */
 import { prisma } from "../src/lib/db";
 import { generateVehiclePageEn, generateVehiclePageJp } from "../src/lib/vehicle-pages/generate-html";
-import { resolveVehiclePageData } from "../src/lib/vehicle-pages/resolve";
+import { brandUrlSlug, resolveVehiclePageData } from "../src/lib/vehicle-pages/resolve";
 import {
   createPage,
   ensureParentPage,
@@ -90,7 +90,7 @@ for (const p of pages) {
     console.log(`✗ ${p.slug} [JP] スキップ（script内アンパサンド）: ${jpBad}`);
     skipped++;
   } else if (!p.wpPageIdJp) {
-    const parent = await brandParentId(b.slug, b.displayName);
+    const parent = await brandParentId(brandUrlSlug(b.id, b.slug), b.displayName);
     const page = await createPage({ slug: p.slug, parent, title: jp.title, content: jp.html, status: wpStatus });
     await prisma.vehiclePage.update({ where: { id: p.id }, data: { wpPageIdJp: page.id } });
     p.wpPageIdJp = page.id;
@@ -121,7 +121,7 @@ for (const p of pages) {
       console.log(`✗ ${p.slug} [EN] スキップ（JPページ未作成のため紐付け不可）`);
       skipped++;
     } else {
-      const parent = await brandParentId(b.slug, b.displayName);
+      const parent = await brandParentId(brandUrlSlug(b.id, b.slug), b.displayName);
       const page = await createPage({
         slug: p.slug,
         parent,
