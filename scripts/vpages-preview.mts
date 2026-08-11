@@ -10,7 +10,8 @@ import type { VehiclePageData } from "../src/lib/vehicle-pages/types";
 
 const sample: VehiclePageData = {
   slug: "c-w204-c63amg",
-  brandDisplayName: "Mercedes-Benz",
+  brandDisplayName: "メルセデス・ベンツ",
+  brandNameEn: "Mercedes-Benz",
   brandSlug: "mercedes",
   carName: "C(W204)",
   grade: "C63AMG",

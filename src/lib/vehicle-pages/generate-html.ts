@@ -216,7 +216,7 @@ export function generateVehiclePageJp(d: VehiclePageData): GeneratedPage {
 ${MARK_START}
 ${css(false)}
 <div class="vpg-wrap">
-<div class="vpg-kicker">${esc(d.brandDisplayName)} ECU TUNING</div>
+<div class="vpg-kicker">${esc(d.brandNameEn)} ECU TUNING</div>
 <div class="vpg-hero"><h1>${esc(name)}<br>ECUチューニング・バブリング</h1></div>
 <p class="vpg-sub">エンジン: ${esc(d.engine)}${d.ecuType ? `　ECU: ${esc(d.ecuType)}` : ""}</p>
 ${powerCards(d, { stock: "純正出力", tuned: "チューニング後（Stage1）", gain: "" })}
@@ -246,19 +246,19 @@ ${MARK_END}
 
 export function generateVehiclePageEn(d: VehiclePageData): GeneratedPage {
   const name = vehicleTitle(d);
-  const title = `${d.brandDisplayName} ${name} ECU Tuning | Specs and Options`;
+  const title = `${d.brandNameEn} ${name} ECU Tuning | Specs and Options`;
   const o = computeOutputs(d.stockOutput, d.stage1Gain);
   const quote = d.en.mode === "quote";
 
   const ld = jsonLd({
     "@context": "https://schema.org",
     "@type": "Service",
-    name: `${d.brandDisplayName} ${name} ECU Tuning`,
+    name: `${d.brandNameEn} ${name} ECU Tuning`,
     provider: { "@type": "AutoRepair", name: "mbFAST Tuning", address: { "@type": "PostalAddress", addressCountry: "JP" } },
     description:
       o && o.tunedPs !== null
-        ? `ECU tuning for the ${d.brandDisplayName} ${name}: ${o.stockPs}ps stock to ${o.tunedPs}ps. Pops and bangs and more, developed in Japan.`
-        : `ECU tuning and pops and bangs for the ${d.brandDisplayName} ${name}, developed in Japan.`,
+        ? `ECU tuning for the ${d.brandNameEn} ${name}: ${o.stockPs}ps stock to ${o.tunedPs}ps. Pops and bangs and more, developed in Japan.`
+        : `ECU tuning and pops and bangs for the ${d.brandNameEn} ${name}, developed in Japan.`,
   });
 
   const priceSection = quote
@@ -271,7 +271,7 @@ ${priceTable((d.en as { mode: "price"; prices: PriceItem[] }).prices, false, tru
 ${MARK_START}
 ${css(true)}
 <div class="vpg-wrap">
-<div class="vpg-kicker">${esc(d.brandDisplayName)} ECU TUNING — JAPAN</div>
+<div class="vpg-kicker">${esc(d.brandNameEn)} ECU TUNING — JAPAN</div>
 <div class="vpg-hero"><h1>${esc(name)}<br>ECU Tuning and Pops and Bangs</h1></div>
 <p class="vpg-sub">Engine: ${esc(d.engine)}${d.ecuType ? `　ECU: ${esc(d.ecuType)}` : ""}</p>
 ${powerCards(d, { stock: "Stock Output", tuned: "Tuned (Stage 1)", gain: "" })}

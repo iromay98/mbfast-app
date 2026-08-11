@@ -6,6 +6,7 @@ import { toColumns, toPrices, toRemote } from "../prices/types";
 import type { PriceItem, RelatedPost, VehicleOptions, VehiclePageData } from "./types";
 
 type BrandRowLike = {
+  id: string;
   displayName: string;
   slug: string;
   columns: unknown;
@@ -75,6 +76,7 @@ export function resolveVehiclePageData(
   return {
     slug: page.slug,
     brandDisplayName: brand.displayName,
+    brandNameEn: brandNameEn(brand.id, brand.displayName),
     brandSlug: brand.slug,
     carName: vehicleJp.carName,
     grade: vehicleJp.grade,
@@ -118,4 +120,24 @@ const BRAND_URL_SLUGS: Record<string, string> = {
 
 export function brandUrlSlug(brandId: string, brandSlug: string): string {
   return BRAND_URL_SLUGS[brandId] ?? brandSlug;
+}
+
+/** ブランドの英語名（EN側タイトル・本文用。displayNameは日本語のことがある） */
+const BRAND_EN_NAMES: Record<string, string> = {
+  mb: "Mercedes-Benz",
+  mbd: "Mercedes-Benz Diesel",
+  lambo: "Lamborghini",
+  bmw: "BMW",
+  audi: "Audi",
+  ferrari: "Ferrari",
+  cdj: "Chrysler / Dodge / Jeep",
+  fuso: "Mitsubishi Fuso",
+};
+
+export function brandNameEn(brandId: string, displayName: string): string {
+  if (BRAND_EN_NAMES[brandId]) return BRAND_EN_NAMES[brandId];
+  // displayNameがASCIIならそのまま、日本語ならURL slugを整形
+  if (/^[\x20-\x7e]+$/.test(displayName)) return displayName;
+  const slug = BRAND_URL_SLUGS[brandId] ?? brandId;
+  return slug.split("-").map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
 }

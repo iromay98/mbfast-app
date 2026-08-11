@@ -71,22 +71,39 @@ export async function findPage(slug: string, parent: number, lang?: string): Pro
   return list.find((p) => p.parent === parent) ?? null;
 }
 
-/** 親ページ（/tuning/ と /tuning/{brandSlug}/）を用意して brand 親の ID を返す */
-export async function ensureParentPage(brandSlug: string, brandTitle: string, apply: boolean): Promise<{ tuningId: number | null; brandId: number | null; created: string[] }> {
+/**
+ * 親ページ（/tuning/ と /tuning/{brandSlug}/）を**言語別に**用意して brand 親の ID を返す。
+ * Polylangは言語ごとに別ページ＝JPツリー(lang=ja)とENツリー(lang=en)は独立。
+ * ENのルート /en/tuning/ は既存の紹介ページ(ECU & TCU Tuning)をそのまま親に使う。
+ */
+export async function ensureParentPage(
+  brandSlug: string,
+  brandTitle: string,
+  lang: "ja" | "en",
+  apply: boolean,
+): Promise<{ brandId: number | null; created: string[] }> {
   const created: string[] = [];
-  let tuning = await findPage("tuning", 0);
+  const prefix = lang === "en" ? "/en" : "";
+  let tuning = await findPage("tuning", 0, lang);
   if (!tuning) {
-    if (!apply) return { tuningId: null, brandId: null, created: ["/tuning/"] };
-    tuning = await createPage({ slug: "tuning", parent: 0, title: "車種別チューニングデータ", content: "", status: "publish" });
-    created.push("/tuning/");
+    if (!apply) return { brandId: null, created: [`${prefix}/tuning/`] };
+    tuning = await createPage({
+      slug: "tuning",
+      parent: 0,
+      title: lang === "en" ? "Tuning Data by Model" : "車種別チューニングデータ",
+      content: "",
+      status: "publish",
+      lang,
+    });
+    created.push(`${prefix}/tuning/`);
   }
-  let brand = await findPage(brandSlug, tuning.id);
+  let brand = await findPage(brandSlug, tuning.id, lang);
   if (!brand) {
-    if (!apply) return { tuningId: tuning.id, brandId: null, created: [...created, `/tuning/${brandSlug}/`] };
-    brand = await createPage({ slug: brandSlug, parent: tuning.id, title: brandTitle, content: "", status: "publish" });
-    created.push(`/tuning/${brandSlug}/`);
+    if (!apply) return { brandId: null, created: [...created, `${prefix}/tuning/${brandSlug}/`] };
+    brand = await createPage({ slug: brandSlug, parent: tuning.id, title: brandTitle, content: "", status: "publish", lang });
+    created.push(`${prefix}/tuning/${brandSlug}/`);
   }
-  return { tuningId: tuning.id, brandId: brand.id, created };
+  return { brandId: brand.id, created };
 }
 
 export type CreatePageInput = {
@@ -95,8 +112,8 @@ export type CreatePageInput = {
   title: string;
   content: string;
   status: "draft" | "publish";
-  lang?: "en";
-  translationOfJp?: number; // Polylang: JPページIDとの紐付け
+  lang: "ja" | "en";
+  translationOfJp?: number; // Polylang: JPページIDとの紐付け（EN作成時）
 };
 
 export async function createPage(input: CreatePageInput): Promise<WpPageLite> {
@@ -107,10 +124,8 @@ export async function createPage(input: CreatePageInput): Promise<WpPageLite> {
     content: input.content,
     status: input.status,
   };
-  if (input.lang) {
-    body.lang = input.lang;
-    if (input.translationOfJp) body.translations = { ja: input.translationOfJp };
-  }
+  body.lang = input.lang;
+  if (input.lang === "en" && input.translationOfJp) body.translations = { ja: input.translationOfJp };
   const res = await wpFetch(`/pages`, { method: "POST", body: JSON.stringify(body) });
   const page = await readJson<WpPageLite>(res, `WPページ作成(${input.slug})`);
   return page;

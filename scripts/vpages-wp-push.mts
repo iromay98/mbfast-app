@@ -17,7 +17,7 @@
  */
 import { prisma } from "../src/lib/db";
 import { generateVehiclePageEn, generateVehiclePageJp } from "../src/lib/vehicle-pages/generate-html";
-import { brandUrlSlug, resolveVehiclePageData } from "../src/lib/vehicle-pages/resolve";
+import { brandNameEn, brandUrlSlug, resolveVehiclePageData } from "../src/lib/vehicle-pages/resolve";
 import {
   createPage,
   ensureParentPage,
@@ -54,15 +54,17 @@ if (pages.length === 0) {
   process.exit(0);
 }
 
-// ブランドごとに親ページを1回だけ解決
+// ブランド×言語ごとに親ページを1回だけ解決
 const parentCache = new Map<string, number>();
-async function brandParentId(brandSlug: string, brandName: string): Promise<number> {
-  const hit = parentCache.get(brandSlug);
+async function brandParentId(brandSlug: string, brandName: string, lang: "ja" | "en"): Promise<number> {
+  const key = `${lang}:${brandSlug}`;
+  const hit = parentCache.get(key);
   if (hit) return hit;
-  const { brandId, created } = await ensureParentPage(brandSlug, `${brandName} 車種別チューニングデータ`, true);
-  if (!brandId) throw new Error(`親ページの用意に失敗: ${brandSlug}`);
+  const title = lang === "en" ? `${brandName} Tuning Data by Model` : `${brandName} 車種別チューニングデータ`;
+  const { brandId, created } = await ensureParentPage(brandSlug, title, lang, true);
+  if (!brandId) throw new Error(`親ページの用意に失敗: ${lang}/${brandSlug}`);
   for (const c of created) console.log(`  + 親ページ作成: ${c}`);
-  parentCache.set(brandSlug, brandId);
+  parentCache.set(key, brandId);
   return brandId;
 }
 
@@ -90,8 +92,8 @@ for (const p of pages) {
     console.log(`✗ ${p.slug} [JP] スキップ（script内アンパサンド）: ${jpBad}`);
     skipped++;
   } else if (!p.wpPageIdJp) {
-    const parent = await brandParentId(brandUrlSlug(b.id, b.slug), b.displayName);
-    const page = await createPage({ slug: p.slug, parent, title: jp.title, content: jp.html, status: wpStatus });
+    const parent = await brandParentId(brandUrlSlug(b.id, b.slug), b.displayName, "ja");
+    const page = await createPage({ slug: p.slug, parent, title: jp.title, content: jp.html, status: wpStatus, lang: "ja" });
     await prisma.vehiclePage.update({ where: { id: p.id }, data: { wpPageIdJp: page.id } });
     p.wpPageIdJp = page.id;
     console.log(`+ ${p.slug} [JP] 作成 page=${page.id} status=${wpStatus}`);
@@ -121,7 +123,7 @@ for (const p of pages) {
       console.log(`✗ ${p.slug} [EN] スキップ（JPページ未作成のため紐付け不可）`);
       skipped++;
     } else {
-      const parent = await brandParentId(brandUrlSlug(b.id, b.slug), b.displayName);
+      const parent = await brandParentId(brandUrlSlug(b.id, b.slug), brandNameEn(b.id, b.displayName), "en");
       const page = await createPage({
         slug: p.slug,
         parent,
