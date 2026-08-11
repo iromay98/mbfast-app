@@ -102,3 +102,20 @@ export function vehicleSlug(carName: string, grade: string | null): string {
     .replace(/^-+|-+$/g, "")
     .replace(/-{2,}/g, "-");
 }
+
+/**
+ * ブランドの**URL用**slug。PriceBrand.slug はDB上の短縮形（mb / mbd / lambo 等）だが、
+ * 公開URLは検索語に一致するフルネームにする（/tuning/mercedes-benz/ 等）。
+ * ここに無いブランドは PriceBrand.slug をそのまま使う。
+ */
+const BRAND_URL_SLUGS: Record<string, string> = {
+  mb: "mercedes-benz",
+  mbd: "mercedes-benz-diesel",
+  lambo: "lamborghini",
+  cdj: "chrysler-dodge-jeep",
+  fuso: "mitsubishi-fuso",
+};
+
+export function brandUrlSlug(brandId: string, brandSlug: string): string {
+  return BRAND_URL_SLUGS[brandId] ?? brandSlug;
+}
