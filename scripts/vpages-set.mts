@@ -5,6 +5,7 @@
  *   npm run vpages:set -- --slug c-w204-c63amg --status draft  … status変更（hold/draft/publish）
  *   npm run vpages:set -- --slug c-w204-c63amg --option babble=on coldStartOff=off
  *   npm run vpages:set -- --slug c-w204-c63amg --related 20598 … 実績記事IDを紐付け（タイトル・URLはWPから取得）
+ *   npm run vpages:set -- --slug c-w204-c63amg --reset-wp      … WPページIDの紐付けを解除（WP側で削除した後のやり直し用）
  *
  * 注意: ここで status を publish にしても、WPに反映されるのは vpages:wp-push を実行したときだけ。
  */
@@ -74,6 +75,11 @@ if (optIdx >= 0) {
   console.log(`✓ ${slug}: options = ${JSON.stringify(options)}`);
 }
 
+if (args.includes("--reset-wp")) {
+  await prisma.vehiclePage.update({ where: { id: page.id }, data: { wpPageIdJp: null, wpPageIdEn: null } });
+  console.log(`✓ ${slug}: WPページIDを解除（JP:${page.wpPageIdJp ?? "-"} EN:${page.wpPageIdEn ?? "-"} → null）。次のpushで再作成されます`);
+}
+
 const related = argAfter("--related");
 if (related) {
   const postId = Number(related);
@@ -98,7 +104,7 @@ if (related) {
   }
 }
 
-if (!status && optIdx < 0 && !related) {
+if (!status && optIdx < 0 && !related && !args.includes("--reset-wp")) {
   console.log(`${page.slug} | status=${page.status} | JP:${page.wpPageIdJp ?? "-"} EN:${page.wpPageIdEn ?? "-"}`);
   console.log(`options: ${JSON.stringify(page.options)}`);
   console.log(`related: ${JSON.stringify(page.relatedPosts)}`);

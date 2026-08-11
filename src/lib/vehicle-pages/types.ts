@@ -22,7 +22,8 @@ export type PriceItem = { key: string; label: string; value: string };
 
 export type VehiclePageData = {
   slug: string;
-  brandDisplayName: string; // "Mercedes-Benz"
+  brandDisplayName: string; // 表示名（日本語のことがある: "メルセデス・ベンツ"）
+  brandNameEn: string; // 英語名 "Mercedes-Benz"（ENページ・欧文キッカー用）
   brandSlug: string; // "mercedes"
   carName: string; // "C(W204)"
   grade: string | null; // "C63AMG"
