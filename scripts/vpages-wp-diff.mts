@@ -67,7 +67,7 @@ for (const p of pages) {
       continue;
     }
     if (!wpId) {
-      console.log(`+ ${p.slug} [${label}] 新規作成（/tuning/${brandUrlSlug(b.id, b.slug)}/${p.slug}/ status=${p.status}）`);
+      console.log(`+ ${p.slug} [${label}] 新規作成（/car-tuning(JP)またはen/tuning(EN)/${brandUrlSlug(b.id, b.slug)}/${p.slug}/ status=${p.status}）`);
       creates++;
     } else {
       const current = await fetchPageRaw(wpId);

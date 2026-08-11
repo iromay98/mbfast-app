@@ -84,24 +84,26 @@ export async function ensureParentPage(
 ): Promise<{ brandId: number | null; created: string[] }> {
   const created: string[] = [];
   const prefix = lang === "en" ? "/en" : "";
-  let tuning = await findPage("tuning", 0, lang);
+  // JPルートは "car-tuning"（slug "tuning" は既存ENページ /en/tuning/ が使用中で、Polylangは言語間slug共有不可）
+  const rootSlug = lang === "en" ? "tuning" : "car-tuning";
+  let tuning = await findPage(rootSlug, 0, lang);
   if (!tuning) {
-    if (!apply) return { brandId: null, created: [`${prefix}/tuning/`] };
+    if (!apply) return { brandId: null, created: [`${prefix}/${rootSlug}/`] };
     tuning = await createPage({
-      slug: "tuning",
+      slug: rootSlug,
       parent: 0,
       title: lang === "en" ? "Tuning Data by Model" : "車種別チューニングデータ",
       content: "",
       status: "publish",
       lang,
     });
-    created.push(`${prefix}/tuning/`);
+    created.push(`${prefix}/${rootSlug}/`);
   }
   let brand = await findPage(brandSlug, tuning.id, lang);
   if (!brand) {
-    if (!apply) return { brandId: null, created: [...created, `${prefix}/tuning/${brandSlug}/`] };
+    if (!apply) return { brandId: null, created: [...created, `${prefix}/${rootSlug}/${brandSlug}/`] };
     brand = await createPage({ slug: brandSlug, parent: tuning.id, title: brandTitle, content: "", status: "publish", lang });
-    created.push(`${prefix}/tuning/${brandSlug}/`);
+    created.push(`${prefix}/${rootSlug}/${brandSlug}/`);
   }
   return { brandId: brand.id, created };
 }
