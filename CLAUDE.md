@@ -60,4 +60,4 @@ HQ（mbFAST Tuning本店）⇄ 代理店のポータル。Next.js 16 App Router 
 - EN価格は既定 quote（数字非表示・見積CTA）。`enPriceMode=price` にすると market=EN の PriceVehicle を (brandId, carName, grade) で照合して表示
 - status: hold（既定・生成対象外）→ draft → publish。**seed は必ず hold で作る**＝一斉公開させない設計。実績記事が紐づいた車種から順次 publish に上げる運用（スケールドコンテンツ対策）
 - 更新はマーカー区間（`<!-- START: 貼り付け範囲 -->`）だけ差し替え＝マーカー外の人の追記は保護。scriptタグ内の生アンパサンドは書込前に弾く（価格表と同じ理由）
-- コマンド: `npm run vpages:seed -- <brandId> [--commit]`（ドライラン既定）／ `vpages:wp-diff`（読み取りのみ）／ `vpages:wp-push -- --yes`（書込）／ `vpages:preview`（DB不要・.verify-out/ にサンプルHTML）
+- コマンド: `npm run vpages:seed -- <brandId> [--commit]`（ドライラン既定）／ `vpages:set -- --list` `--slug X --status draft` `--option babble=on` `--related <記事ID>`（状態・オプション・実績記事の運用CLI）／ `vpages:wp-diff`（読み取りのみ）／ `vpages:wp-push -- --yes`（書込）／ `vpages:preview`（DB不要・.verify-out/ にサンプルHTML）

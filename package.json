@@ -51,6 +51,7 @@
     "vpages:wp-diff": "tsx -r dotenv/config scripts/vpages-wp-diff.mts",
     "vpages:wp-push": "tsx -r dotenv/config scripts/vpages-wp-push.mts",
     "vpages:preview": "tsx scripts/vpages-preview.mts",
+    "vpages:set": "tsx -r dotenv/config scripts/vpages-set.mts",
     "report:pit-usage": "tsx -r dotenv/config scripts/report-pit-certificates.mts",
     "report:dealers": "tsx -r dotenv/config scripts/report-dealers.mts",
     "pit:sync-store-slug": "tsx -r dotenv/config scripts/pit-sync-store-slug.mts",
