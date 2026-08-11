@@ -14,19 +14,19 @@
  */
 import { prisma } from "@/lib/db";
 
-/** 施工種別 → 投稿カテゴリ（ecu | coating | polish | maintenance | other） */
+/** 施工種別 → 投稿ジャンル（公式8ジャンルslug。定義は src/config/mbpit-genres.json） */
 export const CERT_TO_BLOG_CATEGORY: Record<string, string> = {
   coating: "coating",
   ecu: "ecu",
   aiming: "maintenance",
-  tire: "maintenance",
+  tire: "tire-wheel",
   repair_history: "maintenance",
   battery: "maintenance",
-  general: "other",
+  general: "maintenance",
 };
 
 export function blogCategoryForCertType(certType: string): string {
-  return CERT_TO_BLOG_CATEGORY[certType] ?? "other";
+  return CERT_TO_BLOG_CATEGORY[certType] ?? "maintenance";
 }
 
 /** 公開してよい車種表記だけを組み立てる（メーカー＋車種名。無ければ「車両」） */

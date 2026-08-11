@@ -1031,7 +1031,7 @@ model PitPost {
   storeId       String
   store         PitStore    @relation(fields: [storeId], references: [id])
   vehicle       String // 車種（フリーテキスト）
-  category      String // ecu | coating | polish | maintenance | other
+  category      String // 公式8ジャンルslug（src/config/mbpit-genres.json参照）。旧値 polish/other が既存行に残存
   memo          String?
   photoKeys     Json        @default("[]") // storage上のキー（処理済み画像）
   // draft=証明書から作られたスタンバイ（記事未生成）/ review=生成済みで公開前の確認待ち

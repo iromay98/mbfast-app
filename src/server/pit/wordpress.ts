@@ -1,6 +1,8 @@
 // WordPress REST API クライアント（mbPIT自動公開用）。
 // 認証: Application Password（Basic）。WP_USER / WP_APP_PASSWORD は .env のみ（コミット禁止）。
 
+import { wpTagIdsForGenre } from "@/lib/mbpit-genres";
+
 const BASE = process.env.WP_BASE_URL ?? "https://mbfasttuning.com";
 const API = `${BASE}/wp-json/wp/v2`;
 
@@ -8,28 +10,23 @@ const API = `${BASE}/wp-json/wp/v2`;
 export const MBPIT_PARENT_CATEGORY_ID = 545;
 
 /*
- * 施工区分 → WPタグ（term ID）。ポータル側でジャンル絞り込みに使う。
+ * 施工区分（公式8ジャンル）→ WPタグ（term ID）。ポータル側でジャンル絞り込みに使う。
  *
- * 事前にWP側で作成済みの固定IDを持つ方式にしている。投稿のたびに /wp/v2/tags を
+ * ジャンルの定義は src/config/mbpit-genres.json が単一の正（本部管理・2026-08-09確定）。
+ * ここにIDやジャンル名をハードコードしない。マッピングは src/lib/mbpit-genres.ts 経由。
+ *
+ * WPタグは事前にWP側で作成済みの固定IDを持つ方式にしている。投稿のたびに /wp/v2/tags を
  * 引いて無ければ作る方式は、同時投稿で**同名タグが重複作成**される事故があるため採らない。
  *
- * ecu だけ表示名が「ECUチューニング（施工記録）」なのは、mbFAST本体のブログが使っている
- * 既存タグ「ECUチューニング」(ID 365) と**意図的に分けている**ため。共用すると
- * mbPITの施工記録とmbFAST本体の記事が同じタグアーカイブに混ざり、ブランド分離が崩れる。
+ * mbFAST本体ブログの既存タグ「ECUチューニング」(ID 365) は**自動付与しない**（意図的）。
+ * 自動で共用するとmbPITの施工記録とmbFAST本体の記事が同じタグアーカイブに混ざるため、
+ * 詳細タグ（ECUチューニング等の施工メニュー級の語）の付与は本部が記事単位で判断する。
  * **365 をここに書かないこと。**
  */
-export const PIT_CATEGORY_TAG_IDS: Record<string, number> = {
-  ecu: 671, // ECUチューニング（施工記録） slug=ecu
-  coating: 663, // コーティング
-  polish: 665, // 磨き
-  maintenance: 667, // メンテナンス
-  other: 669, // その他
-};
 
-/** 施工区分に対応するWPタグID（未知の区分は付けない＝勝手に other にしない） */
+/** 施工区分に対応するWPタグID（未知の区分は付けない）。旧slug(polish/other)は現行ジャンルに正規化される */
 export function tagIdsForCategory(category: string): number[] {
-  const id = PIT_CATEGORY_TAG_IDS[category];
-  return id ? [id] : [];
+  return wpTagIdsForGenre(category);
 }
 
 // mbPIT OGP画像（本部指定・全記事共通）

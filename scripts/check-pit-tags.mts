@@ -1,13 +1,16 @@
 /*
- * mbPIT: 施工区分とWPタグIDの対応が崩れていないことを検査する。
+ * mbPIT: 公式ジャンル定義（src/config/mbpit-genres.json）の整合を検査する。
  *
- * なぜ必要か:
- * 1. 投稿フォーム／APIの区分に新しい値を足したのにタグIDを足し忘れると、
- *    その区分の記事だけ**無言でタグ無し**になり、ポータルの絞り込みから消える。
- *    実行時エラーにならないので画面を見ても気づけない。
- * 2. mbFAST本体のブログが使っている既存タグ「ECUチューニング」(ID 365) を
- *    ここに書くと、mbPITの施工記録とmbFAST本体の記事が同じタグアーカイブに混ざる。
- *    ブランド分離が崩れるので**絶対に混ぜない**。
+ * 2026-08 の8ジャンル化で、投稿フォーム・API許可リスト・WPタグ付与は全て
+ * src/lib/mbpit-genres.ts 経由で同じJSONから導出される構造になった。
+ * そのため旧来の「3ファイル間の突き合わせ」は構造的に不要になり、検査対象は
+ *   1. JSONそのものの整合（slug/ID重複・欠落・旧slug参照切れ）
+ *   2. mbFAST本体のブログ用タグ「ECUチューニング」(ID 365) を混ぜていないこと
+ *      （共用するとmbPITの施工記録とmbFAST本体の記事が同じタグアーカイブに混ざり、
+ *      ブランド分離が崩れる。**絶対に混ぜない**）
+ *   3. 消費側ファイルがJSON由来のヘルパを使い続けていること（ハードコード再発防止）
+ * の3点になった。ジャンルを追加・改名したらJSONだけを直し、この検査を通すこと。
+ * WP側に同slugのタグを先に作り、その固定IDをJSONに書く（実行時の自動作成はしない）。
  */
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -15,67 +18,70 @@ import { join } from "node:path";
 /** mbFAST本体のブログが使っている既存タグ。mbPITでは使わない */
 const MBFAST_ECU_TAG_ID = 365;
 
-const wp = readFileSync(join(process.cwd(), "src/server/pit/wordpress.ts"), "utf-8");
-const api = readFileSync(join(process.cwd(), "src/app/api/pit/posts/route.ts"), "utf-8");
-const form = readFileSync(join(process.cwd(), "src/app/dealer/pit/pit-post-form.tsx"), "utf-8");
-
 let failed = 0;
 const fail = (m: string) => {
   console.error(`  ❌ ${m}`);
   failed++;
 };
 
-// ── タグ対応表を読む ────────────────────────────────────────────
-const mapBlock = wp.match(/PIT_CATEGORY_TAG_IDS[^=]*=\s*\{([\s\S]*?)\n\};/);
-if (!mapBlock) {
-  console.error("PIT_CATEGORY_TAG_IDS が wordpress.ts に見つかりません");
+// ── 1. ジャンルマスターの整合 ──────────────────────────────────
+type GenreJson = {
+  genres: { slug: string; label: string; wpTagId: number }[];
+  legacyCategories: Record<string, { label?: string; currentSlug?: string } | string>;
+};
+const raw = readFileSync(join(process.cwd(), "src/config/mbpit-genres.json"), "utf-8");
+const master = JSON.parse(raw) as GenreJson;
+
+if (!Array.isArray(master.genres) || master.genres.length === 0) {
+  console.error("mbpit-genres.json に genres がありません");
   process.exit(1);
 }
-const tagIds = new Map<string, number>();
-for (const m of mapBlock[1].matchAll(/^\s*(\w+):\s*(\d+)/gm)) tagIds.set(m[1], Number(m[2]));
 
-console.log("区分 → WPタグID");
-for (const [k, v] of tagIds) console.log(`  ${k.padEnd(12)} ${v}`);
+console.log("公式ジャンル → WPタグID");
+for (const g of master.genres) console.log(`  ${g.slug.padEnd(18)} ${g.wpTagId}  ${g.label}`);
 console.log("");
 
-// ── サーバー側の許可リストと突き合わせる ──────────────────────────
-const apiSet = api.match(/CATEGORIES\s*=\s*new Set\(\[([^\]]*)\]\)/);
-if (!apiSet) {
-  console.error("API側の CATEGORIES が見つかりません");
-  process.exit(1);
-}
-const apiCats = [...apiSet[1].matchAll(/"([^"]+)"/g)].map((m) => m[1]);
-
 console.log("検査");
-for (const c of apiCats) {
-  if (!tagIds.has(c)) fail(`区分 "${c}" にWPタグIDが未設定（この区分の記事はタグ無しで公開される）`);
-}
-for (const c of tagIds.keys()) {
-  if (!apiCats.includes(c)) fail(`タグIDの "${c}" はAPIの許可リストに無い区分（消し忘れ）`);
-}
-
-// ── 投稿フォームの選択肢とも突き合わせる ────────────────────────
-const formCats = [...form.matchAll(/\{\s*value:\s*"([^"]+)",\s*label:/g)].map((m) => m[1]);
-for (const c of formCats) {
-  if (!tagIds.has(c)) fail(`投稿フォームの区分 "${c}" にWPタグIDが未設定`);
-}
-
-// ── mbFAST本体のタグを混ぜていないか ───────────────────────────
-for (const [k, v] of tagIds) {
-  if (v === MBFAST_ECU_TAG_ID) {
+const slugSeen = new Set<string>();
+const idSeen = new Map<number, string>();
+for (const g of master.genres) {
+  if (!g.slug || !/^[a-z0-9-]+$/.test(g.slug)) fail(`slug "${g.slug}" が命名規則（英小文字）に反しています`);
+  if (!g.label) fail(`ジャンル "${g.slug}" にラベルがありません`);
+  if (slugSeen.has(g.slug)) fail(`slug "${g.slug}" が重複しています`);
+  slugSeen.add(g.slug);
+  if (!Number.isInteger(g.wpTagId) || g.wpTagId <= 0) {
+    fail(`ジャンル "${g.slug}" のwpTagIdが未設定です（この区分の記事はタグ無しで公開される）`);
+  } else {
+    const prev = idSeen.get(g.wpTagId);
+    if (prev) fail(`タグID ${g.wpTagId} が "${prev}" と "${g.slug}" で重複しています`);
+    idSeen.set(g.wpTagId, g.slug);
+  }
+  // ── 2. mbFAST本体のタグを混ぜていないか ──
+  if (g.wpTagId === MBFAST_ECU_TAG_ID) {
     fail(
-      `区分 "${k}" に ${MBFAST_ECU_TAG_ID} が指定されています。` +
+      `ジャンル "${g.slug}" に ${MBFAST_ECU_TAG_ID} が指定されています。` +
         "これはmbFAST本体のブログが使っている既存タグで、共用するとmbPITの施工記録と混ざります",
     );
   }
 }
+for (const [key, v] of Object.entries(master.legacyCategories)) {
+  if (key.startsWith("_")) continue;
+  const cur = typeof v === "object" ? v.currentSlug : undefined;
+  if (!cur || !slugSeen.has(cur)) {
+    fail(`旧区分 "${key}" の currentSlug "${cur}" が現行ジャンルに存在しません`);
+  }
+}
 
-// ── ID重複（コピペ事故）────────────────────────────────────────
-const seen = new Map<number, string>();
-for (const [k, v] of tagIds) {
-  const prev = seen.get(v);
-  if (prev) fail(`タグID ${v} が "${prev}" と "${k}" で重複しています`);
-  seen.set(v, k);
+// ── 3. 消費側がヘルパ経由のままか（ハードコード再発防止）──────────
+const consumers: [string, RegExp, string][] = [
+  ["src/server/pit/wordpress.ts", /wpTagIdsForGenre/, "タグ付与が mbpit-genres 由来でなくなっています"],
+  ["src/app/api/pit/posts/route.ts", /GENRE_SLUGS/, "APIの許可リストが mbpit-genres 由来でなくなっています"],
+  ["src/app/dealer/pit/pit-post-form.tsx", /GENRES/, "投稿フォームの選択肢が mbpit-genres 由来でなくなっています"],
+  ["src/app/hq/pit/pit-admin.tsx", /GENRES/, "本部投稿フォームの選択肢が mbpit-genres 由来でなくなっています"],
+];
+for (const [file, pattern, msg] of consumers) {
+  const src = readFileSync(join(process.cwd(), file), "utf-8");
+  if (!pattern.test(src)) fail(`${file}: ${msg}`);
 }
 
 console.log("");
@@ -83,4 +89,4 @@ if (failed) {
   console.error(`${failed}件の問題があります。`);
   process.exit(1);
 }
-console.log(`区分 ${apiCats.length}種すべてにWPタグIDが対応しています`);
+console.log(`公式ジャンル ${master.genres.length}種すべてにWPタグIDが対応しています`);
