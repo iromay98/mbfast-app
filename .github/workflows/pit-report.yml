@@ -113,6 +113,17 @@ jobs:
               #   wpPostId が NULL → 「WordPressの記事が見つかりません」で公開できない
               #   bodyHtml が NULL → 本部画面のプレビューが出せない
               # さらにWP側の実際の記事状態（draft/publish）もRESTで読む（GETのみ・書き込まない）。
+              # 本番コンテナに新UIが実際に入っているかの確認（デプロイ反映漏れの切り分け）。
+              # ビルド成果物に画面の見出し文字列が含まれているかをgrepするだけ（読み取りのみ）。
+              echo "-- 本番コンテナのUI反映確認 --"
+              for marker in "公開前の確認待ち" "内容を見る・調整する" "下書きに反映"; do
+                if $COMPOSE exec -T app sh -c "grep -rlF '$marker' .next/server >/dev/null 2>&1" </dev/null; then
+                  echo "  ✓ \"$marker\" を含む（反映済み）"
+                else
+                  echo "  ✗ \"$marker\" が見つからない（未反映の可能性）"
+                fi
+              done
+              echo ""
               echo "-- review で止まっている投稿 --"
               $COMPOSE exec -T postgres psql -U mbfast -d mbfast -c \
                 "SELECT p.id, to_char(p.\"createdAt\" AT TIME ZONE 'Asia/Tokyo','MM-DD HH24:MI') AS jst, s.\"displayName\" AS store, p.vehicle, p.\"wpPostId\", (p.\"bodyHtml\" IS NOT NULL) AS has_body, s.\"postReviewRequired\" AS review_on FROM \"PitPost\" p JOIN \"PitStore\" s ON s.id=p.\"storeId\" WHERE p.status='review' ORDER BY p.\"createdAt\" DESC;" </dev/null
