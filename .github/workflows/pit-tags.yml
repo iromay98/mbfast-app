@@ -14,6 +14,8 @@
 #               （slugは投稿時に焼き込まれるので、改名すると過去記事だけ404になる）
 #   job=noindex … URL限定公開（STEALTH_MODE）時代の記事から noindex を外す
 #               （AIOSEOのrobots設定のみ・本文等に触れない・冪等／WP）
+#   job=brand … 旧ブランドブロック（<style>＋mbpit-topbar）を既存記事から除去
+#               （mbpit-topbar を含む wp:html ブロックだけ・読み戻し検証あり・冪等／WP）
 #
 # 店舗が改名したときは slug → links の順に回す（アプリのslugを直してから記事を直す）。
 #
@@ -35,9 +37,9 @@ on:
   workflow_dispatch:
     inputs:
       job:
-        description: "tags=区分タグ遡及 / slug=店舗slug / name=表示名 / add=店舗登録 / merge=代理店の統合 / links=店舗リンク修正 / noindex=noindex解除"
+        description: "tags=区分タグ遡及 / slug=店舗slug / name=表示名 / add=店舗登録 / merge=代理店の統合 / links=店舗リンク修正 / noindex=noindex解除 / brand=旧ブランドブロック除去"
         type: choice
-        options: [tags, slug, name, add, merge, links, noindex]
+        options: [tags, slug, name, add, merge, links, noindex, brand]
         default: tags
       store_slug:
         description: "job=name / add のときの店舗slug（英小文字。例 glanzcoat）"
@@ -73,7 +75,7 @@ on:
         options: [diff, push]
         default: diff
       confirm:
-        description: "push のときは job名を大文字で入力（TAGS / SLUG / NAME / ADD / MERGE / LINKS / NOINDEX）。diff では不要"
+        description: "push のときは job名を大文字で入力（TAGS / SLUG / NAME / ADD / MERGE / LINKS / NOINDEX / BRAND）。diff では不要"
         type: string
         required: false
 
@@ -138,6 +140,7 @@ jobs:
             slug)  SCRIPT=scripts/pit-sync-store-slug.mts ;;
             links) SCRIPT=scripts/pit-fix-store-links.mts ;;
             noindex) SCRIPT=scripts/pit-clear-noindex.mts ;;
+            brand) SCRIPT=scripts/pit-strip-brand-block.mts ;;
             name)
               SCRIPT=scripts/pit-set-store-name.mts
               if [ -z "${STORE_SLUG:-}" ] || [ -z "${STORE_NAME_B64:-}" ]; then

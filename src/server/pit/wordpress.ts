@@ -32,22 +32,13 @@ export function tagIdsForCategory(category: string): number[] {
 // mbPIT OGP画像（本部指定・全記事共通）
 const MBPIT_OGP_URL = "https://mbfasttuning.com/wp-content/uploads/2026/07/mbpit-ogp.jpg";
 
-// mbPITブランドブロック: mbPITはmbFASTと別ブランドとして運用するため、
-// 記事表示時にサイトのヘッダー/フッター/mbFAST要素を隠し、mbPIT独自トップバーを出す。
-// mbpit.comへの移行後は不要になるので、この定数だけ消せば全記事分の挿入が止まる。
-const BRAND_BLOCK = `<!-- wp:html -->
-<style>
-.siteHeader,.siteFooter,.vk-mobile-nav-menu-outer,.vk-mobile-nav,.mobile-fix-nav,.vk-menu-acc-btn,
-.breadcrumb,.veu-breadcrumb,#breadcrumb,.veu_socialSet,.veu_pageTop,.page_top_btn,
-.sideSection,aside.sideSection,.copySection,.mbsel-row,.mbsel-panel,#mbsel-panel,.lang-switcher,.veu_sns,.snsBtns{display:none!important}
-.mainSection{width:100%!important;max-width:100%!important}
-body{padding-top:0!important}
-.mbpit-topbar{background:#0d0d0d;padding:14px 20px;display:flex;align-items:center;justify-content:space-between;border-bottom:2px solid #c9a227;border-radius:0 0 10px 10px;margin-bottom:10px}
-.mbpit-topbar a.mbpit-logo{display:flex;align-items:center}
-.mbpit-topbar .mbpit-tagline{color:#aaa;font-size:.75em}
-</style>
-<div class="mbpit-topbar"><a class="mbpit-logo" href="https://mbfasttuning.com/mbpit/"><img src="https://mbfasttuning.com/wp-content/uploads/2026/07/mbpit-logo-gold.webp" alt="mbPIT" style="height:34px;width:auto"></a><span class="mbpit-tagline">加盟店の施工記録ポータル</span></div>
-<!-- /wp:html -->`;
+/*
+ * mbPITブランドブロック（廃止・2026-08）。
+ * かつてはWP側にmbPIT用の見た目が無かったため、記事本文の先頭に <style>＋トップバーの
+ * wp:html ブロックを毎回焼き込んでいた。ポータル側がmbPIT用テンプレートを整えたため
+ * 挿入を廃止（二重表示になる）。既存記事からの除去は scripts/pit-strip-brand-block.mts
+ * （workflow job=brand）。ブランド分離（本文にmbFASTを書かない）は generate.ts 側で継続。
+ */
 
 // AUTO_PUBLISH=false で下書き投稿（既定は即公開）
 function autoPublish(): boolean {
@@ -294,7 +285,7 @@ export type WpPostInput = {
 export type WpPost = { id: number; link: string };
 
 // 記事公開（AUTO_PUBLISH=falseならdraft）
-// - 本文冒頭にブランドブロックを必ず挿入（mbPIT独立ブランド表示）
+// - 本文はそのまま（旧ブランドブロックの挿入は廃止。上のコメント参照）
 // - AIOSEO: タイトル上書き（「– mbFAST Tuning」サフィックス除去）・OGP画像は常時適用、
 //   noindex は STEALTH_MODE 時のみ（キー名は本部側で実機検証済み）
 export async function publishPost(input: WpPostInput): Promise<WpPost> {
@@ -302,7 +293,7 @@ export async function publishPost(input: WpPostInput): Promise<WpPost> {
   const body: Record<string, unknown> = {
     title: input.title,
     slug: input.slug,
-    content: `${BRAND_BLOCK}\n${input.contentHtml}`,
+    content: input.contentHtml,
     status: input.forceDraft || !autoPublish() ? "draft" : "publish",
     categories: input.categoryIds,
   };
