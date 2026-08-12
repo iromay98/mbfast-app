@@ -76,7 +76,8 @@ function css(dark: boolean): string {
 <style>
 /* テーマのページタイトル帯・パンくず・メタを非表示（このページ内にしか効かない） */
 .breadSection,.breadcrumb,.veu-breadcrumb,h1.entry-title,.page-header,.entry-meta{display:none!important}
-.siteContent{padding-top:0!important;margin-top:0!important}
+.siteContent{padding-top:0!important;margin-top:0!important;padding-bottom:0!important;background:${bg}!important}
+.siteContent .entry-body,.siteContent .section{padding-top:0!important;padding-bottom:0!important}
 .vpg-wrap{background:${bg};color:${fg};max-width:860px;margin:0 auto;padding:1.5rem 1rem 3rem;font-feature-settings:"palt"}
 .vpg-wrap h1{font-size:1.5rem;line-height:1.4;margin:0 0 .3em;color:${fg}}
 .vpg-wrap h2{font-size:1.15rem;margin:2.2em 0 .8em;padding-left:.6em;border-left:4px solid #EC6420;color:${fg}}
@@ -284,7 +285,7 @@ export function generateVehiclePageJp(d: VehiclePageData): GeneratedPage {
   const priceItems = d.prices;
   const html = `<!-- wp:html -->
 ${MARK_START}
-${css(false)}
+${css(true)}
 <div class="vpg-wrap">
 <div class="vpg-kicker">${esc(d.brandNameEn)} ECU TUNING</div>
 <div class="vpg-hero"><h1>${esc(name)}<br>ECUチューニング・バブリング</h1></div>
