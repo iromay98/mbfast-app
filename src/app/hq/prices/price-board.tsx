@@ -4,12 +4,14 @@ import { useState } from "react";
 import { Card } from "@/components/ui";
 import type { BrandRow, VehicleRow } from "@/lib/prices/types";
 import type { VpageInfo } from "./vpage-cells";
+import type { OptionDef } from "@/lib/vehicle-pages/options";
+import { OptionMaster, type OptionRow } from "./option-master";
 import { PriceGrid } from "./price-grid";
 import { BrandSettings } from "./brand-settings";
 import { PublishPanel } from "./publish-panel";
 
 // ブランドタブ + 選択中ブランドの編集グリッド
-export function PriceBoard({ data }: { data: { brand: BrandRow; vehicles: (VehicleRow & { vpage: VpageInfo })[] }[] }) {
+export function PriceBoard({ data, optionDefs, optionRows }: { data: { brand: BrandRow; vehicles: (VehicleRow & { vpage: VpageInfo })[] }[]; optionDefs: OptionDef[]; optionRows: OptionRow[] }) {
   const [active, setActive] = useState(data[0]?.brand.id ?? "");
   const current = data.find((d) => d.brand.id === active) ?? data[0];
   if (!current) return null;
@@ -39,10 +41,12 @@ export function PriceBoard({ data }: { data: { brand: BrandRow; vehicles: (Vehic
 
       <BrandSettings brand={current.brand} />
 
+      <OptionMaster options={optionRows} priceColumns={current.brand.columns.filter((c) => c.type === "price").map((c) => ({ key: c.key, label: c.label.replace(/\s*\(.*?\)\s*$/, "") }))} />
+
       <PublishPanel key={`pub-${current.brand.id}`} brand={current.brand} />
 
       <Card className="p-2">
-        <PriceGrid key={current.brand.id} brand={current.brand} vehicles={current.vehicles} />
+        <PriceGrid key={current.brand.id} brand={current.brand} vehicles={current.vehicles} optionDefs={optionDefs} />
       </Card>
     </div>
   );

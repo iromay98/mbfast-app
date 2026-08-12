@@ -7,6 +7,7 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { generateVehiclePageEn, generateVehiclePageJp } from "../src/lib/vehicle-pages/generate-html";
 import type { VehiclePageData } from "../src/lib/vehicle-pages/types";
+import { FALLBACK_OPTION_DEFS } from "../src/lib/vehicle-pages/options";
 
 const sample: VehiclePageData = {
   slug: "c-w204-c63amg",
@@ -42,6 +43,7 @@ const sample: VehiclePageData = {
       url: "https://mbfasttuning.com/mbpit/mbfast-tuning/bmw-x5m-competition-ecu-tuning-20260808/",
     },
   ],
+  optionDefs: FALLBACK_OPTION_DEFS,
   en: { mode: "quote" },
 };
 

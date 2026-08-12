@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { PageTitle, Card } from "@/components/ui";
 import { sortBrandsForDisplay } from "@/lib/prices/types";
 import { toOptions } from "@/lib/vehicle-pages/options";
+import { loadOptionDefs } from "@/lib/vehicle-pages/options-db";
 import { brandUrlSlug } from "@/lib/vehicle-pages/resolve";
 import { VpageBoard, type VpageRow } from "./vpage-board";
 
@@ -13,6 +14,7 @@ export const dynamic = "force-dynamic";
 export default async function HqVehiclePagesPage() {
   await requireHQ();
 
+  const optionDefs = await loadOptionDefs();
   const brands = sortBrandsForDisplay(
     await prisma.priceBrand.findMany({
       include: {
@@ -62,7 +64,7 @@ export default async function HqVehiclePagesPage() {
         subtitle="車種×グレードごとの個別ページ（JP/EN）。価格・出力は価格表マスタから自動反映されます。ここでは公開状態・対応オプション・実績記事の紐付けを管理します。"
       />
       <Card>
-        <VpageBoard brands={data} />
+        <VpageBoard brands={data} optionDefs={optionDefs} />
       </Card>
     </div>
   );

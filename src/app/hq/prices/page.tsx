@@ -12,6 +12,7 @@ import {
 } from "@/lib/prices/types";
 import { PriceBoard } from "./price-board";
 import { toOptions as toVpageOptions } from "@/lib/vehicle-pages/options";
+import { loadOptionDefs } from "@/lib/vehicle-pages/options-db";
 import type { VpageInfo } from "./vpage-cells";
 
 export const dynamic = "force-dynamic";
@@ -29,6 +30,18 @@ export default async function HqPricesPage() {
     }),
   );
 
+  const optionDefs = await loadOptionDefs();
+  const optionRows = (
+    await prisma.vehiclePageOption.findMany({ orderBy: { displayOrder: "asc" } })
+  ).map((o) => ({
+    id: o.id,
+    key: o.key,
+    jp: o.labelJa,
+    en: o.labelEn,
+    short: o.shortLabel ?? undefined,
+    derivedFrom: o.derivedFrom ?? undefined,
+    enabled: o.enabled,
+  }));
   const data = brands.map((b) => {
     const brand: BrandRow = {
       id: b.id,
@@ -80,7 +93,7 @@ export default async function HqPricesPage() {
           <p className="text-sm text-ink-soft">価格表データがまだありません。</p>
         </Card>
       ) : (
-        <PriceBoard data={data} />
+        <PriceBoard data={data} optionDefs={optionDefs} optionRows={optionRows} />
       )}
     </div>
   );

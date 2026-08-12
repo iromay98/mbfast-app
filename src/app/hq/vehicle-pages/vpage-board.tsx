@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { Badge, Button, Input, Select } from "@/components/ui";
-import { OPTION_DEFS } from "@/lib/vehicle-pages/options";
+import type { OptionDef } from "@/lib/vehicle-pages/options";
 import {
   addVpageRelatedPost,
   pushVpage,
@@ -45,7 +45,7 @@ const STATUS_TONE: Record<string, string> = {
   publish: "bg-emerald-100 text-emerald-800",
 };
 
-export function VpageBoard({ brands }: { brands: BrandData[] }) {
+export function VpageBoard({ brands, optionDefs }: { brands: BrandData[]; optionDefs: OptionDef[] }) {
   const [active, setActive] = useState(brands[0]?.id ?? "");
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -102,7 +102,7 @@ export function VpageBoard({ brands }: { brands: BrandData[] }) {
 
       <div className="space-y-2">
         {rows.map((r) => (
-          <VpageCard key={r.pageId} row={r} brandUrlSlug={current.urlSlug} />
+          <VpageCard key={r.pageId} row={r} brandUrlSlug={current.urlSlug} optionDefs={optionDefs} />
         ))}
         {rows.length === 0 && <p className="py-8 text-center text-sm text-ink-soft">該当なし</p>}
       </div>
@@ -127,7 +127,7 @@ function SeedBar({ brand }: { brand: BrandData }) {
   );
 }
 
-function VpageCard({ row, brandUrlSlug }: { row: VpageRow; brandUrlSlug: string }) {
+function VpageCard({ row, brandUrlSlug, optionDefs }: { row: VpageRow; brandUrlSlug: string; optionDefs: OptionDef[] }) {
   const [open, setOpen] = useState(false);
   const [pending, start] = useTransition();
   const [log, setLog] = useState<string | null>(null);
@@ -202,7 +202,7 @@ function VpageCard({ row, brandUrlSlug }: { row: VpageRow; brandUrlSlug: string 
           <div>
             <p className="mb-1 text-xs font-semibold text-ink-soft">対応オプション（未設定=ページに出さない / 〇 / —）。バブリング・TCU・リミッター解除は価格セルから自動判定（手動設定が優先）</p>
             <div className="flex flex-wrap gap-1.5">
-              {OPTION_DEFS.map((o) => {
+              {optionDefs.map((o) => {
                 const val = row.options[o.key];
                 const label = val === true ? "〇" : val === false ? "—" : "未";
                 const tone =

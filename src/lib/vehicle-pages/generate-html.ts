@@ -11,7 +11,7 @@
  * CSSは .vpg- プレフィックスでスコープ（postid依存にしない＝ページ複製やIDズレに強い）。
  */
 import type { GeneratedPage, PriceItem, VehiclePageData } from "./types";
-import { OPTION_DEFS } from "./options";
+
 import { REMOTE_TOOLS } from "../prices/types";
 
 const LINE_URL = "https://lin.ee/8yOXuPJ";
@@ -152,7 +152,7 @@ function priceTable(items: PriceItem[], jp: boolean, withAskBtn: boolean): strin
 }
 
 function optionTable(d: VehiclePageData, jp: boolean): string {
-  const entries = OPTION_DEFS.filter((o) => d.options[o.key] !== undefined);
+  const entries = d.optionDefs.filter((o) => d.options[o.key] !== undefined);
   if (entries.length === 0) return "";
   const rows = entries
     .map((o) => {
