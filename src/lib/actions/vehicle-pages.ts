@@ -10,12 +10,57 @@ import { wpConfigured } from "@/lib/vehicle-pages/wp-sync";
 
 const PATH = "/hq/vehicle-pages";
 
-export async function updateVpageStatus(pageId: string, status: string): Promise<{ ok?: true; error?: string }> {
+// 状態変更は、下書き/公開にした時点でその場でWPへ反映する（価格表グリッド側と同じ挙動）。
+export async function updateVpageStatus(
+  pageId: string,
+  status: string,
+): Promise<{ ok?: true; error?: string; syncWarning?: string }> {
   await requireHQ();
   if (!["hold", "draft", "publish"].includes(status)) return { error: "不正なstatus" };
   await prisma.vehiclePage.update({ where: { id: pageId }, data: { status } });
+  let syncWarning: string | undefined;
+  if (status !== "hold") {
+    if (!wpConfigured()) syncWarning = "WP認証が未設定のため反映していません";
+    else {
+      try {
+        const events = await syncVehiclePage(pageId);
+        const failed = events.filter((e) => e.level === "error");
+        if (failed.length > 0) syncWarning = failed.map((e) => e.message).join(" / ");
+      } catch (e) {
+        syncWarning = e instanceof Error ? e.message : "WP反映に失敗しました";
+      }
+    }
+  }
   revalidatePath(PATH);
-  return { ok: true };
+  return { ok: true, syncWarning };
+}
+
+/** ブランド内の「下書き/公開なのにWPページが未作成」の行をまとめて反映する */
+export async function pushPendingVpagesForBrand(brandId: string): Promise<{ ok?: true; created?: number; failed?: number; error?: string }> {
+  await requireHQ();
+  if (!wpConfigured()) return { error: "WP認証が未設定です" };
+  const targets = await prisma.vehiclePage.findMany({
+    where: {
+      vehicle: { brandId },
+      status: { in: ["draft", "publish"] },
+      OR: [{ wpPageIdJp: null }, { wpPageIdEn: null }],
+    },
+    select: { id: true },
+  });
+  let created = 0;
+  let failed = 0;
+  for (const t of targets) {
+    try {
+      const events = await syncVehiclePage(t.id);
+      if (events.some((e) => e.level === "error")) failed++;
+      else created++;
+    } catch {
+      failed++;
+    }
+  }
+  revalidatePath(PATH);
+  revalidatePath("/hq/prices");
+  return { ok: true, created, failed };
 }
 
 export async function updateVpageOption(pageId: string, key: string, value: boolean | null): Promise<{ ok?: true; error?: string }> {

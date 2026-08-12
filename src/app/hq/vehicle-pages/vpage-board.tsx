@@ -5,6 +5,7 @@ import { Badge, Button, Input, Select } from "@/components/ui";
 import type { OptionDef } from "@/lib/vehicle-pages/options";
 import {
   addVpageRelatedPost,
+  pushPendingVpagesForBrand,
   pushVpage,
   removeVpageRelatedPost,
   seedVpagesForBrand,
@@ -36,6 +37,7 @@ type BrandData = {
   urlSlug: string;
   vehicleCount: number;
   seeded: number;
+  pendingPush: number;
   rows: VpageRow[];
 };
 
@@ -84,6 +86,7 @@ export function VpageBoard({ brands, optionDefs }: { brands: BrandData[]; option
       </div>
 
       <SeedBar brand={current} />
+      <PendingPushBar brand={current} />
 
       <div className="flex flex-wrap items-center gap-2">
         <Input
@@ -124,6 +127,34 @@ function SeedBar({ brand }: { brand: BrandData }) {
       >
         {pending ? "作成中…" : "行を用意する"}
       </Button>
+    </div>
+  );
+}
+
+function PendingPushBar({ brand }: { brand: BrandData }) {
+  const [pending, start] = useTransition();
+  const [msg, setMsg] = useState<string | null>(null);
+  if (brand.pendingPush <= 0 && !msg) return null;
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm">
+      <span>
+        {brand.pendingPush > 0
+          ? `WPページが未作成のまま 下書き/公開 になっている車両が ${brand.pendingPush} 台あります`
+          : msg}
+      </span>
+      {brand.pendingPush > 0 && (
+        <Button
+          disabled={pending}
+          onClick={() =>
+            start(async () => {
+              const r = await pushPendingVpagesForBrand(brand.id);
+              setMsg(r.error ?? `反映しました（成功 ${r.created ?? 0} 台 / 失敗 ${r.failed ?? 0} 台）`);
+            })
+          }
+        >
+          {pending ? "反映中…" : "まとめてWPへ反映"}
+        </Button>
+      )}
     </div>
   );
 }
@@ -181,7 +212,12 @@ function VpageCard({ row, brandUrlSlug, optionDefs }: { row: VpageRow; brandUrlS
             <Select
               value={row.status}
               disabled={pending}
-              onChange={(e) => start(async () => void (await updateVpageStatus(row.pageId, e.target.value)))}
+              onChange={(e) =>
+                start(async () => {
+                  const r = await updateVpageStatus(row.pageId, e.target.value);
+                  setLog(r.error ?? r.syncWarning ?? null);
+                })
+              }
               className="w-auto"
             >
               <option value="hold">保留（生成しない）</option>

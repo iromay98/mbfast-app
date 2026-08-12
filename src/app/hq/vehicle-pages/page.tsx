@@ -33,6 +33,9 @@ export default async function HqVehiclePagesPage() {
     urlSlug: brandUrlSlug(b.id, b.slug),
     vehicleCount: b.vehicles.length,
     seeded: b.vehicles.filter((v) => v.page).length,
+    pendingPush: b.vehicles.filter(
+      (v) => v.page && v.page.status !== "hold" && (!v.page.wpPageIdJp || !v.page.wpPageIdEn),
+    ).length,
     rows: b.vehicles
       .filter((v) => v.page)
       .map((v): VpageRow => {
