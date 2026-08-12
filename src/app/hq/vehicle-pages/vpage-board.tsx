@@ -200,7 +200,10 @@ function VpageCard({ row, brandUrlSlug, optionDefs }: { row: VpageRow; brandUrlS
           </div>
 
           <div>
-            <p className="mb-1 text-xs font-semibold text-ink-soft">対応オプション（未設定=ページに出さない / 〇 / —）。バブリング・TCU・リミッター解除は価格セルから自動判定（手動設定が優先）</p>
+            <p className="mb-1 text-xs font-semibold text-ink-soft">
+              対応オプション（タップで 未 → 〇 → — → 未）。<strong>全項目どのメーカーでも選べます</strong>。
+              ページには<strong>〇か—にした項目だけ</strong>が出ます（「未」はページに出ません＝項目を足しただけでは出ません）
+            </p>
             <div className="flex flex-wrap gap-1.5">
               {optionDefs.map((o) => {
                 const val = row.options[o.key];

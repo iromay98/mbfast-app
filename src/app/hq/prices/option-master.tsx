@@ -55,8 +55,9 @@ export function OptionMaster({ options, priceColumns }: { options: OptionRow[]; 
         </button>
       </div>
       <p className="mb-2 text-[11px] text-ink-soft">
-        ここで追加した項目が、価格表の○×列と車両ページの「対応オプション」表に出ます。全ブランド共通です。
-        価格列を選ぶと、その列に金額かASKが入っている車両は自動で〇になります（手動設定が優先）。
+        ここで追加した項目が、価格表の○×列と車両ページの「対応オプション」表に出ます。全ブランド共通で、
+        <strong>どのメーカーでも全項目を選べます</strong>。車両ページには<strong>設定した項目だけ</strong>が出ます（未設定は出ません）。
+        価格列を選んでおくと、ページ行を新しく作るときの初期値だけ自動で入ります（以後は画面の○×が優先）。
       </p>
 
       <div className="mb-3 overflow-x-auto">
@@ -67,7 +68,7 @@ export function OptionMaster({ options, priceColumns }: { options: OptionRow[]; 
               <th className="px-2 py-1.5">日本語名</th>
               <th className="px-2 py-1.5">英語名</th>
               <th className="px-2 py-1.5">短縮</th>
-              <th className="px-2 py-1.5">価格列から自動</th>
+              <th className="px-2 py-1.5" title="新規のページ行を作るときの初期値だけに使う">価格列から初期値</th>
               <th className="px-2 py-1.5">表示</th>
               <th className="px-2 py-1.5" />
             </tr>
@@ -170,7 +171,7 @@ export function OptionMaster({ options, priceColumns }: { options: OptionRow[]; 
           <Field label="キー（英数字・自動）">
             <input value={key} onChange={(e) => setKey(e.target.value)} className="w-40 rounded border border-line px-2 py-1 text-sm" />
           </Field>
-          <Field label="価格列から自動判定">
+          <Field label="価格列から初期値（新規行のみ）">
             <select value={derived} onChange={(e) => setDerived(e.target.value)} className="rounded border border-line bg-surface px-2 py-1 text-sm">
               <option value="">（手動で設定）</option>
               {priceColumns.map((c) => (

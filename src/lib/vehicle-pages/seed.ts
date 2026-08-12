@@ -2,7 +2,35 @@
 // 必ず status=hold で作る＝ここから勝手に公開されることはない。
 
 import { prisma } from "../db";
-import { vehicleSlug } from "./resolve";
+import { deriveOptionsFromPrices, priceItemsFor, vehicleSlug } from "./resolve";
+import { loadOptionDefs } from "./options-db";
+
+/*
+ * 新規ページ行のオプション初期値。価格表に金額/ASKが入っている項目は〇、
+ * 「—」の項目は—で入れておく（あとは本部が画面で自由に足し引きする）。
+ * 表示は「設定済みの項目だけ」なので、ここで入れなかった項目はページに出ない。
+ */
+async function initialOptionsFor(vehicle: {
+  brandId: string;
+  prices: unknown;
+  carName: string;
+  grade: string | null;
+  engine: string;
+  ecuType: string | null;
+  stockOutput: string | null;
+  stage1Gain: string | null;
+  labor: string | null;
+  remote: unknown;
+  notes: string | null;
+}): Promise<Record<string, boolean>> {
+  const brand = await prisma.priceBrand.findUnique({
+    where: { id: vehicle.brandId },
+    select: { id: true, displayName: true, slug: true, columns: true },
+  });
+  if (!brand) return {};
+  const defs = await loadOptionDefs();
+  return deriveOptionsFromPrices(priceItemsFor(brand, vehicle), defs);
+}
 
 export async function seedVehiclePagesForBrand(brandId: string): Promise<number> {
   const vehicles = await prisma.priceVehicle.findMany({
@@ -18,7 +46,9 @@ export async function seedVehiclePagesForBrand(brandId: string): Promise<number>
     let n = 2;
     while (existing.has(slug)) slug = `${vehicleSlug(v.carName, v.grade)}-${n++}`;
     existing.add(slug);
-    await prisma.vehiclePage.create({ data: { vehicleId: v.id, slug, status: "hold" } });
+    await prisma.vehiclePage.create({
+      data: { vehicleId: v.id, slug, status: "hold", options: await initialOptionsFor(v) },
+    });
     created++;
   }
   return created;
@@ -33,5 +63,7 @@ export async function ensureVehiclePageRow(vehicleId: string) {
   let slug = vehicleSlug(v.carName, v.grade);
   let n = 2;
   while (existing.has(slug)) slug = `${vehicleSlug(v.carName, v.grade)}-${n++}`;
-  return prisma.vehiclePage.create({ data: { vehicleId, slug, status: "hold" } });
+  return prisma.vehiclePage.create({
+    data: { vehicleId, slug, status: "hold", options: await initialOptionsFor(v) },
+  });
 }

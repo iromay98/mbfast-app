@@ -56,11 +56,16 @@ function toRelated(v: unknown): RelatedPost[] {
 }
 
 /**
- * 価格セルから自動判定できるオプション（手動設定が常に優先）。
+ * 価格セルからオプションの**初期値**を推定する（新規のページ行を作るときだけ使う）。
  * 対応関係は語彙マスタの derivedFrom（価格列key）で定義する。
  * 価格 or ASK が入っている＝提供(〇)、「—」＝提供しない(—)、空欄＝判定しない。
+ *
+ * 表示時には使わない（2026-08 変更）。以前は描画のたびに価格列から補っていたため、
+ * 価格列を持たないメーカーでは該当オプションを選べず、逆に価格列があるメーカーでは
+ * 触っていない項目まで出ていた。**オプションは全メーカーで全項目を手で選び、
+ * 設定したものだけを出す**という運用に統一した（未設定＝ページに出さない）。
  */
-function deriveOptionsFromPrices(prices: PriceItem[], defs: OptionDef[]): Record<string, boolean> {
+export function deriveOptionsFromPrices(prices: PriceItem[], defs: OptionDef[]): Record<string, boolean> {
   const byPriceKey = new Map<string, string>();
   for (const d of defs) if (d.derivedFrom) byPriceKey.set(d.derivedFrom, d.key);
   const out: Record<string, boolean> = {};
@@ -101,7 +106,8 @@ export function resolveVehiclePageData(
     labor: vehicleJp.labor,
     remote: toRemote(vehicleJp.remote),
     notes: vehicleJp.notes,
-    options: { ...deriveOptionsFromPrices(jpPrices, optionDefs), ...toOptions(page.options) },
+    // 設定されている項目だけ（未設定はページに出さない）。価格列からの自動補完はしない
+    options: toOptions(page.options),
     optionDefs,
     related: toRelated(page.relatedPosts),
     en,

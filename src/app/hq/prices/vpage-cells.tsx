@@ -2,14 +2,17 @@
 
 // 価格グリッド（/hq/prices）に埋め込む「ページ」列のセル群。
 // 行が無い車両でも操作した瞬間に保留行が自動作成される（actions側で ensure）。
-// バブリング・TCU・リミッター解除は価格セルから自動判定されるため、ここには出さない。
+//
+// オプションは**全メーカーで全項目を選べる**（2026-08 変更）。以前はバブリング・TCU・
+// リミッター解除を価格セルからの自動判定に任せて列を出しておらず、その価格列を持たない
+// メーカーでは選ぶ手段が無かった。未設定の項目は公開ページに出ない（設定したものだけ出る）。
 
 import type { OptionDef } from "@/lib/vehicle-pages/options";
 import { setVpageOptionByVehicle, setVpageStatusByVehicle } from "@/lib/actions/vehicle-pages";
 
-/** 価格セルから自動判定されるものはグリッドに手動列を出さない（価格列が調整場所） */
+/** グリッドに出すオプション列（全項目）。価格列の有無でメーカーごとに絞らない */
 export function manualOptionDefs(defs: OptionDef[]): OptionDef[] {
-  return defs.filter((o) => !o.derivedFrom);
+  return defs;
 }
 
 /** グリッド行に渡すページ情報（無ければ null＝未作成） */
