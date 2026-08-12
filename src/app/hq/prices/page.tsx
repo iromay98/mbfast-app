@@ -11,6 +11,8 @@ import {
   type VehicleRow,
 } from "@/lib/prices/types";
 import { PriceBoard } from "./price-board";
+import { toOptions as toVpageOptions } from "@/lib/vehicle-pages/options";
+import type { VpageInfo } from "./vpage-cells";
 
 export const dynamic = "force-dynamic";
 
@@ -22,7 +24,7 @@ export default async function HqPricesPage() {
   const brands = sortBrandsForDisplay(
     await prisma.priceBrand.findMany({
       include: {
-        vehicles: { orderBy: { displayOrder: "asc" } },
+        vehicles: { orderBy: { displayOrder: "asc" }, include: { page: true } },
       },
     }),
   );
@@ -40,7 +42,7 @@ export default async function HqPricesPage() {
       wordPressPageId: b.wordPressPageId,
       vehicleCount: b.vehicles.length,
     };
-    const vehicles: VehicleRow[] = sortVehiclesForDisplay(b.vehicles).map((v) => ({
+    const vehicles: (VehicleRow & { vpage: VpageInfo })[] = sortVehiclesForDisplay(b.vehicles).map((v) => ({
       id: v.id,
       seriesGroup: v.seriesGroup,
       carName: v.carName,
@@ -56,6 +58,7 @@ export default async function HqPricesPage() {
       remote: toRemote(v.remote),
       notes: v.notes,
       displayOrder: v.displayOrder,
+      vpage: v.page ? { status: v.page.status, options: toVpageOptions(v.page.options) } : null,
     }));
     return { brand, vehicles };
   });
@@ -69,7 +72,7 @@ export default async function HqPricesPage() {
         <p className="text-xs text-sky-800">
           セルをクリックするとその場で編集でき、<b>Enter または他の場所をクリック</b>で保存されます（Escで取消）。
           価格は数字のみ入力（例: <code>165000</code>）。<b>空欄にすると公開ページではLINE問合せボタン</b>になります。
-          <code>ASK</code> と入力すると「要問合せ」表示です。
+          <code>ASK</code> と入力すると「要問合せ」表示です。右端の<b>「頁」列は車両ページの公開状態</b>、その隣は対応オプション（タップで 未・→〇→—）。バブリング/TCU/リミッター解除は価格セルから自動判定されます。
         </p>
       </Card>
       {data.length === 0 ? (

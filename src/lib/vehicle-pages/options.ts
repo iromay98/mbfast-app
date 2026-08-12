@@ -3,15 +3,15 @@
 // 生成器（generate-html.ts）・CLI（vpages-set.mts）・管理画面（/hq/vehicle-pages）は
 // 全部この配列を読むので、他のファイルの変更は不要。
 
-export type OptionDef = { key: string; jp: string; en: string };
+export type OptionDef = { key: string; jp: string; en: string; short?: string };
 
 export const OPTION_DEFS: OptionDef[] = [
   { key: "babble", jp: "バブリング（ポップス＆バングス）", en: "Pops and Bangs (Burble)" },
-  { key: "dragonAfterfire", jp: "ドラゴンアフターファイヤ", en: "Dragon Afterfire" },
-  { key: "coldStartOff", jp: "コールドスタートオフ", en: "Cold Start Off" },
-  { key: "idlingStopOff", jp: "アイドリングストップ解除", en: "Auto Start-Stop Off" },
-  { key: "mapSwitch", jp: "マップスイッチ", en: "Map Switch" },
-  { key: "ecuUnlock", jp: "ECUアンロック（要ベンチ作業）", en: "ECU Unlock (bench required)" },
+  { key: "dragonAfterfire", jp: "ドラゴンアフターファイヤ", en: "Dragon Afterfire", short: "ドラゴン" },
+  { key: "coldStartOff", jp: "コールドスタートオフ", en: "Cold Start Off", short: "冷始OFF" },
+  { key: "idlingStopOff", jp: "アイドリングストップ解除", en: "Auto Start-Stop Off", short: "アイスト" },
+  { key: "mapSwitch", jp: "マップスイッチ", en: "Map Switch", short: "MapSW" },
+  { key: "ecuUnlock", jp: "ECUアンロック（要ベンチ作業）", en: "ECU Unlock (bench required)", short: "解錠要" },
   { key: "limiterCut", jp: "スピードリミッター解除", en: "Speed Limiter Removal" },
   { key: "tcu", jp: "TCUチューニング", en: "TCU Tuning" },
 ];
