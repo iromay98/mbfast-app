@@ -4,6 +4,7 @@
 import { prisma } from "../db";
 import { generateVehiclePageEn, generateVehiclePageJp } from "./generate-html";
 import { brandNameEn, brandUrlSlug, resolveVehiclePageData } from "./resolve";
+import { loadOptionDefs } from "./options-db";
 import {
   createPage,
   ensureParentPage,
@@ -50,7 +51,8 @@ export async function syncVehiclePage(pageId: string): Promise<SyncEvent[]> {
           where: { brandId: b.id, market: "EN", carName: v.carName, grade: v.grade },
         })
       : null;
-  const data = resolveVehiclePageData(b, v, p, vehicleEn);
+  const optionDefs = await loadOptionDefs();
+  const data = resolveVehiclePageData(b, v, p, vehicleEn, optionDefs);
   const jp = generateVehiclePageJp(data);
   const en = generateVehiclePageEn(data);
   const wpStatus = p.status === "publish" ? "publish" : "draft";

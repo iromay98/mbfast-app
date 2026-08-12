@@ -105,3 +105,69 @@ export async function setVpageOptionByVehicle(vehicleId: string, key: string, va
   revalidatePath(PATH);
   return { ok: true };
 }
+
+/* ── オプション語彙マスタ（VehiclePageOption）の管理 ── */
+
+export async function createOptionDef(input: {
+  key: string;
+  labelJa: string;
+  labelEn: string;
+  shortLabel?: string;
+  derivedFrom?: string;
+}): Promise<{ ok?: true; error?: string }> {
+  await requireHQ();
+  const key = input.key.trim();
+  if (!/^[a-zA-Z][a-zA-Z0-9]*$/.test(key)) return { error: "キーは半角英字で始まる英数字にしてください（例: dragonAfterfire）" };
+  if (!input.labelJa.trim() || !input.labelEn.trim()) return { error: "日本語名と英語名は必須です" };
+  const dup = await prisma.vehiclePageOption.findUnique({ where: { key } });
+  if (dup) return { error: `キー "${key}" は既に使われています` };
+  const max = await prisma.vehiclePageOption.aggregate({ _max: { displayOrder: true } });
+  await prisma.vehiclePageOption.create({
+    data: {
+      key,
+      labelJa: input.labelJa.trim(),
+      labelEn: input.labelEn.trim(),
+      shortLabel: input.shortLabel?.trim() || null,
+      derivedFrom: input.derivedFrom?.trim() || null,
+      displayOrder: (max._max.displayOrder ?? 0) + 10,
+    },
+  });
+  revalidatePath("/hq/prices");
+  revalidatePath(PATH);
+  return { ok: true };
+}
+
+export async function updateOptionDef(
+  id: string,
+  input: { labelJa?: string; labelEn?: string; shortLabel?: string | null; derivedFrom?: string | null; enabled?: boolean; displayOrder?: number },
+): Promise<{ ok?: true; error?: string }> {
+  await requireHQ();
+  await prisma.vehiclePageOption.update({ where: { id }, data: input });
+  revalidatePath("/hq/prices");
+  revalidatePath(PATH);
+  return { ok: true };
+}
+
+export async function moveOptionDef(id: string, dir: "up" | "down"): Promise<{ ok?: true; error?: string }> {
+  await requireHQ();
+  const all = await prisma.vehiclePageOption.findMany({ orderBy: { displayOrder: "asc" } });
+  const i = all.findIndex((o) => o.id === id);
+  if (i < 0) return { error: "見つかりません" };
+  const j = dir === "up" ? i - 1 : i + 1;
+  if (j < 0 || j >= all.length) return { ok: true };
+  await prisma.$transaction([
+    prisma.vehiclePageOption.update({ where: { id: all[i].id }, data: { displayOrder: all[j].displayOrder } }),
+    prisma.vehiclePageOption.update({ where: { id: all[j].id }, data: { displayOrder: all[i].displayOrder } }),
+  ]);
+  revalidatePath("/hq/prices");
+  revalidatePath(PATH);
+  return { ok: true };
+}
+
+export async function deleteOptionDef(id: string): Promise<{ ok?: true; error?: string }> {
+  await requireHQ();
+  await prisma.vehiclePageOption.delete({ where: { id } });
+  revalidatePath("/hq/prices");
+  revalidatePath(PATH);
+  return { ok: true };
+}

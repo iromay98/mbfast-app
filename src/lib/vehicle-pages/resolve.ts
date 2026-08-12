@@ -4,7 +4,7 @@
 
 import { toColumns, toPrices, toRemote } from "../prices/types";
 import type { PriceItem, RelatedPost, VehiclePageData } from "./types";
-import { toOptions } from "./options";
+import { toOptions, type OptionDef } from "./options";
 
 type BrandRowLike = {
   id: string;
@@ -57,19 +57,15 @@ function toRelated(v: unknown): RelatedPost[] {
 
 /**
  * 価格セルから自動判定できるオプション（手動設定が常に優先）。
- * 価格 or ASK が入っている＝提供している(〇)、「—」＝提供しない(—)、空欄＝判定しない。
- * 対応表: 価格列key → オプションkey
+ * 対応関係は語彙マスタの derivedFrom（価格列key）で定義する。
+ * 価格 or ASK が入っている＝提供(〇)、「—」＝提供しない(—)、空欄＝判定しない。
  */
-const PRICE_DERIVED_OPTIONS: Record<string, string> = {
-  babble: "babble",
-  tcu: "tcu",
-  limiterCut: "limiterCut",
-};
-
-function deriveOptionsFromPrices(prices: PriceItem[]): Record<string, boolean> {
+function deriveOptionsFromPrices(prices: PriceItem[], defs: OptionDef[]): Record<string, boolean> {
+  const byPriceKey = new Map<string, string>();
+  for (const d of defs) if (d.derivedFrom) byPriceKey.set(d.derivedFrom, d.key);
   const out: Record<string, boolean> = {};
   for (const p of prices) {
-    const optKey = PRICE_DERIVED_OPTIONS[p.key];
+    const optKey = byPriceKey.get(p.key);
     if (!optKey) continue;
     const v = p.value.trim();
     if (v === "—" || v === "-") out[optKey] = false;
@@ -83,6 +79,7 @@ export function resolveVehiclePageData(
   vehicleJp: VehicleRowLike,
   page: PageRowLike,
   vehicleEn: VehicleRowLike | null,
+  optionDefs: OptionDef[],
 ): VehiclePageData {
   const en: VehiclePageData["en"] =
     page.enPriceMode === "price" && vehicleEn
@@ -104,7 +101,8 @@ export function resolveVehiclePageData(
     labor: vehicleJp.labor,
     remote: toRemote(vehicleJp.remote),
     notes: vehicleJp.notes,
-    options: { ...deriveOptionsFromPrices(jpPrices), ...toOptions(page.options) },
+    options: { ...deriveOptionsFromPrices(jpPrices, optionDefs), ...toOptions(page.options) },
+    optionDefs,
     related: toRelated(page.relatedPosts),
     en,
   };

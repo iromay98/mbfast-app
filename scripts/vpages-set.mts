@@ -10,7 +10,8 @@
  * 注意: ここで status を publish にしても、WPに反映されるのは vpages:wp-push を実行したときだけ。
  */
 import { prisma } from "../src/lib/db";
-import { OPTION_KEYS, type VehicleOptions } from "../src/lib/vehicle-pages/options";
+import type { VehicleOptions } from "../src/lib/vehicle-pages/options";
+import { loadOptionDefs } from "../src/lib/vehicle-pages/options-db";
 
 const args = process.argv.slice(2);
 
@@ -58,6 +59,7 @@ if (status) {
   console.log(`✓ ${slug}: status ${page.status} → ${status}`);
 }
 
+const OPTION_KEYS = (await loadOptionDefs(true)).map((o) => o.key);
 const optIdx = args.indexOf("--option");
 if (optIdx >= 0) {
   const pairs = args.slice(optIdx + 1).filter((a) => a.includes("="));

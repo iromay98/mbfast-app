@@ -4,8 +4,8 @@
 
 import type { RemoteFlags } from "../prices/types";
 
-export type { VehicleOptions } from "./options"; // 語彙の単一の正は options.ts
-import type { VehicleOptions } from "./options";
+export type { VehicleOptions } from "./options"; // 語彙の単一の正は DB(VehiclePageOption)
+import type { OptionDef, VehicleOptions } from "./options";
 
 export type RelatedPost = { id?: number; title: string; url: string };
 
@@ -28,6 +28,7 @@ export type VehiclePageData = {
   remote: RemoteFlags;
   notes: string | null;
   options: VehicleOptions;
+  optionDefs: OptionDef[]; // 表示順・ラベルの語彙（DBから解決したもの）
   related: RelatedPost[];
   /** EN: quote=価格非表示（既定）。price=EN価格を表示（market=EN のレコードから解決済みの値） */
   en: { mode: "quote" } | { mode: "price"; prices: PriceItem[] };

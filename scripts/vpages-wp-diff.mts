@@ -12,6 +12,7 @@
  * 書き込みは npm run vpages:wp-push（--yes 必須）。
  */
 import { prisma } from "../src/lib/db";
+import { loadOptionDefs } from "../src/lib/vehicle-pages/options-db";
 import { generateVehiclePageEn, generateVehiclePageJp } from "../src/lib/vehicle-pages/generate-html";
 import { brandUrlSlug, resolveVehiclePageData } from "../src/lib/vehicle-pages/resolve";
 import { fetchPageRaw, findUnsafeScriptContent, replaceMarkedRegion, wpConfigured } from "../src/lib/vehicle-pages/wp-sync";
@@ -52,7 +53,7 @@ for (const p of pages) {
           where: { brandId: b.id, market: "EN", carName: v.carName, grade: v.grade },
         })
       : null;
-  const data = resolveVehiclePageData(b, v, p, vehicleEn);
+  const data = resolveVehiclePageData(b, v, p, vehicleEn, await loadOptionDefs());
   const jp = generateVehiclePageJp(data);
   const en = generateVehiclePageEn(data);
 

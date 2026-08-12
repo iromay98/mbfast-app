@@ -1162,3 +1162,20 @@ model PitPiiAccessLog {
   @@index([certificateId, at])
   @@index([actorUserId, at])
 }
+
+// 車両ページ「対応オプション」の語彙マスタ。管理画面から追加・並べ替え・削除できる。
+// 既定8件は migration で投入。key は VehiclePage.options の JSON キーと対応。
+model VehiclePageOption {
+  id           String   @id @default(cuid())
+  key          String   @unique // "coldStartOff" 等（JSONキー・変更不可運用）
+  labelJa      String
+  labelEn      String
+  shortLabel   String? // 価格表グリッドの列見出し（短縮）
+  derivedFrom  String? // 価格列key（値があれば〇と自動判定。手動設定が優先）
+  displayOrder Int      @default(0)
+  enabled      Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([displayOrder])
+}

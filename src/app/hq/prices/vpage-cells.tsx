@@ -4,13 +4,13 @@
 // 行が無い車両でも操作した瞬間に保留行が自動作成される（actions側で ensure）。
 // バブリング・TCU・リミッター解除は価格セルから自動判定されるため、ここには出さない。
 
-import { OPTION_DEFS } from "@/lib/vehicle-pages/options";
+import type { OptionDef } from "@/lib/vehicle-pages/options";
 import { setVpageOptionByVehicle, setVpageStatusByVehicle } from "@/lib/actions/vehicle-pages";
 
-/** 価格セルから自動判定される（＝グリッドに手動列を出さない）オプション */
-const DERIVED_KEYS = new Set(["babble", "tcu", "limiterCut"]);
-
-export const MANUAL_OPTION_DEFS = OPTION_DEFS.filter((o) => !DERIVED_KEYS.has(o.key));
+/** 価格セルから自動判定されるものはグリッドに手動列を出さない（価格列が調整場所） */
+export function manualOptionDefs(defs: OptionDef[]): OptionDef[] {
+  return defs.filter((o) => !o.derivedFrom);
+}
 
 /** グリッド行に渡すページ情報（無ければ null＝未作成） */
 export type VpageInfo = { status: string; options: Record<string, boolean> } | null;

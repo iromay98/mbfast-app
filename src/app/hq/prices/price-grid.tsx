@@ -16,12 +16,14 @@ import {
   type RemoteFlags,
   type VehicleRow,
 } from "@/lib/prices/types";
-import { MANUAL_OPTION_DEFS, VpageOptionCell, VpageStatusCell, type VpageInfo } from "./vpage-cells";
+import { manualOptionDefs, VpageOptionCell, VpageStatusCell, type VpageInfo } from "./vpage-cells";
+import type { OptionDef } from "@/lib/vehicle-pages/options";
 
 type GridVehicle = VehicleRow & { vpage: VpageInfo };
 
 // 価格をExcel的に編集する表。列はブランド定義（columns）に従って動的に描画する。
-export function PriceGrid({ brand, vehicles }: { brand: BrandRow; vehicles: GridVehicle[] }) {
+export function PriceGrid({ brand, vehicles, optionDefs }: { brand: BrandRow; vehicles: GridVehicle[]; optionDefs: OptionDef[] }) {
+  const manualOpts = manualOptionDefs(optionDefs);
   const router = useRouter();
   const [pending, start] = useTransition();
   const [msg, setMsg] = useState<string | null>(null);
@@ -103,7 +105,7 @@ export function PriceGrid({ brand, vehicles }: { brand: BrandRow; vehicles: Grid
               ))}
               <th className="px-1.5 py-1.5 font-semibold">備考★</th>
               <th className="border-l border-line px-1.5 py-1.5 font-semibold" title="車両ページの公開状態">頁</th>
-              {MANUAL_OPTION_DEFS.map((o) => (
+              {manualOpts.map((o) => (
                 <th key={o.key} className="px-1 py-1.5 text-center font-semibold" title={o.jp}>
                   {o.short ?? o.jp}
                 </th>
@@ -119,6 +121,7 @@ export function PriceGrid({ brand, vehicles }: { brand: BrandRow; vehicles: Grid
                 brand={brand}
                 pending={pending}
                 onRun={run}
+                manualOpts={manualOpts}
               />
             ))}
           </tbody>
@@ -136,11 +139,13 @@ function Row({
   brand,
   pending,
   onRun,
+  manualOpts,
 }: {
   v: GridVehicle;
   brand: BrandRow;
   pending: boolean;
   onRun: (fn: () => Promise<{ ok?: true; error?: string }>) => void;
+  manualOpts: OptionDef[];
 }) {
   // 列キー → その行の値を取り出す
   const cellFor = (c: ColumnDefinition) => {
@@ -227,7 +232,7 @@ function Row({
       <td className="border-l border-line px-1 py-1">
         <VpageStatusCell vehicleId={v.id} vpage={v.vpage} pending={pending} onRun={onRun} />
       </td>
-      {MANUAL_OPTION_DEFS.map((o) => (
+      {manualOpts.map((o) => (
         <td key={o.key} className="px-0.5 py-1 text-center">
           <VpageOptionCell vehicleId={v.id} optionKey={o.key} vpage={v.vpage} pending={pending} onRun={onRun} />
         </td>
