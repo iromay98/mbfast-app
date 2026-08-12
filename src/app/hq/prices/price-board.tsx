@@ -3,12 +3,13 @@
 import { useState } from "react";
 import { Card } from "@/components/ui";
 import type { BrandRow, VehicleRow } from "@/lib/prices/types";
+import type { VpageInfo } from "./vpage-cells";
 import { PriceGrid } from "./price-grid";
 import { BrandSettings } from "./brand-settings";
 import { PublishPanel } from "./publish-panel";
 
 // ブランドタブ + 選択中ブランドの編集グリッド
-export function PriceBoard({ data }: { data: { brand: BrandRow; vehicles: VehicleRow[] }[] }) {
+export function PriceBoard({ data }: { data: { brand: BrandRow; vehicles: (VehicleRow & { vpage: VpageInfo })[] }[] }) {
   const [active, setActive] = useState(data[0]?.brand.id ?? "");
   const current = data.find((d) => d.brand.id === active) ?? data[0];
   if (!current) return null;

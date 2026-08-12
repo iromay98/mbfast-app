@@ -16,9 +16,12 @@ import {
   type RemoteFlags,
   type VehicleRow,
 } from "@/lib/prices/types";
+import { MANUAL_OPTION_DEFS, VpageOptionCell, VpageStatusCell, type VpageInfo } from "./vpage-cells";
+
+type GridVehicle = VehicleRow & { vpage: VpageInfo };
 
 // 価格をExcel的に編集する表。列はブランド定義（columns）に従って動的に描画する。
-export function PriceGrid({ brand, vehicles }: { brand: BrandRow; vehicles: VehicleRow[] }) {
+export function PriceGrid({ brand, vehicles }: { brand: BrandRow; vehicles: GridVehicle[] }) {
   const router = useRouter();
   const [pending, start] = useTransition();
   const [msg, setMsg] = useState<string | null>(null);
@@ -96,6 +99,12 @@ export function PriceGrid({ brand, vehicles }: { brand: BrandRow; vehicles: Vehi
                 </th>
               ))}
               <th className="px-1.5 py-1.5 font-semibold">備考★</th>
+              <th className="border-l border-line px-1.5 py-1.5 font-semibold" title="車両ページの公開状態">頁</th>
+              {MANUAL_OPTION_DEFS.map((o) => (
+                <th key={o.key} className="px-1 py-1.5 text-center font-semibold" title={o.jp}>
+                  {o.short ?? o.jp}
+                </th>
+              ))}
               <th className="px-1.5 py-1.5 font-semibold">操作</th>
             </tr>
           </thead>
@@ -125,7 +134,7 @@ function Row({
   pending,
   onRun,
 }: {
-  v: VehicleRow;
+  v: GridVehicle;
   brand: BrandRow;
   pending: boolean;
   onRun: (fn: () => Promise<{ ok?: true; error?: string }>) => void;
@@ -203,6 +212,14 @@ function Row({
           placeholder="（★注記）"
         />
       </td>
+      <td className="border-l border-line px-1 py-1">
+        <VpageStatusCell vehicleId={v.id} vpage={v.vpage} pending={pending} onRun={onRun} />
+      </td>
+      {MANUAL_OPTION_DEFS.map((o) => (
+        <td key={o.key} className="px-0.5 py-1 text-center">
+          <VpageOptionCell vehicleId={v.id} optionKey={o.key} vpage={v.vpage} pending={pending} onRun={onRun} />
+        </td>
+      ))}
       <td className="whitespace-nowrap px-1.5 py-1">
         <div className="flex items-center gap-0.5">
           <IconBtn title="上へ" disabled={pending} onClick={() => onRun(() => moveVehicle(v.id, "up"))}>

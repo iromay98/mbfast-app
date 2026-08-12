@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
 import { requireHQ } from "@/lib/authz";
 import { toOptions } from "@/lib/vehicle-pages/options";
-import { seedVehiclePagesForBrand } from "@/lib/vehicle-pages/seed";
+import { ensureVehiclePageRow, seedVehiclePagesForBrand } from "@/lib/vehicle-pages/seed";
 import { syncVehiclePage, type SyncEvent } from "@/lib/vehicle-pages/sync-core";
 import { wpConfigured } from "@/lib/vehicle-pages/wp-sync";
 
@@ -80,4 +80,28 @@ export async function pushVpage(pageId: string): Promise<{ ok?: true; events?: S
   const events = await syncVehiclePage(pageId);
   revalidatePath(PATH);
   return { ok: true, events };
+}
+
+/* ── 価格グリッド（/hq/prices）からの操作。行が無ければ保留で自動作成してから更新 ── */
+
+export async function setVpageStatusByVehicle(vehicleId: string, status: string): Promise<{ ok?: true; error?: string }> {
+  await requireHQ();
+  if (!["hold", "draft", "publish"].includes(status)) return { error: "不正なstatus" };
+  const row = await ensureVehiclePageRow(vehicleId);
+  await prisma.vehiclePage.update({ where: { id: row.id }, data: { status } });
+  revalidatePath("/hq/prices");
+  revalidatePath(PATH);
+  return { ok: true };
+}
+
+export async function setVpageOptionByVehicle(vehicleId: string, key: string, value: boolean | null): Promise<{ ok?: true; error?: string }> {
+  await requireHQ();
+  const row = await ensureVehiclePageRow(vehicleId);
+  const options: Record<string, boolean> = { ...toOptions(row.options) };
+  if (value === null) delete options[key];
+  else options[key] = value;
+  await prisma.vehiclePage.update({ where: { id: row.id }, data: { options } });
+  revalidatePath("/hq/prices");
+  revalidatePath(PATH);
+  return { ok: true };
 }

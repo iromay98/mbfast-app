@@ -23,3 +23,15 @@ export async function seedVehiclePagesForBrand(brandId: string): Promise<number>
   }
   return created;
 }
+
+/** 車両1台分のページ行を保証（無ければ status=hold で作成）。作成有無に関わらず行を返す */
+export async function ensureVehiclePageRow(vehicleId: string) {
+  const found = await prisma.vehiclePage.findUnique({ where: { vehicleId } });
+  if (found) return found;
+  const v = await prisma.priceVehicle.findUniqueOrThrow({ where: { id: vehicleId } });
+  const existing = new Set((await prisma.vehiclePage.findMany({ select: { slug: true } })).map((p) => p.slug));
+  let slug = vehicleSlug(v.carName, v.grade);
+  let n = 2;
+  while (existing.has(slug)) slug = `${vehicleSlug(v.carName, v.grade)}-${n++}`;
+  return prisma.vehiclePage.create({ data: { vehicleId, slug, status: "hold" } });
+}
