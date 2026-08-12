@@ -68,9 +68,11 @@ export type DealerOption = { id: string; name: string };
 
 const STATUS_LABELS: Record<string, { label: string; cls: string }> = {
   published: { label: "公開済み", cls: "bg-green-100 text-green-800" },
+  review: { label: "確認待ち", cls: "bg-amber-100 text-amber-800" },
   held: { label: "保留（要確認）", cls: "bg-red-100 text-red-800" },
   failed: { label: "失敗/対応済み", cls: "bg-surface-2 text-ink-soft" },
   processing: { label: "処理中", cls: "bg-sky-100 text-sky-800" },
+  deleted: { label: "取り下げ/削除", cls: "bg-surface-2 text-ink-soft" },
 };
 
 // 初期5店のWordPressカテゴリID（登録フォームの参考表示用・確定値）
