@@ -45,7 +45,7 @@ export function PublishPanel({ brand }: { brand: BrandRow }) {
       setForce(false);
       setSyncMsg(
         res.status === "success"
-          ? "✅ WordPressに反映しました（公開ページを確認してください）"
+          ? `✅ WordPressに反映しました${r.vpagesSynced ? `（車両ページ ${r.vpagesSynced} 枚も更新）` : ""}`
           : res.status === "skipped"
             ? "変更なし（前回の反映内容と同一のためスキップしました）"
             : `❌ 反映失敗: ${res.error ?? "不明なエラー"}（WPは変更されていません）`,

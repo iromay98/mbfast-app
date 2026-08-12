@@ -355,7 +355,7 @@ export async function importBrandCsv(
 // ── WordPress同期（Step C）──
 // ブランドの紐づくページ単位で同期する（mercedes 2ブランドは1ページに同居のため一括）。
 
-export async function previewWpSync(brandId: string): Promise<{ ok?: true; result?: import("@/server/prices/wp-sync").SyncResult; error?: string }> {
+export async function previewWpSync(brandId: string): Promise<{ ok?: true; result?: import("@/server/prices/wp-sync").SyncResult; vpagesSynced?: number; error?: string }> {
   await requireHQ();
   const b = await prisma.priceBrand.findUnique({ where: { id: brandId }, select: { wordPressPageId: true } });
   if (!b?.wordPressPageId) return { error: "WordPressページIDが未設定です（ブランド設定で登録してください）" };
@@ -364,7 +364,7 @@ export async function previewWpSync(brandId: string): Promise<{ ok?: true; resul
   return { ok: true, result };
 }
 
-export async function publishWpSync(brandId: string, force = false): Promise<{ ok?: true; result?: import("@/server/prices/wp-sync").SyncResult; error?: string }> {
+export async function publishWpSync(brandId: string, force = false): Promise<{ ok?: true; result?: import("@/server/prices/wp-sync").SyncResult; vpagesSynced?: number; error?: string }> {
   await requireHQ();
   const b = await prisma.priceBrand.findUnique({ where: { id: brandId }, select: { wordPressPageId: true } });
   if (!b?.wordPressPageId) return { error: "WordPressページIDが未設定です（ブランド設定で登録してください）" };
@@ -374,7 +374,23 @@ export async function publishWpSync(brandId: string, force = false): Promise<{ o
   // 保留=生成対象外なので、ここから勝手に公開されることはない（公開の判断は /hq/vehicle-pages）。
   const { seedVehiclePagesForBrand } = await import("@/lib/vehicle-pages/seed");
   await seedVehiclePagesForBrand(brandId);
+  // さらに、このブランドの下書き・公開中の車両ページも同じ価格で自動更新する
+  // （価格の変更が価格表と車両ページで食い違わないように）。1件の失敗で全体を止めない。
+  const { syncVehiclePage } = await import("@/lib/vehicle-pages/sync-core");
+  const targets = await prisma.vehiclePage.findMany({
+    where: { status: { in: ["draft", "publish"] }, vehicle: { brandId } },
+    select: { id: true },
+  });
+  let vpagesSynced = 0;
+  for (const t of targets) {
+    try {
+      const events = await syncVehiclePage(t.id);
+      if (events.some((e) => e.message.includes("更新") || e.message.includes("作成"))) vpagesSynced++;
+    } catch {
+      // 個別失敗はスキップ（次回反映かCLIで追いつく）
+    }
+  }
   revalidatePath(PRICES_PATH);
   revalidatePath("/hq/vehicle-pages");
-  return { ok: true, result };
+  return { ok: true, result, vpagesSynced };
 }
