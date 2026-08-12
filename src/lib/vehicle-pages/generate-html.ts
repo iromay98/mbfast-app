@@ -76,7 +76,8 @@ function css(dark: boolean): string {
 <style>
 /* テーマのページタイトル帯・パンくず・メタを非表示（このページ内にしか効かない） */
 .breadSection,.breadcrumb,.veu-breadcrumb,h1.entry-title,.page-header,.entry-meta{display:none!important}
-.siteContent{padding-top:0!important;margin-top:0!important}
+.siteContent{padding-top:0!important;margin-top:0!important;padding-bottom:0!important;background:${bg}!important}
+.siteContent .entry-body,.siteContent .section{padding-top:0!important;padding-bottom:0!important}
 .vpg-wrap{background:${bg};color:${fg};max-width:860px;margin:0 auto;padding:1.5rem 1rem 3rem;font-feature-settings:"palt"}
 .vpg-wrap h1{font-size:1.5rem;line-height:1.4;margin:0 0 .3em;color:${fg}}
 .vpg-wrap h2{font-size:1.15rem;margin:2.2em 0 .8em;padding-left:.6em;border-left:4px solid #EC6420;color:${fg}}
@@ -90,6 +91,23 @@ function css(dark: boolean): string {
 .vpg-pcard--tuned{border-color:#c9a24b;box-shadow:0 0 0 1px #c9a24b inset}
 .vpg-pcard--tuned .vpg-pval{color:#c9a24b}
 .vpg-gain{font-size:.82rem;color:#EC6420;font-weight:600;margin-top:.2em}
+.vpg-bars{margin:.4rem 0 1.6rem}
+.vpg-bar-row{display:flex;align-items:center;gap:.6rem;margin:.5rem 0}
+.vpg-bar-label{width:6.5em;font-size:.74rem;color:${sub};text-align:right;white-space:nowrap}
+.vpg-bar-track{flex:1;height:15px;background:${dark ? "#1d1d1d" : "#eee"};border-radius:8px;overflow:hidden}
+.vpg-bar-fill{height:100%;border-radius:8px;width:0}
+.vpg-on .vpg-bar-fill{animation:vpgGrow 1.1s cubic-bezier(.2,.7,.2,1) forwards}
+.vpg-bar-fill--stock{background:${dark ? "#4a4a4a" : "#b9b9b9"};animation-delay:.15s}
+.vpg-bar-fill--tuned{background:linear-gradient(90deg,#c9a24b,#EC6420);animation-delay:.45s;box-shadow:0 0 14px rgba(236,100,32,.4)}
+.vpg-bar-val{width:6.2em;font-size:.78rem;font-weight:700;white-space:nowrap}
+.vpg-bar-val--tuned{color:#EC6420}
+@keyframes vpgGrow{from{width:0}to{width:var(--w)}}
+@keyframes vpgPulse{0%,100%{transform:scale(1)}50%{transform:scale(1.06)}}
+.vpg-on .vpg-gain{animation:vpgPulse 2.4s ease-in-out .9s 2}
+.vpg-dealer{margin-top:1.6rem;border:1px dashed ${line};border-radius:10px;padding:1rem 1.1rem}
+.vpg-dealer .vpg-dealer-t{font-size:.8rem;font-weight:700;color:#c9a24b;margin:0 0 .4em}
+.vpg-dealer p{font-size:.82rem;color:${sub};margin:.2em 0 .7em;line-height:1.7}
+.vpg-dealer a{font-size:.8rem;color:#c9a24b;text-decoration:underline}
 .vpg-table{width:100%;border-collapse:collapse;font-size:.92rem}
 .vpg-table th,.vpg-table td{border:1px solid ${line};padding:.55em .7em;text-align:left}
 .vpg-table th{background:${dark ? "#1d1d1d" : "#f3f3f3"};font-weight:600;white-space:nowrap}
@@ -114,18 +132,81 @@ function css(dark: boolean): string {
 
 /* ───────────────── パーツ ───────────────── */
 
-function powerCards(d: VehiclePageData, l: { stock: string; tuned: string; gain: string }): string {
+function powerCards(d: VehiclePageData, l: { stock: string; tuned: string; ps: string; tq: string }): string {
   const o = computeOutputs(d.stockOutput, d.stage1Gain);
   if (!o) return "";
   const nm = (v: number | null) => (v !== null ? ` / ${v}Nm` : "");
-  const tuned =
+  const tunedCard =
     o.tunedPs !== null
-      ? `<div class="vpg-pcard vpg-pcard--tuned"><div class="vpg-plabel">${l.tuned}</div><div class="vpg-pval">${o.tunedPs}ps${nm(o.tunedNm)}</div><div class="vpg-gain">${esc(d.stage1Gain ?? "")}</div></div>`
+      ? `<div class="vpg-pcard vpg-pcard--tuned"><div class="vpg-plabel">${l.tuned}</div><div class="vpg-pval"><span class="vpg-num" data-from="${o.stockPs}" data-to="${o.tunedPs}">${o.stockPs}</span>ps${o.tunedNm !== null ? ` / <span class="vpg-num" data-from="${o.stockNm ?? 0}" data-to="${o.tunedNm}">${o.stockNm ?? 0}</span>Nm` : ""}</div><div class="vpg-gain">${esc(d.stage1Gain ?? "")}</div></div>`
       : "";
-  return `<div class="vpg-power">
+  const cards = `<div class="vpg-power">
 <div class="vpg-pcard"><div class="vpg-plabel">${l.stock}</div><div class="vpg-pval">${o.stockPs}ps${nm(o.stockNm)}</div></div>
-${tuned}</div>`;
+${tunedCard}</div>`;
+
+  // 純正 vs チューニング後の伸びるパワーバー（CSSアニメ・JS不要）
+  if (o.tunedPs === null) return cards;
+  const rows: string[] = [];
+  const psMax = o.tunedPs;
+  rows.push(barRow(`${l.stock} ${l.ps}`, `${o.stockPs}ps`, (o.stockPs / psMax) * 100, false));
+  rows.push(barRow(`${l.tuned} ${l.ps}`, `${o.tunedPs}ps`, 100, true));
+  if (o.stockNm !== null) {
+    if (o.tunedNm !== null) {
+      const nmMax = o.tunedNm;
+      rows.push(barRow(`${l.stock} ${l.tq}`, `${o.stockNm}Nm`, (o.stockNm / nmMax) * 100, false));
+      rows.push(barRow(`${l.tuned} ${l.tq}`, `${o.tunedNm}Nm`, 100, true));
+    }
+  }
+  return `${cards}<div class="vpg-bars">
+${rows.join("\n")}
+</div>`;
 }
+
+function barRow(label: string, val: string, pct: number, tuned: boolean): string {
+  const w = Math.max(8, Math.round(pct));
+  return `<div class="vpg-bar-row"><span class="vpg-bar-label">${label}</span><span class="vpg-bar-track"><span class="vpg-bar-fill${tuned ? " vpg-bar-fill--tuned" : " vpg-bar-fill--stock"}" style="--w:${w}%"></span></span><span class="vpg-bar-val${tuned ? " vpg-bar-val--tuned" : ""}">${val}</span></div>`;
+}
+
+/** 数字カウントアップ。**アンパサンド・小なり記号を含まない**制約下で書いたJS（作業ルール2/価格表と同じ理由） */
+const COUNT_SCRIPT = `<script>
+(function(){
+  var fired=false;
+  function countUp(el){
+    var to=parseInt(el.getAttribute("data-to"),10);
+    var from=parseInt(el.getAttribute("data-from"),10);
+    if(isNaN(to)){return;}
+    if(isNaN(from)){from=0;}
+    var dur=1300;
+    var start=null;
+    function step(ts){
+      if(start===null){start=ts;}
+      var p=(ts-start)/dur;
+      if(p>1){p=1;}
+      var eased=1-Math.pow(1-p,3);
+      el.textContent=String(Math.round(from+(to-from)*eased));
+      if(p>=1){return;}
+      window.requestAnimationFrame(step);
+    }
+    window.requestAnimationFrame(step);
+  }
+  function fire(){
+    if(fired){return;}
+    fired=true;
+    document.querySelectorAll(".vpg-power, .vpg-bars").forEach(function(el){el.classList.add("vpg-on");});
+    document.querySelectorAll(".vpg-num[data-to]").forEach(countUp);
+  }
+  var target=document.querySelector(".vpg-power");
+  if(!target){target=document.querySelector(".vpg-bars");}
+  if(!target){return;}
+  if(typeof IntersectionObserver==="undefined"){fire();return;}
+  var io=new IntersectionObserver(function(entries){
+    entries.forEach(function(e){
+      if(e.isIntersecting){fire();io.disconnect();}
+    });
+  },{threshold:0.35});
+  io.observe(target);
+})();
+</script>`;
 
 function specRows(d: VehiclePageData, jp: boolean): string {
   const rows: [string, string][] = [];
@@ -164,12 +245,24 @@ function optionTable(d: VehiclePageData, jp: boolean): string {
   return `<table class="vpg-table"><tbody>\n${rows}\n</tbody></table>`;
 }
 
-function remoteBadges(d: VehiclePageData): string {
-  const badges = REMOTE_TOOLS.filter((t) => d.remote[t.key]).map(
-    (t) => `<span class="vpg-badge" title="${t.title}">${t.badge}</span>`,
-  );
-  if (badges.length === 0) return "";
-  return `<div class="vpg-badges">${badges.join("")}</div>`;
+function dealerBlock(d: VehiclePageData, jp: boolean): string {
+  const supported = REMOTE_TOOLS.filter((t) => d.remote[t.key]);
+  if (supported.length === 0) return "";
+  const tools = supported.map((t) => `<span class="vpg-badge" title="${t.title}">${t.badge}</span>`).join("");
+  if (jp) {
+    return `<div class="vpg-dealer">
+<p class="vpg-dealer-t">整備工場・ショップ運営者様へ（代理店募集）</p>
+<p>この車種は業者向けリモート施工ツールに対応しており、貴店の設備でmbFASTのチューニングメニューを提供いただけます。施工メニューへの追加をご検討の業者様はお気軽にご相談ください。</p>
+<div class="vpg-badges">${tools}</div>
+<p style="margin-top:.7em"><a href="${LINE_URL}" target="_blank" rel="noopener">代理店・提携についてLINEで問い合わせる</a></p>
+</div>`;
+  }
+  return `<div class="vpg-dealer">
+<p class="vpg-dealer-t">For Workshops (Dealer Program)</p>
+<p>This model is supported by our dealer-facing remote tuning tools. Workshops interested in offering mbFAST tuning files can get in touch below.</p>
+<div class="vpg-badges">${tools}</div>
+<p style="margin-top:.7em"><a href="${LINE_URL}" target="_blank" rel="noopener">Dealer inquiries</a></p>
+</div>`;
 }
 
 function relatedList(d: VehiclePageData): string {
@@ -209,12 +302,12 @@ export function generateVehiclePageJp(d: VehiclePageData): GeneratedPage {
   const priceItems = d.prices;
   const html = `<!-- wp:html -->
 ${MARK_START}
-${css(false)}
+${css(true)}
 <div class="vpg-wrap">
 <div class="vpg-kicker">${esc(d.brandNameEn)} ECU TUNING</div>
 <div class="vpg-hero"><h1>${esc(name)}<br>ECUチューニング・バブリング</h1></div>
 <p class="vpg-sub">エンジン: ${esc(d.engine)}${d.ecuType ? `　ECU: ${esc(d.ecuType)}` : ""}</p>
-${powerCards(d, { stock: "純正出力", tuned: "チューニング後（Stage1）", gain: "" })}
+${powerCards(d, { stock: "純正", tuned: "チューニング後", ps: "馬力", tq: "トルク" })}
 <h2>車両スペック</h2>
 <table class="vpg-table"><tbody>
 ${specRows(d, true)}
@@ -222,15 +315,16 @@ ${specRows(d, true)}
 <h2>施工価格（税込）</h2>
 ${priceTable(priceItems, true, true)}
 ${d.labor && d.labor !== "—" ? `<p class="vpg-sub">脱着・殻割り工賃: ${esc(d.labor)}</p>` : ""}
-${remoteBadges(d) ? `<h2>リモート施工対応</h2>\n<p class="vpg-sub">ご来店不要のリモート施工に対応しています。</p>\n${remoteBadges(d)}` : ""}
 ${optionTable(d, true) ? `<h2>対応オプション</h2>\n${optionTable(d, true)}` : ""}
 ${relatedList(d) ? `<h2>この型式の施工実績</h2>\n${relatedList(d)}` : ""}
 <div class="vpg-cta">
 <p>${esc(name)} のチューニングは、実績データに基づいてご提案します。</p>
 <a href="${LINE_URL}" target="_blank" rel="noopener">LINEで相談する</a>
 </div>
+${dealerBlock(d, true)}
 <p class="vpg-note">※価格・出力値は予告なく変更になる場合があります。出力向上値は車両個体・使用燃料により変動します。${d.notes ? `　${esc(d.notes)}` : ""}</p>
 </div>
+${COUNT_SCRIPT}
 <script type="application/ld+json">${ld}</script>
 ${MARK_END}
 <!-- /wp:html -->`;
@@ -269,7 +363,7 @@ ${css(true)}
 <div class="vpg-kicker">${esc(d.brandNameEn)} ECU TUNING — JAPAN</div>
 <div class="vpg-hero"><h1>${esc(name)}<br>ECU Tuning and Pops and Bangs</h1></div>
 <p class="vpg-sub">Engine: ${esc(d.engine)}${d.ecuType ? `　ECU: ${esc(d.ecuType)}` : ""}</p>
-${powerCards(d, { stock: "Stock Output", tuned: "Tuned (Stage 1)", gain: "" })}
+${powerCards(d, { stock: "Stock", tuned: "Tuned", ps: "Power", tq: "Torque" })}
 <h2>Vehicle Specs</h2>
 <table class="vpg-table"><tbody>
 ${specRows(d, false)}
@@ -281,8 +375,10 @@ ${relatedList(d) ? `<h2>Our Work on This Model</h2>\n${relatedList(d)}` : ""}
 <p>Tuning files developed and proven in Japan. Remote tuning available worldwide.</p>
 <a href="${LINE_URL}" target="_blank" rel="noopener">Request a Quote</a>
 </div>
+${dealerBlock(d, false)}
 <p class="vpg-note">Specifications subject to change. Output gains vary by vehicle condition and fuel.</p>
 </div>
+${COUNT_SCRIPT}
 <script type="application/ld+json">${ld}</script>
 ${MARK_END}
 <!-- /wp:html -->`;
