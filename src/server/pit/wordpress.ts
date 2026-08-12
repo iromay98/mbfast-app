@@ -179,6 +179,26 @@ export async function fetchPostDate(postId: number): Promise<string | null> {
   return p.date ?? null;
 }
 
+/*
+ * WP側の記事の実状態（draft / publish / trash / future 等）と日付・URL。
+ *
+ * アプリの status="review"（公開前確認）はWPの下書きと対になっているが、
+ * WP管理画面で人が直接ゴミ箱に入れることがある（実際に重複記事の掃除で発生した）。
+ * 「公開」を押す前にここで実状態を確認し、ゴミ箱の記事を勝手に復活させない。
+ * 取得できないときは null（＝判定不能。呼び出し側で扱いを決める）。
+ */
+export type WpPostState = { status: string; date: string | null; link: string | null };
+export async function fetchPostState(postId: number): Promise<WpPostState | null> {
+  try {
+    const res = await wpFetch(`/posts/${postId}?context=edit&_fields=id,status,date,link`, { method: "GET" });
+    const p = (await res.json()) as { status?: string; date?: string; link?: string };
+    if (!p.status) return null;
+    return { status: p.status, date: p.date ?? null, link: p.link ?? null };
+  } catch {
+    return null;
+  }
+}
+
 // 公開済み記事の更新（タイトル・本文の部分更新）
 export async function updatePost(
   postId: number,

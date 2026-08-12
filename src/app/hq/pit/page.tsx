@@ -3,7 +3,7 @@ import { prisma } from "@/lib/db";
 import { formatDate, formatDateTime } from "@/lib/labels";
 import { PageTitle, Card, LinkButton } from "@/components/ui";
 import { pitAiEnabled } from "@/server/pit/generate";
-import { wpConfigured } from "@/server/pit/wordpress";
+import { wpConfigured, fetchPostState } from "@/server/pit/wordpress";
 import { PitAdmin, type StoreRow, type PostRow, type DealerOption } from "./pit-admin";
 
 export const dynamic = "force-dynamic";
@@ -117,7 +117,30 @@ export default async function HqPitPage() {
     createdAtLabel: formatDateTime(p.createdAt),
     // 本文プレビューは公開前確認（review）の記事だけ渡す（一覧ペイロードを重くしない）
     bodyHtml: p.status === "review" ? p.bodyHtml : null,
+    editNote: p.editNote ?? "",
+    vehicleLabel: p.vehicle,
   }));
+
+  /*
+   * 公開前確認（review）で止まっている投稿のWP側の実状態を先に引く。
+   * WP管理画面で人がゴミ箱に入れた記事があるため（重複掃除で実際に発生）、
+   * 「公開できる下書き」と「掃除済み」を本部が取り違えないように出す。
+   * 件数は通常ひと桁なので同期的に取ってよい（失敗しても画面は出す）。
+   */
+  const reviewPosts = posts.filter((p) => p.status === "review");
+  const wpStates = new Map<string, string>();
+  if (wpConfigured() && reviewPosts.length > 0) {
+    const states = await Promise.all(
+      reviewPosts.map(async (p) =>
+        p.wpPostId ? ([p.id, (await fetchPostState(p.wpPostId))?.status ?? "unknown"] as const) : ([p.id, "none"] as const),
+      ),
+    );
+    for (const [id, st] of states) wpStates.set(id, st);
+  }
+  for (const row of postRows) {
+    const st = wpStates.get(row.id);
+    if (st) row.wpState = st;
+  }
   const dealerOptions: DealerOption[] = dealers.map((d) => ({ id: d.id, name: d.name }));
 
   const monthly = await prisma.$queryRaw<{ store: string; ym: string; count: bigint }[]>`

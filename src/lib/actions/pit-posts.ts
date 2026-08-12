@@ -13,7 +13,14 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
 import { requireUser } from "@/lib/authz";
-import { fetchPostContent, fetchPostDate, updatePost, trashPost, wpConfigured } from "@/server/pit/wordpress";
+import {
+  fetchPostContent,
+  fetchPostDate,
+  fetchPostState,
+  updatePost,
+  trashPost,
+  wpConfigured,
+} from "@/server/pit/wordpress";
 
 const NOTE_START = "<!-- mbpit:note -->";
 const NOTE_END = "<!-- /mbpit:note -->";
@@ -85,7 +92,12 @@ export async function updateMyPitPost(
   }
 
   // WordPressへの反映（公開済みのみ。未公開・保留はアプリ側の記録だけ更新する）
-  if (post.status === "published" && post.wpPostId) {
+  /*
+   * WPへの反映は「公開済み」だけでなく「公開前確認（review＝WP下書き）」でも行う。
+   * 本部・店舗が公開前に下書きのタイトルや追記を直せるようにするため
+   * （以前は published のみで、下書きを直してもWP側に入らなかった）。
+   */
+  if ((post.status === "published" || post.status === "review") && post.wpPostId) {
     if (!wpConfigured()) return { error: "WordPress接続が未設定のため反映できません" };
     try {
       const current = await fetchPostContent(post.wpPostId);
@@ -157,18 +169,36 @@ export async function approveMyPitPost(
   if (!post.wpPostId) return { error: "WordPressの記事が見つかりません" };
   if (!wpConfigured()) return { error: "WordPress接続が未設定のため公開できません" };
 
+  /*
+   * WP側の実状態を先に見る。人がWP管理画面でゴミ箱に入れた記事を
+   * 「公開」ボタンで勝手に復活させない（重複記事の掃除を巻き戻さないため）。
+   * 復活させたい場合はWP側でゴミ箱から戻してからもう一度公開する。
+   */
+  const state = await fetchPostState(post.wpPostId);
+  if (state?.status === "trash") {
+    return {
+      error:
+        "この記事はWordPress側でゴミ箱に入っています（掃除済み）。公開するにはWPでゴミ箱から戻してください。不要なら「取り下げ」で記録を整えてください",
+    };
+  }
+  if (state?.status === "publish") {
+    // WP側はもう公開されている（人が手で公開した等）→ アプリ側の状態だけ合わせる
+    await prisma.pitPost.update({
+      where: { id: post.id },
+      data: { status: "published", publishedUrl: state.link ?? post.publishedUrl },
+    });
+    revalidatePath("/dealer/pit");
+    revalidatePath("/hq/pit");
+    return { ok: true, url: state.link ?? post.publishedUrl ?? undefined };
+  }
+
   try {
     /*
      * 下書き→公開でWPが日付を「公開した時刻」で引き直すことがあるため、
      * 下書きに付いている日付（＝施工日）を読んで status と一緒に再送して守る。
      * 読めなくても公開自体は止めない（日付が投稿時刻になるだけ）。
      */
-    let date: string | undefined;
-    try {
-      date = (await fetchPostDate(post.wpPostId)) ?? undefined;
-    } catch {
-      date = undefined;
-    }
+    const date = state?.date ?? (await fetchPostDate(post.wpPostId).catch(() => null)) ?? undefined;
     await updatePost(post.wpPostId, { status: "publish", ...(date ? { date } : {}) });
   } catch (e) {
     return { error: e instanceof Error ? e.message : "公開に失敗しました" };
@@ -191,10 +221,14 @@ export async function discardMyPitPost(postId: string): Promise<{ ok?: true; err
 
   if (post.status !== "review") return { error: "確認待ちの投稿ではありません" };
   if (post.wpPostId && wpConfigured()) {
-    try {
-      await trashPost(post.wpPostId);
-    } catch (e) {
-      return { error: e instanceof Error ? e.message : "取り下げに失敗しました" };
+    // 既にWP側でゴミ箱に入っている場合は送らない（アプリ側の状態だけ実態に合わせる）
+    const state = await fetchPostState(post.wpPostId);
+    if (state?.status !== "trash") {
+      try {
+        await trashPost(post.wpPostId);
+      } catch (e) {
+        return { error: e instanceof Error ? e.message : "取り下げに失敗しました" };
+      }
     }
   }
   await prisma.pitPost.update({
@@ -202,5 +236,23 @@ export async function discardMyPitPost(postId: string): Promise<{ ok?: true; err
     data: { status: "deleted", errorMessage: "公開前確認で取り下げ" },
   });
   revalidatePath("/dealer/pit");
+  revalidatePath("/hq/pit");
   return { ok: true };
+}
+
+/**
+ * 公開前確認（review）の記事のWP側の実状態を返す（本部の確認画面用・読み取りのみ）。
+ * draft = 公開できる / trash = WPで掃除済み（公開せず取り下げる） /
+ * publish = WPでは既に公開されている（公開ボタンで状態を揃える）。
+ */
+export async function getPitPostWpState(
+  postId: string,
+): Promise<{ status?: string; date?: string | null; link?: string | null; error?: string }> {
+  const r = await loadOwnPost(postId);
+  if (!r.post) return { error: r.error };
+  if (!r.post.wpPostId) return { error: "WordPressの記事が見つかりません" };
+  if (!wpConfigured()) return { error: "WordPress接続が未設定です" };
+  const state = await fetchPostState(r.post.wpPostId);
+  if (!state) return { error: "WordPressの状態を取得できませんでした" };
+  return state;
 }

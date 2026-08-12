@@ -15,8 +15,8 @@ import {
   type IngestRow,
   type RoundtripRow,
 } from "@/lib/actions/pit";
-// 公開前確認（review）の記事を本部が代わりに公開/取り下げる（権限はサーバー側=本部は全店可）
-import { approveMyPitPost, discardMyPitPost } from "@/lib/actions/pit-posts";
+// 公開前確認（review）の記事を本部が代わりに調整/公開/取り下げる（権限はサーバー側=本部は全店可）
+import { approveMyPitPost, discardMyPitPost, updateMyPitPost } from "@/lib/actions/pit-posts";
 import type { StoreInfo } from "@/server/pit/store-meta";
 import { StoreInfoEditor } from "@/components/store-info-editor";
 import { CertSettingsEditor } from "@/components/cert-settings-editor";
@@ -63,6 +63,10 @@ export type PostRow = {
   photoCount: number; // 素材DL用（保存済みのぼかし済みWebPの枚数）
   createdAtLabel: string;
   bodyHtml: string | null; // review（公開前確認）の記事だけ入る本文プレビュー
+  editNote: string; // 追記（訂正・補足）。公開前でも入れられる
+  vehicleLabel: string;
+  /** review のときのWP側実状態: draft=公開できる / trash=WPで掃除済み / publish=WPは公開済み */
+  wpState?: string;
 };
 export type DealerOption = { id: string; name: string };
 
@@ -96,10 +100,12 @@ export function PitAdmin({
   monthly: { store: string; ym: string; count: number }[];
 }) {
   const held = posts.filter((p) => p.status === "held");
+  const review = posts.filter((p) => p.status === "review");
   const pending = stores.filter((s) => !s.active);
   return (
     <div className="space-y-4">
       {held.length > 0 && <HeldQueue posts={held} />}
+      {review.length > 0 && <ReviewQueue posts={review} />}
       {pending.length > 0 && <PendingStores stores={pending} />}
       <StoreMaster stores={stores} dealers={dealers} />
       <StoreInfoIngest />
@@ -144,6 +150,192 @@ function HeldQueue({ posts }: { posts: PostRow[] }) {
         排ガス規制デバイス無効化に該当する内容は自動公開しません（既存方針）。公開が必要な場合はWordPressで手動対応してください。
       </p>
     </Card>
+  );
+}
+
+/*
+ * ── 公開前確認（review）キュー ──
+ *
+ * 店舗設定「公開前に内容を確認」がONの投稿は、AI記事の生成後にWPの**下書き**で止まる。
+ * 店舗が自分で公開するのが基本だが、押し忘れて溜まることが実際にあったため
+ * 本部からも「内容を読む→タイトル・追記を直す→公開／取り下げ」までできるようにする。
+ *
+ * WP側の実状態（wpState）を必ず出す:
+ *   draft   … 公開できる
+ *   trash   … WP管理画面で人がゴミ箱に入れた（重複掃除済み）。公開せず取り下げて記録を整える
+ *   publish … WPでは既に公開済み。「公開」を押すとアプリ側の状態だけ揃う
+ */
+function ReviewQueue({ posts }: { posts: PostRow[] }) {
+  const router = useRouter();
+  const [pending, start] = useTransition();
+  const [openId, setOpenId] = useState<string | null>(null);
+  const [msg, setMsg] = useState<string | null>(null);
+
+  const WP_STATE: Record<string, { label: string; cls: string }> = {
+    draft: { label: "WP下書き（公開できます）", cls: "bg-sky-100 text-sky-800" },
+    trash: { label: "WPゴミ箱（掃除済み・公開しない）", cls: "bg-red-100 text-red-800" },
+    publish: { label: "WPは公開済み（状態のズレ）", cls: "bg-amber-100 text-amber-800" },
+    future: { label: "WP予約投稿", cls: "bg-amber-100 text-amber-800" },
+    none: { label: "WP記事なし", cls: "bg-surface-2 text-ink-soft" },
+    unknown: { label: "WP状態不明", cls: "bg-surface-2 text-ink-soft" },
+  };
+
+  return (
+    <Card className="border-amber-300 bg-amber-50/50">
+      <h3 className="mb-1 text-sm font-semibold text-amber-900">
+        📝 公開前の確認待ち（{posts.length}件）
+      </h3>
+      <p className="mb-3 text-[11px] text-ink-soft">
+        店舗の「公開前に内容を確認」がONの投稿です。内容を読んで、必要ならタイトル・追記を直してから公開できます。
+        WPでゴミ箱に入っているものは公開せず「取り下げ」で記録を整えてください。
+      </p>
+      <div className="space-y-2">
+        {posts.map((p) => {
+          const ws = WP_STATE[p.wpState ?? "unknown"] ?? WP_STATE.unknown;
+          const isTrash = p.wpState === "trash";
+          return (
+            <div key={p.id} className="rounded-lg bg-surface p-2.5">
+              <div className="flex flex-wrap items-center gap-2 text-xs">
+                <span className="font-semibold text-ink">{p.storeName}</span>
+                <span className="text-ink-soft">{p.vehicleLabel}</span>
+                <span className="text-[10px] text-ink-soft">{p.createdAtLabel}</span>
+                <span className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${ws.cls}`}>{ws.label}</span>
+                <button
+                  type="button"
+                  onClick={() => setOpenId(openId === p.id ? null : p.id)}
+                  className="ml-auto rounded-lg border border-line px-2.5 py-1 font-semibold text-ink-soft hover:bg-surface-2"
+                >
+                  {openId === p.id ? "閉じる" : "内容を見る・調整する"}
+                </button>
+              </div>
+              <p className="mt-1 text-xs text-ink">{p.title ?? "（タイトルなし）"}</p>
+
+              {openId === p.id && (
+                <ReviewEditor
+                  p={p}
+                  isTrash={isTrash}
+                  pending={pending}
+                  onPublish={() => {
+                    if (!window.confirm(`「${p.title ?? p.vehicleLabel}」を公開します。よろしいですか？`)) return;
+                    start(async () => {
+                      const r = await approveMyPitPost(p.id);
+                      setMsg(r.error ?? `公開しました: ${p.title ?? p.vehicleLabel}`);
+                      router.refresh();
+                    });
+                  }}
+                  onDiscard={() => {
+                    if (!window.confirm(`「${p.title ?? p.vehicleLabel}」を公開せず取り下げます。よろしいですか？`)) return;
+                    start(async () => {
+                      const r = await discardMyPitPost(p.id);
+                      setMsg(r.error ?? "取り下げました（記録は残ります）");
+                      router.refresh();
+                    });
+                  }}
+                  onSaved={(m) => {
+                    setMsg(m);
+                    router.refresh();
+                  }}
+                />
+              )}
+            </div>
+          );
+        })}
+      </div>
+      {msg && <p className="mt-2 text-xs text-ink">{msg}</p>}
+    </Card>
+  );
+}
+
+/** review記事の調整（タイトル・追記をWPの下書きへ反映）＋公開/取り下げ＋本文プレビュー */
+function ReviewEditor({
+  p,
+  isTrash,
+  pending,
+  onPublish,
+  onDiscard,
+  onSaved,
+}: {
+  p: PostRow;
+  isTrash: boolean;
+  pending: boolean;
+  onPublish: () => void;
+  onDiscard: () => void;
+  onSaved: (msg: string) => void;
+}) {
+  const [title, setTitle] = useState(p.title ?? "");
+  const [note, setNote] = useState(p.editNote);
+  const [saving, start] = useTransition();
+  const dirty = title !== (p.title ?? "") || note !== p.editNote;
+
+  return (
+    <div className="mt-2 space-y-2 border-t border-line pt-2">
+      <label className="block text-[11px] text-ink-soft">
+        タイトル
+        <input
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          className="mt-0.5 block w-full rounded-lg border border-line bg-surface px-2 py-1.5 text-xs text-ink"
+        />
+      </label>
+      <label className="block text-[11px] text-ink-soft">
+        追記（訂正・補足。本文末尾に【追記】として入ります・空欄なら入りません）
+        <textarea
+          value={note}
+          onChange={(e) => setNote(e.target.value)}
+          rows={2}
+          className="mt-0.5 block w-full rounded-lg border border-line bg-surface px-2 py-1.5 text-xs text-ink"
+        />
+      </label>
+      <div className="flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          disabled={saving || pending || !dirty}
+          onClick={() =>
+            start(async () => {
+              const r = await updateMyPitPost(p.id, { title, editNote: note });
+              onSaved(r.error ?? "下書きに反映しました");
+            })
+          }
+          className="rounded-lg border border-line bg-white px-2.5 py-1 text-xs font-semibold text-ink-soft hover:bg-surface-2 disabled:opacity-40"
+        >
+          {saving ? "反映中…" : "下書きに反映"}
+        </button>
+        <button
+          type="button"
+          disabled={pending || saving || isTrash}
+          title={isTrash ? "WPでゴミ箱に入っています。公開するにはWP側で戻してください" : undefined}
+          onClick={onPublish}
+          className="rounded-lg bg-green-600 px-3 py-1 text-xs font-semibold text-white hover:bg-green-700 disabled:opacity-40"
+        >
+          公開する
+        </button>
+        <button
+          type="button"
+          disabled={pending || saving}
+          onClick={onDiscard}
+          className="rounded-lg border border-red-200 px-2.5 py-1 text-xs font-semibold text-red-600 hover:bg-red-50 disabled:opacity-50"
+        >
+          取り下げ
+        </button>
+        {p.photoCount > 0 && (
+          <span className="ml-auto space-x-1 text-[11px]">
+            {Array.from({ length: p.photoCount }, (_, i) => (
+              <a key={i} href={`/api/pit/post-photos/${p.id}?i=${i}`} className="text-gold-700 hover:underline">
+                📷{i + 1}
+              </a>
+            ))}
+          </span>
+        )}
+      </div>
+      {p.bodyHtml ? (
+        <div
+          className="max-h-96 overflow-y-auto rounded-lg border border-line bg-surface-2 px-3 py-2 text-sm [&_h2]:mt-3 [&_h2]:text-base [&_h2]:font-bold [&_h3]:mt-2 [&_h3]:font-semibold [&_img]:max-w-xs [&_table]:text-xs"
+          dangerouslySetInnerHTML={{ __html: p.bodyHtml }}
+        />
+      ) : (
+        <p className="text-[11px] text-ink-soft">本文プレビューがありません（古い投稿）。WPの下書きで確認してください。</p>
+      )}
+    </div>
   );
 }
 
