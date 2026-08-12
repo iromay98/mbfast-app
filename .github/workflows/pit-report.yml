@@ -21,6 +21,7 @@ on:
           - failures # 直近の投稿失敗の理由（PitPost.errorMessage・読み取りのみ）
           - system # VPSのメモリ・スワップ・ディスク・コンテナ使用量（読み取りのみ）
           - review # 公開前確認(review)で止まっている投稿の診断（読み取りのみ）
+          - brands # 価格表ブランドの表示名・SEO説明の取り違え確認（読み取りのみ）
         default: taxonomy
 
 concurrency:
@@ -148,6 +149,22 @@ jobs:
                   })();
                 ' $IDS </dev/null
               fi
+              ;;
+            brands)
+              # ブランド設定の取り違え検査。/hq/prices のブランド設定フォームが
+              # タブ切替時に前のブランドの値を残す不具合があったため、
+              # 「表示名が別ブランド名を含む」「SEO説明/導入文が他ブランドと同一」を洗い出す。
+              echo "-- ブランドの表示名・SEO説明・導入文（先頭60文字） --"
+              $COMPOSE exec -T postgres psql -U mbfast -d mbfast -c \
+                "SELECT id, \"displayName\", left(coalesce(\"jsonLdDescription\",''),60) AS seo, left(coalesce(intro,''),40) AS intro, \"wordPressPageId\" AS wp FROM \"PriceBrand\" ORDER BY \"displayName\";" </dev/null
+              echo ""
+              echo "-- SEO説明が複数ブランドで重複しているもの（取り違えの疑い） --"
+              $COMPOSE exec -T postgres psql -U mbfast -d mbfast -c \
+                "SELECT left(\"jsonLdDescription\",70) AS seo, count(*) AS 件数, string_agg(id, ', ' ORDER BY id) AS brands FROM \"PriceBrand\" WHERE coalesce(\"jsonLdDescription\",'') <> '' GROUP BY \"jsonLdDescription\" HAVING count(*) > 1;" </dev/null
+              echo ""
+              echo "-- 導入文が複数ブランドで重複しているもの --"
+              $COMPOSE exec -T postgres psql -U mbfast -d mbfast -c \
+                "SELECT left(intro,70) AS intro, count(*) AS 件数, string_agg(id, ', ' ORDER BY id) AS brands FROM \"PriceBrand\" WHERE coalesce(intro,'') <> '' GROUP BY intro HAVING count(*) > 1;" </dev/null
               ;;
             system)
               # VPSのリソース状況（アップロード上限の判断材料などに使う。読み取りのみ）

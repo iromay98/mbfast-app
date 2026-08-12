@@ -16,6 +16,22 @@ export function BrandSettings({ brand }: { brand: BrandRow }) {
   const [jsonLdDescription, setJsonLd] = useState(brand.jsonLdDescription);
   const [wpId, setWpId] = useState(brand.wordPressPageId?.toString() ?? "");
 
+  /*
+   * ブランドタブを切り替えたら入力欄を新しいブランドの値で作り直す。
+   * これが無いと最初に開いたブランドの文章が残ったまま表示され、
+   * そのまま保存すると**別ブランドにその文章を上書き**してしまう（保存先は常に現在のbrand.id）。
+   * 親側でも key を付けているが、単体で使われても壊れないようここでも面倒を見る。
+   */
+  const [loadedId, setLoadedId] = useState(brand.id);
+  if (loadedId !== brand.id) {
+    setLoadedId(brand.id);
+    setDisplayName(brand.displayName);
+    setIntro(brand.intro);
+    setJsonLd(brand.jsonLdDescription);
+    setWpId(brand.wordPressPageId?.toString() ?? "");
+    setMsg(null);
+  }
+
   const save = () =>
     start(async () => {
       const r = await updateBrand(brand.id, {
