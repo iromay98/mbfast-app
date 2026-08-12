@@ -86,11 +86,26 @@ export async function pushVpage(pageId: string): Promise<{ ok?: true; events?: S
 
 // 価格表グリッドからの高頻度操作。画面側で楽観的に更新するため、
 // ここでは revalidatePath を呼ばない（毎タップでページ全体を再取得すると重いため）。
-export async function setVpageStatusByVehicle(vehicleId: string, status: string): Promise<{ ok?: true; error?: string }> {
+//
+// 状態を 下書き/公開 にしたときは、その場でWPへ反映する（別画面での操作を不要にする）。
+// WP側の失敗はDB保存とは切り離して返す＝状態変更自体は成功として扱う。
+export async function setVpageStatusByVehicle(
+  vehicleId: string,
+  status: string,
+): Promise<{ ok?: true; error?: string; syncWarning?: string }> {
   await requireHQ();
   if (!["hold", "draft", "publish"].includes(status)) return { error: "不正なstatus" };
   const row = await ensureVehiclePageRow(vehicleId);
   await prisma.vehiclePage.update({ where: { id: row.id }, data: { status } });
+  if (status === "hold") return { ok: true };
+  if (!wpConfigured()) return { ok: true, syncWarning: "WP認証が未設定のため反映していません" };
+  try {
+    const events = await syncVehiclePage(row.id);
+    const failed = events.filter((e) => e.level === "error");
+    if (failed.length > 0) return { ok: true, syncWarning: failed.map((e) => e.message).join(" / ") };
+  } catch (e) {
+    return { ok: true, syncWarning: e instanceof Error ? e.message : "WP反映に失敗しました" };
+  }
   return { ok: true };
 }
 
