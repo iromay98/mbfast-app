@@ -84,13 +84,13 @@ export async function pushVpage(pageId: string): Promise<{ ok?: true; events?: S
 
 /* ── 価格グリッド（/hq/prices）からの操作。行が無ければ保留で自動作成してから更新 ── */
 
+// 価格表グリッドからの高頻度操作。画面側で楽観的に更新するため、
+// ここでは revalidatePath を呼ばない（毎タップでページ全体を再取得すると重いため）。
 export async function setVpageStatusByVehicle(vehicleId: string, status: string): Promise<{ ok?: true; error?: string }> {
   await requireHQ();
   if (!["hold", "draft", "publish"].includes(status)) return { error: "不正なstatus" };
   const row = await ensureVehiclePageRow(vehicleId);
   await prisma.vehiclePage.update({ where: { id: row.id }, data: { status } });
-  revalidatePath("/hq/prices");
-  revalidatePath(PATH);
   return { ok: true };
 }
 
@@ -101,8 +101,6 @@ export async function setVpageOptionByVehicle(vehicleId: string, key: string, va
   if (value === null) delete options[key];
   else options[key] = value;
   await prisma.vehiclePage.update({ where: { id: row.id }, data: { options } });
-  revalidatePath("/hq/prices");
-  revalidatePath(PATH);
   return { ok: true };
 }
 

@@ -230,11 +230,11 @@ function Row({
         />
       </td>
       <td className="border-l border-line px-1 py-1">
-        <VpageStatusCell vehicleId={v.id} vpage={v.vpage} pending={pending} onRun={onRun} />
+        <VpageStatusCell vehicleId={v.id} vpage={v.vpage} />
       </td>
       {manualOpts.map((o) => (
         <td key={o.key} className="px-0.5 py-1 text-center">
-          <VpageOptionCell vehicleId={v.id} optionKey={o.key} vpage={v.vpage} pending={pending} onRun={onRun} />
+          <VpageOptionCell vehicleId={v.id} optionKey={o.key} vpage={v.vpage} />
         </td>
       ))}
       <td className="whitespace-nowrap px-1.5 py-1">
