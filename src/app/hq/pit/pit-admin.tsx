@@ -15,6 +15,8 @@ import {
   type IngestRow,
   type RoundtripRow,
 } from "@/lib/actions/pit";
+// 公開前確認（review）の記事を本部が代わりに公開/取り下げる（権限はサーバー側=本部は全店可）
+import { approveMyPitPost, discardMyPitPost } from "@/lib/actions/pit-posts";
 import type { StoreInfo } from "@/server/pit/store-meta";
 import { StoreInfoEditor } from "@/components/store-info-editor";
 import { CertSettingsEditor } from "@/components/cert-settings-editor";
@@ -60,6 +62,7 @@ export type PostRow = {
   errorMessage: string | null;
   photoCount: number; // 素材DL用（保存済みのぼかし済みWebPの枚数）
   createdAtLabel: string;
+  bodyHtml: string | null; // review（公開前確認）の記事だけ入る本文プレビュー
 };
 export type DealerOption = { id: string; name: string };
 
@@ -738,9 +741,34 @@ function TestPublish({ stores }: { stores: StoreRow[] }) {
 
 // ── 公開ログ ──
 function PostLog({ posts }: { posts: PostRow[] }) {
+  const router = useRouter();
+  const [pending, start] = useTransition();
+  const [previewId, setPreviewId] = useState<string | null>(null);
+  const [msg, setMsg] = useState<string | null>(null);
+
+  // 公開前確認（review）の記事を本部が代わりに公開/取り下げる。
+  // 店舗が「公開ボタンが必要」と気づかず止まっているとき用（権限はサーバー側で本部=全店可）
+  const approve = (p: PostRow) => {
+    if (!window.confirm(`「${p.title ?? p.vehicle}」（${p.storeName}）を公開します。よろしいですか？`)) return;
+    start(async () => {
+      const r = await approveMyPitPost(p.id);
+      setMsg(r.error ?? `公開しました: ${p.title ?? p.vehicle}`);
+      router.refresh();
+    });
+  };
+  const discard = (p: PostRow) => {
+    if (!window.confirm(`「${p.title ?? p.vehicle}」（${p.storeName}）を公開せずに取り下げます（WPの下書きはゴミ箱へ）。よろしいですか？`)) return;
+    start(async () => {
+      const r = await discardMyPitPost(p.id);
+      setMsg(r.error ?? "取り下げました");
+      router.refresh();
+    });
+  };
+
   return (
     <Card>
       <h3 className="mb-2 text-sm font-semibold">投稿ログ（直近{posts.length}件）</h3>
+      {msg && <p className="mb-2 text-xs text-ink-soft">{msg}</p>}
       <div className="overflow-x-auto">
         <table className="w-full text-xs">
           <thead className="text-left text-[11px] text-ink-soft">
@@ -758,7 +786,45 @@ function PostLog({ posts }: { posts: PostRow[] }) {
             {posts.map((p) => {
               const st = STATUS_LABELS[p.status] ?? { label: p.status, cls: "bg-surface-2" };
               return (
-                <tr key={p.id}>
+                <PostLogRow key={p.id} p={p} st={st} pending={pending} previewOpen={previewId === p.id}
+                  onTogglePreview={() => setPreviewId(previewId === p.id ? null : p.id)}
+                  onApprove={() => approve(p)} onDiscard={() => discard(p)} />
+              );
+            })}
+            {posts.length === 0 && (
+              <tr>
+                <td colSpan={7} className="py-4 text-center text-ink-soft">
+                  まだ投稿がありません。
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </Card>
+  );
+}
+
+function PostLogRow({
+  p,
+  st,
+  pending,
+  previewOpen,
+  onTogglePreview,
+  onApprove,
+  onDiscard,
+}: {
+  p: PostRow;
+  st: { label: string; cls: string };
+  pending: boolean;
+  previewOpen: boolean;
+  onTogglePreview: () => void;
+  onApprove: () => void;
+  onDiscard: () => void;
+}) {
+  return (
+    <>
+                <tr>
                   <td className="whitespace-nowrap py-1.5">{p.createdAtLabel}</td>
                   <td className="whitespace-nowrap">{p.storeName}</td>
                   <td>{p.vehicle}</td>
@@ -769,7 +835,23 @@ function PostLog({ posts }: { posts: PostRow[] }) {
                     </span>
                   </td>
                   <td className="max-w-[16rem] truncate">
-                    {p.publishedUrl ? (
+                    {p.status === "review" ? (
+                      <span className="space-x-1 whitespace-nowrap">
+                        <span className="text-ink">{p.title ?? "—"}</span>
+                        <button type="button" disabled={pending} onClick={onTogglePreview}
+                          className="rounded border border-line px-1.5 py-0.5 text-[10px] font-semibold text-ink-soft hover:bg-surface-2 disabled:opacity-50">
+                          {previewOpen ? "閉じる" : "内容"}
+                        </button>
+                        <button type="button" disabled={pending} onClick={onApprove}
+                          className="rounded bg-green-600 px-1.5 py-0.5 text-[10px] font-semibold text-white hover:bg-green-700 disabled:opacity-50">
+                          公開
+                        </button>
+                        <button type="button" disabled={pending} onClick={onDiscard}
+                          className="rounded border border-red-200 px-1.5 py-0.5 text-[10px] font-semibold text-red-600 hover:bg-red-50 disabled:opacity-50">
+                          取り下げ
+                        </button>
+                      </span>
+                    ) : p.publishedUrl ? (
                       <a href={p.publishedUrl} target="_blank" rel="noopener" className="text-sky-700 hover:underline">
                         {p.title ?? p.publishedUrl}
                       </a>
@@ -797,19 +879,18 @@ function PostLog({ posts }: { posts: PostRow[] }) {
                     )}
                   </td>
                 </tr>
-              );
-            })}
-            {posts.length === 0 && (
-              <tr>
-                <td colSpan={7} className="py-4 text-center text-ink-soft">
-                  まだ投稿がありません。
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-    </Card>
+      {/* 公開前確認の本文プレビュー（「内容」で開閉） */}
+      {previewOpen && p.bodyHtml && (
+        <tr>
+          <td colSpan={7} className="py-2">
+            <div
+              className="max-h-96 overflow-y-auto rounded-lg border border-line bg-surface px-4 py-3 text-sm [&_h2]:mt-3 [&_h2]:text-base [&_h2]:font-bold [&_h3]:mt-2 [&_h3]:font-semibold [&_img]:max-w-xs [&_table]:text-xs"
+              dangerouslySetInnerHTML={{ __html: p.bodyHtml }}
+            />
+          </td>
+        </tr>
+      )}
+    </>
   );
 }
 

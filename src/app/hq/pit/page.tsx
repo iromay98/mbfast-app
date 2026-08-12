@@ -115,6 +115,8 @@ export default async function HqPitPage() {
     errorMessage: p.errorMessage,
     photoCount: Array.isArray(p.photoKeys) ? p.photoKeys.length : 0,
     createdAtLabel: formatDateTime(p.createdAt),
+    // 本文プレビューは公開前確認（review）の記事だけ渡す（一覧ペイロードを重くしない）
+    bodyHtml: p.status === "review" ? p.bodyHtml : null,
   }));
   const dealerOptions: DealerOption[] = dealers.map((d) => ({ id: d.id, name: d.name }));
 
