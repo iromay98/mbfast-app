@@ -245,8 +245,22 @@ function optionTable(d: VehiclePageData, jp: boolean): string {
   return `<table class="vpg-table"><tbody>\n${rows}\n</tbody></table>`;
 }
 
+/**
+ * 業者専用ツール。AutoTuner(AT/AT1)は代理店向けの機材なので、お客様向けの
+ * 「リモート施工対応」には出さない（個人で使えると誤解されるため。更家さん指定）。
+ * PG3・Flasherはお客様にお送りして使っていただくため、お客様向けに出す。
+ */
+const DEALER_ONLY_TOOLS = new Set(["autoTuner", "atOne"]);
+
+/** お客様向けのリモート施工対応（業者専用ツールは除外） */
+function customerRemoteBadges(d: VehiclePageData): string {
+  const tools = REMOTE_TOOLS.filter((t) => d.remote[t.key]).filter((t) => !DEALER_ONLY_TOOLS.has(t.key));
+  if (tools.length === 0) return "";
+  return `<div class="vpg-badges">${tools.map((t) => `<span class="vpg-badge" title="${t.title}">${t.badge}</span>`).join("")}</div>`;
+}
+
 function dealerBlock(d: VehiclePageData, jp: boolean): string {
-  const supported = REMOTE_TOOLS.filter((t) => d.remote[t.key]);
+  const supported = REMOTE_TOOLS.filter((t) => d.remote[t.key]).filter((t) => DEALER_ONLY_TOOLS.has(t.key));
   if (supported.length === 0) return "";
   const tools = supported.map((t) => `<span class="vpg-badge" title="${t.title}">${t.badge}</span>`).join("");
   if (jp) {
@@ -315,6 +329,7 @@ ${specRows(d, true)}
 <h2>施工価格（税込）</h2>
 ${priceTable(priceItems, true, true)}
 ${d.labor && d.labor !== "—" ? `<p class="vpg-sub">脱着・殻割り工賃: ${esc(d.labor)}</p>` : ""}
+${customerRemoteBadges(d) ? `<h2>リモート施工対応</h2>\n<p class="vpg-sub">専用機材をご自宅にお送りし、ご来店不要で施工いたします。</p>\n${customerRemoteBadges(d)}` : ""}
 ${optionTable(d, true) ? `<h2>対応オプション</h2>\n${optionTable(d, true)}` : ""}
 ${relatedList(d) ? `<h2>この型式の施工実績</h2>\n${relatedList(d)}` : ""}
 <div class="vpg-cta">
@@ -369,6 +384,7 @@ ${powerCards(d, { stock: "Stock", tuned: "Tuned", ps: "Power", tq: "Torque" })}
 ${specRows(d, false)}
 </tbody></table>
 ${priceSection}
+${customerRemoteBadges(d) ? `<h2>Remote Tuning</h2>\n<p class="vpg-sub">We ship the flashing device to you — no visit required.</p>\n${customerRemoteBadges(d)}` : ""}
 ${optionTable(d, false) ? `<h2>Available Options</h2>\n${optionTable(d, false)}` : ""}
 ${relatedList(d) ? `<h2>Our Work on This Model</h2>\n${relatedList(d)}` : ""}
 <div class="vpg-cta">
