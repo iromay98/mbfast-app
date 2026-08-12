@@ -1016,63 +1016,83 @@ function PostLogRow({
   onApprove: () => void;
   onDiscard: () => void;
 }) {
+  const isReview = p.status === "review";
   return (
     <>
-                <tr>
-                  <td className="whitespace-nowrap py-1.5">{p.createdAtLabel}</td>
-                  <td className="whitespace-nowrap">{p.storeName}</td>
-                  <td>{p.vehicle}</td>
-                  <td className="whitespace-nowrap">{CATEGORY_LABELS[p.category] ?? p.category}</td>
-                  <td>
-                    <span className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${st.cls}`} title={p.errorMessage ?? p.guardResult ?? ""}>
-                      {st.label}
-                    </span>
-                  </td>
-                  <td className="max-w-[16rem] truncate">
-                    {p.status === "review" ? (
-                      <span className="space-x-1 whitespace-nowrap">
-                        <span className="text-ink">{p.title ?? "—"}</span>
-                        <button type="button" disabled={pending} onClick={onTogglePreview}
-                          className="rounded border border-line px-1.5 py-0.5 text-[10px] font-semibold text-ink-soft hover:bg-surface-2 disabled:opacity-50">
-                          {previewOpen ? "閉じる" : "内容"}
-                        </button>
-                        <button type="button" disabled={pending} onClick={onApprove}
-                          className="rounded bg-green-600 px-1.5 py-0.5 text-[10px] font-semibold text-white hover:bg-green-700 disabled:opacity-50">
-                          公開
-                        </button>
-                        <button type="button" disabled={pending} onClick={onDiscard}
-                          className="rounded border border-red-200 px-1.5 py-0.5 text-[10px] font-semibold text-red-600 hover:bg-red-50 disabled:opacity-50">
-                          取り下げ
-                        </button>
-                      </span>
-                    ) : p.publishedUrl ? (
-                      <a href={p.publishedUrl} target="_blank" rel="noopener" className="text-sky-700 hover:underline">
-                        {p.title ?? p.publishedUrl}
-                      </a>
-                    ) : (
-                      <span className="text-ink-soft">{p.errorMessage ?? "—"}</span>
-                    )}
-                  </td>
-                  {/* 素材: 投稿に使われた写真（ぼかし済みWebP）を本部が二次利用用に落とす */}
-                  <td className="whitespace-nowrap">
-                    {p.photoCount > 0 ? (
-                      <span className="space-x-1">
-                        {Array.from({ length: p.photoCount }, (_, i) => (
-                          <a
-                            key={i}
-                            href={`/api/pit/post-photos/${p.id}?i=${i}`}
-                            className="text-[11px] text-gold-700 hover:underline"
-                            title={`写真${i + 1}をダウンロード`}
-                          >
-                            📷{i + 1}
-                          </a>
-                        ))}
-                      </span>
-                    ) : (
-                      <span className="text-ink-soft">—</span>
-                    )}
-                  </td>
-                </tr>
+      <tr>
+        <td className="whitespace-nowrap py-1.5">{p.createdAtLabel}</td>
+        <td className="whitespace-nowrap">{p.storeName}</td>
+        <td>{p.vehicle}</td>
+        <td className="whitespace-nowrap">{CATEGORY_LABELS[p.category] ?? p.category}</td>
+        <td>
+          <span
+            className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${st.cls}`}
+            title={p.errorMessage ?? p.guardResult ?? ""}
+          >
+            {st.label}
+          </span>
+        </td>
+        {/*
+          確認待ちの行は操作ボタンを置くため truncate しない。
+          幅を絞ったまま（max-w+truncate）だとボタンが枠外に隠れて押せなくなる。
+        */}
+        <td className={isReview ? "" : "max-w-[16rem] truncate"}>
+          {isReview ? (
+            <div className="flex flex-wrap items-center gap-1">
+              <span className="text-ink">{p.title ?? "—"}</span>
+              <button
+                type="button"
+                disabled={pending}
+                onClick={onTogglePreview}
+                className="rounded border border-line px-1.5 py-0.5 text-[10px] font-semibold text-ink-soft hover:bg-surface-2 disabled:opacity-50"
+              >
+                {previewOpen ? "閉じる" : "内容"}
+              </button>
+              <button
+                type="button"
+                disabled={pending}
+                onClick={onApprove}
+                className="rounded bg-green-600 px-1.5 py-0.5 text-[10px] font-semibold text-white hover:bg-green-700 disabled:opacity-50"
+              >
+                公開
+              </button>
+              <button
+                type="button"
+                disabled={pending}
+                onClick={onDiscard}
+                className="rounded border border-red-200 px-1.5 py-0.5 text-[10px] font-semibold text-red-600 hover:bg-red-50 disabled:opacity-50"
+              >
+                取り下げ
+              </button>
+            </div>
+          ) : p.publishedUrl ? (
+            <a href={p.publishedUrl} target="_blank" rel="noopener" className="text-sky-700 hover:underline">
+              {p.title ?? p.publishedUrl}
+            </a>
+          ) : (
+            <span className="text-ink-soft">{p.errorMessage ?? "—"}</span>
+          )}
+        </td>
+        {/* 素材: 投稿に使われた写真（ぼかし済みWebP）を本部が二次利用用に落とす */}
+        <td className="whitespace-nowrap">
+          {p.photoCount > 0 ? (
+            <span className="space-x-1">
+              {Array.from({ length: p.photoCount }, (_, i) => (
+                <a
+                  key={i}
+                  href={`/api/pit/post-photos/${p.id}?i=${i}`}
+                  className="text-[11px] text-gold-700 hover:underline"
+                  title={`写真${i + 1}をダウンロード`}
+                >
+                  📷{i + 1}
+                </a>
+              ))}
+            </span>
+          ) : (
+            <span className="text-ink-soft">—</span>
+          )}
+        </td>
+      </tr>
       {/* 公開前確認の本文プレビュー（「内容」で開閉） */}
       {previewOpen && p.bodyHtml && (
         <tr>
