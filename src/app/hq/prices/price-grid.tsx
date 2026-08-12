@@ -87,8 +87,11 @@ export function PriceGrid({ brand, vehicles }: { brand: BrandRow; vehicles: Grid
         <table className="w-full text-xs">
           <thead className="bg-surface-2 text-left text-[11px] text-ink-soft">
             <tr>
+              <th className="sticky left-0 z-20 border-r border-line bg-surface-2 px-1.5 py-1.5 font-semibold">
+                車両
+              </th>
               <th className="px-1.5 py-1.5 font-semibold">シリーズ</th>
-              {brand.columns.map((c) => (
+              {brand.columns.filter((c) => c.key !== "car" && c.key !== "grade").map((c) => (
                 <th
                   key={c.key}
                   className={`whitespace-nowrap px-1.5 py-1.5 font-semibold ${
@@ -194,12 +197,21 @@ function Row({
     }
   };
 
+  const hasGrade = brand.columns.some((c) => c.key === "grade");
   return (
-    <tr className="hover:bg-surface-2">
+    <tr className="group hover:bg-surface-2">
+      <td className="sticky left-0 z-10 border-r border-line bg-surface px-1.5 py-1 align-top group-hover:bg-surface-2">
+        <div className="space-y-0.5">
+          <Cell value={v.carName} onSave={(val) => onRun(() => updateVehicleCell(v.id, { field: "carName", value: val }))} w="w-32" bold />
+          {hasGrade && (
+            <Cell value={v.grade ?? ""} onSave={(val) => onRun(() => updateVehicleCell(v.id, { field: "grade", value: val }))} w="w-32" placeholder="（グレード）" />
+          )}
+        </div>
+      </td>
       <td className="px-1.5 py-1">
         <Cell value={v.seriesGroup} onSave={(val) => onRun(() => updateVehicleCell(v.id, { field: "seriesGroup", value: val }))} w="w-24" />
       </td>
-      {brand.columns.map((c) => (
+      {brand.columns.filter((c) => c.key !== "car" && c.key !== "grade").map((c) => (
         <td key={c.key} className="px-1.5 py-1">
           {cellFor(c)}
         </td>
