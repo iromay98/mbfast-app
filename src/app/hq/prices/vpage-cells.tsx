@@ -26,31 +26,42 @@ export function VpageStatusCell({ vehicleId, vpage }: { vehicleId: string; vpage
   const [status, setStatus] = useState(vpage?.status ?? "hold");
   const [saving, setSaving] = useState(false);
   const [failed, setFailed] = useState(false);
+  const [warn, setWarn] = useState<string | null>(null);
 
+  // 下書き/公開に変えたら、その場でWPにも反映される（別画面での操作は不要）
   const change = async (next: string) => {
     const prev = status;
     setStatus(next); // 楽観的に反映
     setSaving(true);
     setFailed(false);
+    setWarn(null);
     const r = await setVpageStatusByVehicle(vehicleId, next);
     setSaving(false);
     if (r.error) {
       setStatus(prev);
       setFailed(true);
+      return;
     }
+    if (r.syncWarning) setWarn(r.syncWarning);
   };
 
+  const title = failed ? "保存に失敗しました" : warn ? `WP反映の警告: ${warn}` : saving ? "WPへ反映中…" : "下書き/公開にすると、その場でWPに反映されます";
+
   return (
-    <select
-      value={status}
-      onChange={(e) => void change(e.target.value)}
-      title={failed ? "保存に失敗しました" : undefined}
-      className={`rounded border bg-surface px-1 py-0.5 text-[11px] ${failed ? "border-red-500" : "border-line"} ${saving ? "opacity-60" : ""} ${STATUS_STYLE[status] ?? ""}`}
-    >
-      <option value="hold">保留</option>
-      <option value="draft">下書</option>
-      <option value="publish">公開</option>
-    </select>
+    <span className="inline-flex items-center gap-1">
+      <select
+        value={status}
+        onChange={(e) => void change(e.target.value)}
+        title={title}
+        className={`rounded border bg-surface px-1 py-0.5 text-[11px] ${failed ? "border-red-500" : warn ? "border-amber-500" : "border-line"} ${saving ? "opacity-60" : ""} ${STATUS_STYLE[status] ?? ""}`}
+      >
+        <option value="hold">保留</option>
+        <option value="draft">下書</option>
+        <option value="publish">公開</option>
+      </select>
+      {saving && <span className="text-[10px] text-ink-soft">反映中</span>}
+      {!saving && warn && <span className="text-[10px] text-amber-600">!</span>}
+    </span>
   );
 }
 
