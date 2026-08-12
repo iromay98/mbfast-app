@@ -20,6 +20,7 @@ on:
           - gbp # Googleビジネスプロフィールの接続確認（GETのみ・投稿は作らない）
           - failures # 直近の投稿失敗の理由（PitPost.errorMessage・読み取りのみ）
           - system # VPSのメモリ・スワップ・ディスク・コンテナ使用量（読み取りのみ）
+          - review # 公開前確認(review)で止まっている投稿の診断（読み取りのみ）
         default: taxonomy
 
 concurrency:
@@ -106,6 +107,36 @@ jobs:
               echo ""
               echo "-- v4の割り当て確認（GET localPosts のみ・投稿は作らない） --"
               $COMPOSE exec -T app npm run gbp:v4check </dev/null || echo "（gbp:v4check が失敗）"
+              ;;
+            review)
+              # 公開前確認で止まっている投稿の診断。approveMyPitPost が弾く条件を先に確認する:
+              #   wpPostId が NULL → 「WordPressの記事が見つかりません」で公開できない
+              #   bodyHtml が NULL → 本部画面のプレビューが出せない
+              # さらにWP側の実際の記事状態（draft/publish）もRESTで読む（GETのみ・書き込まない）。
+              echo "-- review で止まっている投稿 --"
+              $COMPOSE exec -T postgres psql -U mbfast -d mbfast -c \
+                "SELECT p.id, to_char(p.\"createdAt\" AT TIME ZONE 'Asia/Tokyo','MM-DD HH24:MI') AS jst, s.\"displayName\" AS store, p.vehicle, p.\"wpPostId\", (p.\"bodyHtml\" IS NOT NULL) AS has_body, s.\"postReviewRequired\" AS review_on FROM \"PitPost\" p JOIN \"PitStore\" s ON s.id=p.\"storeId\" WHERE p.status='review' ORDER BY p.\"createdAt\" DESC;" </dev/null
+              echo ""
+              echo "-- WP側の実際の記事状態（GETのみ・書き込まない） --"
+              IDS=$($COMPOSE exec -T postgres psql -U mbfast -d mbfast -tAc \
+                "SELECT \"wpPostId\" FROM \"PitPost\" WHERE status='review' AND \"wpPostId\" IS NOT NULL ORDER BY \"createdAt\" DESC;" </dev/null | tr -d '\r' | tr '\n' ' ')
+              echo "  対象WP記事ID: ${IDS:-（なし）}"
+              if [ -n "${IDS// /}" ]; then
+                $COMPOSE exec -T app node -e '
+                  const ids = process.argv.slice(1);
+                  const base = process.env.WP_BASE_URL || "https://mbfasttuning.com";
+                  const auth = "Basic " + Buffer.from(process.env.WP_USER + ":" + process.env.WP_APP_PASSWORD).toString("base64");
+                  (async () => {
+                    for (const id of ids) {
+                      try {
+                        const r = await fetch(base + "/wp-json/wp/v2/posts/" + id + "?context=edit&_fields=id,status,date,link", { headers: { Authorization: auth } });
+                        const j = await r.json();
+                        console.log("  WP:" + id + " HTTP" + r.status + " status=" + j.status + " date=" + j.date);
+                      } catch (e) { console.log("  WP:" + id + " 取得失敗 " + e.message); }
+                    }
+                  })();
+                ' $IDS </dev/null
+              fi
               ;;
             system)
               # VPSのリソース状況（アップロード上限の判断材料などに使う。読み取りのみ）
