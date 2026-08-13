@@ -73,8 +73,10 @@ export function deriveOptionsFromPrices(prices: PriceItem[], defs: OptionDef[]):
     const optKey = byPriceKey.get(p.key);
     if (!optKey) continue;
     const v = p.value.trim();
+    // 「—」= 提供しない。金額が入っていれば提供している。
+    // **ASK・空欄は判定しない**（要相談＝未確定の意味で使われるため。更家さん判断 2026-08-13）
     if (v === "—" || v === "-") out[optKey] = false;
-    else if (v !== "") out[optKey] = true; // 金額 or ASK
+    else if (/[0-9]/.test(v) && v.toUpperCase() !== "ASK") out[optKey] = true;
   }
   return out;
 }
