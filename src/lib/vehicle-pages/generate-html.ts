@@ -220,6 +220,20 @@ function priceTable(items: PriceItem[], jp: boolean, withAskBtn: boolean): strin
   return `<table class="vpg-table"><tbody>\n${rows}\n</tbody></table>`;
 }
 
+/** TCU価格が表に出ている場合の注記（単品施工の誤解を防ぐ。更家さん指定 2026-08-13） */
+function tcuNote(items: PriceItem[], jp: boolean): string {
+  // TCU行が表に出ていれば注記を出す（ASK＝LINE見積り表示の行も対象。「—」＝非対応のみ除外）
+  const hasTcu = items.some((p) => {
+    if (!/tcu/i.test(p.key)) return false;
+    const v = p.value.trim();
+    return v !== "—" && v !== "-";
+  });
+  if (!hasTcu) return "";
+  return jp
+    ? `<p class="vpg-sub" style="margin-top:.6em">※TCUチューニングの料金はECUチューニングとセットでのご案内です。単品施工は別途お見積りいたします。</p>`
+    : `<p class="vpg-sub" style="margin-top:.6em">TCU tuning is priced as a package with ECU tuning. Standalone TCU work is quoted separately.</p>`;
+}
+
 function optionTable(d: VehiclePageData, jp: boolean): string {
   const entries = d.optionDefs.filter((o) => d.options[o.key] !== undefined);
   if (entries.length === 0) return "";
@@ -316,6 +330,7 @@ ${specRows(d, true)}
 </tbody></table>
 <h2>施工価格（税込）</h2>
 ${priceTable(priceItems, true, true)}
+${tcuNote(priceItems, true)}
 ${d.labor && d.labor !== "—" ? `<p class="vpg-sub">脱着・殻割り工賃: ${esc(d.labor)}</p>` : ""}
 ${customerRemoteBadges(d) ? `<h2>リモート施工対応</h2>\n<p class="vpg-sub">専用機材をご自宅にお送りし、ご来店不要で施工いたします。</p>\n${customerRemoteBadges(d)}` : ""}
 ${optionTable(d, true) ? `<h2>対応オプション</h2>\n${optionTable(d, true)}` : ""}
@@ -357,7 +372,8 @@ export function generateVehiclePageEn(d: VehiclePageData): GeneratedPage {
     ? `<h2>Pricing</h2>
 <p class="vpg-sub">Pricing for international customers is provided by individual quote. Tell us your car and what you want it to do.</p>`
     : `<h2>Pricing</h2>
-${priceTable((d.en as { mode: "price"; prices: PriceItem[] }).prices, false, true)}`;
+${priceTable((d.en as { mode: "price"; prices: PriceItem[] }).prices, false, true)}
+${tcuNote((d.en as { mode: "price"; prices: PriceItem[] }).prices, false)}`;
 
   const html = `<!-- wp:html -->
 ${MARK_START}
