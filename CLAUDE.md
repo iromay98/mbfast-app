@@ -62,4 +62,5 @@ HQ（mbFAST Tuning本店）⇄ 代理店のポータル。Next.js 16 App Router 
 - 更新はマーカー区間（`<!-- START: 貼り付け範囲 -->`）だけ差し替え＝マーカー外の人の追記は保護。scriptタグ内の生アンパサンドは書込前に弾く（価格表と同じ理由）
 - **対応オプションの語彙はDB(`VehiclePageOption`)が単一の正**。追加・並べ替え・非表示・削除は /hq/prices の「対応オプションの項目を編集」から（コード変更不要）。`derivedFrom` に価格列keyを指定すると、その列に**金額が入っている**車両は自動で〇／「—」なら—（**ASK・空欄は判定しない**＝要相談の意味のため。2026-08-13更家さん判断）。手動設定が常に優先
 - 価格表の「WordPressに反映」で、そのブランドの下書き・公開中の車両ページも自動更新される。さらに「頁」列で 下書き/公開 に切り替えた時点でも、その1枚が即WPへ反映される（車両ページ画面での個別操作は不要）
+- **自動同期**: GitHub Actions `車両ページをWPへ同期`（毎時0分・手動実行可）が `vpages:wp-push --yes` を回す。価格表を直す／頁列で公開にするだけでよく、反映操作は不要。過去の取りこぼしもここで拾われる
 - コマンド: `npm run vpages:seed -- <brandId> [--commit]`（ドライラン既定）／ `vpages:set -- --list` `--slug X --status draft` `--option babble=on` `--related <記事ID>`（状態・オプション・実績記事の運用CLI）／ `vpages:wp-diff`（読み取りのみ）／ `vpages:wp-push -- --yes`（書込）／ `vpages:preview`（DB不要・.verify-out/ にサンプルHTML）
