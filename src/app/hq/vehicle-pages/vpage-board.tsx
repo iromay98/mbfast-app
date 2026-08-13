@@ -5,6 +5,7 @@ import { Badge, Button, Input, Select } from "@/components/ui";
 import type { OptionDef } from "@/lib/vehicle-pages/options";
 import {
   addVpageRelatedPost,
+  pushPendingVpagesForBrand,
   pushVpage,
   removeVpageRelatedPost,
   seedVpagesForBrand,
@@ -19,6 +20,7 @@ export type VpageRow = {
   status: string;
   enPriceMode: string;
   options: Record<string, boolean>;
+  derived: Record<string, boolean>;
   related: { id?: number; title: string; url: string }[];
   wpPageIdJp: number | null;
   wpPageIdEn: number | null;
@@ -35,6 +37,7 @@ type BrandData = {
   urlSlug: string;
   vehicleCount: number;
   seeded: number;
+  pendingPush: number;
   rows: VpageRow[];
 };
 
@@ -83,6 +86,7 @@ export function VpageBoard({ brands, optionDefs }: { brands: BrandData[]; option
       </div>
 
       <SeedBar brand={current} />
+      <PendingPushBar brand={current} />
 
       <div className="flex flex-wrap items-center gap-2">
         <Input
@@ -123,6 +127,34 @@ function SeedBar({ brand }: { brand: BrandData }) {
       >
         {pending ? "作成中…" : "行を用意する"}
       </Button>
+    </div>
+  );
+}
+
+function PendingPushBar({ brand }: { brand: BrandData }) {
+  const [pending, start] = useTransition();
+  const [msg, setMsg] = useState<string | null>(null);
+  if (brand.pendingPush <= 0 && !msg) return null;
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm">
+      <span>
+        {brand.pendingPush > 0
+          ? `WPページが未作成のまま 下書き/公開 になっている車両が ${brand.pendingPush} 台あります`
+          : msg}
+      </span>
+      {brand.pendingPush > 0 && (
+        <Button
+          disabled={pending}
+          onClick={() =>
+            start(async () => {
+              const r = await pushPendingVpagesForBrand(brand.id);
+              setMsg(r.error ?? `反映しました（成功 ${r.created ?? 0} 台 / 失敗 ${r.failed ?? 0} 台）`);
+            })
+          }
+        >
+          {pending ? "反映中…" : "まとめてWPへ反映"}
+        </Button>
+      )}
     </div>
   );
 }
@@ -180,7 +212,12 @@ function VpageCard({ row, brandUrlSlug, optionDefs }: { row: VpageRow; brandUrlS
             <Select
               value={row.status}
               disabled={pending}
-              onChange={(e) => start(async () => void (await updateVpageStatus(row.pageId, e.target.value)))}
+              onChange={(e) =>
+                start(async () => {
+                  const r = await updateVpageStatus(row.pageId, e.target.value);
+                  setLog(r.error ?? r.syncWarning ?? null);
+                })
+              }
               className="w-auto"
             >
               <option value="hold">保留（生成しない）</option>
@@ -206,6 +243,20 @@ function VpageCard({ row, brandUrlSlug, optionDefs }: { row: VpageRow; brandUrlS
             </p>
             <div className="flex flex-wrap gap-1.5">
               {optionDefs.map((o) => {
+                // 価格列から自動判定される項目は手動操作できない（価格表のセルが調整場所）
+                if (o.derivedFrom) {
+                  const dv = row.derived[o.key];
+                  const dLabel = dv === true ? "〇" : dv === false ? "—" : "未";
+                  return (
+                    <span
+                      key={o.key}
+                      title={`価格表の「${o.derivedFrom}」列から自動判定されています。変えるには価格表のセルを編集してください`}
+                      className={`rounded border border-line bg-surface-2 px-2 py-1 text-[11px] ${dv === true ? "text-gold-700" : "text-ink-soft"}`}
+                    >
+                      {o.jp} {dLabel} <span className="opacity-60">自動</span>
+                    </span>
+                  );
+                }
                 const val = row.options[o.key];
                 const label = val === true ? "〇" : val === false ? "—" : "未";
                 const tone =
