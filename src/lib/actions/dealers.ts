@@ -25,6 +25,12 @@ function parseDealerForm(formData: FormData) {
     status: formData.get("status") ?? "ACTIVE",
     fileFormat: formData.get("fileFormat") ?? "SLAVE",
     ecuEnabled: formData.get("ecuEnabled"),
+    // 契約（1年更新）。次回更新日は保存しない＝開始日から都度計算する
+    contractStartedAt: formData.get("contractStartedAt"),
+    contractEndedAt: formData.get("contractEndedAt"),
+    contractRenewalMonths: formData.get("contractRenewalMonths"),
+    contractNoticeDays: formData.get("contractNoticeDays"),
+    contractNote: formData.get("contractNote"),
   });
 }
 

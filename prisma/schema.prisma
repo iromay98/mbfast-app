@@ -220,6 +220,23 @@ model Dealer {
   note            String?
   createdAt       DateTime     @default(now())
 
+  /*
+   * 契約の管理（1年更新）。条件を見直すタイミングを逃さないための最小構成。
+   *   contractStartedAt … 契約開始日（初回）。ここから毎年の応当日が更新日になる
+   *   contractRenewalMonths … 更新周期（月）。既定12＝1年更新。半年/2年の例外に備えて可変
+   *   contractNoticeDays … 更新の何日前から「見直し時期」として出すか（既定60日）。
+   *                        条件変更の申し出に猶予が要るため、更新日当日ではなく手前で気付けるようにする
+   *   contractEndedAt … 解約日（入っていたら更新の催促はしない）
+   *   contractNote … 契約条件のメモ（手数料率・特約など。代理店には見せない本部専用）
+   * 次回更新日の計算は src/lib/contract.ts（唯一の原本）。DBには開始日だけを持ち、
+   * 更新日は都度計算する＝毎年の更新ごとに行を書き換える運用にしない（ズレの元を作らない）。
+   */
+  contractStartedAt     DateTime?
+  contractRenewalMonths Int       @default(12)
+  contractNoticeDays    Int       @default(60)
+  contractEndedAt       DateTime?
+  contractNote          String?
+
   users          User[]
   serviceRecords ServiceRecord[]
   fileRequests   FileRequest[]

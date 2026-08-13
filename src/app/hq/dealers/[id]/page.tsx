@@ -4,8 +4,22 @@ import { prisma } from "@/lib/db";
 import { dealerStatusLabels, roleLabels, formatDate } from "@/lib/labels";
 import { PageTitle, Card, Badge, Button, LinkButton, EmptyState } from "@/components/ui";
 import { updateDealer, toggleDealerStatus } from "@/lib/actions/dealers";
+import {
+  contractStatus,
+  formatContractDate,
+  renewalLabel,
+  toDateInputValue,
+  type ContractStatus,
+} from "@/lib/contract";
 import { DealerForm } from "../dealer-form";
 import { AccountIssuer } from "./account-issuer";
+
+/** 契約状況の1行サマリ（編集フォームの下に出す） */
+function contractSummaryText(s: ContractStatus): string {
+  if (!s.startedAt) return "契約開始日が未登録です。入力すると次回更新日を自動で計算します。";
+  if (s.endedAt) return `解約済み（${formatContractDate(s.endedAt)}）。更新の案内は出しません。`;
+  return `契約開始 ${formatContractDate(s.startedAt)} ／ 次回更新 ${formatContractDate(s.nextRenewalAt)}（${renewalLabel(s)}）／ 更新で${s.termNumber}期目`;
+}
 
 export default async function DealerDetailPage({
   params,
@@ -26,6 +40,7 @@ export default async function DealerDetailPage({
 
   const updateAction = updateDealer.bind(null, dealer.id);
   const toggleAction = toggleDealerStatus.bind(null, dealer.id);
+  const contract = contractStatus(dealer);
 
   return (
     <div className="space-y-6">
@@ -59,7 +74,17 @@ export default async function DealerDetailPage({
       {/* 基本情報の編集 */}
       <section>
         <h2 className="mb-2 text-sm font-bold text-ink">基本情報</h2>
-        <DealerForm action={updateAction} defaults={dealer} submitLabel="変更を保存" />
+        <DealerForm
+          action={updateAction}
+          defaults={{
+            ...dealer,
+            // 日付は input[type=date] の形式に変換して渡す（次回更新日は保存せず計算値）
+            contractStartedAt: toDateInputValue(dealer.contractStartedAt),
+            contractEndedAt: toDateInputValue(dealer.contractEndedAt),
+            contractSummary: contractSummaryText(contract),
+          }}
+          submitLabel="変更を保存"
+        />
       </section>
 
       {/* 関連リンク */}

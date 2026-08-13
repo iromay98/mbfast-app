@@ -25,6 +25,7 @@
     "check:cert-privacy": "tsx scripts/check-cert-privacy.mts",
     "check:pit-branding": "tsx scripts/check-pit-branding.mts",
     "check:pit-tags": "tsx scripts/check-pit-tags.mts",
+    "check:contract": "tsx scripts/check-contract.mts",
     "check:shaken-ocr": "tsx scripts/check-shaken-ocr.mts",
     "check:shaken-pdf": "tsx scripts/check-shaken-pdf.mts",
     "check:photo-ocr": "tsx scripts/check-photo-ocr.mts",
