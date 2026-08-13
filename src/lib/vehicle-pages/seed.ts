@@ -1,36 +1,13 @@
 // ページ行の自動用意（seed）。scripts/vpages-seed.mts・/hq画面・価格表のWP反映フックが共用する。
 // 必ず status=hold で作る＝ここから勝手に公開されることはない。
+//
+// **オプションは自動で書き込まない**（2026-08-13 更家さん指定）。価格表から初期値を入れると
+// 「触っていない項目に〇が付く」ことになり、画面の表示と本部の意図がズレるため。
+// 〇／— は本部が画面でタップしたものだけが保存され、ページに出る。
 
 import { prisma } from "../db";
-import { deriveOptionsFromPrices, priceItemsFor, vehicleSlug } from "./resolve";
-import { loadOptionDefs } from "./options-db";
+import { vehicleSlug } from "./resolve";
 
-/*
- * 新規ページ行のオプション初期値。価格表に金額/ASKが入っている項目は〇、
- * 「—」の項目は—で入れておく（あとは本部が画面で自由に足し引きする）。
- * 表示は「設定済みの項目だけ」なので、ここで入れなかった項目はページに出ない。
- */
-async function initialOptionsFor(vehicle: {
-  brandId: string;
-  prices: unknown;
-  carName: string;
-  grade: string | null;
-  engine: string;
-  ecuType: string | null;
-  stockOutput: string | null;
-  stage1Gain: string | null;
-  labor: string | null;
-  remote: unknown;
-  notes: string | null;
-}): Promise<Record<string, boolean>> {
-  const brand = await prisma.priceBrand.findUnique({
-    where: { id: vehicle.brandId },
-    select: { id: true, displayName: true, slug: true, columns: true },
-  });
-  if (!brand) return {};
-  const defs = await loadOptionDefs();
-  return deriveOptionsFromPrices(priceItemsFor(brand, vehicle), defs);
-}
 
 export async function seedVehiclePagesForBrand(brandId: string): Promise<number> {
   const vehicles = await prisma.priceVehicle.findMany({
@@ -47,7 +24,7 @@ export async function seedVehiclePagesForBrand(brandId: string): Promise<number>
     while (existing.has(slug)) slug = `${vehicleSlug(v.carName, v.grade)}-${n++}`;
     existing.add(slug);
     await prisma.vehiclePage.create({
-      data: { vehicleId: v.id, slug, status: "hold", options: await initialOptionsFor(v) },
+      data: { vehicleId: v.id, slug, status: "hold" },
     });
     created++;
   }
@@ -64,6 +41,6 @@ export async function ensureVehiclePageRow(vehicleId: string) {
   let n = 2;
   while (existing.has(slug)) slug = `${vehicleSlug(v.carName, v.grade)}-${n++}`;
   return prisma.vehiclePage.create({
-    data: { vehicleId, slug, status: "hold", options: await initialOptionsFor(v) },
+    data: { vehicleId, slug, status: "hold" },
   });
 }

@@ -42,7 +42,7 @@ export function PriceBoard({ data, optionDefs, optionRows }: { data: { brand: Br
       {/* key: ブランドを切り替えたら入力欄を作り直す（前のブランドの文章が残って誤上書きするのを防ぐ） */}
       <BrandSettings key={`bs-${current.brand.id}`} brand={current.brand} />
 
-      <OptionMaster options={optionRows} priceColumns={current.brand.columns.filter((c) => c.type === "price").map((c) => ({ key: c.key, label: c.label.replace(/\s*\(.*?\)\s*$/, "") }))} />
+      <OptionMaster brandId={current.brand.id} options={optionRows} priceColumns={current.brand.columns.filter((c) => c.type === "price").map((c) => ({ key: c.key, label: c.label.replace(/\s*\(.*?\)\s*$/, "") }))} />
 
       <PublishPanel key={`pub-${current.brand.id}`} brand={current.brand} />
 
