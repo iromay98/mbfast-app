@@ -273,3 +273,24 @@ export async function clearAutoFilledOptions(brandId: string): Promise<{ ok?: tr
   revalidatePath(PATH);
   return { ok: true, cleared };
 }
+
+
+/**
+ * 車両1台をWPへ反映する（オプション変更後の遅延反映用）。
+ * 画面側が「最後の操作から一定時間後」に1回だけ呼ぶ想定なので、
+ * 連続でタップしても反映は1回にまとまる。status=hold の車両は何もしない。
+ */
+export async function syncVehicleByVehicleId(vehicleId: string): Promise<{ ok?: true; skipped?: true; warning?: string }> {
+  await requireHQ();
+  const row = await prisma.vehiclePage.findUnique({ where: { vehicleId }, select: { id: true, status: true } });
+  if (!row || row.status === "hold") return { ok: true, skipped: true };
+  if (!wpConfigured()) return { ok: true, warning: "WP認証が未設定のため反映していません" };
+  try {
+    const events = await syncVehiclePage(row.id);
+    const failed = events.filter((e) => e.level === "error");
+    if (failed.length > 0) return { ok: true, warning: failed.map((e) => e.message).join(" / ") };
+  } catch (e) {
+    return { ok: true, warning: e instanceof Error ? e.message : "WP反映に失敗しました" };
+  }
+  return { ok: true };
+}

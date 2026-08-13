@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
   addVehicle,
@@ -17,6 +17,7 @@ import {
   type VehicleRow,
 } from "@/lib/prices/types";
 import { manualOptionDefs, VpageOptionCell, VpageStatusCell, type VpageInfo } from "./vpage-cells";
+import { flushPendingSyncs, hasPendingSyncs } from "./sync-scheduler";
 import type { OptionDef } from "@/lib/vehicle-pages/options";
 
 type GridVehicle = VehicleRow & { vpage: VpageInfo };
@@ -24,6 +25,21 @@ type GridVehicle = VehicleRow & { vpage: VpageInfo };
 // 価格をExcel的に編集する表。列はブランド定義（columns）に従って動的に描画する。
 export function PriceGrid({ brand, vehicles, optionDefs }: { brand: BrandRow; vehicles: GridVehicle[]; optionDefs: OptionDef[] }) {
   const manualOpts = manualOptionDefs(optionDefs);
+
+  // ページを離れる時、予約済みの反映を取りこぼさない
+  useEffect(() => {
+    const onLeave = (e: BeforeUnloadEvent) => {
+      if (!hasPendingSyncs()) return;
+      flushPendingSyncs();
+      e.preventDefault();
+      e.returnValue = "";
+    };
+    window.addEventListener("beforeunload", onLeave);
+    return () => {
+      window.removeEventListener("beforeunload", onLeave);
+      flushPendingSyncs();
+    };
+  }, []);
   const router = useRouter();
   const [pending, start] = useTransition();
   const [msg, setMsg] = useState<string | null>(null);

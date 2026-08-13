@@ -4,9 +4,10 @@
 // 高頻度操作なので**楽観的更新**: タップで即座に見た目を変え、保存は裏で走らせる。
 // 失敗したときだけ元に戻してエラーを出す（router.refresh は呼ばない＝表全体の再取得をしない）。
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { OptionDef } from "@/lib/vehicle-pages/options";
 import { setVpageOptionByVehicle, setVpageStatusByVehicle } from "@/lib/actions/vehicle-pages";
+import { scheduleSync, subscribeSync } from "./sync-scheduler";
 
 /** 価格セルから自動判定されるものはグリッドに手動列を出さない（価格列が調整場所） */
 export function manualOptionDefs(defs: OptionDef[]): OptionDef[] {
@@ -27,6 +28,16 @@ export function VpageStatusCell({ vehicleId, vpage }: { vehicleId: string; vpage
   const [saving, setSaving] = useState(false);
   const [failed, setFailed] = useState(false);
   const [warn, setWarn] = useState<string | null>(null);
+  // オプション変更後の遅延反映の状況（この行のどのセルを触っても、ここに出る）
+  const [queued, setQueued] = useState(false);
+  useEffect(
+    () =>
+      subscribeSync(vehicleId, (st) => {
+        setQueued(st.pending);
+        if (st.warning) setWarn(st.warning);
+      }),
+    [vehicleId],
+  );
 
   // 下書き/公開に変えたら、その場でWPにも反映される（別画面での操作は不要）
   const change = async (next: string) => {
@@ -59,8 +70,10 @@ export function VpageStatusCell({ vehicleId, vpage }: { vehicleId: string; vpage
         <option value="draft">下書</option>
         <option value="publish">公開</option>
       </select>
-      {saving && <span className="text-[10px] text-ink-soft">反映中</span>}
-      {!saving && warn && <span className="text-[10px] text-amber-600">!</span>}
+      {(saving || queued) && (
+        <span className="text-[10px] text-ink-soft">{saving ? "反映中" : "まもなく反映"}</span>
+      )}
+      {!saving && !queued && warn && <span className="text-[10px] text-amber-600">!</span>}
     </span>
   );
 }
@@ -89,7 +102,9 @@ export function VpageOptionCell({
     if (r.error) {
       setVal(prev);
       setFailed(true);
+      return;
     }
+    scheduleSync(vehicleId); // 最後の操作から少し待ってWPへ1回だけ反映
   };
 
   const label = val === true ? "〇" : val === false ? "—" : "・";
