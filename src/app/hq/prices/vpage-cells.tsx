@@ -10,7 +10,7 @@ import { setVpageOptionByVehicle, setVpageStatusByVehicle } from "@/lib/actions/
 
 /** 価格セルから自動判定されるものはグリッドに手動列を出さない（価格列が調整場所） */
 export function manualOptionDefs(defs: OptionDef[]): OptionDef[] {
-  return defs.filter((o) => !o.derivedFrom);
+  return defs;
 }
 
 /** グリッド行に渡すページ情報（無ければ null＝未作成） */

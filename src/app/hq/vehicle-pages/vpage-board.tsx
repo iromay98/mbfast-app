@@ -20,7 +20,6 @@ export type VpageRow = {
   status: string;
   enPriceMode: string;
   options: Record<string, boolean>;
-  derived: Record<string, boolean>;
   related: { id?: number; title: string; url: string }[];
   wpPageIdJp: number | null;
   wpPageIdEn: number | null;
@@ -243,20 +242,6 @@ function VpageCard({ row, brandUrlSlug, optionDefs }: { row: VpageRow; brandUrlS
             </p>
             <div className="flex flex-wrap gap-1.5">
               {optionDefs.map((o) => {
-                // 価格列から自動判定される項目は手動操作できない（価格表のセルが調整場所）
-                if (o.derivedFrom) {
-                  const dv = row.derived[o.key];
-                  const dLabel = dv === true ? "〇" : dv === false ? "—" : "未";
-                  return (
-                    <span
-                      key={o.key}
-                      title={`価格表の「${o.derivedFrom}」列から自動判定されています。変えるには価格表のセルを編集してください`}
-                      className={`rounded border border-line bg-surface-2 px-2 py-1 text-[11px] ${dv === true ? "text-gold-700" : "text-ink-soft"}`}
-                    >
-                      {o.jp} {dLabel} <span className="opacity-60">自動</span>
-                    </span>
-                  );
-                }
                 const val = row.options[o.key];
                 const label = val === true ? "〇" : val === false ? "—" : "未";
                 const tone =

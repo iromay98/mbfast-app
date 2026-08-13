@@ -4,7 +4,7 @@ import { PageTitle, Card } from "@/components/ui";
 import { sortBrandsForDisplay } from "@/lib/prices/types";
 import { toOptions } from "@/lib/vehicle-pages/options";
 import { loadOptionDefs } from "@/lib/vehicle-pages/options-db";
-import { brandUrlSlug, deriveOptionsFromPrices, priceItemsFor } from "@/lib/vehicle-pages/resolve";
+import { brandUrlSlug } from "@/lib/vehicle-pages/resolve";
 import { VpageBoard, type VpageRow } from "./vpage-board";
 
 export const dynamic = "force-dynamic";
@@ -47,7 +47,6 @@ export default async function HqVehiclePagesPage() {
           enPriceMode: p.enPriceMode,
           options: toOptions(p.options),
           // 価格列から自動判定される値。実ページと同じ関数を使う（二重実装を作らない）
-          derived: deriveOptionsFromPrices(priceItemsFor(b, v), optionDefs),
           related: Array.isArray(p.relatedPosts)
             ? (p.relatedPosts as { id?: number; title: string; url: string }[])
             : [],
