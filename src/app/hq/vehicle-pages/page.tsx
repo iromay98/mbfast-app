@@ -4,7 +4,7 @@ import { PageTitle, Card } from "@/components/ui";
 import { sortBrandsForDisplay } from "@/lib/prices/types";
 import { toOptions } from "@/lib/vehicle-pages/options";
 import { loadOptionDefs } from "@/lib/vehicle-pages/options-db";
-import { brandUrlSlug, priceItemsFor } from "@/lib/vehicle-pages/resolve";
+import { brandUrlSlug, deriveOptionsFromPrices, priceItemsFor } from "@/lib/vehicle-pages/resolve";
 import { VpageBoard, type VpageRow } from "./vpage-board";
 
 export const dynamic = "force-dynamic";
@@ -46,18 +46,8 @@ export default async function HqVehiclePagesPage() {
           status: p.status,
           enPriceMode: p.enPriceMode,
           options: toOptions(p.options),
-          // 価格列から自動判定される値（実ページと同じ計算）。手動設定が優先される
-          derived: Object.fromEntries(
-            optionDefs
-              .filter((o) => o.derivedFrom)
-              .map((o) => {
-                const cell = priceItemsFor(b, v).find((pi) => pi.key === o.derivedFrom)?.value.trim() ?? "";
-                if (cell === "—" || cell === "-") return [o.key, false] as const;
-                if (cell !== "") return [o.key, true] as const;
-                return [o.key, null] as const;
-              })
-              .filter(([, val]) => val !== null) as [string, boolean][],
-          ),
+          // 価格列から自動判定される値。実ページと同じ関数を使う（二重実装を作らない）
+          derived: deriveOptionsFromPrices(priceItemsFor(b, v), optionDefs),
           related: Array.isArray(p.relatedPosts)
             ? (p.relatedPosts as { id?: number; title: string; url: string }[])
             : [],
