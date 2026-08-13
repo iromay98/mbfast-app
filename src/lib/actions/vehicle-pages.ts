@@ -229,3 +229,47 @@ export async function deleteOptionDef(id: string): Promise<{ ok?: true; error?: 
   revalidatePath(PATH);
   return { ok: true };
 }
+
+/**
+ * 価格表から自動で入ってしまったオプション値を消す（本部がタップしていない値の掃除）。
+ * 判定: 保存されている値が「価格表から計算される値と一致する」キーだけを削除する。
+ * 本部が意図的に同じ値を付けていた場合も消えるが、その場合は付け直せばよい（過剰に消さない設計）。
+ */
+export async function clearAutoFilledOptions(brandId: string): Promise<{ ok?: true; cleared?: number; error?: string }> {
+  await requireHQ();
+  const { deriveOptionsFromPrices, priceItemsFor } = await import("@/lib/vehicle-pages/resolve");
+  const { loadOptionDefs } = await import("@/lib/vehicle-pages/options-db");
+  const defs = await loadOptionDefs(true);
+  const brand = await prisma.priceBrand.findUnique({
+    where: { id: brandId },
+    select: { id: true, displayName: true, slug: true, columns: true },
+  });
+  if (!brand) return { error: "ブランドが見つかりません" };
+
+  const pages = await prisma.vehiclePage.findMany({
+    where: { vehicle: { brandId } },
+    include: { vehicle: true },
+  });
+  let cleared = 0;
+  for (const p of pages) {
+    const stored = toOptions(p.options);
+    if (Object.keys(stored).length === 0) continue;
+    const derived = deriveOptionsFromPrices(priceItemsFor(brand, p.vehicle), defs);
+    const next: Record<string, boolean> = {};
+    let changed = false;
+    for (const [k, v] of Object.entries(stored)) {
+      if (derived[k] === v) {
+        changed = true; // 価格表から入った値とみなして落とす
+        continue;
+      }
+      next[k] = v;
+    }
+    if (changed) {
+      await prisma.vehiclePage.update({ where: { id: p.id }, data: { options: next } });
+      cleared++;
+    }
+  }
+  revalidatePath("/hq/prices");
+  revalidatePath(PATH);
+  return { ok: true, cleared };
+}

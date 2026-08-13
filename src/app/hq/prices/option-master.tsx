@@ -8,6 +8,7 @@ import { useRouter } from "next/navigation";
 import type { OptionDef } from "@/lib/vehicle-pages/options";
 import { suggestOptionKey } from "@/lib/vehicle-pages/options";
 import {
+  clearAutoFilledOptions,
   createOptionDef,
   deleteOptionDef,
   moveOptionDef,
@@ -16,7 +17,7 @@ import {
 
 export type OptionRow = OptionDef & { id: string; enabled: boolean };
 
-export function OptionMaster({ options, priceColumns }: { options: OptionRow[]; priceColumns: { key: string; label: string }[] }) {
+export function OptionMaster({ options, priceColumns, brandId }: { options: OptionRow[]; priceColumns: { key: string; label: string }[]; brandId: string }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [pending, start] = useTransition();
@@ -50,9 +51,27 @@ export function OptionMaster({ options, priceColumns }: { options: OptionRow[]; 
     <div className="rounded-lg border border-line bg-surface p-3">
       <div className="mb-2 flex items-center justify-between">
         <h3 className="text-sm font-semibold">対応オプションの項目</h3>
-        <button type="button" onClick={() => setOpen(false)} className="text-xs text-ink-soft hover:underline">
-          閉じる
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            disabled={pending}
+            onClick={() => {
+              if (confirm("価格表から自動で入った○×を消します（手動で付けた値は残ります）。よろしいですか？")) {
+                start(async () => {
+                  const r = await clearAutoFilledOptions(brandId);
+                  setMsg(r.error ?? `${r.cleared ?? 0} 台の自動入力を消しました`);
+                  router.refresh();
+                });
+              }
+            }}
+            className="text-xs text-ink-soft underline underline-offset-2 hover:text-ink"
+          >
+            自動で入った○×を消す
+          </button>
+          <button type="button" onClick={() => setOpen(false)} className="text-xs text-ink-soft hover:underline">
+            閉じる
+          </button>
+        </div>
       </div>
       <p className="mb-2 text-[11px] text-ink-soft">
         ここで追加した項目が、価格表の○×列と車両ページの「対応オプション」表に出ます。全ブランド共通で、
