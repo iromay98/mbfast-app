@@ -85,14 +85,15 @@ export function PriceGrid({ brand, vehicles, optionDefs }: { brand: BrandRow; ve
       {pending && <p className="text-xs text-ink-soft">保存中…</p>}
       {msg && <p className="text-xs text-red-600">{msg}</p>}
 
-      <div className="overflow-x-auto rounded-lg border border-line">
-        <table className="w-full text-xs">
-          <thead className="bg-surface-2 text-left text-[11px] text-ink-soft">
+      {/* 縦横スクロール。ヘッダー行は上に、車両列は左に固定する（行を見失わないため） */}
+      <div className="max-h-[70vh] overflow-auto rounded-lg border border-line">
+        <table className="w-full border-separate border-spacing-0 text-xs">
+          <thead className="sticky top-0 z-30 bg-surface-2 text-left text-[11px] text-ink-soft">
             <tr>
-              <th className="sticky left-0 z-20 border-r border-line bg-surface-2 px-1.5 py-1.5 font-semibold">
+              <th className="sticky left-0 top-0 z-40 border-b border-r border-line bg-surface-2 px-1.5 py-1.5 font-semibold">
                 車両
               </th>
-              <th className="px-1.5 py-1.5 font-semibold">シリーズ</th>
+              <th className="border-b border-line px-1.5 py-1.5 font-semibold">シリーズ</th>
               {brand.columns.filter((c) => c.key !== "car" && c.key !== "grade").map((c) => (
                 <th
                   key={c.key}
@@ -103,17 +104,17 @@ export function PriceGrid({ brand, vehicles, optionDefs }: { brand: BrandRow; ve
                   {c.label}
                 </th>
               ))}
-              <th className="px-1.5 py-1.5 font-semibold">備考★</th>
-              <th className="border-l border-line px-1.5 py-1.5 font-semibold" title="車両ページの公開状態">頁</th>
+              <th className="border-b border-line px-1.5 py-1.5 font-semibold">備考★</th>
+              <th className="border-b border-l border-line px-1.5 py-1.5 font-semibold" title="車両ページの公開状態">頁</th>
               {manualOpts.map((o) => (
-                <th key={o.key} className="px-1 py-1.5 text-center font-semibold" title={o.jp}>
+                <th key={o.key} className="border-b border-line px-1 py-1.5 text-center font-semibold" title={o.jp}>
                   {o.short ?? o.jp}
                 </th>
               ))}
-              <th className="px-1.5 py-1.5 font-semibold">操作</th>
+              <th className="border-b border-line px-1.5 py-1.5 font-semibold">操作</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-line">
+          <tbody>
             {shown.map((v) => (
               <Row
                 key={v.id}
@@ -205,7 +206,7 @@ function Row({
   const hasGrade = brand.columns.some((c) => c.key === "grade");
   return (
     <tr className="group hover:bg-surface-2">
-      <td className="sticky left-0 z-10 border-r border-line bg-surface px-1.5 py-1 align-top group-hover:bg-surface-2">
+      <td className="sticky left-0 z-10 border-b border-r border-line bg-surface px-1.5 py-1 align-top group-hover:bg-surface-2">
         <div className="space-y-0.5">
           <Cell value={v.carName} onSave={(val) => onRun(() => updateVehicleCell(v.id, { field: "carName", value: val }))} w="w-32" bold />
           {hasGrade && (
@@ -213,15 +214,15 @@ function Row({
           )}
         </div>
       </td>
-      <td className="px-1.5 py-1">
+      <td className="border-b border-line px-1.5 py-1">
         <Cell value={v.seriesGroup} onSave={(val) => onRun(() => updateVehicleCell(v.id, { field: "seriesGroup", value: val }))} w="w-24" />
       </td>
       {brand.columns.filter((c) => c.key !== "car" && c.key !== "grade").map((c) => (
-        <td key={c.key} className="px-1.5 py-1">
+        <td key={c.key} className="border-b border-line px-1.5 py-1">
           {cellFor(c)}
         </td>
       ))}
-      <td className="px-1.5 py-1">
+      <td className="border-b border-line px-1.5 py-1">
         <Cell
           value={v.notes ?? ""}
           onSave={(val) => onRun(() => updateVehicleCell(v.id, { field: "notes", value: val }))}
@@ -229,15 +230,15 @@ function Row({
           placeholder="（★注記）"
         />
       </td>
-      <td className="border-l border-line px-1 py-1">
+      <td className="border-b border-l border-line px-1 py-1">
         <VpageStatusCell vehicleId={v.id} vpage={v.vpage} />
       </td>
       {manualOpts.map((o) => (
-        <td key={o.key} className="px-0.5 py-1 text-center">
+        <td key={o.key} className="border-b border-line px-0.5 py-1 text-center">
           <VpageOptionCell vehicleId={v.id} optionKey={o.key} vpage={v.vpage} />
         </td>
       ))}
-      <td className="whitespace-nowrap px-1.5 py-1">
+      <td className="whitespace-nowrap border-b border-line px-1.5 py-1">
         <div className="flex items-center gap-0.5">
           <IconBtn title="上へ" disabled={pending} onClick={() => onRun(() => moveVehicle(v.id, "up"))}>
             ↑
