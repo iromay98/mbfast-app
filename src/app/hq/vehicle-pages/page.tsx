@@ -33,6 +33,7 @@ export default async function HqVehiclePagesPage() {
     urlSlug: brandUrlSlug(b.id, b.slug),
     vehicleCount: b.vehicles.length,
     seeded: b.vehicles.filter((v) => v.page).length,
+    liveCount: b.vehicles.filter((v) => v.page && v.page.status !== "hold").length,
     pendingPush: b.vehicles.filter(
       (v) => v.page && v.page.status !== "hold" && (!v.page.wpPageIdJp || !v.page.wpPageIdEn),
     ).length,

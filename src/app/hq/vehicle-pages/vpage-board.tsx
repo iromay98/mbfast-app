@@ -7,6 +7,7 @@ import {
   addVpageRelatedPost,
   pushPendingVpagesForBrand,
   pushVpage,
+  resyncAllVpagesForBrand,
   removeVpageRelatedPost,
   seedVpagesForBrand,
   updateVpageEnPriceMode,
@@ -38,6 +39,7 @@ type BrandData = {
   vehicleCount: number;
   seeded: number;
   pendingPush: number;
+  liveCount: number;
   rows: VpageRow[];
 };
 
@@ -87,6 +89,7 @@ export function VpageBoard({ brands, optionDefs }: { brands: BrandData[]; option
 
       <SeedBar brand={current} />
       <PendingPushBar brand={current} />
+      <ResyncBar brand={current} />
 
       <div className="flex flex-wrap items-center gap-2">
         <Input
@@ -155,6 +158,33 @@ function PendingPushBar({ brand }: { brand: BrandData }) {
           {pending ? "反映中…" : "まとめてWPへ反映"}
         </Button>
       )}
+    </div>
+  );
+}
+
+/** デザインやテンプレートを変えた後に、そのブランドの公開ページを全部作り直すためのボタン。
+ *  価格表の「WordPressに反映」は価格に差分が無いと押せないため、こちらを用意している。 */
+function ResyncBar({ brand }: { brand: BrandData }) {
+  const [pending, start] = useTransition();
+  const [msg, setMsg] = useState<string | null>(null);
+  if (brand.liveCount === 0) return null;
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-line bg-surface-2 px-3 py-2 text-sm">
+      <span className="text-ink-soft">
+        {msg ?? `公開・下書き中の ${brand.liveCount} 台。デザインや表示ルールを変えた後は再反映してください`}
+      </span>
+      <Button
+        disabled={pending}
+        onClick={() =>
+          start(async () => {
+            setMsg("再反映中…（1台あたり数秒かかります）");
+            const r = await resyncAllVpagesForBrand(brand.id);
+            setMsg(r.error ?? `再反映しました（成功 ${r.synced ?? 0} 台 / 失敗 ${r.failed ?? 0} 台）`);
+          })
+        }
+      >
+        {pending ? "再反映中…" : "全ページを再反映"}
+      </Button>
     </div>
   );
 }
