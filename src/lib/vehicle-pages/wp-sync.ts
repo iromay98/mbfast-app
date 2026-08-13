@@ -57,6 +57,7 @@ export function findUnsafeScriptContent(html: string): string | null {
     // JSON-LD は \u0026 エスケープ済みのはず。生の & が残っていたら弾く
     const body = s.replace(/^<script\b[^>]*>/, "").replace(/<\/script>$/, "");
     if (body.includes("&")) return s.slice(0, 120);
+    if (body.includes(String.fromCharCode(60))) return s.slice(0, 120); // 小なり記号も弾く
   }
   return null;
 }

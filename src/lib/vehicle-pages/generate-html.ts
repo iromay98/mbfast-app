@@ -95,15 +95,14 @@ function css(dark: boolean): string {
 .vpg-bar-row{display:flex;align-items:center;gap:.6rem;margin:.5rem 0}
 .vpg-bar-label{width:6.5em;font-size:.74rem;color:${sub};text-align:right;white-space:nowrap}
 .vpg-bar-track{flex:1;height:15px;background:${dark ? "#1d1d1d" : "#eee"};border-radius:8px;overflow:hidden}
-.vpg-bar-fill{height:100%;border-radius:8px;width:0}
-.vpg-on .vpg-bar-fill{animation:vpgGrow 1.1s cubic-bezier(.2,.7,.2,1) forwards}
+.vpg-bar-fill{display:block;height:100%;border-radius:8px;transform-origin:left center;animation:vpgGrow 1.15s cubic-bezier(.2,.7,.2,1) both}
 .vpg-bar-fill--stock{background:${dark ? "#4a4a4a" : "#b9b9b9"};animation-delay:.15s}
 .vpg-bar-fill--tuned{background:linear-gradient(90deg,#c9a24b,#EC6420);animation-delay:.45s;box-shadow:0 0 14px rgba(236,100,32,.4)}
 .vpg-bar-val{width:6.2em;font-size:.78rem;font-weight:700;white-space:nowrap}
 .vpg-bar-val--tuned{color:#EC6420}
-@keyframes vpgGrow{from{width:0}to{width:var(--w)}}
+@keyframes vpgGrow{from{transform:scaleX(0)}to{transform:scaleX(1)}}
 @keyframes vpgPulse{0%,100%{transform:scale(1)}50%{transform:scale(1.06)}}
-.vpg-on .vpg-gain{animation:vpgPulse 2.4s ease-in-out .9s 2}
+.vpg-gain{animation:vpgPulse 2.4s ease-in-out 1.2s 2}
 .vpg-dealer{margin-top:1.6rem;border:1px dashed ${line};border-radius:10px;padding:1rem 1.1rem}
 .vpg-dealer .vpg-dealer-t{font-size:.8rem;font-weight:700;color:#c9a24b;margin:0 0 .4em}
 .vpg-dealer p{font-size:.82rem;color:${sub};margin:.2em 0 .7em;line-height:1.7}
@@ -138,7 +137,7 @@ function powerCards(d: VehiclePageData, l: { stock: string; tuned: string; ps: s
   const nm = (v: number | null) => (v !== null ? ` / ${v}Nm` : "");
   const tunedCard =
     o.tunedPs !== null
-      ? `<div class="vpg-pcard vpg-pcard--tuned"><div class="vpg-plabel">${l.tuned}</div><div class="vpg-pval"><span class="vpg-num" data-from="${o.stockPs}" data-to="${o.tunedPs}">${o.stockPs}</span>ps${o.tunedNm !== null ? ` / <span class="vpg-num" data-from="${o.stockNm ?? 0}" data-to="${o.tunedNm}">${o.stockNm ?? 0}</span>Nm` : ""}</div><div class="vpg-gain">${esc(d.stage1Gain ?? "")}</div></div>`
+      ? `<div class="vpg-pcard vpg-pcard--tuned"><div class="vpg-plabel">${l.tuned}</div><div class="vpg-pval"><span class="vpg-num" data-from="${o.stockPs}" data-to="${o.tunedPs}">${o.tunedPs}</span>ps${o.tunedNm !== null ? ` / <span class="vpg-num" data-from="${o.stockNm ?? 0}" data-to="${o.tunedNm}">${o.tunedNm}</span>Nm` : ""}</div><div class="vpg-gain">${esc(d.stage1Gain ?? "")}</div></div>`
       : "";
   const cards = `<div class="vpg-power">
 <div class="vpg-pcard"><div class="vpg-plabel">${l.stock}</div><div class="vpg-pval">${o.stockPs}ps${nm(o.stockNm)}</div></div>
@@ -164,47 +163,36 @@ ${rows.join("\n")}
 
 function barRow(label: string, val: string, pct: number, tuned: boolean): string {
   const w = Math.max(8, Math.round(pct));
-  return `<div class="vpg-bar-row"><span class="vpg-bar-label">${label}</span><span class="vpg-bar-track"><span class="vpg-bar-fill${tuned ? " vpg-bar-fill--tuned" : " vpg-bar-fill--stock"}" style="--w:${w}%"></span></span><span class="vpg-bar-val${tuned ? " vpg-bar-val--tuned" : ""}">${val}</span></div>`;
+  return `<div class="vpg-bar-row"><span class="vpg-bar-label">${label}</span><span class="vpg-bar-track"><span class="vpg-bar-fill${tuned ? " vpg-bar-fill--tuned" : " vpg-bar-fill--stock"}" style="width:${w}%"></span></span><span class="vpg-bar-val${tuned ? " vpg-bar-val--tuned" : ""}">${val}</span></div>`;
 }
 
 /** 数字カウントアップ。**アンパサンド・小なり記号を含まない**制約下で書いたJS（作業ルール2/価格表と同じ理由） */
 const COUNT_SCRIPT = `<script>
+/* 数字のカウントアップ（任意機能）。動かなくてもHTMLには最終値が書かれているので表示は正しい。
+   バーのアニメはCSSのみで動くためJS不要。小なり・大なり・アンパサンドは使わない（WP保存対策）。 */
 (function(){
-  var fired=false;
-  function countUp(el){
-    var to=parseInt(el.getAttribute("data-to"),10);
-    var from=parseInt(el.getAttribute("data-from"),10);
-    if(isNaN(to)){return;}
-    if(isNaN(from)){from=0;}
-    var dur=1300;
-    var start=null;
-    function step(ts){
-      if(start===null){start=ts;}
-      var p=(ts-start)/dur;
-      if(p>1){p=1;}
-      var eased=1-Math.pow(1-p,3);
-      el.textContent=String(Math.round(from+(to-from)*eased));
-      if(p>=1){return;}
-      window.requestAnimationFrame(step);
-    }
-    window.requestAnimationFrame(step);
-  }
-  function fire(){
-    if(fired){return;}
-    fired=true;
-    document.querySelectorAll(".vpg-power, .vpg-bars").forEach(function(el){el.classList.add("vpg-on");});
-    document.querySelectorAll(".vpg-num[data-to]").forEach(countUp);
-  }
-  var target=document.querySelector(".vpg-power");
-  if(!target){target=document.querySelector(".vpg-bars");}
-  if(!target){return;}
-  if(typeof IntersectionObserver==="undefined"){fire();return;}
-  var io=new IntersectionObserver(function(entries){
-    entries.forEach(function(e){
-      if(e.isIntersecting){fire();io.disconnect();}
-    });
-  },{threshold:0.35});
-  io.observe(target);
+  try{
+    var els=document.querySelectorAll(".vpg-num[data-to]");
+    if(!els||els.length===0){return;}
+    var run=function(){
+      [].forEach.call(els,function(el){
+        var to=parseInt(el.getAttribute("data-to"),10);
+        var from=parseInt(el.getAttribute("data-from"),10);
+        if(isNaN(to)||isNaN(from)){return;}
+        var dur=1200,start=null;
+        el.textContent=String(from);
+        var step=function(ts){
+          if(start===null){start=ts;}
+          var p=Math.min((ts-start)/dur,1);
+          var eased=1-Math.pow(1-p,3);
+          el.textContent=String(Math.round(from+(to-from)*eased));
+          if(p!==1){window.requestAnimationFrame(step);}
+        };
+        window.requestAnimationFrame(step);
+      });
+    };
+    if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",run);}else{run();}
+  }catch(e){}
 })();
 </script>`;
 
