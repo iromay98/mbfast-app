@@ -34,12 +34,20 @@ export function TuningConfigurator({
   optionTags: string[];
   limiterDisabled?: boolean;
 }) {
-  // 初期は未選択。ステージを明示的に選ぶまで判定・リクエストはできない（誤依頼防止）。
+  /*
+   * 初期は未選択。ステージ・バブリングの**両方**を明示的に選ぶまで判定・DL・リクエストはできない。
+   * バブリングは以前「なし」が既定で選ばれていたため、意図せず「バブリング無し」で
+   * DL・依頼が通ってしまうことがあった。「なし」も明示的に押してもらう（誤依頼防止）。
+   * バブリングを扱えない燃料（ディーゼル=showPops false）のときは選択不要。
+   */
   const [stage, setStage] = useState<string | null>(null);
-  const [popsMode, setPopsMode] = useState<"none" | "all" | "sport">("none");
+  const [popsMode, setPopsMode] = useState<"none" | "all" | "sport" | null>(null);
   const [selected, setSelected] = useState<string[]>([]);
-  const pops = popsMode !== "none";
+  const pops = popsMode === "all" || popsMode === "sport";
   const popsSport = popsMode === "sport";
+  // 判定を始めてよいか（未選択が残っている間は判定しない＝DL/リクエストのボタンも出ない）
+  const popsNeeded = showPops && popsMode === null;
+  const ready = stage !== null && !popsNeeded;
   const [resolving, startResolve] = useTransition();
   const [result, setResult] = useState<Resolved | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -57,14 +65,14 @@ export function TuningConfigurator({
     setError(null);
     setRequested(false);
     setAgreed(false); // 構成が変わったら同意もリセット
-    if (stage === null) return; // ステージ未選択の間は判定しない
+    if (!ready) return; // ステージ・バブリングが未選択の間は判定しない
     startResolve(async () => {
       const r = await resolveTuning(recordId, { stage, pops, popsSport, optionTags: selected });
       if ("error" in r) setError(r.error);
       else setResult(r);
     });
     // selected は配列だが toggle で新規生成するため依存に含めて良い
-  }, [recordId, stage, popsMode, selected]);
+  }, [recordId, stage, popsMode, selected, ready, pops, popsSport]);
 
   const toggleOpt = (t: string) =>
     setSelected((prev) => (prev.includes(t) ? prev.filter((x) => x !== t) : [...prev, t]));
@@ -77,7 +85,7 @@ export function TuningConfigurator({
 
   const onRequest = () =>
     startRequest(async () => {
-      if (stage === null) return;
+      if (!ready || stage === null) return;
       const r = await requestTuning(
         recordId,
         { stage, pops, popsSport, optionTags: selected },
@@ -92,7 +100,10 @@ export function TuningConfigurator({
       {/* ステージ選択 */}
       {stages.length > 0 && (
         <div>
-          <div className="mb-1.5 text-xs font-semibold text-ink-soft">ステージ</div>
+          <div className="mb-1.5 text-xs font-semibold text-ink-soft">
+            ステージ
+            {stage === null && <span className="ml-1 font-bold text-amber-700">（未選択）</span>}
+          </div>
           <div className="flex flex-wrap gap-2">
             {stages.map((s) => (
               <button
@@ -112,10 +123,13 @@ export function TuningConfigurator({
         </div>
       )}
 
-      {/* バブリング（なし/全モード/スポーツ） */}
+      {/* バブリング（なし/全モード/スポーツ）。既定で選ばれていない＝必ず押してもらう */}
       {showPops && (
         <div>
-          <div className="mb-1.5 text-xs font-semibold text-ink-soft">バブリング</div>
+          <div className="mb-1.5 text-xs font-semibold text-ink-soft">
+            バブリング
+            {popsMode === null && <span className="ml-1 font-bold text-amber-700">（未選択）</span>}
+          </div>
           <div className="flex flex-wrap gap-2">
             {([
               ["none", "なし"],
@@ -180,10 +194,24 @@ export function TuningConfigurator({
 
       {/* 判定結果 */}
       <div className="space-y-3 border-t border-line pt-3">
-        {stage === null && (
+        {/* 未選択の項目を具体的に案内する（両方選ぶまでDL・リクエストは出さない） */}
+        {!ready && (
           <p className="rounded-lg bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-800">
-            ↑ まず<b>ステージ</b>を選んでください（チューニング無しの場合は「チューニングなし」）。
-            選ぶとDL可否の判定が始まります。
+            ↑{" "}
+            {stage === null && popsNeeded ? (
+              <>
+                <b>ステージ</b>と<b>バブリング</b>を選んでください
+              </>
+            ) : stage === null ? (
+              <>
+                <b>ステージ</b>を選んでください（チューニング無しの場合は「チューニングなし」）
+              </>
+            ) : (
+              <>
+                <b>バブリング</b>を選んでください（付けない場合も「なし」を押してください）
+              </>
+            )}
+            。両方選ぶとDL可否の判定が始まります。
           </p>
         )}
         {/* 状態バッジ（即DL=Automatic 緑 / リクエスト=赤）＋選択内容のサマリ */}

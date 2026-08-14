@@ -23,15 +23,46 @@ export const SPEED_LIMITER_TAG = "スピードリミッターカット";
 // 料金上はバブリングの一部＝無料（有料OPには数えない）。
 export const POPS_STRONG_TAG = "バブリング強(触媒無視)";
 
-// その燃料で選択肢として出すタグ。
+/*
+ * メーカー固有オプション（2026-08 追加）。
+ * アイドリングストップ解除・コールドスタートオフは、本店が対応しているメーカーだけに出す
+ * （どの車でも出すと「選べるのに作れない」依頼が来るため）。
+ * 対応メーカーを増やすときは MAKER_OPTION_TAGS に足すだけでよい
+ * ＝UI（代理店コンフィギュレータ・本店カタログ）とサーバー側の許可判定は
+ * すべて optionTagsFor を通るので、ここ1箇所で揃う。
+ */
+export const IDLING_STOP_TAG = "アイドリングストップ解除";
+export const COLD_START_OFF_TAG = "コールドスタートオフ";
+
+const MAKER_OPTION_TAGS: { re: RegExp; tags: string[] }[] = [
+  // BMW / Audi / Porsche / Volkswagen（本店確認済み・2026-08-13）
+  { re: /\bbmw\b|ビー?エム/i, tags: [IDLING_STOP_TAG, COLD_START_OFF_TAG] },
+  { re: /\baudi\b|アウディ/i, tags: [IDLING_STOP_TAG, COLD_START_OFF_TAG] },
+  { re: /porsche|ポルシェ/i, tags: [IDLING_STOP_TAG, COLD_START_OFF_TAG] },
+  { re: /volkswagen|\bvw\b|フォルクスワーゲン/i, tags: [IDLING_STOP_TAG, COLD_START_OFF_TAG] },
+];
+
+/** そのメーカーで追加で選べるオプション（該当なしは空配列） */
+export function makerOptionTags(manufacturer?: string | null): string[] {
+  const m = (manufacturer ?? "").trim();
+  if (!m) return [];
+  const out: string[] = [];
+  for (const { re, tags } of MAKER_OPTION_TAGS) {
+    if (re.test(m)) for (const t of tags) if (!out.includes(t)) out.push(t);
+  }
+  return out;
+}
+
+// その燃料・メーカーで選択肢として出すタグ。
 // スピードリミッターカットは全車種で表示し、可否は各Calの limiterCutDisabled で制御する。
-// （manufacturer は将来のメーカー固有OP用に残置）
-export function optionTagsFor(kind: FuelKind, _manufacturer?: string | null): string[] {
+export function optionTagsFor(kind: FuelKind, manufacturer?: string | null): string[] {
   // ガソリンは Adblue/DPF/EGR を出さない。ディーゼル/不明は全部出す。
   const base = kind === "gasoline" ? [...BASE_TAGS] : [...BASE_TAGS, ...DIESEL_TAGS];
   // バブリング強はバブリング可の燃料のみ（ディーゼルは不可）
   if (popsAllowed(kind)) base.push(POPS_STRONG_TAG);
   base.push(SPEED_LIMITER_TAG);
+  // メーカー固有（アイドリングストップ解除・コールドスタートオフ等）
+  for (const t of makerOptionTags(manufacturer)) if (!base.includes(t)) base.push(t);
   return base;
 }
 
