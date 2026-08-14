@@ -5,6 +5,7 @@ import { prisma } from "@/lib/db";
 import { formatDateTime } from "@/lib/labels";
 import { PageTitle, Card } from "@/components/ui";
 import { storeStats } from "@/server/pit/gamification";
+import { STORE_META_SELECT, pickStoreInfo } from "@/server/pit/store-meta";
 import { StoreInfoEditor } from "@/components/store-info-editor";
 import { PitPostForm } from "./pit-post-form";
 import { PostList } from "./post-list";
@@ -41,16 +42,7 @@ export default async function DealerPitPage({
       displayName: true,
       slug: true,
       active: true,
-      area: true,
-      address: true,
-      hours: true,
-      closedDays: true,
-      tel: true,
-      email: true,
-      website: true,
-      lineUrl: true,
-      serviceTags: true,
-      intro: true,
+      ...STORE_META_SELECT,
     },
   });
 
@@ -163,18 +155,7 @@ export default async function DealerPitPage({
               displayName: store.displayName,
               slug: store.slug,
               active: store.active,
-              info: {
-                area: store.area,
-                address: store.address,
-                hours: store.hours,
-                closedDays: store.closedDays,
-                tel: store.tel,
-                email: store.email,
-                website: store.website,
-                lineUrl: store.lineUrl,
-                serviceTags: store.serviceTags,
-                intro: store.intro,
-              },
+              info: pickStoreInfo(store),
               contactPerson: "",
               internalNote: "",
             }}
