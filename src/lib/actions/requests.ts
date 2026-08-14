@@ -22,6 +22,7 @@ import {
   optionTagsFor,
   popsAllowed,
   tuningContentLabel,
+  stripPopsStrongIfNoPops,
   SPEED_LIMITER_TAG,
   POPS_STRONG_TAG,
   paidTags,
@@ -547,15 +548,53 @@ export async function updateRequestByHQ(
     uploaded = { key: res.key, sha256: res.sha256, filename: res.filename, size: res.size, contentType: res.contentType ?? null };
   }
 
-  // 納品内容: as_requested=リクエスト通り（バリエーションへ自動登録） / different=異なる仕様（自動登録しない）
+  /*
+   * 納品内容:
+   *   as_requested = リクエスト通り（依頼文の「…」の内容でバリエーションへ自動登録）
+   *   different    = 異なる仕様。本店が実際に渡した内容を画面で選べる（手打ちをやめた）。
+   *                  registerVariant がONならその内容でバリエーションに登録する
+   *                  （＝次に同じ構成を頼まれたとき代理店がそのままDLできる）。
+   */
   const specMatch = formData.get("specMatch") === "different" ? "different" : "as_requested";
   const specNote = String(formData.get("specNote") ?? "").trim();
 
+  // 異なる仕様のときの選択内容（画面から来なければ null＝従来どおり備考のみ）
+  const deliveredStageRaw = formData.get("deliveredStage");
+  let delivered: { stage: string; pops: boolean; popsSport: boolean; optionTags: string[] } | null = null;
+  if (specMatch === "different" && typeof deliveredStageRaw === "string") {
+    let tags: string[] = [];
+    try {
+      const arr = JSON.parse(String(formData.get("deliveredTags") ?? "[]"));
+      if (Array.isArray(arr)) tags = arr.map((x) => String(x));
+    } catch {
+      /* 壊れていたらタグ無しとして扱う（納品自体は止めない） */
+    }
+    const pops = formData.get("deliveredPops") === "1";
+    delivered = {
+      stage: deliveredStageRaw.trim(),
+      pops,
+      popsSport: pops && formData.get("deliveredPopsSport") === "1",
+      // バブリング強はバブリング選択時のみ（UI・サーバーで同じ正規化を通す）
+      optionTags: stripPopsStrongIfNoPops([...new Set(tags)], pops),
+    };
+  }
+  const registerVariant = formData.get("registerVariant") === "on";
+  // 実際に納品した内容のラベル（本店コメントにも残して代理店に伝える）
+  const deliveredLabel = delivered
+    ? tuningContentLabel(delivered.stage, delivered.pops, delivered.optionTags, delivered.popsSport)
+    : null;
+
   const { status, hqNote: hqNoteRaw, serviceRecordId } = parsed.data;
-  // 異なる仕様の備考は本店コメントに追記して残す（代理店にも伝わる）
+  // 異なる仕様のときは「実際の納品内容」と備考を本店コメントに追記して残す（代理店にも伝わる）
   const hqNote =
-    specMatch === "different" && specNote
-      ? [hqNoteRaw, `【仕様メモ】${specNote}`].filter(Boolean).join("\n")
+    specMatch === "different"
+      ? [
+          hqNoteRaw,
+          deliveredLabel ? `【納品内容】${deliveredLabel}` : "",
+          specNote ? `【仕様メモ】${specNote}` : "",
+        ]
+          .filter(Boolean)
+          .join("\n")
       : hqNoteRaw;
 
   await prisma.fileRequest.update({
@@ -572,11 +611,20 @@ export async function updateRequestByHQ(
     },
   });
 
-  // 納品＝リクエスト通りなら、バリエーションへ自動登録（再アップの手間を無くす）
+  /*
+   * 納品時のバリエーション自動登録（再アップの手間を無くす）。
+   *   リクエスト通り → 依頼文の「…」の内容で登録
+   *   異なる仕様    → 本店が選んだ内容で登録（registerVariant がONのときだけ）
+   * どちらも登録先の判定・許可OPの正規化は registerVariationFromDelivery に任せる。
+   */
   let autoMessage: string | null = null;
-  if (status === "DELIVERED" && specMatch === "as_requested") {
+  const wantRegister =
+    status === "DELIVERED" &&
+    (specMatch === "as_requested" || (!!deliveredLabel && registerVariant));
+  if (wantRegister) {
     const recId = serviceRecordId || current.serviceRecordId;
-    const label = current.requestNote?.match(/「(.+?)」/)?.[1];
+    const label =
+      specMatch === "different" ? deliveredLabel : current.requestNote?.match(/「(.+?)」/)?.[1];
     if (!recId) {
       autoMessage = "自動登録スキップ: 施工記録が紐づいていません";
     } else if (!label) {

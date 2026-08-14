@@ -18,6 +18,8 @@ import {
   COLD_START_OFF_TAG,
   POPS_STRONG_TAG,
   SPEED_LIMITER_TAG,
+  tuningContentLabel,
+  parseTuningContentLabel,
 } from "../src/lib/catalog/options";
 
 let fail = 0;
@@ -100,6 +102,35 @@ console.log("[7] TCU（ミッション）はエンジン側の選択肢を出さ
   ok("ECU(ベンツ): 従来どおり4段階", ecuSt.length === 4 && ecuSt.includes("Stage1.5"));
   ok("unit未指定はECU扱い", optionTagsFor("gasoline", "BMW").length > 0);
   ok("小文字tcuも判定できる", optionTagsFor("gasoline", "BMW", "tcu").length === 0);
+}
+
+console.log("[8] 納品内容ラベルの往復（画面の選択 → ラベル → 解析）");
+{
+  /*
+   * 納品時の「異なる仕様」は、選択 → tuningContentLabel でラベル化 → サーバーの
+   * registerVariationFromDelivery が parseTuningContentLabel で読み直して登録する。
+   * ここが崩れると納品内容と登録内容が食い違うので、往復を固定する。
+   */
+  const cases: { stage: string; pops: boolean; popsSport: boolean; tags: string[] }[] = [
+    { stage: "", pops: false, popsSport: false, tags: [] },
+    { stage: "Stage1", pops: false, popsSport: false, tags: [] },
+    { stage: "Stage1", pops: true, popsSport: false, tags: ["O2"] },
+    { stage: "Stage1.5", pops: true, popsSport: true, tags: ["O2", "DTC"] },
+    { stage: "Stage2", pops: true, popsSport: false, tags: [POPS_STRONG_TAG] },
+    { stage: "Stage1", pops: false, popsSport: false, tags: [IDLING_STOP_TAG, COLD_START_OFF_TAG] },
+    { stage: "Stage1", pops: false, popsSport: false, tags: [SPEED_LIMITER_TAG] },
+  ];
+  for (const c of cases) {
+    const label = tuningContentLabel(c.stage, c.pops, c.tags, c.popsSport);
+    const back = parseTuningContentLabel(label);
+    const same =
+      !!back &&
+      back.stage === c.stage &&
+      back.pops === c.pops &&
+      back.popsSport === c.popsSport &&
+      back.optionTags.slice().sort().join("|") === c.tags.slice().sort().join("|");
+    ok(`往復一致: ${label}`, same);
+  }
 }
 
 console.log("");
