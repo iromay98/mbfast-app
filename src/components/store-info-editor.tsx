@@ -383,7 +383,7 @@ export function StoreInfoEditor({
 
       <div className="grid gap-2 md:grid-cols-2">
         {STORE_META_FIELDS.map(({ field, label, maxLen, placeholder }) => (
-          <label key={field} className={`block text-[11px] text-ink-soft ${field === "intro" ? "md:col-span-2" : ""}`}>
+          <label key={field} className={`block text-[11px] text-ink-soft ${field === "intro" || field === "mapUrl" ? "md:col-span-2" : ""}`}>
             {label}
             {field === "area" ? (
               <AreaSelect value={info.area} onChange={(v) => set("area", v)} />
@@ -392,6 +392,14 @@ export function StoreInfoEditor({
                 area={info.area}
                 value={info.address}
                 onChange={(v) => set("address", v)}
+              />
+            ) : field === "lat" || field === "lng" ? (
+              // 座標はGoogleマップURLから自動で入る。手打ちさせない（入れ替え・桁ミスの元）
+              <input
+                value={info[field]}
+                readOnly
+                placeholder="URLを貼ると自動で入ります"
+                className="mt-0.5 w-full rounded border border-line bg-surface-2 px-2 py-1 text-xs font-semibold text-ink-soft"
               />
             ) : field === "intro" ? (
               <textarea

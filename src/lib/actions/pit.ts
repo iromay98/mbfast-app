@@ -5,6 +5,7 @@ import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/db";
 import { requireHQ, requireDealer } from "@/lib/authz";
 import { createStoreCategory, wpConfigured, fetchMbpitCategories } from "@/server/pit/wordpress";
+import { resolveStoreGeo } from "@/server/pit/store-geo";
 import {
   KNOWN_WP_STORES,
   shortSlugOf,
@@ -479,6 +480,18 @@ async function commitCore(
     ? { contactPerson: appOnly.contactPerson.trim(), internalNote: appOnly.internalNote.trim() }
     : {};
   for (const { field } of STORE_META_FIELDS) data[field] = (info[field] ?? "").trim();
+
+  // 座標は手入力させない。GoogleマップURLから解決して埋める（短縮URLはここで展開）。
+  // 解決できなければ空のまま＝表示側は住所検索リンクにフォールバックする。
+  if (data.mapUrl) {
+    const { pos } = await resolveStoreGeo(data.mapUrl);
+    data.lat = pos ? String(pos.lat) : "";
+    data.lng = pos ? String(pos.lng) : "";
+  } else {
+    data.lat = "";
+    data.lng = "";
+  }
+
   await prisma.pitStore.update({ where: { id: storeId }, data });
 
   // 即時同期（cron待ちなし）。失敗しても保存自体は成功（リトライは同期ボタンから）
