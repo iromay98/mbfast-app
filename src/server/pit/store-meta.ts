@@ -14,6 +14,8 @@
  * ハッシュ計算・WP通信は src/server/pit/store-sync.ts 側。
  */
 
+import { isInJapan, isShortMapUrl, parseLatLng } from "@/lib/geo/gmap";
+
 // PitStore の同期対象カラム名（この型に無いカラムは同期不能）
 export type StoreMetaField =
   | "area"
@@ -25,7 +27,10 @@ export type StoreMetaField =
   | "website"
   | "lineUrl"
   | "serviceTags"
-  | "intro";
+  | "intro"
+  | "mapUrl"
+  | "lat"
+  | "lng";
 
 export type StoreInfo = Record<StoreMetaField, string>;
 
@@ -47,7 +52,20 @@ export const STORE_META_FIELDS: {
   { field: "lineUrl", metaKey: "mbpit_line", label: "公式LINE URL", maxLen: 200, placeholder: "https://lin.ee/xxxxx" },
   { field: "serviceTags", metaKey: "mbpit_tags", label: "対応内容（読点区切り）", maxLen: 100, placeholder: "チューニング、メンテナンス" },
   { field: "intro", metaKey: "mbpit_intro", label: "紹介文（1〜3文・200字目安）", maxLen: 300, placeholder: "" },
+  // 地図: 店舗はGoogleマップの共有URLを貼るだけ。lat/lngは保存時に自動で埋まる（読み取り専用扱い）
+  {
+    field: "mapUrl",
+    metaKey: "mbpit_map",
+    label: "GoogleマップURL（貼るだけで座標を取得）",
+    maxLen: 500,
+    placeholder: "https://maps.app.goo.gl/… または https://www.google.com/maps/place/…",
+  },
+  { field: "lat", metaKey: "mbpit_lat", label: "緯度（自動取得）", maxLen: 20, placeholder: "35.659500" },
+  { field: "lng", metaKey: "mbpit_lng", label: "経度（自動取得）", maxLen: 20, placeholder: "139.700500" },
 ];
+
+/** 画面上で店舗が直接編集しない項目（値は mapUrl から自動で入る） */
+export const DERIVED_FIELDS: StoreMetaField[] = ["lat", "lng"];
 
 // 既存5店舗の確定紐付け（仕様書 §1.1。初期取込の突合に使用）
 export const KNOWN_WP_STORES: {
@@ -107,6 +125,27 @@ export function validateStoreInfo(info: StoreInfo): Partial<Record<StoreMetaFiel
   }
   if (tel && !/^[0-9+\-]+$/.test(tel)) {
     errors.tel = "電話番号は数字・ハイフン・+ のみ使えます";
+  }
+  const { mapUrl, lat, lng } = info;
+  if (mapUrl) {
+    if (!/^https?:\/\/\S+$/.test(mapUrl)) {
+      errors.mapUrl = "GoogleマップのURLを貼り付けてください";
+    } else if (!/(^https?:\/\/(?:[a-z0-9-]+\.)*google\.[a-z.]+\/maps)|(^https:\/\/maps\.app\.goo\.gl\/)|(^https:\/\/goo\.gl\/maps\/)/.test(mapUrl)) {
+      errors.mapUrl = "GoogleマップのURLのみ登録できます";
+    } else if (!isShortMapUrl(mapUrl) && !parseLatLng(mapUrl)) {
+      // 短縮URLはサーバー側で展開してから座標を取るのでここでは通す
+      errors.mapUrl = "このURLからは座標を取得できません。地図上で店舗を選んでから共有URLをコピーしてください";
+    }
+  }
+  // lat/lng は mapUrl から自動で入るが、手で直した場合に備えて確かめる
+  if (lat || lng) {
+    if (!lat || !lng) {
+      errors[lat ? "lng" : "lat"] = "緯度と経度は両方必要です";
+    } else if (!/^-?\d+(\.\d+)?$/.test(lat) || !/^-?\d+(\.\d+)?$/.test(lng)) {
+      errors.lat = "緯度・経度は数値で入力してください";
+    } else if (!isInJapan({ lat: Number(lat), lng: Number(lng) })) {
+      errors.lat = "座標が日本の範囲外です。緯度と経度が入れ替わっていないか確認してください";
+    }
   }
   return errors;
 }

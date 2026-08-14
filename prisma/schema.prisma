@@ -787,6 +787,11 @@ model PitStore {
   lineUrl        String    @default("") // → mbpit_line（公式LINE。HP側で問い合わせボタンになる）
   serviceTags    String    @default("") // → mbpit_tags（読点区切り）
   intro          String    @default("") // → mbpit_intro（1〜3文）
+  // 地図。加盟店はGoogleマップの共有URLを貼るだけでよく、lat/lngはそこから機械的に取る
+  // （src/lib/geo/gmap.ts）。文字列で持つのは同期パイプラインが全て文字列のため（store-meta.ts）。
+  mapUrl         String    @default("") // → mbpit_map（GoogleマップURL）
+  lat            String    @default("") // → mbpit_lat（緯度・小数6桁）
+  lng            String    @default("") // → mbpit_lng（経度・小数6桁）
   contactPerson  String    @default("") // 担当者名（WPへは同期しない）
   internalNote   String    @default("") // 社内メモ（WPへは同期しない）
   plan           String    @default("record") // record/grow/brand（将来の課金プラン・現在未使用）
