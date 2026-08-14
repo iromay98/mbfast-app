@@ -6,12 +6,13 @@ import type { BrandRow, VehicleRow } from "@/lib/prices/types";
 import type { VpageInfo } from "./vpage-cells";
 import type { OptionDef } from "@/lib/vehicle-pages/options";
 import { OptionMaster, type OptionRow } from "./option-master";
+import { ShopSettings, type ShopSettingRow } from "./shop-settings";
 import { PriceGrid } from "./price-grid";
 import { BrandSettings } from "./brand-settings";
 import { PublishPanel } from "./publish-panel";
 
 // ブランドタブ + 選択中ブランドの編集グリッド
-export function PriceBoard({ data, optionDefs, optionRows }: { data: { brand: BrandRow; vehicles: (VehicleRow & { vpage: VpageInfo })[] }[]; optionDefs: OptionDef[]; optionRows: OptionRow[] }) {
+export function PriceBoard({ data, optionDefs, optionRows, shopSetting }: { data: { brand: BrandRow; vehicles: (VehicleRow & { vpage: VpageInfo })[] }[]; optionDefs: OptionDef[]; optionRows: OptionRow[]; shopSetting: ShopSettingRow }) {
   const [active, setActive] = useState(data[0]?.brand.id ?? "");
   const current = data.find((d) => d.brand.id === active) ?? data[0];
   if (!current) return null;
@@ -41,6 +42,8 @@ export function PriceBoard({ data, optionDefs, optionRows }: { data: { brand: Br
 
       {/* key: ブランドを切り替えたら入力欄を作り直す（前のブランドの文章が残って誤上書きするのを防ぐ） */}
       <BrandSettings key={`bs-${current.brand.id}`} brand={current.brand} />
+
+      <ShopSettings setting={shopSetting} />
 
       <OptionMaster brandId={current.brand.id} options={optionRows} priceColumns={current.brand.columns.filter((c) => c.type === "price").map((c) => ({ key: c.key, label: c.label.replace(/\s*\(.*?\)\s*$/, "") }))} />
 
