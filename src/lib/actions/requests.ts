@@ -109,6 +109,7 @@ async function loadMatchContext(recordId: string, dealerId: string) {
     select: {
       dealerId: true,
       matchedBaseFileId: true,
+      unit: true,
       carMaker: true,
       carModel: true,
       vin: true,
@@ -118,7 +119,7 @@ async function loadMatchContext(recordId: string, dealerId: string) {
       autotunerMcuId: true,
       dealer: { select: { fileFormat: true } },
       matchedBaseFile: {
-        select: { fuel: true, manufacturer: true, limiterCutDisabled: true },
+        select: { fuel: true, manufacturer: true, limiterCutDisabled: true, unit: true },
       },
     },
   });
@@ -129,6 +130,8 @@ async function loadMatchContext(recordId: string, dealerId: string) {
   const fuelKind = fuelKindOf(record.matchedBaseFile?.fuel);
   const manufacturer = record.matchedBaseFile?.manufacturer ?? record.carMaker ?? null;
   const limiterCutDisabled = !!record.matchedBaseFile?.limiterCutDisabled;
+  // 対象ユニット（TCUはバブリング・エンジン側OPを一切扱わない）。純正(BaseFile)の値が原本
+  const unit = record.matchedBaseFile?.unit ?? record.unit ?? "ECU";
   // Master File 形式は再暗号化が不要（生binをそのまま配信）なので、
   // AutoTunerの車固有IDが無くても配布可能。スレーブ形式は従来どおりID必須。
   const canDeliver =
@@ -142,6 +145,7 @@ async function loadMatchContext(recordId: string, dealerId: string) {
     record,
     fuelKind,
     manufacturer,
+    unit,
     limiterCutDisabled,
     canDeliver,
     baseFileId: record.matchedBaseFileId,
@@ -153,9 +157,10 @@ function normalizeSelection(
   sel: TuningSelection,
   fuelKind: FuelKind,
   manufacturer?: string | null,
+  unit?: string | null,
 ): Required<TuningSelection> {
-  const allowed = new Set(optionTagsFor(fuelKind, manufacturer));
-  const pops = popsAllowed(fuelKind) ? !!sel.pops : false;
+  const allowed = new Set(optionTagsFor(fuelKind, manufacturer, unit));
+  const pops = popsAllowed(fuelKind, unit) ? !!sel.pops : false;
   const optionTags = [...new Set(sel.optionTags)]
     .filter((t) => allowed.has(t))
     // バブリング強はバブリング選択時のみ意味を持つ
@@ -196,7 +201,7 @@ export async function resolveTuning(
   const ctx = await loadMatchContext(recordId, user.dealerId);
   if (!ctx.ok) return { error: ctx.error };
 
-  const sel = normalizeSelection(selection, ctx.fuelKind, ctx.manufacturer);
+  const sel = normalizeSelection(selection, ctx.fuelKind, ctx.manufacturer, ctx.unit);
 
   // 配布可(AVAILABLE)＋実体ありの中から探す
   // 順序を固定する（orderBy 無しの findMany は順序が保証されず、同構成の重複があると
@@ -369,7 +374,7 @@ export async function requestTuning(
   const ctx = await loadMatchContext(recordId, user.dealerId);
   if (!ctx.ok) return { error: ctx.error };
 
-  const sel = normalizeSelection(selection, ctx.fuelKind, ctx.manufacturer);
+  const sel = normalizeSelection(selection, ctx.fuelKind, ctx.manufacturer, ctx.unit);
   // 有料OP（バブリングとバブリング強は無料枠）が含まれる場合のみ同意必須。
   if (paidTags(sel.optionTags).length > 0 && !agreed) {
     return { error: "有料オプションの同意が必要です" };

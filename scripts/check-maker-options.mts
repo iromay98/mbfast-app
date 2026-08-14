@@ -10,6 +10,8 @@
  */
 import {
   optionTagsFor,
+  baselineStages,
+  popsAllowed,
   makerOptionTags,
   paidTags,
   IDLING_STOP_TAG,
@@ -81,6 +83,24 @@ console.log("[5] 有料OPの数え方（バブリング強だけ無料）");
 console.log("[6] makerOptionTags 単体");
 ok("BMWは2件", makerOptionTags("BMW").length === 2);
 ok("空文字は0件", makerOptionTags("").length === 0);
+
+console.log("[7] TCU（ミッション）はエンジン側の選択肢を出さない");
+{
+  // TCUはバブリング・O2/NOx/DTC・Adblue等・リミッターカット・メーカー固有OPを一切出さない
+  for (const maker of ["BMW", "Volkswagen", "Mercedes-Benz", "Toyota"]) {
+    ok(`${maker}(TCU): オプション0件`, optionTagsFor("gasoline", maker, "TCU").length === 0);
+    ok(`${maker}(TCU): バブリング不可`, popsAllowed("gasoline", "TCU") === false);
+  }
+  ok("TCU(ディーゼル)でもオプション0件", optionTagsFor("diesel", "Volkswagen", "TCU").length === 0);
+  // ステージは Stage1 の1本だけ（「チューニングなし」も出さない）
+  const st = baselineStages("Mercedes-Benz", "TCU");
+  ok("TCU: ステージはStage1のみ", st.length === 1 && st[0] === "Stage1");
+  // ECU側は従来どおり（ベンツはStage1.5あり・チューニングなしあり）
+  const ecuSt = baselineStages("Mercedes-Benz", "ECU");
+  ok("ECU(ベンツ): 従来どおり4段階", ecuSt.length === 4 && ecuSt.includes("Stage1.5"));
+  ok("unit未指定はECU扱い", optionTagsFor("gasoline", "BMW").length > 0);
+  ok("小文字tcuも判定できる", optionTagsFor("gasoline", "BMW", "tcu").length === 0);
+}
 
 console.log("");
 console.log(fail === 0 ? `✅ ${n}件すべて通過` : `❌ ${fail}/${n}件 失敗`);

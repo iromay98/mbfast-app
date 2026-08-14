@@ -8,6 +8,18 @@
 
 export type FuelKind = "gasoline" | "diesel" | "unknown";
 
+/*
+ * 対象ユニット。TCU（ミッション）はエンジン側の選択肢（バブリング・O2/NOx/DTC・
+ * Adblue/DPF/EGR・スピードリミッターカット・アイドリングストップ等）が一切関係ないため、
+ * バリエーションは Stage1 の1本だけにする（2026-08-13 本店判断）。
+ * 判定は unitOf() に通してから使う（DBは文字列で "ECU" | "TCU"）。
+ */
+export type UnitKind = "ECU" | "TCU";
+
+export function unitOf(unit?: string | null): UnitKind {
+  return (unit ?? "").trim().toUpperCase() === "TCU" ? "TCU" : "ECU";
+}
+
 export function fuelKindOf(fuel?: string | null): FuelKind {
   const f = (fuel ?? "").toLowerCase();
   if (/diesel|軽油|gasoil|gazole/.test(f)) return "diesel";
@@ -55,7 +67,13 @@ export function makerOptionTags(manufacturer?: string | null): string[] {
 
 // その燃料・メーカーで選択肢として出すタグ。
 // スピードリミッターカットは全車種で表示し、可否は各Calの limiterCutDisabled で制御する。
-export function optionTagsFor(kind: FuelKind, manufacturer?: string | null): string[] {
+// TCU（ミッション）はエンジン側のオプションが関係しないため**1つも出さない**。
+export function optionTagsFor(
+  kind: FuelKind,
+  manufacturer?: string | null,
+  unit?: string | null,
+): string[] {
+  if (unitOf(unit) === "TCU") return [];
   // ガソリンは Adblue/DPF/EGR を出さない。ディーゼル/不明は全部出す。
   const base = kind === "gasoline" ? [...BASE_TAGS] : [...BASE_TAGS, ...DIESEL_TAGS];
   // バブリング強はバブリング可の燃料のみ（ディーゼルは不可）
@@ -77,8 +95,9 @@ export function stripPopsStrongIfNoPops(tags: string[], pops: boolean): string[]
   return pops ? tags : tags.filter((t) => t !== POPS_STRONG_TAG);
 }
 
-// バブリング(Pops)を扱えるか（ディーゼルは不可）
-export function popsAllowed(kind: FuelKind): boolean {
+// バブリング(Pops)を扱えるか（ディーゼルは不可。TCUはエンジン側の話なので不可）
+export function popsAllowed(kind: FuelKind, unit?: string | null): boolean {
+  if (unitOf(unit) === "TCU") return false;
   return kind !== "diesel";
 }
 
@@ -91,7 +110,10 @@ export function stageRank(stage: string): number {
 
 // 既定で選べるステージ（カタログに無くても選択/リクエスト可能）。
 // ベンツ(Mercedes/AMG)は Stage1.5 も用意する。
-export function baselineStages(manufacturer?: string | null): string[] {
+// TCU（ミッション）は段階分けをしないので Stage1 の1本だけ（「チューニングなし」も出さない
+// ＝TCUファイル自体がチューニング内容のため、無しという構成が存在しない）。
+export function baselineStages(manufacturer?: string | null, unit?: string | null): string[] {
+  if (unitOf(unit) === "TCU") return ["Stage1"];
   const isMercedes = /mercedes|benz|メルセデス|ベンツ|\bamg\b/i.test(manufacturer ?? "");
   return isMercedes ? ["", "Stage1", "Stage1.5", "Stage2"] : ["", "Stage1", "Stage2"];
 }

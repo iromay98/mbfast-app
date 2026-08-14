@@ -51,6 +51,7 @@ export default async function DealerRecordDetailPage({
           generation: true,
           grade: true,
           limiterCutDisabled: true,
+          unit: true, // TCU(ミッション)はバブリング・エンジン側OPを出さない
           variants: {
             where: { status: { not: "DISABLED" } },
             select: { stage: true },
@@ -67,15 +68,15 @@ export default async function DealerRecordDetailPage({
   if (matched) {
     const fuelKind = fuelKindOf(matched.fuel);
     // 基本ステージ（ベンツは Stage1.5 も）＋カタログに存在するステージ（重複排除・並び順）。
-    const stageSet = new Set<string>(baselineStages(matched.manufacturer));
+    const stageSet = new Set<string>(baselineStages(matched.manufacturer, matched.unit));
     for (const v of matched.variants) stageSet.add((v.stage ?? "").trim());
     const stages = [...stageSet]
       .sort((a, b) => stageRank(a) - stageRank(b) || a.localeCompare(b))
       .map((s) => ({ value: s, label: s || "チューニングなし" }));
     configurator = {
       stages,
-      showPops: popsAllowed(fuelKind),
-      optionTags: optionTagsFor(fuelKind, matched.manufacturer),
+      showPops: popsAllowed(fuelKind, matched.unit),
+      optionTags: optionTagsFor(fuelKind, matched.manufacturer, matched.unit),
       limiterDisabled: matched.limiterCutDisabled,
     };
   }

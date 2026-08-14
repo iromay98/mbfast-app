@@ -405,13 +405,14 @@ function CalGroupCard({
 
 }) {
   const g = group;
-  const tags = optionTagsFor(g.fuelKind, g.manufacturer);
-  const showPops = popsAllowed(g.fuelKind); // ディーゼルは false（バブリングなし）
+  // TCU(ミッション)はエンジン側OP・バブリングを出さない（Stage1のみ）
+  const tags = optionTagsFor(g.fuelKind, g.manufacturer, g.unit);
+  const showPops = popsAllowed(g.fuelKind, g.unit); // ディーゼル/TCU は false
   const [adding, setAdding] = useState(false);
   const [newStage, setNewStage] = useState("Stage1");
   const [newPopsMode, setNewPopsMode] = useState<"none" | "all" | "sport">("none");
   // ステージ候補（ベンツのみ Stage1.5 を含む）。"" は「チューニングなし」。
-  const stageOptions = baselineStages(g.manufacturer);
+  const stageOptions = baselineStages(g.manufacturer, g.unit);
   return (
     <Card className="p-0">
       {/* 大グループ見出し（Cal） */}

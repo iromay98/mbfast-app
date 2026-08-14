@@ -102,7 +102,7 @@ function PendingCard({
   onDelete: (variantId: string) => void;
 }) {
   const fuelKind = fuelKindOf(row.fuel);
-  const showPops = popsAllowed(fuelKind);
+  const showPops = popsAllowed(fuelKind, row.unit);
   return (
     <Card>
       <div className="flex items-start justify-between gap-3">
@@ -259,6 +259,7 @@ function PendingCard({
         <ModUploadForm
           manufacturer={row.manufacturer}
           fuelKind={fuelKind}
+          unit={row.unit}
           baseCal={row.cal}
           baseSw={row.sw}
           onAddFile={onAddFile}

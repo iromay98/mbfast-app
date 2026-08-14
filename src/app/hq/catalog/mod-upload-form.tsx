@@ -20,6 +20,7 @@ const norm = (s?: string | null) => (s ?? "").trim().toUpperCase().replace(/\s+/
 export function ModUploadForm({
   manufacturer,
   fuelKind,
+  unit = "ECU",
   baseCal,
   baseSw,
   registered,
@@ -27,15 +28,17 @@ export function ModUploadForm({
 }: {
   manufacturer: string;
   fuelKind: FuelKind;
+  /** 対象ユニット。TCU はバブリング・エンジン側OPを出さず Stage1 のみ */
+  unit?: string | null;
   baseCal?: string;
   baseSw?: string;
   // 登録済みバリエーション（ラベル＋状態）。渡すと選択中の構成が登録済みか表示する
   registered?: { label: string; status: string }[];
   onAddFile: (fd: FormData) => void;
 }) {
-  const stageOptions = baselineStages(manufacturer);
-  const availableTags = optionTagsFor(fuelKind, manufacturer);
-  const showPops = popsAllowed(fuelKind);
+  const stageOptions = baselineStages(manufacturer, unit);
+  const availableTags = optionTagsFor(fuelKind, manufacturer, unit);
+  const showPops = popsAllowed(fuelKind, unit);
 
   const [stage, setStage] = useState(stageOptions.includes("Stage1") ? "Stage1" : stageOptions[0] ?? "");
   const [popsMode, setPopsMode] = useState<"none" | "all" | "sport">("none");
