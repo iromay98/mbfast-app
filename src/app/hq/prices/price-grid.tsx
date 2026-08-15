@@ -1,8 +1,9 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
+  bulkUpdateCells,
   addVehicle,
   deleteVehicle,
   duplicateVehicle,
@@ -48,6 +49,94 @@ export function PriceGrid({ brand, vehicles, optionDefs }: { brand: BrandRow; ve
     });
   }, [vehicles, q, series]);
 
+  // ── Excel的なコピー＆貼り付け ──
+  // セルにカーソルを置いて Ctrl/Cmd+V: そのセルを左上として右・下方向へ流し込む
+  // Ctrl/Cmd+D: そのセルの値を、下の行の同じ列へコピー（フィルダウン）
+  const gridRef = useRef<HTMLDivElement>(null);
+
+  const cellOrder = useMemo(() => {
+    const keys: string[] = ["carName", "grade", "seriesGroup"];
+    for (const c of brand.columns) {
+      if (c.key === "car" || c.key === "grade" || c.key === "maker" || c.key === "remote") continue;
+      if (c.type === "price") keys.push(`price:${c.key}`);
+      else if (["engine", "stockOutput", "stage1Gain", "labor", "shops", "ecuType"].includes(c.key)) keys.push(c.key);
+    }
+    keys.push("notes");
+    return keys;
+  }, [brand.columns]);
+
+  useEffect(() => {
+    const el = gridRef.current;
+    if (!el) return;
+
+    const cellTarget = (colKey: string, value: string, vehicleId: string) =>
+      colKey.startsWith("price:")
+        ? { vehicleId, priceKey: colKey.slice(6), value }
+        : { vehicleId, field: colKey, value };
+
+    const applyBulk = (
+      updates: { vehicleId: string; field?: string; priceKey?: string; value: string }[],
+      label: string,
+    ) => {
+      if (updates.length === 0) return;
+      if (!window.confirm(`${label}（${updates.length}セル）を実行します。よろしいですか？`)) return;
+      start(async () => {
+        const r = await bulkUpdateCells(updates);
+        setMsg(r.error ?? `${r.updated ?? 0} 行を更新しました`);
+        router.refresh();
+      });
+    };
+
+    const onPaste = (e: ClipboardEvent) => {
+      const active = document.activeElement as HTMLElement | null;
+      const rowAttr = active?.getAttribute?.("data-cell-row");
+      const colAttr = active?.getAttribute?.("data-cell-col");
+      if (!rowAttr || !colAttr) return;
+      const text = e.clipboardData?.getData("text/plain") ?? "";
+      if (!text.includes("\t") && !text.includes("\n")) return; // 単一セルは通常の貼り付け
+      e.preventDefault();
+      const startRow = Number(rowAttr);
+      const startCol = cellOrder.indexOf(colAttr);
+      if (startCol < 0) return;
+      const matrix = text
+        .replace(/\r/g, "")
+        .replace(/\n+$/, "")
+        .split("\n")
+        .map((line) => line.split("\t"));
+      const updates: { vehicleId: string; field?: string; priceKey?: string; value: string }[] = [];
+      matrix.forEach((cols, dy) => {
+        const target = shown[startRow + dy];
+        if (!target) return;
+        cols.forEach((val, dx) => {
+          const colKey = cellOrder[startCol + dx];
+          if (!colKey) return;
+          updates.push(cellTarget(colKey, val, target.id));
+        });
+      });
+      applyBulk(updates, "Excelから貼り付け");
+    };
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (!(e.metaKey || e.ctrlKey) || e.key.toLowerCase() !== "d") return;
+      const active = document.activeElement as HTMLInputElement | null;
+      const rowAttr = active?.getAttribute?.("data-cell-row");
+      const colAttr = active?.getAttribute?.("data-cell-col");
+      if (!rowAttr || !colAttr) return;
+      e.preventDefault();
+      const startRow = Number(rowAttr);
+      const value = active?.value ?? "";
+      const updates = shown.slice(startRow + 1).map((t) => cellTarget(colAttr, value, t.id));
+      applyBulk(updates, `下の行へコピー（${value || "空"}）`);
+    };
+
+    el.addEventListener("paste", onPaste as EventListener);
+    el.addEventListener("keydown", onKeyDown);
+    return () => {
+      el.removeEventListener("paste", onPaste as EventListener);
+      el.removeEventListener("keydown", onKeyDown);
+    };
+  }, [cellOrder, shown, router]);
+
   return (
     <div className="space-y-2">
       {/* 検索・フィルタ・追加 */}
@@ -72,6 +161,9 @@ export function PriceGrid({ brand, vehicles, optionDefs }: { brand: BrandRow; ve
         </select>
         <span className="text-xs text-ink-soft">
           {shown.length} / {vehicles.length} 件
+        <span className="ml-2 hidden text-[10px] text-ink-soft sm:inline">
+          セルを選んで Ctrl/⌘+V でExcelから一括貼り付け ／ Ctrl/⌘+D で下の行へコピー
+        </span>
         </span>
         <button
           type="button"
@@ -86,7 +178,7 @@ export function PriceGrid({ brand, vehicles, optionDefs }: { brand: BrandRow; ve
       {msg && <p className="text-xs text-red-600">{msg}</p>}
 
       {/* 縦横スクロール。ヘッダー行は上に、車両列は左に固定する（行を見失わないため） */}
-      <div className="max-h-[70vh] overflow-auto rounded-lg border border-line">
+      <div ref={gridRef} className="max-h-[70vh] overflow-auto rounded-lg border border-line">
         <table className="w-full border-separate border-spacing-0 text-xs">
           <thead className="sticky top-0 z-30 bg-surface-2 text-left text-[11px] text-ink-soft">
             <tr>
@@ -115,7 +207,7 @@ export function PriceGrid({ brand, vehicles, optionDefs }: { brand: BrandRow; ve
             </tr>
           </thead>
           <tbody>
-            {shown.map((v) => (
+            {shown.map((v, i) => (
               <Row
                 key={v.id}
                 v={v}
@@ -123,6 +215,7 @@ export function PriceGrid({ brand, vehicles, optionDefs }: { brand: BrandRow; ve
                 pending={pending}
                 onRun={run}
                 manualOpts={manualOpts}
+                rowIndex={i}
               />
             ))}
           </tbody>
@@ -141,12 +234,14 @@ function Row({
   pending,
   onRun,
   manualOpts,
+  rowIndex,
 }: {
   v: GridVehicle;
   brand: BrandRow;
   pending: boolean;
   onRun: (fn: () => Promise<{ ok?: true; error?: string }>) => void;
   manualOpts: OptionDef[];
+  rowIndex: number;
 }) {
   // 列キー → その行の値を取り出す
   const cellFor = (c: ColumnDefinition) => {
@@ -160,7 +255,7 @@ function Row({
       case "engine":
         return (
           <div className="flex items-center gap-1">
-            <Cell value={v.engine} onSave={(val) => onRun(() => updateVehicleCell(v.id, { field: "engine", value: val }))} w="w-28" />
+            <Cell value={v.engine} onSave={(val) => onRun(() => updateVehicleCell(v.id, { field: "engine", value: val }))} w="w-28" cellRow={rowIndex} cellCol="engine" />
             <Cell
               value={v.engineFamily ?? ""}
               onSave={(val) => onRun(() => updateVehicleCell(v.id, { field: "engineFamily", value: val }))}
@@ -174,15 +269,15 @@ function Row({
         // メーカー列（「その他」ブランドのみ）。値=シリーズ名。編集は先頭のシリーズ列で行う
         return <span className="px-1 text-xs text-ink-soft">{v.seriesGroup}</span>;
       case "stockOutput":
-        return <Cell value={v.stockOutput ?? ""} onSave={(val) => onRun(() => updateVehicleCell(v.id, { field: "stockOutput", value: val }))} w="w-28" />;
+        return <Cell value={v.stockOutput ?? ""} onSave={(val) => onRun(() => updateVehicleCell(v.id, { field: "stockOutput", value: val }))} w="w-28" cellRow={rowIndex} cellCol="stockOutput" />;
       case "stage1Gain":
-        return <Cell value={v.stage1Gain ?? ""} onSave={(val) => onRun(() => updateVehicleCell(v.id, { field: "stage1Gain", value: val }))} w="w-28" />;
+        return <Cell value={v.stage1Gain ?? ""} onSave={(val) => onRun(() => updateVehicleCell(v.id, { field: "stage1Gain", value: val }))} w="w-28" cellRow={rowIndex} cellCol="stage1Gain" />;
       case "labor":
-        return <Cell value={v.labor ?? ""} onSave={(val) => onRun(() => updateVehicleCell(v.id, { field: "labor", value: val }))} w="w-24" />;
+        return <Cell value={v.labor ?? ""} onSave={(val) => onRun(() => updateVehicleCell(v.id, { field: "labor", value: val }))} w="w-24" cellRow={rowIndex} cellCol="labor" />;
       case "shops":
-        return <Cell value={v.shops ?? ""} onSave={(val) => onRun(() => updateVehicleCell(v.id, { field: "shops", value: val }))} w="w-28" />;
+        return <Cell value={v.shops ?? ""} onSave={(val) => onRun(() => updateVehicleCell(v.id, { field: "shops", value: val }))} w="w-28" cellRow={rowIndex} cellCol="shops" />;
       case "ecuType":
-        return <Cell value={v.ecuType ?? ""} onSave={(val) => onRun(() => updateVehicleCell(v.id, { field: "ecuType", value: val }))} w="w-28" mono />;
+        return <Cell value={v.ecuType ?? ""} onSave={(val) => onRun(() => updateVehicleCell(v.id, { field: "ecuType", value: val }))} w="w-28" mono cellRow={rowIndex} cellCol="ecuType" />;
       case "remote":
         return <RemoteCell v={v} pending={pending} onRun={onRun} />;
       default:
@@ -196,6 +291,8 @@ function Row({
               mono
               placeholder="LINE"
               hint={c.emphasis === "primary"}
+              cellRow={rowIndex}
+              cellCol={`price:${c.key}`}
             />
           );
         }
@@ -208,14 +305,14 @@ function Row({
     <tr className="group hover:bg-surface-2">
       <td className="sticky left-0 z-10 border-b border-r border-line bg-surface px-1.5 py-1 align-top group-hover:bg-surface-2">
         <div className="space-y-0.5">
-          <Cell value={v.carName} onSave={(val) => onRun(() => updateVehicleCell(v.id, { field: "carName", value: val }))} w="w-32" bold />
+          <Cell value={v.carName} onSave={(val) => onRun(() => updateVehicleCell(v.id, { field: "carName", value: val }))} w="w-32" bold cellRow={rowIndex} cellCol="carName" />
           {hasGrade && (
-            <Cell value={v.grade ?? ""} onSave={(val) => onRun(() => updateVehicleCell(v.id, { field: "grade", value: val }))} w="w-32" placeholder="（グレード）" />
+            <Cell value={v.grade ?? ""} onSave={(val) => onRun(() => updateVehicleCell(v.id, { field: "grade", value: val }))} w="w-32" placeholder="（グレード）" cellRow={rowIndex} cellCol="grade" />
           )}
         </div>
       </td>
       <td className="border-b border-line px-1.5 py-1">
-        <Cell value={v.seriesGroup} onSave={(val) => onRun(() => updateVehicleCell(v.id, { field: "seriesGroup", value: val }))} w="w-24" />
+        <Cell value={v.seriesGroup} onSave={(val) => onRun(() => updateVehicleCell(v.id, { field: "seriesGroup", value: val }))} w="w-24" cellRow={rowIndex} cellCol="seriesGroup" />
       </td>
       {brand.columns.filter((c) => c.key !== "car" && c.key !== "grade").map((c) => (
         <td key={c.key} className="border-b border-line px-1.5 py-1">
@@ -228,6 +325,8 @@ function Row({
           onSave={(val) => onRun(() => updateVehicleCell(v.id, { field: "notes", value: val }))}
           w="w-28"
           placeholder="（★注記）"
+          cellRow={rowIndex}
+          cellCol="notes"
         />
       </td>
       <td className="border-b border-l border-line px-1 py-1">
@@ -335,6 +434,8 @@ function Cell({
   bold,
   placeholder,
   hint,
+  cellRow,
+  cellCol,
 }: {
   value: string;
   onSave: (v: string) => void;
@@ -343,6 +444,8 @@ function Cell({
   bold?: boolean;
   placeholder?: string;
   hint?: boolean; // 主要価格列を強調
+  cellRow?: number; // Excel貼り付け用の座標（行番号）
+  cellCol?: string; // 同（列キー）
 }) {
   const [v, setV] = useState(value);
   const [prev, setPrev] = useState(value);
@@ -353,6 +456,8 @@ function Cell({
   return (
     <input
       value={v}
+      data-cell-row={cellRow}
+      data-cell-col={cellCol}
       placeholder={placeholder}
       onChange={(e) => setV(e.target.value)}
       onBlur={() => {
