@@ -15,7 +15,7 @@ import {
   updateOptionDef,
 } from "@/lib/actions/vehicle-pages";
 
-export type OptionRow = OptionDef & { id: string; enabled: boolean };
+export type OptionRow = OptionDef & { id: string; enabled: boolean; priceJpy: number | null };
 
 export function OptionMaster({ options, priceColumns, brandId }: { options: OptionRow[]; priceColumns: { key: string; label: string }[]; brandId: string }) {
   const router = useRouter();
@@ -116,6 +116,17 @@ export function OptionMaster({ options, priceColumns, brandId }: { options: Opti
                 </td>
                 <td className="px-2 py-1">
                   <TextCell value={o.short ?? ""} w="w-16" disabled={pending} onSave={(v) => run(() => updateOptionDef(o.id, { shortLabel: v || null }))} />
+                </td>
+                <td className="px-2 py-1">
+                  <TextCell
+                    value={o.priceJpy != null ? String(o.priceJpy) : ""}
+                    w="w-20"
+                    disabled={pending}
+                    onSave={(v) => {
+                      const n = Number(v.replace(/[^0-9]/g, ""));
+                      run(() => updateOptionDef(o.id, { priceJpy: Number.isFinite(n) && n > 0 ? n : null }));
+                    }}
+                  />
                 </td>
                 <td className="px-2 py-1">
                   <select
