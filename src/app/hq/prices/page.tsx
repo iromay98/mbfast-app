@@ -11,7 +11,7 @@ import {
   type VehicleRow,
 } from "@/lib/prices/types";
 import { PriceBoard } from "./price-board";
-import { overseasShipping } from "@/lib/vehicle-pages/delivery";
+import { overseasShipping, toShippingMatrix } from "@/lib/vehicle-pages/delivery";
 import { toOptions as toVpageOptions } from "@/lib/vehicle-pages/options";
 import { loadOptionDefs } from "@/lib/vehicle-pages/options-db";
 import type { VpageInfo } from "./vpage-cells";
@@ -36,6 +36,7 @@ export default async function HqPricesPage() {
   const shopSetting = {
     shippingDomesticJpy: settingRow?.shippingDomesticJpy ?? 0,
     shippingOverseasJpy: overseasShipping(settingRow?.shippingOverseasJpy),
+    shippingMatrix: toShippingMatrix(settingRow?.shippingMatrix),
     deviceAtOneJpy: settingRow?.deviceAtOneJpy ?? null,
     deviceIxiJpy: settingRow?.deviceIxiJpy ?? null,
     mailInBaseFeeJpy: settingRow?.mailInBaseFeeJpy ?? null,

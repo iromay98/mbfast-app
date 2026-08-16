@@ -1210,7 +1210,9 @@ model ShopSetting {
   id                  String   @id @default("default")
   // 送料（円）。国内は一律、海外は地域別
   shippingDomesticJpy Int      @default(0)
-  shippingOverseasJpy Json     @default("{}") // { asia: 0, northAmerica: 0, europe: 0, oceania: 0, other: 0 }
+  shippingOverseasJpy Json     @default("{}") // 旧: 地域別のみ（互換のため保持）
+  // 送料マトリクス: 方式 × 地域。{ atOne: { domestic: 1500, asia: 6000, ... }, ixi: {...}, mailIn: {...} }
+  shippingMatrix      Json     @default("{}")
   // 端末価格（買い切り・円）
   deviceAtOneJpy      Int?
   deviceIxiJpy        Int?

@@ -279,6 +279,7 @@ export async function clearAutoFilledOptions(brandId: string): Promise<{ ok?: tr
 export async function updateShopSetting(input: {
   shippingDomesticJpy?: number;
   shippingOverseasJpy?: Record<string, number>;
+  shippingMatrix?: Record<string, Record<string, number>>;
   deviceAtOneJpy?: number | null;
   deviceIxiJpy?: number | null;
   mailInBaseFeeJpy?: number | null;

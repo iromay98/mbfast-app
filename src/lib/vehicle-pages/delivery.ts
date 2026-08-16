@@ -44,6 +44,59 @@ export type ShopSettingLike = {
   notesEn: string | null;
 };
 
+/** 送料の地域区分。domestic=国内、以降は海外。実際の課金はWooの配送ゾーンが住所から自動判定する */
+export const SHIPPING_REGIONS: { key: string; ja: string; en: string }[] = [
+  { key: "domestic", ja: "国内", en: "Japan" },
+  { key: "asia", ja: "アジア", en: "Asia" },
+  { key: "northAmerica", ja: "北米", en: "North America" },
+  { key: "europe", ja: "欧州", en: "Europe" },
+  { key: "oceania", ja: "オセアニア", en: "Oceania" },
+  { key: "other", ja: "その他", en: "Rest of world" },
+];
+
+/** 発送が発生する方式（送料マトリクスの行） */
+export const SHIPPING_METHODS: { key: DeliveryKey; ja: string }[] = [
+  { key: "atOne", ja: "AT One（端末）" },
+  { key: "ixi", ja: "IXI Flasher（端末）" },
+  { key: "mailIn", ja: "ECU郵送（現物）" },
+];
+
+export type ShippingMatrix = Record<string, Record<string, number>>;
+
+export function toShippingMatrix(v: unknown): ShippingMatrix {
+  const out: ShippingMatrix = {};
+  if (!v || typeof v !== "object" || Array.isArray(v)) return out;
+  const o = v as Record<string, unknown>;
+  for (const m of SHIPPING_METHODS) {
+    const row = o[m.key];
+    if (!row || typeof row !== "object") continue;
+    const r = row as Record<string, unknown>;
+    const acc: Record<string, number> = {};
+    for (const reg of SHIPPING_REGIONS) {
+      const n = Number(r[reg.key]);
+      if (Number.isFinite(n) && n >= 0) acc[reg.key] = Math.round(n);
+    }
+    out[m.key] = acc;
+  }
+  return out;
+}
+
+/** 方式×地域の送料を引く。表に無ければ旧設定（国内一律・地域別）にフォールバック */
+export function shippingFor(args: {
+  method: DeliveryKey;
+  region: string;
+  matrix: ShippingMatrix;
+  legacyDomestic: number;
+  legacyOverseas: Record<string, number>;
+}): number | null {
+  const { method, region, matrix, legacyDomestic, legacyOverseas } = args;
+  const cell = matrix[method]?.[region];
+  if (typeof cell === "number" && cell >= 0) return cell;
+  if (region === "domestic") return legacyDomestic > 0 ? legacyDomestic : null;
+  const legacy = legacyOverseas[region];
+  return typeof legacy === "number" && legacy > 0 ? legacy : null;
+}
+
 export const OVERSEAS_REGIONS: { key: string; ja: string; en: string }[] = [
   { key: "asia", ja: "アジア", en: "Asia" },
   { key: "northAmerica", ja: "北米", en: "North America" },
