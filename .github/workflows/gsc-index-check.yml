@@ -1,0 +1,69 @@
+name: GSC インデックス漏れチェック
+
+on:
+  schedule:
+    # 毎週月曜 09:00 JST (= 00:00 UTC)
+    - cron: "0 0 * * 1"
+  workflow_dispatch:
+    inputs:
+      lookback_days:
+        description: "何日前までの記事を見るか"
+        required: false
+        default: "60"
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: 依存関係
+        run: pip install --quiet google-auth google-auth-httplib2 requests
+
+      - name: インデックス状況を照会
+        id: check
+        env:
+          GSC_SA_JSON: ${{ secrets.GSC_SA_JSON }}
+          GSC_SITE_URL: ${{ secrets.GSC_SITE_URL }}
+          LOOKBACK_DAYS: ${{ github.event.inputs.lookback_days || '60' }}
+          SKIP_DAYS: "3"
+          MAX_URLS: "120"
+        run: python scripts/gsc_index_check.py
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: index-check-result
+          path: index-check-result.json
+          retention-days: 30
+
+      - name: 未インデックスがあれば Issue を立てる
+        if: steps.check.outputs.problem_count != '0'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          COUNT: ${{ steps.check.outputs.problem_count }}
+          CHECKED: ${{ steps.check.outputs.checked_count }}
+        run: |
+          BODY=$(python - <<'PY'
+          import json, os
+          d = json.load(open("index-check-result.json"))
+          out = [f"照会 {d['checked']} 件中 {len(d['problems'])} 件が未インデックスです。", ""]
+          for p in d["problems"]:
+              t = (p.get("title") or {}).get("rendered", "")
+              out.append(f"- [{t}]({p['link']}) — `{p['verdict']}` / {p['coverage']}")
+          out += ["", "Search Console の URL 検査からインデックス登録をリクエストしてください。"]
+          print("\n".join(out))
+          PY
+          )
+          gh issue create \
+            --title "インデックス漏れ ${COUNT} 件 ($(date +%Y-%m-%d))" \
+            --body "$BODY" \
+            --label "seo"
