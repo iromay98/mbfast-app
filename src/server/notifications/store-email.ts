@@ -18,12 +18,13 @@ import { buildWelcomeEmail, supportAddress, type WelcomeInput } from "@/lib/mail
 
 export { buildWelcomeEmail, type WelcomeInput };
 
-/** 送信元。自動送信であることが分かる noreply を既定にする。
- *  返信は replyTo（supportAddress）へ誘導するので、店舗が返信しても届く。
+/** 送信元。mbPIT専用の実在アドレスを使う（noreplyにしない）。
+ *  加盟店からの返信をそのまま受けられるようにするため。
  *  注意: SMTPによっては認証アカウントと異なる From を拒否する。その場合は
- *  STORE_MAIL_FROM を認証アカウントと同じアドレスにする。 */
+ *  SMTP_USER をこのアドレス自身にする。 */
 function fromAddress(): string {
-  const addr = process.env.STORE_MAIL_FROM ?? process.env.SMTP_FROM ?? process.env.SMTP_USER ?? "noreply@mbfasttuning.com";
+  const addr =
+    process.env.STORE_MAIL_FROM ?? process.env.SMTP_FROM ?? process.env.SMTP_USER ?? "mbpit@mbfasttuning.com";
   // 表示名を付けて迷惑メール判定と「誰から来たか分からない」を減らす
   return `mbPIT <${addr}>`;
 }

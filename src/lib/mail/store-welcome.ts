@@ -15,7 +15,7 @@ function baseUrl(): string {
 
 /** 問い合わせ先（本文の末尾に出す） */
 export function supportAddress(): string {
-  return process.env.STORE_MAIL_SUPPORT ?? "sale@mbfasttuning.com";
+  return process.env.STORE_MAIL_SUPPORT ?? "mbpit@mbfasttuning.com";
 }
 
 export type WelcomeInput = {
@@ -85,8 +85,7 @@ export function buildWelcomeEmail(input: WelcomeInput): { subject: string; text:
     "───────────────",
     `${supportAddress()}`,
     "",
-    "※ このメールは自動送信です。ご返信いただいても構いませんが、",
-    "　 お急ぎの場合は上記アドレス宛にご連絡ください。",
+    "このメールにそのままご返信いただけます。",
     "",
     "──────────────────────────────",
     "mbPIT（運営: 株式会社N's ／ mbFAST Tuning）",
