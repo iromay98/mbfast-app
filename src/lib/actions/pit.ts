@@ -6,6 +6,7 @@ import { prisma } from "@/lib/db";
 import { requireHQ, requireDealer } from "@/lib/authz";
 import { createStoreCategory, wpConfigured, fetchMbpitCategories } from "@/server/pit/wordpress";
 import { resolveStoreGeo } from "@/server/pit/store-geo";
+import { sendStoreWelcomeEmail } from "@/server/notifications/store-email";
 import {
   KNOWN_WP_STORES,
   shortSlugOf,
@@ -180,8 +181,56 @@ export async function approvePitStore(
       ? [prisma.dealer.update({ where: { id: store.dealerId }, data: { status: "ACTIVE" } })]
       : []),
   ]);
+  // 承認待ちだった店舗には、登録時に「確認中」のメールしか届いていない。
+  // 使えるようになったことを本人へ知らせる。
+  const owner = store.dealerId
+    ? await prisma.user.findFirst({
+        where: { dealerId: store.dealerId, role: "DEALER" },
+        select: { email: true, name: true },
+      })
+    : null;
+  if (owner) {
+    await sendStoreWelcomeEmail({
+      to: owner.email,
+      storeName: store.displayName,
+      contactName: owner.name,
+      slug: store.slug,
+      approved: true,
+    });
+  }
+
   revalidatePath(PIT_PATH);
   return { ok: true, createdCategoryId };
+}
+
+// 登録完了メールの再送（本部のみ）。SMTP未設定・送信失敗・店舗が受け取れて
+// いない場合の救済。パスワードは含まないので何度送っても安全。
+export async function resendStoreWelcomeEmail(
+  storeId: string,
+): Promise<{ ok?: true; error?: string; to?: string }> {
+  await requireHQ();
+  const store = await prisma.pitStore.findUnique({
+    where: { id: storeId },
+    select: { displayName: true, slug: true, active: true, wpCategoryId: true, dealerId: true },
+  });
+  if (!store) return { error: "店舗が見つかりません" };
+  if (!store.dealerId) return { error: "この店舗にはログインアカウントがありません" };
+
+  const owner = await prisma.user.findFirst({
+    where: { dealerId: store.dealerId, role: "DEALER" },
+    select: { email: true, name: true },
+  });
+  if (!owner) return { error: "この店舗のログインアカウントが見つかりません" };
+
+  const r = await sendStoreWelcomeEmail({
+    to: owner.email,
+    storeName: store.displayName,
+    contactName: owner.name,
+    slug: store.slug,
+    approved: store.active && store.wpCategoryId > 0,
+  });
+  if (!r.sent) return { error: `送信できませんでした（${r.error ?? "不明"}）` };
+  return { ok: true, to: owner.email };
 }
 
 // 店舗の停止（本部のみ）。投稿を止め、mbPIT専用アカウントはログインも即失効させる。
@@ -281,6 +330,16 @@ export async function registerPitStore(input: {
     }
   }
 
+  // 加盟店“本人”への登録完了メール（本部通知とは別経路）。
+  // 送信失敗で登録を失敗させない＝店舗はすでに作成済みのため。
+  const mail = await sendStoreWelcomeEmail({
+    to: email,
+    storeName,
+    contactName,
+    slug,
+    approved,
+  });
+
   await notify({
     type: "PIT_STORE_APPLIED",
     title: approved ? "mbPIT 新規加盟店が登録されました（自動承認済み）" : "mbPIT 新規加盟店の登録（承認待ち）",
@@ -289,6 +348,14 @@ export async function registerPitStore(input: {
       : `${storeName}（slug: ${slug} / 担当: ${contactName}）が登録しました。WPカテゴリ自動作成に失敗したため、管理画面から承認してください。`,
     link: PIT_PATH,
   });
+  if (!mail.sent) {
+    await notify({
+      type: "PIT_STORE_APPLIED",
+      title: "mbPIT 登録完了メールを送信できませんでした",
+      message: `${storeName}（${email}）への登録完了メールが送れていません（理由: ${mail.error ?? "不明"}）。店舗には何も届いていないため、手動で連絡してください。`,
+      link: PIT_PATH,
+    });
+  }
   // 注意: ここで revalidatePath は呼ばない（登録ページ自体が再レンダリングされ完了画面が消えるため。
   // /hq/pit は force-dynamic なので不要）。
   return { ok: true, approved };

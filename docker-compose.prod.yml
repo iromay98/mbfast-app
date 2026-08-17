@@ -50,6 +50,9 @@ services:
       SMTP_PASS: "${SMTP_PASS:-}"
       SMTP_FROM: "${SMTP_FROM:-}"
       NOTIFY_EMAIL_TO: "${NOTIFY_EMAIL_TO:-}"
+      # 加盟店本人への登録完了メール（SMTP_HOST だけで有効）
+      STORE_MAIL_FROM: "${STORE_MAIL_FROM:-}"
+      STORE_MAIL_SUPPORT: "${STORE_MAIL_SUPPORT:-}"
       VAPID_PUBLIC_KEY: "${VAPID_PUBLIC_KEY:-}"
       VAPID_PRIVATE_KEY: "${VAPID_PRIVATE_KEY:-}"
       VAPID_SUBJECT: "${VAPID_SUBJECT:-mailto:saraya@ns-inc.jp}"

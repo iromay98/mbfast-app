@@ -10,6 +10,7 @@ import {
   resolvePitHeld,
   approvePitStore,
   suspendPitStore,
+  resendStoreWelcomeEmail,
   ingestPitStoreInfo,
   roundtripCheck,
   type IngestRow,
@@ -518,6 +519,23 @@ function StoreMaster({ stores, dealers }: { stores: StoreRow[]; dealers: DealerO
                     停止
                   </button>
                 )}
+                {/* 登録完了メールの再送。SMTP未設定時に登録した店舗は1通も受け取れていない */}
+                <button
+                  type="button"
+                  disabled={pending}
+                  onClick={() => {
+                    if (!window.confirm(`「${s.displayName}」へ登録完了メールを再送しますか？\nログインIDと入口の案内のみを送ります（パスワードは含みません）。`))
+                      return;
+                    start(async () => {
+                      const r = await resendStoreWelcomeEmail(s.id);
+                      setMsg(r.error ?? `${s.displayName}（${r.to}）へ登録完了メールを送信しました`);
+                      router.refresh();
+                    });
+                  }}
+                  className="ml-2 text-ink-soft hover:underline disabled:opacity-50"
+                >
+                  案内メール再送
+                </button>
               </td>
             </tr>
           ))}

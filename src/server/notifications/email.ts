@@ -17,8 +17,14 @@ export function emailNotifyEnabled(): boolean {
   return !!process.env.SMTP_HOST && !!process.env.NOTIFY_EMAIL_TO;
 }
 
+/** SMTPが設定されているか。本部宛て通知(NOTIFY_EMAIL_TO)とは別に、
+ *  加盟店本人への送信(store-email.ts)はこちらだけを条件にする。 */
+export function smtpEnabled(): boolean {
+  return !!process.env.SMTP_HOST;
+}
+
 let transporter: nodemailer.Transporter | null = null;
-function getTransporter(): nodemailer.Transporter {
+export function getTransporter(): nodemailer.Transporter {
   if (!transporter) {
     const port = Number(process.env.SMTP_PORT ?? 587);
     transporter = nodemailer.createTransport({
