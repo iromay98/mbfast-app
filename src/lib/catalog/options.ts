@@ -46,21 +46,57 @@ export const POPS_STRONG_TAG = "バブリング強(触媒無視)";
 export const IDLING_STOP_TAG = "アイドリングストップ解除";
 export const COLD_START_OFF_TAG = "コールドスタートオフ";
 
-const MAKER_OPTION_TAGS: { re: RegExp; tags: string[] }[] = [
+const MAKER_OPTION_TAGS: { re: RegExp; not?: RegExp; tags: string[] }[] = [
   // BMW / Audi / Porsche / Volkswagen（本店確認済み・2026-08-13）
   { re: /\bbmw\b|ビー?エム/i, tags: [IDLING_STOP_TAG, COLD_START_OFF_TAG] },
   { re: /\baudi\b|アウディ/i, tags: [IDLING_STOP_TAG, COLD_START_OFF_TAG] },
   { re: /porsche|ポルシェ/i, tags: [IDLING_STOP_TAG, COLD_START_OFF_TAG] },
   { re: /volkswagen|\bvw\b|フォルクスワーゲン/i, tags: [IDLING_STOP_TAG, COLD_START_OFF_TAG] },
+  /*
+   * 車名がBMWでなくても中身がBMWのエンジンなら同じOPが作れる（2026-08-19 追加）。
+   * A90/A91スープラ＝B58/B48（BMW製）。トヨタ名義なのでメーカー名だけでは拾えないため
+   * **車種名・世代も突き合わせる**（下の buildHaystack）。
+   * 旧型スープラ（A80の2JZ・A70の7M）はBMWではないので not で除外する。
+   */
+  {
+    re: /supra|スープラ/i,
+    not: /\ba(?:70|80)\b|jza|ma70|2jz|1jz|\b7m\b/i,
+    tags: [IDLING_STOP_TAG, COLD_START_OFF_TAG],
+  },
 ];
 
-/** そのメーカーで追加で選べるオプション（該当なしは空配列） */
-export function makerOptionTags(manufacturer?: string | null): string[] {
-  const m = (manufacturer ?? "").trim();
-  if (!m) return [];
+/*
+ * 車両の識別情報。BaseFile / ServiceRecord の行をそのまま渡せる形にしてある
+ * ＝判定に使う項目が増えても呼び出し側を直さなくてよい（メーカー名だけでは
+ * A90スープラのような「他社名義のBMWエンジン」を拾えないため、車種名も見る）。
+ */
+export type VehicleOptionContext = {
+  manufacturer?: string | null;
+  /** 車種名（"スープラ(A90) RZ" のように型式込みでよい） */
+  model?: string | null;
+  /** 世代・型式（model に型式が入っていない登録の取りこぼしを防ぐ） */
+  generation?: string | null;
+  /** "ECU" | "TCU"。TCUはエンジン側OPを一切出さない */
+  unit?: string | null;
+};
+
+/** メーカー名・車種名・世代をひとつなぎにして突き合わせる（表記ゆれを吸収するため） */
+function buildHaystack(v: VehicleOptionContext): string {
+  return [v.manufacturer, v.model, v.generation]
+    .map((x) => (x ?? "").trim())
+    .filter(Boolean)
+    .join(" ");
+}
+
+/** その車で追加で選べるオプション（該当なしは空配列） */
+export function makerOptionTags(v: VehicleOptionContext): string[] {
+  const hay = buildHaystack(v);
+  if (!hay) return [];
   const out: string[] = [];
-  for (const { re, tags } of MAKER_OPTION_TAGS) {
-    if (re.test(m)) for (const t of tags) if (!out.includes(t)) out.push(t);
+  for (const { re, not, tags } of MAKER_OPTION_TAGS) {
+    if (!re.test(hay)) continue;
+    if (not?.test(hay)) continue;
+    for (const t of tags) if (!out.includes(t)) out.push(t);
   }
   return out;
 }
@@ -68,19 +104,15 @@ export function makerOptionTags(manufacturer?: string | null): string[] {
 // その燃料・メーカーで選択肢として出すタグ。
 // スピードリミッターカットは全車種で表示し、可否は各Calの limiterCutDisabled で制御する。
 // TCU（ミッション）はエンジン側のオプションが関係しないため**1つも出さない**。
-export function optionTagsFor(
-  kind: FuelKind,
-  manufacturer?: string | null,
-  unit?: string | null,
-): string[] {
-  if (unitOf(unit) === "TCU") return [];
+export function optionTagsFor(kind: FuelKind, vehicle: VehicleOptionContext = {}): string[] {
+  if (unitOf(vehicle.unit) === "TCU") return [];
   // ガソリンは Adblue/DPF/EGR を出さない。ディーゼル/不明は全部出す。
   const base = kind === "gasoline" ? [...BASE_TAGS] : [...BASE_TAGS, ...DIESEL_TAGS];
   // バブリング強はバブリング可の燃料のみ（ディーゼルは不可）
   if (popsAllowed(kind)) base.push(POPS_STRONG_TAG);
   base.push(SPEED_LIMITER_TAG);
   // メーカー固有（アイドリングストップ解除・コールドスタートオフ等）
-  for (const t of makerOptionTags(manufacturer)) if (!base.includes(t)) base.push(t);
+  for (const t of makerOptionTags(vehicle)) if (!base.includes(t)) base.push(t);
   return base;
 }
 
@@ -112,9 +144,9 @@ export function stageRank(stage: string): number {
 // ベンツ(Mercedes/AMG)は Stage1.5 も用意する。
 // TCU（ミッション）は段階分けをしないので Stage1 の1本だけ（「チューニングなし」も出さない
 // ＝TCUファイル自体がチューニング内容のため、無しという構成が存在しない）。
-export function baselineStages(manufacturer?: string | null, unit?: string | null): string[] {
-  if (unitOf(unit) === "TCU") return ["Stage1"];
-  const isMercedes = /mercedes|benz|メルセデス|ベンツ|\bamg\b/i.test(manufacturer ?? "");
+export function baselineStages(vehicle: VehicleOptionContext = {}): string[] {
+  if (unitOf(vehicle.unit) === "TCU") return ["Stage1"];
+  const isMercedes = /mercedes|benz|メルセデス|ベンツ|\bamg\b/i.test(vehicle.manufacturer ?? "");
   return isMercedes ? ["", "Stage1", "Stage1.5", "Stage2"] : ["", "Stage1", "Stage2"];
 }
 

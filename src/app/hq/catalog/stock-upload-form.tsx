@@ -636,7 +636,7 @@ export function StockUploadForm({
           {/* 登録済みバリエーション（テーブル：オプション列＋状態＋差し替え/削除＋DL） */}
           <RegisteredVariants
             variants={created.variants ?? []}
-            optionCols={optionTagsFor(created.fuelKind, created.manufacturer)}
+            optionCols={optionTagsFor(created.fuelKind, created)}
             showPops={popsAllowed(created.fuelKind, created.unit)}
             busy={submitting}
             canSlave={created.canSlave ?? false}
@@ -646,6 +646,7 @@ export function StockUploadForm({
 
           <ModUploadForm
             manufacturer={created.manufacturer}
+            model={created.model}
             fuelKind={created.fuelKind}
             unit={created.unit}
             baseCal={created.cal}

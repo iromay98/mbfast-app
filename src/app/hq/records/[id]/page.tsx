@@ -318,13 +318,13 @@ export default async function HQRecordDetailPage({
   if (matched) {
     const fuelKind = fuelKindOf(matched.fuel);
     // 既定ステージ（ベンツは Stage1.5 も）＋既存ステージ
-    const stageSet = new Set<string>(baselineStages(matched.manufacturer, matched.unit));
+    const stageSet = new Set<string>(baselineStages(matched));
     for (const v of matched.variants) stageSet.add((v.stage ?? "").trim());
     const stages = [...stageSet]
       .sort((a, b) => stageRank(a) - stageRank(b) || a.localeCompare(b))
       .map((s) => ({ value: s, label: s || "チューニングなし" }));
 
-    const allowedTags = new Set(optionTagsFor(fuelKind, matched.manufacturer, matched.unit));
+    const allowedTags = new Set(optionTagsFor(fuelKind, matched));
     // 既存 variant を内容(label)ごとに集約（重複データは最良の1件に）。
     // 集約したことで隠れる重複件数と、チェック列に出ないOPは行に出す。
     const dupeCount = new Map<string, number>();
@@ -393,7 +393,7 @@ export default async function HQRecordDetailPage({
     builderProps = {
       stages,
       showPops: popsAllowed(fuelKind, matched.unit),
-      optionTags: optionTagsFor(fuelKind, matched.manufacturer, matched.unit),
+      optionTags: optionTagsFor(fuelKind, matched),
       variants,
       openLabels,
     };

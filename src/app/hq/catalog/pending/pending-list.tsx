@@ -258,6 +258,8 @@ function PendingCard({
       <div className="mt-3 border-t border-line pt-3">
         <ModUploadForm
           manufacturer={row.manufacturer}
+          model={row.model}
+          generation={row.generation}
           fuelKind={fuelKind}
           unit={row.unit}
           baseCal={row.cal}

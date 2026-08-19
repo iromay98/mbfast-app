@@ -4,6 +4,7 @@
  *
  * ここで守りたいこと:
  *   - BMW / Audi / Porsche / Volkswagen では選べる（英字・日本語表記・実データの綴り差を吸収）
+ *   - A90/A91スープラ（B58/B48＝BMW製エンジン）も選べる。旧型スープラ（A80の2JZ等）は出さない
  *   - それ以外のメーカーには出さない（選べるのに作れない依頼を作らない）
  *   - 燃料の出し分け（ガソリンはAdblue/DPF/EGRを出さない等）を壊していない
  *   - 有料OPの数え方（バブリング強だけ無料）を壊していない
@@ -44,14 +45,14 @@ for (const m of [
   "VW",
   "フォルクスワーゲン",
 ]) {
-  const tags = optionTagsFor("gasoline", m);
+  const tags = optionTagsFor("gasoline", { manufacturer: m });
   ok(`${m}: アイドリングストップ解除あり`, tags.includes(IDLING_STOP_TAG));
   ok(`${m}: コールドスタートオフあり`, tags.includes(COLD_START_OFF_TAG));
 }
 
 console.log("[2] 対応外メーカーには出さない");
 for (const m of ["Mercedes-Benz", "メルセデス・ベンツ", "Ferrari", "Toyota", "Lamborghini", "MINI", "", null]) {
-  const tags = optionTagsFor("gasoline", m);
+  const tags = optionTagsFor("gasoline", { manufacturer: m });
   ok(
     `${m || "(空)"}: メーカー固有OPなし`,
     !tags.includes(IDLING_STOP_TAG) && !tags.includes(COLD_START_OFF_TAG),
@@ -60,7 +61,7 @@ for (const m of ["Mercedes-Benz", "メルセデス・ベンツ", "Ferrari", "Toy
 
 console.log("[3] ディーゼルでも対応メーカーなら選べる（アイドリングストップは燃料に依らない）");
 {
-  const tags = optionTagsFor("diesel", "Volkswagen");
+  const tags = optionTagsFor("diesel", { manufacturer: "Volkswagen" });
   ok("VWディーゼル: アイドリングストップ解除あり", tags.includes(IDLING_STOP_TAG));
   ok("VWディーゼル: Adblue も出る", tags.includes("Adblue"));
   ok("VWディーゼル: バブリング強は出ない", !tags.includes(POPS_STRONG_TAG));
@@ -68,7 +69,7 @@ console.log("[3] ディーゼルでも対応メーカーなら選べる（アイ
 
 console.log("[4] 既存の出し分けを壊していない");
 {
-  const gas = optionTagsFor("gasoline", "Ferrari");
+  const gas = optionTagsFor("gasoline", { manufacturer: "Ferrari" });
   ok("ガソリン: Adblue/DPF/EGRを出さない", !["Adblue", "DPF", "EGR"].some((t) => gas.includes(t)));
   ok("ガソリン: バブリング強を出す", gas.includes(POPS_STRONG_TAG));
   ok("全車: スピードリミッターカットを出す", gas.includes(SPEED_LIMITER_TAG));
@@ -83,25 +84,26 @@ console.log("[5] 有料OPの数え方（バブリング強だけ無料）");
 }
 
 console.log("[6] makerOptionTags 単体");
-ok("BMWは2件", makerOptionTags("BMW").length === 2);
-ok("空文字は0件", makerOptionTags("").length === 0);
+ok("BMWは2件", makerOptionTags({ manufacturer: "BMW" }).length === 2);
+ok("空文字は0件", makerOptionTags({ manufacturer: "" }).length === 0);
+ok("全部未指定でも落ちない", makerOptionTags({}).length === 0);
 
 console.log("[7] TCU（ミッション）はエンジン側の選択肢を出さない");
 {
   // TCUはバブリング・O2/NOx/DTC・Adblue等・リミッターカット・メーカー固有OPを一切出さない
   for (const maker of ["BMW", "Volkswagen", "Mercedes-Benz", "Toyota"]) {
-    ok(`${maker}(TCU): オプション0件`, optionTagsFor("gasoline", maker, "TCU").length === 0);
+    ok(`${maker}(TCU): オプション0件`, optionTagsFor("gasoline", { manufacturer: maker, unit: "TCU" }).length === 0);
     ok(`${maker}(TCU): バブリング不可`, popsAllowed("gasoline", "TCU") === false);
   }
-  ok("TCU(ディーゼル)でもオプション0件", optionTagsFor("diesel", "Volkswagen", "TCU").length === 0);
+  ok("TCU(ディーゼル)でもオプション0件", optionTagsFor("diesel", { manufacturer: "Volkswagen", unit: "TCU" }).length === 0);
   // ステージは Stage1 の1本だけ（「チューニングなし」も出さない）
-  const st = baselineStages("Mercedes-Benz", "TCU");
+  const st = baselineStages({ manufacturer: "Mercedes-Benz", unit: "TCU" });
   ok("TCU: ステージはStage1のみ", st.length === 1 && st[0] === "Stage1");
   // ECU側は従来どおり（ベンツはStage1.5あり・チューニングなしあり）
-  const ecuSt = baselineStages("Mercedes-Benz", "ECU");
+  const ecuSt = baselineStages({ manufacturer: "Mercedes-Benz", unit: "ECU" });
   ok("ECU(ベンツ): 従来どおり4段階", ecuSt.length === 4 && ecuSt.includes("Stage1.5"));
-  ok("unit未指定はECU扱い", optionTagsFor("gasoline", "BMW").length > 0);
-  ok("小文字tcuも判定できる", optionTagsFor("gasoline", "BMW", "tcu").length === 0);
+  ok("unit未指定はECU扱い", optionTagsFor("gasoline", { manufacturer: "BMW" }).length > 0);
+  ok("小文字tcuも判定できる", optionTagsFor("gasoline", { manufacturer: "BMW", unit: "tcu" }).length === 0);
 }
 
 console.log("[8] 納品内容ラベルの往復（画面の選択 → ラベル → 解析）");
@@ -131,6 +133,59 @@ console.log("[8] 納品内容ラベルの往復（画面の選択 → ラベル 
       back.optionTags.slice().sort().join("|") === c.tags.slice().sort().join("|");
     ok(`往復一致: ${label}`, same);
   }
+}
+
+console.log("[9] 他社名義でも中身がBMWのエンジン（A90/A91スープラ）");
+{
+  /*
+   * スープラA90/A91は B58/B48＝BMW製。メーカー名は Toyota なので、
+   * 車種名・世代まで見ないとアイドリングストップ解除/コールドスタートオフが出ない。
+   * 実データの綴り（"スープラ(A90) RZ" 等）をそのまま並べて固定する。
+   */
+  const yes: { manufacturer: string; model?: string; generation?: string }[] = [
+    { manufacturer: "Toyota", model: "スープラ(A90) RZ" },
+    { manufacturer: "Toyota", model: "スープラ(A90) SZ" },
+    { manufacturer: "トヨタ", model: "スープラ", generation: "A90" },
+    { manufacturer: "Toyota", model: "Supra", generation: "A91" },
+    { manufacturer: "Toyota", model: "GR Supra RZ" },
+    { manufacturer: "TOYOTA", model: "スープラ" }, // 型式が入っていない登録も現行として扱う
+  ];
+  for (const v of yes) {
+    const tags = optionTagsFor("gasoline", v);
+    ok(
+      `${v.manufacturer} ${v.model ?? ""} ${v.generation ?? ""}: 両方選べる`.replace(/\s+/g, " ").trim(),
+      tags.includes(IDLING_STOP_TAG) && tags.includes(COLD_START_OFF_TAG),
+    );
+  }
+
+  console.log("  -- 旧型スープラ（BMWではない）には出さない --");
+  const no: { manufacturer: string; model?: string; generation?: string }[] = [
+    { manufacturer: "Toyota", model: "スープラ", generation: "A80" },
+    { manufacturer: "Toyota", model: "Supra 2JZ-GTE", generation: "JZA80" },
+    { manufacturer: "Toyota", model: "スープラ(A70) 7M-GTE" },
+  ];
+  for (const v of no) {
+    const tags = optionTagsFor("gasoline", v);
+    ok(
+      `${v.manufacturer} ${v.model ?? ""} ${v.generation ?? ""}: 出さない`.replace(/\s+/g, " ").trim(),
+      !tags.includes(IDLING_STOP_TAG) && !tags.includes(COLD_START_OFF_TAG),
+    );
+  }
+
+  console.log("  -- 他のトヨタ車には出さない（スープラだけ） --");
+  for (const model of ["86", "GRヤリス", "ランドクルーザー", "スプリンター"]) {
+    const tags = optionTagsFor("gasoline", { manufacturer: "Toyota", model });
+    ok(
+      `Toyota ${model}: 出さない`,
+      !tags.includes(IDLING_STOP_TAG) && !tags.includes(COLD_START_OFF_TAG),
+    );
+  }
+
+  // TCUは車種に関係なくエンジン側OPを出さない（スープラでも同じ）
+  ok(
+    "スープラ(TCU): オプション0件",
+    optionTagsFor("gasoline", { manufacturer: "Toyota", model: "スープラ(A90) RZ", unit: "TCU" }).length === 0,
+  );
 }
 
 console.log("");

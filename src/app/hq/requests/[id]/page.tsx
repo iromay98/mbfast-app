@@ -83,14 +83,14 @@ export default async function HQRequestDetailPage({
     const base = rec?.matchedBaseFile;
     if (base) {
       const fuelKind = fuelKindOf(base.fuel);
-      const stageSet = new Set<string>(baselineStages(base.manufacturer, base.unit));
+      const stageSet = new Set<string>(baselineStages(base));
       for (const v of base.variants) stageSet.add((v.stage ?? "").trim());
       deliverChoices = {
         stages: [...stageSet]
           .sort((a, b) => stageRank(a) - stageRank(b) || a.localeCompare(b))
           .map((s) => ({ value: s, label: s || "チューニングなし" })),
         showPops: popsAllowed(fuelKind, base.unit),
-        optionTags: optionTagsFor(fuelKind, base.manufacturer, base.unit),
+        optionTags: optionTagsFor(fuelKind, base),
       };
     }
   }

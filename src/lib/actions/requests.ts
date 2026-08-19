@@ -18,6 +18,7 @@ import { sendPushToUsers, recipientUserIds } from "@/server/push";
 import { requestStatusLabels } from "@/lib/labels";
 import {
   type FuelKind,
+  type VehicleOptionContext,
   fuelKindOf,
   optionTagsFor,
   popsAllowed,
@@ -120,7 +121,16 @@ async function loadMatchContext(recordId: string, dealerId: string) {
       autotunerMcuId: true,
       dealer: { select: { fileFormat: true } },
       matchedBaseFile: {
-        select: { fuel: true, manufacturer: true, limiterCutDisabled: true, unit: true },
+        // model/generation も引く: BMWエンジンの他社車（A90スープラ等）は
+        // メーカー名だけでは判定できないため（許可タグが画面と食い違う）
+        select: {
+          fuel: true,
+          manufacturer: true,
+          model: true,
+          generation: true,
+          limiterCutDisabled: true,
+          unit: true,
+        },
       },
     },
   });
@@ -130,6 +140,9 @@ async function loadMatchContext(recordId: string, dealerId: string) {
     return { ok: false as const, error: "照合が成立していません" };
   const fuelKind = fuelKindOf(record.matchedBaseFile?.fuel);
   const manufacturer = record.matchedBaseFile?.manufacturer ?? record.carMaker ?? null;
+  // 車種名は純正(BaseFile)を優先し、無ければ記録の車種を使う（照合前でも判定できるように）
+  const model = record.matchedBaseFile?.model ?? record.carModel ?? null;
+  const generation = record.matchedBaseFile?.generation ?? null;
   const limiterCutDisabled = !!record.matchedBaseFile?.limiterCutDisabled;
   // 対象ユニット（TCUはバブリング・エンジン側OPを一切扱わない）。純正(BaseFile)の値が原本
   const unit = record.matchedBaseFile?.unit ?? record.unit ?? "ECU";
@@ -146,6 +159,8 @@ async function loadMatchContext(recordId: string, dealerId: string) {
     record,
     fuelKind,
     manufacturer,
+    model,
+    generation,
     unit,
     limiterCutDisabled,
     canDeliver,
@@ -157,11 +172,10 @@ async function loadMatchContext(recordId: string, dealerId: string) {
 function normalizeSelection(
   sel: TuningSelection,
   fuelKind: FuelKind,
-  manufacturer?: string | null,
-  unit?: string | null,
+  vehicle: VehicleOptionContext,
 ): Required<TuningSelection> {
-  const allowed = new Set(optionTagsFor(fuelKind, manufacturer, unit));
-  const pops = popsAllowed(fuelKind, unit) ? !!sel.pops : false;
+  const allowed = new Set(optionTagsFor(fuelKind, vehicle));
+  const pops = popsAllowed(fuelKind, vehicle.unit) ? !!sel.pops : false;
   const optionTags = [...new Set(sel.optionTags)]
     .filter((t) => allowed.has(t))
     // バブリング強はバブリング選択時のみ意味を持つ
@@ -202,7 +216,7 @@ export async function resolveTuning(
   const ctx = await loadMatchContext(recordId, user.dealerId);
   if (!ctx.ok) return { error: ctx.error };
 
-  const sel = normalizeSelection(selection, ctx.fuelKind, ctx.manufacturer, ctx.unit);
+  const sel = normalizeSelection(selection, ctx.fuelKind, ctx);
 
   // 配布可(AVAILABLE)＋実体ありの中から探す
   // 順序を固定する（orderBy 無しの findMany は順序が保証されず、同構成の重複があると
@@ -375,7 +389,7 @@ export async function requestTuning(
   const ctx = await loadMatchContext(recordId, user.dealerId);
   if (!ctx.ok) return { error: ctx.error };
 
-  const sel = normalizeSelection(selection, ctx.fuelKind, ctx.manufacturer, ctx.unit);
+  const sel = normalizeSelection(selection, ctx.fuelKind, ctx);
   // 有料OP（バブリングとバブリング強は無料枠）が含まれる場合のみ同意必須。
   if (paidTags(sel.optionTags).length > 0 && !agreed) {
     return { error: "有料オプションの同意が必要です" };

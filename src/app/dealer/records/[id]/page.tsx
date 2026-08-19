@@ -68,7 +68,7 @@ export default async function DealerRecordDetailPage({
   if (matched) {
     const fuelKind = fuelKindOf(matched.fuel);
     // 基本ステージ（ベンツは Stage1.5 も）＋カタログに存在するステージ（重複排除・並び順）。
-    const stageSet = new Set<string>(baselineStages(matched.manufacturer, matched.unit));
+    const stageSet = new Set<string>(baselineStages(matched));
     for (const v of matched.variants) stageSet.add((v.stage ?? "").trim());
     const stages = [...stageSet]
       .sort((a, b) => stageRank(a) - stageRank(b) || a.localeCompare(b))
@@ -76,7 +76,7 @@ export default async function DealerRecordDetailPage({
     configurator = {
       stages,
       showPops: popsAllowed(fuelKind, matched.unit),
-      optionTags: optionTagsFor(fuelKind, matched.manufacturer, matched.unit),
+      optionTags: optionTagsFor(fuelKind, matched),
       limiterDisabled: matched.limiterCutDisabled,
     };
   }
