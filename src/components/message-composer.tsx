@@ -283,7 +283,7 @@ export function MessageComposer({
           {picked.slot === "slave" && (
             <span className={encryptMode === "backup" ? "text-sky-700" : "text-gold-700"}>
               {encryptMode === "backup"
-                ? "→ bak（フル）を圧縮zipにしてから .slave に変換して送信"
+                ? "→ 圧縮zipに整えてから .bak（フル）に変換して送信"
                 : "→ .slave に変換して送信"}
             </span>
           )}
@@ -393,7 +393,7 @@ export function MessageComposer({
 
       {zipNote && (
         <p className="rounded-lg bg-sky-50 px-3 py-2 text-xs font-semibold text-sky-800">
-          bakは圧縮zipでないとslaveへ渡せないため、{zipNote}しました。
+          bakは圧縮zipでないとスレーブ機に書き込めないため、{zipNote}しました。
         </p>
       )}
 
