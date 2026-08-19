@@ -33,6 +33,7 @@
     "check:photo-ocr": "tsx scripts/check-photo-ocr.mts",
     "check:store-isolation": "tsx -r dotenv/config scripts/check-store-isolation.mts",
     "check:variant-replace": "tsx scripts/check-variant-replace.mts",
+    "check:zip": "tsx scripts/check-zip.mts",
     "report:variant-dupes": "tsx -r dotenv/config scripts/report-variant-duplicates.mts",
     "check:no-secrets": "tsx scripts/check-no-secrets.mts",
     "check:env-allowlist": "tsx scripts/check-env-allowlist.mts",

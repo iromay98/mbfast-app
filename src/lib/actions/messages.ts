@@ -6,6 +6,7 @@ import { prisma } from "@/lib/db";
 import { getSessionUser } from "@/lib/authz";
 import { saveUpload, storage } from "@/server/storage";
 import { encryptSlave } from "@/server/autotuner/client";
+import { ensureCompressedZip } from "@/server/catalog/zip";
 import { notify } from "@/server/notifications";
 import { buildDownloadName, dateLabel } from "@/server/catalog/filename";
 import { type FormState } from "@/lib/actions/form-state";
@@ -136,6 +137,8 @@ export async function postRecordMessage(
     fileSize?: number;
     contentType?: string;
   } = {};
+  // bakをzip化/再圧縮したときの説明（送信後に本店の画面へ出す）
+  let zipNote = "";
   if (uploadedKey && !file) {
     if (!uploadedKey.startsWith(`record-messages/${recordId}/`)) {
       return { error: "アップロード参照が不正です" };
@@ -210,10 +213,31 @@ export async function postRecordMessage(
       if (mode === "backup" && (encSide ? encSide.backupSupported : rec?.backupSupported) === false) {
         return { error: "このECUは backup（フル読み書き）に対応していないため bak は作れません。" };
       }
-      // アップされたファイルはそのまま AutoTuner へ渡す（zipもそのまま。
-      // 展開や中身の選別はしない＝AutoTuner側が扱う）。
-      const tuned = Buffer.from(await file.arrayBuffer());
+      /*
+       * AutoTunerへ渡す中身の準備。
+       *
+       * maps（.slave / cal）は素のbinをそのまま渡す（従来どおり。展開や選別はAutoTuner側）。
+       *
+       * backup（bak＝ECU全内容）だけ扱いが違う: **中身がちゃんと圧縮されたzip**でないと
+       * slave側が受け取らない。Powergate3のMaster Fileは「拡張子が.zipなだけで無圧縮」でも
+       * 書き込めるため、現場からは無圧縮zipや素の.binがそのまま上がってくる。
+       * そこで暗号化の直前に ensureCompressedZip で整える:
+       *   ・素のbin → そのファイル1つを包んだzipにする
+       *   ・zip（無圧縮/圧縮） → 中身を取り出して deflate で詰め直す
+       *     （zipの入れ子は作らない＝二重zipにするとAutoTunerが1回展開した先が
+       *       .zipになって結局読めない）
+       */
+      const rawUpload = Buffer.from(await file.arrayBuffer());
       const innerName: string | null = file.name || null;
+      let tuned = rawUpload;
+      if (mode === "backup") {
+        const z = ensureCompressedZip(rawUpload, innerName ?? "backup.bin");
+        tuned = z.buffer;
+        zipNote =
+          z.action === "zipped"
+            ? `zip化して送信（${z.names.join("・")}）`
+            : `zipを再圧縮して送信（${z.names.join("・")}）`;
+      }
       let slaveData: Buffer;
       try {
         const enc = await encryptSlave(
@@ -301,5 +325,5 @@ export async function postRecordMessage(
 
   revalidatePath(`/hq/records/${recordId}`);
   revalidatePath(`/dealer/records/${recordId}`);
-  return { ok: true };
+  return zipNote ? { ok: true, data: { zipNote } } : { ok: true };
 }

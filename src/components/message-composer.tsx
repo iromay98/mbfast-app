@@ -54,6 +54,9 @@ export function MessageComposer({
   const [uploaded, setUploaded] = useState<{ key: string; name: string } | null>(null);
   const uploading = uploadPct !== null && uploaded === null;
 
+  // bakをzip化/再圧縮したときのサーバーからの説明（本店にだけ出る）
+  const zipNote = (state.data as { zipNote?: string } | undefined)?.zipNote;
+
   useEffect(() => {
     if (state.ok) {
       formRef.current?.reset();
@@ -215,7 +218,7 @@ export function MessageComposer({
             disabled={!backupSupported}
             title={
               backupSupported
-                ? "フルバックアップbinを丸ごと暗号化して送信（マップスイッチ用・ファイル名に _bak）"
+                ? "フルバックアップbinを丸ごと暗号化して送信（マップスイッチ用・ファイル名に _bak）。圧縮zip化は自動で行います"
                 : "このECUは backup(フル読み書き) に対応していません"
             }
             className={`${trigger} border-sky-300 text-sky-700 disabled:cursor-not-allowed disabled:opacity-40`}
@@ -280,7 +283,7 @@ export function MessageComposer({
           {picked.slot === "slave" && (
             <span className={encryptMode === "backup" ? "text-sky-700" : "text-gold-700"}>
               {encryptMode === "backup"
-                ? "→ bak（フル）を .slave に変換して送信"
+                ? "→ bak（フル）を圧縮zipにしてから .slave に変換して送信"
                 : "→ .slave に変換して送信"}
             </span>
           )}
@@ -386,6 +389,12 @@ export function MessageComposer({
           </div>
           <ProgressBar pct={null} />
         </div>
+      )}
+
+      {zipNote && (
+        <p className="rounded-lg bg-sky-50 px-3 py-2 text-xs font-semibold text-sky-800">
+          bakは圧縮zipでないとslaveへ渡せないため、{zipNote}しました。
+        </p>
       )}
 
       <FormError message={sizeError ?? state.error} />
