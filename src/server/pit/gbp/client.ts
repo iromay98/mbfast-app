@@ -103,6 +103,7 @@ export type GbpErrorKind =
   | "permission" // PERMISSION_DENIED / API未有効化 / スコープ不足
   | "quota" // 429 / RESOURCE_EXHAUSTED
   | "notfound"
+  | "invalid" // 送信前の自前検証で弾いた（Googleには投げていない）
   | "http"
   | "network";
 
@@ -417,6 +418,62 @@ export async function listLocalPosts(
     `${V4_HOST}/${acc}/${loc}/localPosts?${q}`,
   );
   return { posts: json.localPosts ?? [], nextPageToken: json.nextPageToken };
+}
+
+/*
+ * 投稿の下書きデータ。
+ *
+ * GBPの投稿は**作成後に編集できない**（消して作り直すしかない）ため、
+ * 送る前に画面で確認できるよう、組み立てと送信を分けている。
+ */
+export type LocalPostDraft = {
+  /** 本文。1,500字まで。ただし一覧では先頭80〜100字ほどしか読まれない */
+  summary: string;
+  /** 行動を促すボタン。省略時はボタン無し */
+  cta?: { type: "LEARN_MORE" | "BOOK" | "CALL"; url?: string };
+  /** 写真1枚。公開URLをGoogleが取得する（要 https・リダイレクト不可） */
+  photoUrl?: string;
+};
+
+export const LOCAL_POST_SUMMARY_MAX = 1500;
+
+/*
+ * 投稿の作成（POST）。**1日あたりの作成上限(既定100)を消費する**。
+ *
+ * topicType は STANDARD 固定。イベント/特典は別フィールドが必須になるため、
+ * 施工記録の告知にはこれで足りる。
+ */
+export async function createLocalPost(
+  accountId: string,
+  locationId: string,
+  draft: LocalPostDraft,
+): Promise<LocalPost> {
+  const acc = accountId.startsWith("accounts/") ? accountId : `accounts/${accountId}`;
+  const loc = locationId.startsWith("locations/") ? locationId : `locations/${locationId}`;
+  const summary = draft.summary.trim();
+  if (!summary) throw new GbpError("本文が空です", "invalid");
+  if (summary.length > LOCAL_POST_SUMMARY_MAX) {
+    throw new GbpError(`本文が${LOCAL_POST_SUMMARY_MAX}字を超えています（${summary.length}字）`, "invalid");
+  }
+  const body: Record<string, unknown> = {
+    languageCode: "ja",
+    summary,
+    topicType: "STANDARD",
+  };
+  if (draft.cta?.type) {
+    body.callToAction = draft.cta.url
+      ? { actionType: draft.cta.type, url: draft.cta.url }
+      : { actionType: draft.cta.type };
+  }
+  if (draft.photoUrl) {
+    body.media = [{ mediaFormat: "PHOTO", sourceUrl: draft.photoUrl }];
+  }
+  return gbpFetch<LocalPost>(`${V4_HOST}/${acc}/${loc}/localPosts`, { method: "POST", body });
+}
+
+/** 投稿の削除。GBPは編集ができないので、直すときは消して作り直す */
+export async function deleteLocalPost(postName: string): Promise<void> {
+  await gbpFetch<unknown>(`${V4_HOST}/${postName}`, { method: "DELETE" });
 }
 
 /** 接続確認の1回分。失敗しても投げずに理由を返す（画面に出すため） */
