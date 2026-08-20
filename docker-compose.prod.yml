@@ -79,6 +79,8 @@ services:
       GBP_LOCATION_MAP: "${GBP_LOCATION_MAP:-}"
       # 加盟店が管理者として招待する宛先（画面に表示する識別子。秘密情報ではない）
       GBP_MANAGER_EMAIL: "${GBP_MANAGER_EMAIL:-}"
+      # 方式B: 加盟店ごとのリフレッシュトークンの暗号化鍵（未設定なら方式Aのみ）
+      GBP_TOKEN_ENC_KEYS: "${GBP_TOKEN_ENC_KEYS:-}"
       # 1日の投稿上限。投稿機能の実装時に効く（今はまだ読んでいない）。
       # ここに載せておかないと .env に書いてもコンテナに渡らないため先に通しておく。
       GBP_DAILY_POST_LIMIT: "${GBP_DAILY_POST_LIMIT:-80}"

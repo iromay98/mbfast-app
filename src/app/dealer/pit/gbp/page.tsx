@@ -6,6 +6,8 @@ import { prisma } from "@/lib/db";
 import { PageTitle, Card } from "@/components/ui";
 import { gbpManagerEmail } from "@/server/pit/gbp/client";
 import { manualTargetFor } from "@/server/pit/gbp/link";
+import { selfAuthConfigured } from "@/server/pit/gbp/self-auth";
+import { GbpSelfClient } from "./gbp-self-client";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = pitMetadata("mbPIT Googleマップ連携");
@@ -18,9 +20,11 @@ export const metadata: Metadata = pitMetadata("mbPIT Googleマップ連携");
  * (3) 加盟店がいま準備できること＝自店のGoogleビジネスプロフィールに mbPIT運営
  *     （mbFAST）を「管理者」として招待する手順、を案内する。
  *
- * 方式A: 認可するGoogleアカウントは運営側の1つだけ。加盟店ごとにGoogle連携は行わない。
- * 加盟店の操作はこの招待だけで、投稿先の紐付け・公開の可否は運営側が人手で判断する
- * （店名の自動照合はしない・準備中は自動公開しない）。
+ * 方式B（既定）: 加盟店が自分のGoogleアカウントでログインし、自店の拠点を自分で選ぶ。
+ * 店主本人のトークンで一覧を取るので、他店の拠点は候補にすら出ない＝誤紐付けが起きない。
+ *
+ * 方式A（代替）: 加盟店が運営を管理者に招待し、運営が住所を見比べて紐付ける。
+ * オーナー権限が無い店・Googleログインに抵抗がある店のために残してある。
  */
 export default async function PitGbpPage() {
   const user = await requireDealer();
@@ -33,11 +37,17 @@ export default async function PitGbpPage() {
       active: true,
       gbpLocationId: true,
       gbpLocationName: true,
+      gbpLocationAddr: true,
       gbpPostingEnabled: true,
+      gbpAuthMode: true,
+      gbpRefreshTokenEnc: true,
+      gbpAuthEmail: true,
+      gbpAuthRevokedAt: true,
     },
   });
   if (!store) redirect("/dealer/pit");
 
+  const selfCfg = selfAuthConfigured();
   const managerEmail = gbpManagerEmail();
   // 運営側で投稿先が決まっているか（DBの紐付け or 手動指定）。加盟店には可否だけ見せる。
   const linked = Boolean(store.gbpLocationId) || Boolean(manualTargetFor(store));
@@ -88,9 +98,28 @@ export default async function PitGbpPage() {
         </p>
       </Card>
 
-      {/* 招待の手順（加盟店がいま準備できること） */}
-      <Card>
-        <h3 className="text-sm font-bold text-ink">準備：mbPIT運営を「管理者」に招待する</h3>
+      {/* 方式B: 自分で連携する（既定の導線） */}
+      {selfCfg.ok && (
+        <GbpSelfClient
+          connected={Boolean(store.gbpRefreshTokenEnc)}
+          authEmail={store.gbpAuthEmail}
+          selectedLocationId={store.gbpLocationId}
+          selectedName={store.gbpLocationName}
+          selectedAddr={store.gbpLocationAddr}
+          revoked={Boolean(store.gbpAuthRevokedAt)}
+        />
+      )}
+
+      {/* 方式A: 自分で連携できない場合の代替。既定では畳んでおく */}
+      <details className="rounded-2xl border border-line bg-white p-4">
+        <summary className="cursor-pointer text-sm font-bold text-ink">
+          うまく連携できない場合（運営を管理者に招待する方法）
+        </summary>
+        <p className="mt-2 text-xs leading-relaxed text-ink-soft">
+          お店のGoogleアカウントのオーナー権限をお持ちでない場合や、上の連携がうまくいかない場合は、
+          運営を管理者として招待していただければ、運営側で設定します。
+        </p>
+        <h3 className="mt-3 text-sm font-bold text-ink">mbPIT運営を「管理者」に招待する</h3>
         <p className="mt-1 text-xs leading-relaxed text-ink-soft">
           お店のGoogleビジネスプロフィールに、mbPIT運営のGoogleアカウントを
           <b>「管理者」</b>として招待してください。招待いただくと、承認後に運営側から投稿できるようになります。
@@ -139,7 +168,7 @@ export default async function PitGbpPage() {
           管理者の招待は、お店側でいつでも取り消せます。連携をやめたいときは、同じ画面から
           mbPIT運営のアカウントを削除してください。
         </p>
-      </Card>
+      </details>
 
       {/* 連携状況（運営側の紐付け状態を可否だけ表示） */}
       <Card>

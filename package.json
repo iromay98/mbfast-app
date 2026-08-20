@@ -27,6 +27,7 @@
     "check:pit-tags": "tsx scripts/check-pit-tags.mts",
     "check:store-geo": "tsx scripts/check-store-geo.mts",
     "check:store-mail": "tsx scripts/check-store-mail.mts",
+    "check:gbp-self": "tsx scripts/check-gbp-self-auth.mts",
     "check:contract": "tsx scripts/check-contract.mts",
     "check:shaken-ocr": "tsx scripts/check-shaken-ocr.mts",
     "check:shaken-pdf": "tsx scripts/check-shaken-pdf.mts",

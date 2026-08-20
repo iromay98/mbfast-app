@@ -252,9 +252,10 @@ export function resetTokenCache(): void {
 
 export async function gbpFetch<T>(
   url: string,
-  init?: { method?: string; body?: unknown },
+  init?: { method?: string; body?: unknown; token?: string },
 ): Promise<T> {
-  const token = await accessToken();
+  // token 指定は方式B（加盟店が自分で連携）用。未指定なら本部のトークンを使う
+  const token = init?.token ?? (await accessToken());
   let res: Response;
   try {
     res = await fetch(url, {
@@ -389,6 +390,45 @@ export async function listLocations(accountName: string): Promise<GbpLocation[]>
   return out;
 }
 
+/*
+ * 方式B: 加盟店自身のトークンで、その人が管理する拠点を全て取る。
+ *
+ * 本部のトークンではなく**店主のトークン**で叩くので、返るのはその人が権限を
+ * 持つ拠点だけ。だから他店の拠点を選びようがない＝誤紐付けが原理的に起きない。
+ * 2拠点以上ある店のために、選ばせる前提で全件返す（自動で先頭を選ばない）。
+ */
+export async function listLocationsWithToken(
+  token: string,
+): Promise<{ accountId: string; locationId: string; title: string; address: string }[]> {
+  const accounts = await gbpFetch<{ accounts?: GbpAccount[] }>(`${ACCOUNTS_HOST}/accounts?pageSize=20`, { token });
+  const out: { accountId: string; locationId: string; title: string; address: string }[] = [];
+  const fields = "name,title,storefrontAddress";
+  for (const a of accounts.accounts ?? []) {
+    let pageToken: string | undefined;
+    do {
+      const q = new URLSearchParams({
+        readMask: fields,
+        pageSize: "100",
+        ...(pageToken ? { pageToken } : {}),
+      });
+      const json = await gbpFetch<{ locations?: RawLocation[]; nextPageToken?: string }>(
+        `${INFO_HOST}/${a.name}/locations?${q}`,
+        { token },
+      );
+      for (const l of json.locations ?? []) {
+        out.push({
+          accountId: a.name,
+          locationId: l.name,
+          title: l.title ?? "",
+          address: formatAddress(l.storefrontAddress),
+        });
+      }
+      pageToken = json.nextPageToken;
+    } while (pageToken);
+  }
+  return out;
+}
+
 // ── v4 (投稿) ────────────────────────────────────────────
 
 export type LocalPost = {
@@ -453,6 +493,8 @@ export async function createLocalPost(
   accountId: string,
   locationId: string,
   draft: LocalPostDraft,
+  /** 方式Bの店舗はその店のトークンで投稿する。未指定なら本部のトークン */
+  token?: string,
 ): Promise<LocalPost> {
   const acc = accountId.startsWith("accounts/") ? accountId : `accounts/${accountId}`;
   const loc = locationId.startsWith("locations/") ? locationId : `locations/${locationId}`;
@@ -474,7 +516,7 @@ export async function createLocalPost(
   if (draft.photoUrl) {
     body.media = [{ mediaFormat: "PHOTO", sourceUrl: draft.photoUrl }];
   }
-  return gbpFetch<LocalPost>(`${V4_HOST}/${acc}/${loc}/localPosts`, { method: "POST", body });
+  return gbpFetch<LocalPost>(`${V4_HOST}/${acc}/${loc}/localPosts`, { method: "POST", body, token });
 }
 
 /** 投稿の削除。GBPは編集ができないので、直すときは消して作り直す */

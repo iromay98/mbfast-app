@@ -840,6 +840,18 @@ model PitStore {
   gbpLinkedByUserId String? // 誰が紐付けたか（誤配信の追跡用）
   gbpPostingEnabled Boolean   @default(false) // 投稿の有効・無効（既定は無効）
 
+  /*
+   * 方式B: 加盟店が自分でGoogleログインして自店を選ぶ（誤紐付けが原理的に起きない）。
+   * 方式A（本部が招待を受けて紐付ける）も残す＝オーナー権限が無い店・
+   * Googleログインに抵抗がある店を取りこぼさないため。
+   * gbpAuthMode で「その店がどちらで繋がっているか」を持つ。
+   */
+  gbpAuthMode          String    @default("HQ") // "HQ"=方式A / "SELF"=方式B
+  gbpRefreshTokenEnc   String? // 方式Bのリフレッシュトークン（AES-256-GCMで暗号化・平文で持たない）
+  gbpAuthEmail         String    @default("") // 連携に使われたGoogleアカウント（本人確認・失効時の連絡先）
+  gbpAuthAt            DateTime? // 連携した日時
+  gbpAuthRevokedAt     DateTime? // トークンが失効した日時（再連携を促すために記録）
+
   posts        PitPost[]
   customers    PitCustomer[]
   certificates PitCertificate[]
