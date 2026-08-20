@@ -5,7 +5,8 @@
  *   npm run gbp:v4check -- 18204209748554497603   … ロケーションIDを直接指定
  *
  * **投稿は作らない**（GET localPosts?pageSize=1 だけ）。
- * localPosts の作成は Create requests per day(=100) を消費するが、一覧は読み取りなので
+ * localPosts の作成は Create requests per day を消費するが（このプロジェクトの
+ * 割り当ては100件/日・2026-08-13実測）、一覧は読み取りなので
  * 「投稿できる状態か」を安全に判定できる。
  *
  * 一覧API（Account Management / Business Information）は一切呼ばない。

@@ -438,7 +438,13 @@ export type LocalPostDraft = {
 export const LOCAL_POST_SUMMARY_MAX = 1500;
 
 /*
- * 投稿の作成（POST）。**1日あたりの作成上限(既定100)を消費する**。
+ * 投稿の作成（POST）。
+ *
+ * このプロジェクト(mbfast-tuning)の割り当ては **Create requests per day = 100**
+ * （2026-08-13 に Cloud Console の「割り当てと上限」で実測）。
+ * 加盟店1店が1日1件投稿する前提なら100店まで足りるが、複数拠点や再投稿を
+ * 考えると余裕は大きくない。上限に達すると RESOURCE_EXHAUSTED（kind="quota"）
+ * が返る。増枠は Cloud Console から申請できる。
  *
  * topicType は STANDARD 固定。イベント/特典は別フィールドが必須になるため、
  * 施工記録の告知にはこれで足りる。
