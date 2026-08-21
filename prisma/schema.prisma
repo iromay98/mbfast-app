@@ -854,6 +854,8 @@ model PitStore {
   gbpAuthAt            DateTime? // 連携した日時
   gbpAuthRevokedAt     DateTime? // トークンが失効した日時（再連携を促すために記録）
 
+  socialAccounts    PitSocialAccount[]
+
   posts        PitPost[]
   customers    PitCustomer[]
   certificates PitCertificate[]
@@ -1062,6 +1064,46 @@ model PitConsent {
 }
 
 // 投稿1件（公開ログを兼ねる）
+/*
+ * 加盟店のSNS連携（1店 × 1媒体 = 1行）。
+ *
+ * Googleマップ(GBP)は PitStore に直接カラムを持っているが、あちらは
+ * ロケーション選択など固有の項目が多いため据え置く。X/Instagram/Threads 等は
+ * 「トークンを預かって、その店の名義で投稿する」という形が共通なので、
+ * 媒体を増やすたびにカラムを生やさずに済むよう1つのテーブルにまとめる。
+ *
+ * トークンは**その店のアカウントを操作できる鍵**。必ず暗号化して保存する
+ * （src/server/pit/gbp/token-crypto.ts と同じ方式・同じ鍵を使う）。
+ */
+model PitSocialAccount {
+  id        String   @id @default(cuid())
+  storeId   String
+  store     PitStore @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  /** "x" | "instagram" | "threads" | "line" */
+  provider  String
+
+  /** 媒体側のアカウントID（投稿先の特定に使う） */
+  externalId    String  @default("")
+  /** 画面に出す表示名（@handle など）。本人が自分の店か確認するため */
+  displayName   String  @default("")
+
+  /** 長期トークン（暗号化）。媒体によってrefresh/accessの意味が違うので用途で分ける */
+  refreshTokenEnc String?
+  accessTokenEnc  String?
+  /** アクセストークンの期限。切れていたらrefreshで取り直す */
+  expiresAt       DateTime?
+
+  /** 投稿の有効・無効。連携しただけでは投稿しない（誤配信を避ける） */
+  postingEnabled Boolean   @default(false)
+  connectedAt    DateTime  @default(now())
+  revokedAt      DateTime? // 失効（店側が連携解除・パスワード変更など）
+  lastError      String?   // 直近の失敗理由。本部が手当てするため
+
+  @@unique([storeId, provider])
+  @@index([provider, postingEnabled])
+}
+
 model PitPost {
   id            String      @id @default(cuid())
   storeId       String

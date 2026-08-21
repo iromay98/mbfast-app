@@ -29,6 +29,7 @@
     "check:store-mail": "tsx scripts/check-store-mail.mts",
     "check:gbp-self": "tsx scripts/check-gbp-self-auth.mts",
     "check:map-post": "tsx scripts/check-map-post.mts",
+    "check:social-text": "tsx scripts/check-social-text.mts",
     "check:contract": "tsx scripts/check-contract.mts",
     "check:maker-options": "tsx scripts/check-maker-options.mts",
     "check:shaken-ocr": "tsx scripts/check-shaken-ocr.mts",
