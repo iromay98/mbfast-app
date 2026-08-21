@@ -4,6 +4,7 @@ import { formatDate, formatDateTime } from "@/lib/labels";
 import { PageTitle, Card, LinkButton } from "@/components/ui";
 import { pitAiEnabled } from "@/server/pit/generate";
 import { wpConfigured, fetchPostState } from "@/server/pit/wordpress";
+import { pickStoreInfo } from "@/server/pit/store-meta";
 import { PitAdmin, type StoreRow, type PostRow, type DealerOption } from "./pit-admin";
 
 export const dynamic = "force-dynamic";
@@ -84,18 +85,8 @@ export default async function HqPitPage() {
       keepUntilLabel: keepUntilByStore.get(s.id)
         ? formatDate(keepUntilByStore.get(s.id)!)
         : null,
-      info: {
-        area: s.area,
-        address: s.address,
-        hours: s.hours,
-        closedDays: s.closedDays,
-        tel: s.tel,
-        email: s.email,
-        website: s.website,
-        lineUrl: s.lineUrl,
-        serviceTags: s.serviceTags,
-        intro: s.intro,
-      },
+      // 同期対象の項目は定義（STORE_META_FIELDS）から抜き出す＝項目追加に自動追随
+      info: pickStoreInfo(s),
       contactPerson: s.contactPerson,
       internalNote: s.internalNote,
       postCount: countByStore.get(s.id) ?? 0,

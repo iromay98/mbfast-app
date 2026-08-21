@@ -8,6 +8,18 @@
 
 export type FuelKind = "gasoline" | "diesel" | "unknown";
 
+/*
+ * 対象ユニット。TCU（ミッション）はエンジン側の選択肢（バブリング・O2/NOx/DTC・
+ * Adblue/DPF/EGR・スピードリミッターカット・アイドリングストップ等）が一切関係ないため、
+ * バリエーションは Stage1 の1本だけにする（2026-08-13 本店判断）。
+ * 判定は unitOf() に通してから使う（DBは文字列で "ECU" | "TCU"）。
+ */
+export type UnitKind = "ECU" | "TCU";
+
+export function unitOf(unit?: string | null): UnitKind {
+  return (unit ?? "").trim().toUpperCase() === "TCU" ? "TCU" : "ECU";
+}
+
 export function fuelKindOf(fuel?: string | null): FuelKind {
   const f = (fuel ?? "").toLowerCase();
   if (/diesel|軽油|gasoil|gazole/.test(f)) return "diesel";
@@ -23,15 +35,84 @@ export const SPEED_LIMITER_TAG = "スピードリミッターカット";
 // 料金上はバブリングの一部＝無料（有料OPには数えない）。
 export const POPS_STRONG_TAG = "バブリング強(触媒無視)";
 
-// その燃料で選択肢として出すタグ。
+/*
+ * メーカー固有オプション（2026-08 追加）。
+ * アイドリングストップ解除・コールドスタートオフは、本店が対応しているメーカーだけに出す
+ * （どの車でも出すと「選べるのに作れない」依頼が来るため）。
+ * 対応メーカーを増やすときは MAKER_OPTION_TAGS に足すだけでよい
+ * ＝UI（代理店コンフィギュレータ・本店カタログ）とサーバー側の許可判定は
+ * すべて optionTagsFor を通るので、ここ1箇所で揃う。
+ */
+export const IDLING_STOP_TAG = "アイドリングストップ解除";
+export const COLD_START_OFF_TAG = "コールドスタートオフ";
+
+const MAKER_OPTION_TAGS: { re: RegExp; not?: RegExp; tags: string[] }[] = [
+  // BMW / Audi / Porsche / Volkswagen（本店確認済み・2026-08-13）
+  { re: /\bbmw\b|ビー?エム/i, tags: [IDLING_STOP_TAG, COLD_START_OFF_TAG] },
+  { re: /\baudi\b|アウディ/i, tags: [IDLING_STOP_TAG, COLD_START_OFF_TAG] },
+  { re: /porsche|ポルシェ/i, tags: [IDLING_STOP_TAG, COLD_START_OFF_TAG] },
+  { re: /volkswagen|\bvw\b|フォルクスワーゲン/i, tags: [IDLING_STOP_TAG, COLD_START_OFF_TAG] },
+  /*
+   * 車名がBMWでなくても中身がBMWのエンジンなら同じOPが作れる（2026-08-19 追加）。
+   * A90/A91スープラ＝B58/B48（BMW製）。トヨタ名義なのでメーカー名だけでは拾えないため
+   * **車種名・世代も突き合わせる**（下の buildHaystack）。
+   * 旧型スープラ（A80の2JZ・A70の7M）はBMWではないので not で除外する。
+   */
+  {
+    re: /supra|スープラ/i,
+    not: /\ba(?:70|80)\b|jza|ma70|2jz|1jz|\b7m\b/i,
+    tags: [IDLING_STOP_TAG, COLD_START_OFF_TAG],
+  },
+];
+
+/*
+ * 車両の識別情報。BaseFile / ServiceRecord の行をそのまま渡せる形にしてある
+ * ＝判定に使う項目が増えても呼び出し側を直さなくてよい（メーカー名だけでは
+ * A90スープラのような「他社名義のBMWエンジン」を拾えないため、車種名も見る）。
+ */
+export type VehicleOptionContext = {
+  manufacturer?: string | null;
+  /** 車種名（"スープラ(A90) RZ" のように型式込みでよい） */
+  model?: string | null;
+  /** 世代・型式（model に型式が入っていない登録の取りこぼしを防ぐ） */
+  generation?: string | null;
+  /** "ECU" | "TCU"。TCUはエンジン側OPを一切出さない */
+  unit?: string | null;
+};
+
+/** メーカー名・車種名・世代をひとつなぎにして突き合わせる（表記ゆれを吸収するため） */
+function buildHaystack(v: VehicleOptionContext): string {
+  return [v.manufacturer, v.model, v.generation]
+    .map((x) => (x ?? "").trim())
+    .filter(Boolean)
+    .join(" ");
+}
+
+/** その車で追加で選べるオプション（該当なしは空配列） */
+export function makerOptionTags(v: VehicleOptionContext): string[] {
+  const hay = buildHaystack(v);
+  if (!hay) return [];
+  const out: string[] = [];
+  for (const { re, not, tags } of MAKER_OPTION_TAGS) {
+    if (!re.test(hay)) continue;
+    if (not?.test(hay)) continue;
+    for (const t of tags) if (!out.includes(t)) out.push(t);
+  }
+  return out;
+}
+
+// その燃料・メーカーで選択肢として出すタグ。
 // スピードリミッターカットは全車種で表示し、可否は各Calの limiterCutDisabled で制御する。
-// （manufacturer は将来のメーカー固有OP用に残置）
-export function optionTagsFor(kind: FuelKind, _manufacturer?: string | null): string[] {
+// TCU（ミッション）はエンジン側のオプションが関係しないため**1つも出さない**。
+export function optionTagsFor(kind: FuelKind, vehicle: VehicleOptionContext = {}): string[] {
+  if (unitOf(vehicle.unit) === "TCU") return [];
   // ガソリンは Adblue/DPF/EGR を出さない。ディーゼル/不明は全部出す。
   const base = kind === "gasoline" ? [...BASE_TAGS] : [...BASE_TAGS, ...DIESEL_TAGS];
   // バブリング強はバブリング可の燃料のみ（ディーゼルは不可）
   if (popsAllowed(kind)) base.push(POPS_STRONG_TAG);
   base.push(SPEED_LIMITER_TAG);
+  // メーカー固有（アイドリングストップ解除・コールドスタートオフ等）
+  for (const t of makerOptionTags(vehicle)) if (!base.includes(t)) base.push(t);
   return base;
 }
 
@@ -46,8 +127,9 @@ export function stripPopsStrongIfNoPops(tags: string[], pops: boolean): string[]
   return pops ? tags : tags.filter((t) => t !== POPS_STRONG_TAG);
 }
 
-// バブリング(Pops)を扱えるか（ディーゼルは不可）
-export function popsAllowed(kind: FuelKind): boolean {
+// バブリング(Pops)を扱えるか（ディーゼルは不可。TCUはエンジン側の話なので不可）
+export function popsAllowed(kind: FuelKind, unit?: string | null): boolean {
+  if (unitOf(unit) === "TCU") return false;
   return kind !== "diesel";
 }
 
@@ -60,8 +142,11 @@ export function stageRank(stage: string): number {
 
 // 既定で選べるステージ（カタログに無くても選択/リクエスト可能）。
 // ベンツ(Mercedes/AMG)は Stage1.5 も用意する。
-export function baselineStages(manufacturer?: string | null): string[] {
-  const isMercedes = /mercedes|benz|メルセデス|ベンツ|\bamg\b/i.test(manufacturer ?? "");
+// TCU（ミッション）は段階分けをしないので Stage1 の1本だけ（「チューニングなし」も出さない
+// ＝TCUファイル自体がチューニング内容のため、無しという構成が存在しない）。
+export function baselineStages(vehicle: VehicleOptionContext = {}): string[] {
+  if (unitOf(vehicle.unit) === "TCU") return ["Stage1"];
+  const isMercedes = /mercedes|benz|メルセデス|ベンツ|\bamg\b/i.test(vehicle.manufacturer ?? "");
   return isMercedes ? ["", "Stage1", "Stage1.5", "Stage2"] : ["", "Stage1", "Stage2"];
 }
 

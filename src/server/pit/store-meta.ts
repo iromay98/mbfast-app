@@ -87,6 +87,25 @@ export function shortSlugOf(categorySlug: string): string {
   return categorySlug.replace(/-mbpit$/, "");
 }
 
+/*
+ * PitStore の行 → StoreInfo（同期対象の項目だけを抜き出す）。
+ * **画面・同期エンジンともこれを使う**＝項目を1つ足すたびに各画面の
+ * オブジェクトリテラルを直す必要がなくなる（足し忘れて型が壊れる事故を防ぐ）。
+ */
+export function pickStoreInfo(store: Partial<Record<StoreMetaField, string | null>>): StoreInfo {
+  const out = {} as StoreInfo;
+  for (const { field } of STORE_META_FIELDS) out[field] = store[field] ?? "";
+  return out;
+}
+
+/*
+ * Prisma の select に渡す形（{ area: true, address: true, ... }）。
+ * 明示selectしている画面でも項目追加に自動で追随する。
+ */
+export const STORE_META_SELECT = Object.fromEntries(
+  STORE_META_FIELDS.map(({ field }) => [field, true]),
+) as Record<StoreMetaField, true>;
+
 /** 同期対象フィールドだけを WP meta ペイロードに変換（アプリ専用カラムは構造上含まれない） */
 export function buildMetaPayload(info: StoreInfo): Record<string, string> {
   const out: Record<string, string> = {};

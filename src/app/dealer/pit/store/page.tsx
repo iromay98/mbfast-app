@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { requireDealer } from "@/lib/authz";
 import { prisma } from "@/lib/db";
 import { PageTitle, Card } from "@/components/ui";
+import { STORE_META_SELECT, pickStoreInfo } from "@/server/pit/store-meta";
 import { StoreInfoEditor } from "@/components/store-info-editor";
 import { CertSettingsEditor } from "@/components/cert-settings-editor";
 
@@ -21,16 +22,7 @@ export default async function PitStorePage() {
       displayName: true,
       slug: true,
       active: true,
-      area: true,
-      address: true,
-      hours: true,
-      closedDays: true,
-      tel: true,
-      email: true,
-      website: true,
-      lineUrl: true,
-      serviceTags: true,
-      intro: true,
+      ...STORE_META_SELECT,
       // 証明書の体裁・記載範囲／AI記事の公開前確認（自店のみ編集可）
       facilityType: true,
       certBrandName: true,
@@ -69,18 +61,7 @@ export default async function PitStorePage() {
             displayName: store.displayName,
             slug: store.slug,
             active: store.active,
-            info: {
-              area: store.area,
-              address: store.address,
-              hours: store.hours,
-              closedDays: store.closedDays,
-              tel: store.tel,
-              email: store.email,
-              website: store.website,
-              lineUrl: store.lineUrl,
-              serviceTags: store.serviceTags,
-              intro: store.intro,
-            },
+            info: pickStoreInfo(store),
             contactPerson: "",
             internalNote: "",
           }}

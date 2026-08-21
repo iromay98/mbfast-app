@@ -855,19 +855,23 @@ export async function registerVariationFromDelivery(opts: {
     where: { id: opts.recordId },
     select: {
       matchedBaseFileId: true,
-      matchedBaseFile: { select: { fuel: true, manufacturer: true } },
+      // model/generation も引く: BMWエンジンの他社車（A90スープラ等）は
+      // メーカー名だけでは判定できず、許可タグが画面と食い違うため
+      matchedBaseFile: { select: { fuel: true, manufacturer: true, model: true, generation: true, unit: true } },
     },
   });
   if (!record?.matchedBaseFileId) {
     return { skipped: "施工記録がストックに紐づいていないため自動登録できません" };
   }
   const fuelKind = fuelKindOf(record.matchedBaseFile?.fuel);
-  const allowed = new Set(optionTagsFor(fuelKind, record.matchedBaseFile?.manufacturer));
+  // TCU（ミッション）はエンジン側OP・バブリングを扱わない＝許可タグは空になる
+  const unit = record.matchedBaseFile?.unit;
+  const allowed = new Set(optionTagsFor(fuelKind, record.matchedBaseFile ?? {}));
   const unknown = sel.optionTags.filter((t) => !allowed.has(t));
   if (unknown.length > 0) {
     return { skipped: `不明なオプション（${unknown.join("・")}）のため自動登録をスキップしました` };
   }
-  const pops = popsAllowed(fuelKind) && sel.pops;
+  const pops = popsAllowed(fuelKind, unit) && sel.pops;
   const popsSport = pops && sel.popsSport;
   // バブリング強はバブリング選択時のみ有効
   const optionTags = stripPopsStrongIfNoPops([...new Set(sel.optionTags)], pops).sort();
@@ -946,7 +950,7 @@ export async function uploadVariation(
       id: true,
       matchedBaseFileId: true,
       dealerId: true,
-      matchedBaseFile: { select: { fuel: true, manufacturer: true } },
+      matchedBaseFile: { select: { fuel: true, manufacturer: true, model: true, generation: true, unit: true } },
     },
   });
   if (!record) return { error: "施工記録が見つかりません" };
@@ -976,7 +980,7 @@ export async function uploadVariation(
     /* 無視 */
   }
   const norm = normalizeSelectedTags(rawTags, {
-    allowed: optionTagsFor(fuelKind, record.matchedBaseFile?.manufacturer),
+    allowed: optionTagsFor(fuelKind, record.matchedBaseFile ?? {}),
     pops,
     popsStrongTag: POPS_STRONG_TAG,
   });
@@ -1405,6 +1409,8 @@ export async function analyzeStockBin(formData: FormData): Promise<{
     manufacturer: string;
     model: string;
     fuel: string | null;
+    /** 対象ユニット "ECU"|"TCU"。TCUはバブリング・エンジン側OPを出さない */
+    unit: string;
     cal: string | null;
     sw: string | null;
     // 登録済みバリエーション（テーブル表示用の全項目）
@@ -1442,6 +1448,7 @@ export async function analyzeStockBin(formData: FormData): Promise<{
       manufacturer: true,
       model: true,
       fuel: true,
+      unit: true,
       calNumber: true,
       swNumber: true,
     },
@@ -1453,6 +1460,7 @@ export async function analyzeStockBin(formData: FormData): Promise<{
       manufacturer: dup.manufacturer,
       model: dup.model,
       fuel: dup.fuel,
+      unit: dup.unit,
       cal: dup.calNumber,
       sw: dup.swNumber,
       variants: await stockVariantRows(dup.id),

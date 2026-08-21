@@ -91,7 +91,7 @@ for (const v of desync) {
 // C) その純正の選択肢に無いOPを持つ行
 const extra = variants
   .map((v) => {
-    const allowed = new Set(optionTagsFor(fuelKindOf(v.baseFile.fuel), v.baseFile.manufacturer));
+    const allowed = new Set(optionTagsFor(fuelKindOf(v.baseFile.fuel), v.baseFile));
     return { v, tags: (v.optionTags ?? []).filter((t) => !allowed.has(t)) };
   })
   .filter((x) => x.tags.length > 0);

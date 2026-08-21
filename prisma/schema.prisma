@@ -751,6 +751,8 @@ model VehiclePage {
   status       String       @default("hold") // hold(生成しない) | draft(WP下書き) | publish
   options      Json         @default("{}") // { coldStartOff: true, ... } 対応オプションの○×
   relatedPosts Json         @default("[]") // [{ id, title, url }] 同型式の施工実績記事
+  methods      Json         @default("{}") // 提供方式 { inPerson, atOne, ixi, mailIn } の可否
+  optionPrices Json         @default("{}") // 車両ごとのオプション料金の上書き { coldStartOff: 22000 }
   enPriceMode  String       @default("quote") // quote(価格非表示・見積CTA) | price(EN価格を表示)
   wpPageIdJp   Int? // 生成先WPページID（push時に書き戻す）
   wpPageIdEn   Int?
@@ -1205,6 +1207,7 @@ model VehiclePageOption {
   labelJa      String
   labelEn      String
   shortLabel   String? // 価格表グリッドの列見出し（短縮）
+  priceJpy     Int? // 既定のオプション料金（円）。derivedFrom がある場合は価格表の列を優先
   derivedFrom  String? // 価格列key（値があれば〇と自動判定。手動設定が優先）
   displayOrder Int      @default(0)
   enabled      Boolean  @default(true)
@@ -1212,4 +1215,22 @@ model VehiclePageOption {
   updatedAt    DateTime @updatedAt
 
   @@index([displayOrder])
+}
+
+// 購入導線の全体設定（1行のみ。id="default"）。送料・端末価格を本部が管理画面から編集する。
+model ShopSetting {
+  id                  String   @id @default("default")
+  // 送料（円）。国内は一律、海外は地域別
+  shippingDomesticJpy Int      @default(0)
+  shippingOverseasJpy Json     @default("{}") // { asia: 0, northAmerica: 0, europe: 0, oceania: 0, other: 0 }
+  // 端末価格（買い切り・円）
+  deviceAtOneJpy      Int?
+  deviceIxiJpy        Int?
+  // ECU郵送時に一律で加算する基本工賃（円）。車種固有の殻割り工賃は PriceVehicle.labor を使う
+  mailInBaseFeeJpy    Int?
+  // 海外向け表示に使う為替（1USD=◯円）。未設定なら円のみ表示
+  usdRate             Int?
+  notesJa             String? // 各方式に共通で出す注意書き
+  notesEn             String?
+  updatedAt           DateTime @updatedAt
 }

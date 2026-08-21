@@ -15,6 +15,7 @@ import { prisma } from "@/lib/db";
 import {
   STORE_META_FIELDS,
   buildMetaPayload,
+  pickStoreInfo,
   type StoreInfo,
   type StoreMetaField,
 } from "./store-meta";
@@ -42,12 +43,6 @@ export type StoreSyncResult = {
   payload: Record<string, string>;
   error?: string;
 };
-
-function pickInfo(store: Record<StoreMetaField, string>): StoreInfo {
-  const out = {} as StoreInfo;
-  for (const { field } of STORE_META_FIELDS) out[field] = store[field] ?? "";
-  return out;
-}
 
 function diffAgainstWp(wpMeta: Record<string, unknown>, payload: Record<string, string>): StoreDiff[] {
   const diffs: StoreDiff[] = [];
@@ -82,7 +77,7 @@ export async function syncStoreInfo(
     return { status: "blocked", payloadHash: "", ...empty, error: "停止中の店舗は同期しません（有効化すると同期できます）" };
   }
 
-  const info = opts.candidate ?? pickInfo(store);
+  const info = opts.candidate ?? pickStoreInfo(store);
   const payload = buildMetaPayload(info);
   const payloadHash = storeMetaHash(info);
 

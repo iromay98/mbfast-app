@@ -394,3 +394,85 @@ export async function publishWpSync(brandId: string, force = false): Promise<{ o
   revalidatePath("/hq/vehicle-pages");
   return { ok: true, result, vpagesSynced };
 }
+
+/**
+ * 複数セルの一括更新（Excelからの貼り付け・下方向コピー用）。
+ * 1回の呼び出しで扱う上限を設けて、事故と長時間ロックを防ぐ。
+ * 値の正規化（¥やカンマ除去、ASK判定）は updateVehicleCell と同じ規則を使う。
+ */
+export async function bulkUpdateCells(
+  updates: { vehicleId: string; field?: string; priceKey?: string; value: string }[],
+): Promise<{ ok?: true; updated?: number; error?: string }> {
+  await requireHQ();
+  if (updates.length === 0) return { ok: true, updated: 0 };
+  if (updates.length > 800) return { error: "一度に更新できるのは800セルまでです" };
+
+  const TEXT_FIELDS = new Set([
+    "carName",
+    "grade",
+    "engine",
+    "engineFamily",
+    "ecuType",
+    "stockOutput",
+    "stage1Gain",
+    "labor",
+    "shops",
+    "notes",
+    "seriesGroup",
+  ]);
+
+  // 車両ごとにまとめて1回のUPDATEにする（価格は同じ行で複数列が来るため）
+  const byVehicle = new Map<string, { vehicleId: string; fields: Record<string, string>; prices: Record<string, string> }>();
+  for (const u of updates) {
+    const cur = byVehicle.get(u.vehicleId) ?? { vehicleId: u.vehicleId, fields: {}, prices: {} };
+    if (u.field && TEXT_FIELDS.has(u.field)) cur.fields[u.field] = u.value;
+    else if (u.priceKey) cur.prices[u.priceKey] = u.value;
+    byVehicle.set(u.vehicleId, cur);
+  }
+
+  const ids = [...byVehicle.keys()];
+  const rows = await prisma.priceVehicle.findMany({ where: { id: { in: ids } }, select: { id: true, prices: true, brandId: true } });
+  const rowById = new Map(rows.map((r) => [r.id, r]));
+
+  let updated = 0;
+  const brandIds = new Set<string>();
+  for (const item of byVehicle.values()) {
+    const row = rowById.get(item.vehicleId);
+    if (!row) continue;
+    const data: Record<string, unknown> = {};
+
+    for (const [field, rawValue] of Object.entries(item.fields)) {
+      const val = rawValue.trim();
+      if (field === "carName" || field === "seriesGroup") {
+        if (!val) continue; // 必須項目は空にしない（その1セルだけ無視）
+        data[field] = val;
+      } else if (field === "engine") {
+        data.engine = val;
+      } else {
+        data[field] = val || null;
+      }
+    }
+
+    if (Object.keys(item.prices).length > 0) {
+      const prices = { ...((row.prices ?? {}) as PriceMap) };
+      for (const [key, rawValue] of Object.entries(item.prices)) {
+        const raw = rawValue.trim();
+        if (!raw) delete prices[key];
+        else if (/^ASK$/i.test(raw)) prices[key] = "ASK";
+        else {
+          const cleaned = raw.replace(/^'/, "").replace(/[¥￥,\s]/g, "");
+          prices[key] = /^\d+$/.test(cleaned) ? cleaned : raw.replace(/^'/, "");
+        }
+      }
+      data.prices = prices;
+    }
+
+    if (Object.keys(data).length === 0) continue;
+    await prisma.priceVehicle.update({ where: { id: item.vehicleId }, data });
+    brandIds.add(row.brandId);
+    updated++;
+  }
+
+  revalidatePath(PRICES_PATH);
+  return { ok: true, updated };
+}

@@ -11,6 +11,7 @@ import {
   type VehicleRow,
 } from "@/lib/prices/types";
 import { PriceBoard } from "./price-board";
+import { overseasShipping } from "@/lib/vehicle-pages/delivery";
 import { toOptions as toVpageOptions } from "@/lib/vehicle-pages/options";
 import { loadOptionDefs } from "@/lib/vehicle-pages/options-db";
 import type { VpageInfo } from "./vpage-cells";
@@ -31,6 +32,15 @@ export default async function HqPricesPage() {
   );
 
   const optionDefs = await loadOptionDefs();
+  const settingRow = await prisma.shopSetting.findUnique({ where: { id: "default" } });
+  const shopSetting = {
+    shippingDomesticJpy: settingRow?.shippingDomesticJpy ?? 0,
+    shippingOverseasJpy: overseasShipping(settingRow?.shippingOverseasJpy),
+    deviceAtOneJpy: settingRow?.deviceAtOneJpy ?? null,
+    deviceIxiJpy: settingRow?.deviceIxiJpy ?? null,
+    mailInBaseFeeJpy: settingRow?.mailInBaseFeeJpy ?? null,
+    usdRate: settingRow?.usdRate ?? null,
+  };
   const optionRows = (
     await prisma.vehiclePageOption.findMany({ orderBy: { displayOrder: "asc" } })
   ).map((o) => ({
@@ -41,6 +51,7 @@ export default async function HqPricesPage() {
     short: o.shortLabel ?? undefined,
     derivedFrom: o.derivedFrom ?? undefined,
     enabled: o.enabled,
+    priceJpy: o.priceJpy ?? null,
   }));
   const data = brands.map((b) => {
     const brand: BrandRow = {
@@ -93,7 +104,7 @@ export default async function HqPricesPage() {
           <p className="text-sm text-ink-soft">価格表データがまだありません。</p>
         </Card>
       ) : (
-        <PriceBoard data={data} optionDefs={optionDefs} optionRows={optionRows} />
+        <PriceBoard data={data} optionDefs={optionDefs} optionRows={optionRows} shopSetting={shopSetting} />
       )}
     </div>
   );

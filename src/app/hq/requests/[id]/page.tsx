@@ -6,6 +6,13 @@ import { PageTitle, Card, LinkButton } from "@/components/ui";
 import { RequestInfo } from "@/components/request-info";
 import { RequestTimeline } from "@/components/request-timeline";
 import { updateRequestByHQ } from "@/lib/actions/requests";
+import {
+  fuelKindOf,
+  optionTagsFor,
+  popsAllowed,
+  baselineStages,
+  stageRank,
+} from "@/lib/catalog/options";
 import { HQRequestForm } from "./hq-request-form";
 import { PriorityToggle } from "@/components/priority-toggle";
 
@@ -48,6 +55,46 @@ export default async function HQRequestDetailPage({
     label: `${formatDate(r.workedAt)} ${r.carMaker ?? ""} ${r.carModel ?? ""}${r.workType ? `（${workTypeLabels[r.workType]}）` : ""}`,
   }));
 
+  /*
+   * 「リクエストと異なる仕様」で納品するときに、内容を手打ちせず選べるようにするための選択肢。
+   * 紐づいた施工記録の純正(BaseFile)から、代理店のコンフィギュレータと**同じ規則**で作る
+   * （燃料・メーカー・ユニットで出し分け＝選べるのに登録できない組み合わせを作らない）。
+   * 記録が未紐付けのときは選択肢を出さない（そもそも自動登録できないため備考のみ）。
+   */
+  let deliverChoices: {
+    stages: { value: string; label: string }[];
+    showPops: boolean;
+    optionTags: string[];
+  } | null = null;
+  if (request.serviceRecordId) {
+    const rec = await prisma.serviceRecord.findUnique({
+      where: { id: request.serviceRecordId },
+      select: {
+        matchedBaseFile: {
+          select: {
+            fuel: true,
+            manufacturer: true,
+            unit: true,
+            variants: { where: { status: { not: "DISABLED" } }, select: { stage: true } },
+          },
+        },
+      },
+    });
+    const base = rec?.matchedBaseFile;
+    if (base) {
+      const fuelKind = fuelKindOf(base.fuel);
+      const stageSet = new Set<string>(baselineStages(base));
+      for (const v of base.variants) stageSet.add((v.stage ?? "").trim());
+      deliverChoices = {
+        stages: [...stageSet]
+          .sort((a, b) => stageRank(a) - stageRank(b) || a.localeCompare(b))
+          .map((s) => ({ value: s, label: s || "チューニングなし" })),
+        showPops: popsAllowed(fuelKind, base.unit),
+        optionTags: optionTagsFor(fuelKind, base),
+      };
+    }
+  }
+
   const action = updateRequestByHQ.bind(null, request.id);
 
   return (
@@ -89,6 +136,7 @@ export default async function HQRequestDetailPage({
         recordOptions={recordOptions}
         hasResultFile={!!request.resultFilePath}
         requestedLabel={request.requestNote?.match(/「(.+?)」/)?.[1] ?? null}
+        deliverChoices={deliverChoices}
       />
 
       <Card>

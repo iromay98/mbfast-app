@@ -197,7 +197,7 @@ export async function createOptionDef(input: {
 
 export async function updateOptionDef(
   id: string,
-  input: { labelJa?: string; labelEn?: string; shortLabel?: string | null; derivedFrom?: string | null; enabled?: boolean; displayOrder?: number },
+  input: { labelJa?: string; labelEn?: string; shortLabel?: string | null; derivedFrom?: string | null; enabled?: boolean; displayOrder?: number; priceJpy?: number | null },
 ): Promise<{ ok?: true; error?: string }> {
   await requireHQ();
   await prisma.vehiclePageOption.update({ where: { id }, data: input });
@@ -273,3 +273,76 @@ export async function clearAutoFilledOptions(brandId: string): Promise<{ ok?: tr
   revalidatePath(PATH);
   return { ok: true, cleared };
 }
+
+/* ── 購入導線の設定（送料・端末価格）と、車両ごとの提供方式 ── */
+
+export async function updateShopSetting(input: {
+  shippingDomesticJpy?: number;
+  shippingOverseasJpy?: Record<string, number>;
+  deviceAtOneJpy?: number | null;
+  deviceIxiJpy?: number | null;
+  mailInBaseFeeJpy?: number | null;
+  usdRate?: number | null;
+  notesJa?: string | null;
+  notesEn?: string | null;
+}): Promise<{ ok?: true; error?: string }> {
+  await requireHQ();
+  await prisma.shopSetting.upsert({
+    where: { id: "default" },
+    create: { id: "default", ...input },
+    update: input,
+  });
+  revalidatePath("/hq/prices");
+  revalidatePath(PATH);
+  return { ok: true };
+}
+
+/** 車両ごとの提供方式（対面/AT One/IXI/ECU郵送）の切替。行が無ければ保留で作る */
+export async function setVpageMethodByVehicle(
+  vehicleId: string,
+  key: string,
+  value: boolean | null,
+): Promise<{ ok?: true; error?: string }> {
+  await requireHQ();
+  const { DELIVERY_DEFS, toMethods } = await import("@/lib/vehicle-pages/delivery");
+  if (!DELIVERY_DEFS.some((d) => d.key === key)) return { error: "不正な方式キー" };
+  const row = await ensureVehiclePageRow(vehicleId);
+  const methods: Record<string, boolean> = { ...toMethods(row.methods) };
+  if (value === null) delete methods[key];
+  else methods[key] = value;
+  await prisma.vehiclePage.update({ where: { id: row.id }, data: { methods } });
+  return { ok: true };
+}
+
+/** 全車両に対して、対面を一括で「可」にする（初期セットアップ用） */
+export async function enableInPersonForAll(brandId: string): Promise<{ ok?: true; updated?: number; error?: string }> {
+  await requireHQ();
+  const { toMethods } = await import("@/lib/vehicle-pages/delivery");
+  const pages = await prisma.vehiclePage.findMany({ where: { vehicle: { brandId } }, select: { id: true, methods: true } });
+  let updated = 0;
+  for (const p of pages) {
+    const m = toMethods(p.methods);
+    if (m.inPerson === true) continue;
+    await prisma.vehiclePage.update({ where: { id: p.id }, data: { methods: { ...m, inPerson: true } } });
+    updated++;
+  }
+  revalidatePath("/hq/prices");
+  return { ok: true, updated };
+}
+
+
+/** 車両ごとのオプション料金の上書き（空・0でクリア） */
+export async function setVpageOptionPrice(vehicleId: string, key: string, jpy: number | null): Promise<{ ok?: true; error?: string }> {
+  await requireHQ();
+  const { toOptionPrices } = await import("@/lib/vehicle-pages/delivery");
+  const row = await ensureVehiclePageRow(vehicleId);
+  const prices = { ...toOptionPrices(row.optionPrices) };
+  if (jpy === null || !Number.isFinite(jpy) || jpy <= 0) delete prices[key];
+  else prices[key] = Math.round(jpy);
+  await prisma.vehiclePage.update({ where: { id: row.id }, data: { optionPrices: prices } });
+  revalidatePath("/hq/prices");
+  revalidatePath(PATH);
+  return { ok: true };
+}
+
+

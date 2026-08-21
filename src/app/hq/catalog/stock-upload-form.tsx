@@ -76,6 +76,8 @@ export function StockUploadForm({
     manufacturer: string;
     model: string;
     fuelKind: FuelKind;
+    /** 対象ユニット。TCUはバブリング・エンジン側OPを出さず Stage1 のみ */
+    unit: string;
     cal: string;
     sw: string;
   } | null>(null);
@@ -138,6 +140,7 @@ export function StockUploadForm({
           manufacturer: r.existing.manufacturer,
           model: r.existing.model,
           fuelKind: fuelKindOf(r.existing.fuel),
+          unit: r.existing.unit,
           cal: r.existing.cal ?? "",
           sw: r.existing.sw ?? "",
         });
@@ -233,6 +236,7 @@ export function StockUploadForm({
       manufacturer: f.manufacturer.trim(),
       model: f.model.trim(),
       fuelKind: fuelKindOf(analyzed?.fuel ?? null),
+      unit: f.unit === "TCU" ? "TCU" : "ECU",
       cal: f.cal.trim() || analyzed?.cal || "",
       sw: f.sw.trim() || analyzed?.sw || "",
     };
@@ -251,6 +255,7 @@ export function StockUploadForm({
               manufacturer?: string;
               model?: string;
               fuel?: string | null;
+              unit?: string;
               cal?: string | null;
               sw?: string | null;
               variants?: StockVariantRow[];
@@ -269,6 +274,7 @@ export function StockUploadForm({
                 manufacturer: data.manufacturer ?? ctx.manufacturer,
                 model: data.model ?? ctx.model,
                 fuelKind: fuelKindOf(data.fuel ?? null),
+                unit: data.unit ?? ctx.unit,
                 cal: data.cal ?? "",
                 sw: data.sw ?? "",
               }
@@ -630,8 +636,8 @@ export function StockUploadForm({
           {/* 登録済みバリエーション（テーブル：オプション列＋状態＋差し替え/削除＋DL） */}
           <RegisteredVariants
             variants={created.variants ?? []}
-            optionCols={optionTagsFor(created.fuelKind, created.manufacturer)}
-            showPops={popsAllowed(created.fuelKind)}
+            optionCols={optionTagsFor(created.fuelKind, created)}
+            showPops={popsAllowed(created.fuelKind, created.unit)}
             busy={submitting}
             canSlave={created.canSlave ?? false}
             onReplace={replaceVariant}
@@ -640,7 +646,9 @@ export function StockUploadForm({
 
           <ModUploadForm
             manufacturer={created.manufacturer}
+            model={created.model}
             fuelKind={created.fuelKind}
+            unit={created.unit}
             baseCal={created.cal}
             baseSw={created.sw}
             registered={created.variants ?? []}

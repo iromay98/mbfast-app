@@ -22,6 +22,7 @@ on:
           - system # VPSのメモリ・スワップ・ディスク・コンテナ使用量（読み取りのみ）
           - review # 公開前確認(review)で止まっている投稿の診断（読み取りのみ）
           - brands # 価格表ブランドの表示名・SEO説明の取り違え確認（読み取りのみ）
+          - autotuner # AutoTuner API（.slave/.bak 変換）の直近の成否とエラー本文（読み取りのみ）
         default: taxonomy
 
 concurrency:
@@ -165,6 +166,24 @@ jobs:
               echo "-- 導入文が複数ブランドで重複しているもの --"
               $COMPOSE exec -T postgres psql -U mbfast -d mbfast -c \
                 "SELECT left(intro,70) AS intro, count(*) AS 件数, string_agg(id, ', ' ORDER BY id) AS brands FROM \"PriceBrand\" WHERE coalesce(intro,'') <> '' GROUP BY intro HAVING count(*) > 1;" </dev/null
+              ;;
+            autotuner)
+              # 案件チャットの「.slave/.bak に変換して送信」が失敗したときの切り分け。
+              # AutotunerApiLog に mode（encrypt-maps / encrypt-backup 等）とHTTPステータス、
+              # エラー本文が残る。ここに行が無い＝AutoTunerへ届く前（アップロード段階）で落ちている。
+              echo "-- 直近のAutoTuner API呼び出し（成否とエラー本文） --"
+              $COMPOSE exec -T postgres psql -U mbfast -d mbfast -c \
+                "SELECT to_char(\"createdAt\" AT TIME ZONE 'Asia/Tokyo','MM-DD HH24:MI') AS jst, mode, \"httpStatus\" AS http, success, left(coalesce(error,''),300) AS error FROM \"AutotunerApiLog\" ORDER BY \"createdAt\" DESC LIMIT 20;" </dev/null
+              echo ""
+              echo "-- 直近24時間の失敗をmode別に集計 --"
+              $COMPOSE exec -T postgres psql -U mbfast -d mbfast -c \
+                "SELECT mode, \"httpStatus\" AS http, count(*) AS 件数, max(left(coalesce(error,''),200)) AS 例 FROM \"AutotunerApiLog\" WHERE success = false AND \"createdAt\" > now() - interval '24 hours' GROUP BY mode, \"httpStatus\" ORDER BY 件数 DESC;" </dev/null
+              echo ""
+              echo "-- アプリログ（アップロード・変換まわりのエラー行のみ） --"
+              docker logs --since 6h mbfast-app-app-1 2>&1 | grep -iE "暗号化|autotuner|zip|Server Action|413|body exceeded|PayloadTooLarge|ECONNRESET|abort" | tail -40 || echo "（該当ログなし）"
+              echo ""
+              echo "-- Caddyログ（4xx/5xx・直近6時間） --"
+              docker logs --since 6h mbfast-app-caddy-1 2>&1 | grep -E '"status":(4|5)[0-9][0-9]' | tail -20 || echo "（該当ログなし）"
               ;;
             system)
               # VPSのリソース状況（アップロード上限の判断材料などに使う。読み取りのみ）

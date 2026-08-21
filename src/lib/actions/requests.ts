@@ -18,10 +18,12 @@ import { sendPushToUsers, recipientUserIds } from "@/server/push";
 import { requestStatusLabels } from "@/lib/labels";
 import {
   type FuelKind,
+  type VehicleOptionContext,
   fuelKindOf,
   optionTagsFor,
   popsAllowed,
   tuningContentLabel,
+  stripPopsStrongIfNoPops,
   SPEED_LIMITER_TAG,
   POPS_STRONG_TAG,
   paidTags,
@@ -109,6 +111,7 @@ async function loadMatchContext(recordId: string, dealerId: string) {
     select: {
       dealerId: true,
       matchedBaseFileId: true,
+      unit: true,
       carMaker: true,
       carModel: true,
       vin: true,
@@ -118,7 +121,16 @@ async function loadMatchContext(recordId: string, dealerId: string) {
       autotunerMcuId: true,
       dealer: { select: { fileFormat: true } },
       matchedBaseFile: {
-        select: { fuel: true, manufacturer: true, limiterCutDisabled: true },
+        // model/generation も引く: BMWエンジンの他社車（A90スープラ等）は
+        // メーカー名だけでは判定できないため（許可タグが画面と食い違う）
+        select: {
+          fuel: true,
+          manufacturer: true,
+          model: true,
+          generation: true,
+          limiterCutDisabled: true,
+          unit: true,
+        },
       },
     },
   });
@@ -128,7 +140,12 @@ async function loadMatchContext(recordId: string, dealerId: string) {
     return { ok: false as const, error: "照合が成立していません" };
   const fuelKind = fuelKindOf(record.matchedBaseFile?.fuel);
   const manufacturer = record.matchedBaseFile?.manufacturer ?? record.carMaker ?? null;
+  // 車種名は純正(BaseFile)を優先し、無ければ記録の車種を使う（照合前でも判定できるように）
+  const model = record.matchedBaseFile?.model ?? record.carModel ?? null;
+  const generation = record.matchedBaseFile?.generation ?? null;
   const limiterCutDisabled = !!record.matchedBaseFile?.limiterCutDisabled;
+  // 対象ユニット（TCUはバブリング・エンジン側OPを一切扱わない）。純正(BaseFile)の値が原本
+  const unit = record.matchedBaseFile?.unit ?? record.unit ?? "ECU";
   // Master File 形式は再暗号化が不要（生binをそのまま配信）なので、
   // AutoTunerの車固有IDが無くても配布可能。スレーブ形式は従来どおりID必須。
   const canDeliver =
@@ -142,6 +159,9 @@ async function loadMatchContext(recordId: string, dealerId: string) {
     record,
     fuelKind,
     manufacturer,
+    model,
+    generation,
+    unit,
     limiterCutDisabled,
     canDeliver,
     baseFileId: record.matchedBaseFileId,
@@ -152,10 +172,10 @@ async function loadMatchContext(recordId: string, dealerId: string) {
 function normalizeSelection(
   sel: TuningSelection,
   fuelKind: FuelKind,
-  manufacturer?: string | null,
+  vehicle: VehicleOptionContext,
 ): Required<TuningSelection> {
-  const allowed = new Set(optionTagsFor(fuelKind, manufacturer));
-  const pops = popsAllowed(fuelKind) ? !!sel.pops : false;
+  const allowed = new Set(optionTagsFor(fuelKind, vehicle));
+  const pops = popsAllowed(fuelKind, vehicle.unit) ? !!sel.pops : false;
   const optionTags = [...new Set(sel.optionTags)]
     .filter((t) => allowed.has(t))
     // バブリング強はバブリング選択時のみ意味を持つ
@@ -196,7 +216,7 @@ export async function resolveTuning(
   const ctx = await loadMatchContext(recordId, user.dealerId);
   if (!ctx.ok) return { error: ctx.error };
 
-  const sel = normalizeSelection(selection, ctx.fuelKind, ctx.manufacturer);
+  const sel = normalizeSelection(selection, ctx.fuelKind, ctx);
 
   // 配布可(AVAILABLE)＋実体ありの中から探す
   // 順序を固定する（orderBy 無しの findMany は順序が保証されず、同構成の重複があると
@@ -369,7 +389,7 @@ export async function requestTuning(
   const ctx = await loadMatchContext(recordId, user.dealerId);
   if (!ctx.ok) return { error: ctx.error };
 
-  const sel = normalizeSelection(selection, ctx.fuelKind, ctx.manufacturer);
+  const sel = normalizeSelection(selection, ctx.fuelKind, ctx);
   // 有料OP（バブリングとバブリング強は無料枠）が含まれる場合のみ同意必須。
   if (paidTags(sel.optionTags).length > 0 && !agreed) {
     return { error: "有料オプションの同意が必要です" };
@@ -542,15 +562,53 @@ export async function updateRequestByHQ(
     uploaded = { key: res.key, sha256: res.sha256, filename: res.filename, size: res.size, contentType: res.contentType ?? null };
   }
 
-  // 納品内容: as_requested=リクエスト通り（バリエーションへ自動登録） / different=異なる仕様（自動登録しない）
+  /*
+   * 納品内容:
+   *   as_requested = リクエスト通り（依頼文の「…」の内容でバリエーションへ自動登録）
+   *   different    = 異なる仕様。本店が実際に渡した内容を画面で選べる（手打ちをやめた）。
+   *                  registerVariant がONならその内容でバリエーションに登録する
+   *                  （＝次に同じ構成を頼まれたとき代理店がそのままDLできる）。
+   */
   const specMatch = formData.get("specMatch") === "different" ? "different" : "as_requested";
   const specNote = String(formData.get("specNote") ?? "").trim();
 
+  // 異なる仕様のときの選択内容（画面から来なければ null＝従来どおり備考のみ）
+  const deliveredStageRaw = formData.get("deliveredStage");
+  let delivered: { stage: string; pops: boolean; popsSport: boolean; optionTags: string[] } | null = null;
+  if (specMatch === "different" && typeof deliveredStageRaw === "string") {
+    let tags: string[] = [];
+    try {
+      const arr = JSON.parse(String(formData.get("deliveredTags") ?? "[]"));
+      if (Array.isArray(arr)) tags = arr.map((x) => String(x));
+    } catch {
+      /* 壊れていたらタグ無しとして扱う（納品自体は止めない） */
+    }
+    const pops = formData.get("deliveredPops") === "1";
+    delivered = {
+      stage: deliveredStageRaw.trim(),
+      pops,
+      popsSport: pops && formData.get("deliveredPopsSport") === "1",
+      // バブリング強はバブリング選択時のみ（UI・サーバーで同じ正規化を通す）
+      optionTags: stripPopsStrongIfNoPops([...new Set(tags)], pops),
+    };
+  }
+  const registerVariant = formData.get("registerVariant") === "on";
+  // 実際に納品した内容のラベル（本店コメントにも残して代理店に伝える）
+  const deliveredLabel = delivered
+    ? tuningContentLabel(delivered.stage, delivered.pops, delivered.optionTags, delivered.popsSport)
+    : null;
+
   const { status, hqNote: hqNoteRaw, serviceRecordId } = parsed.data;
-  // 異なる仕様の備考は本店コメントに追記して残す（代理店にも伝わる）
+  // 異なる仕様のときは「実際の納品内容」と備考を本店コメントに追記して残す（代理店にも伝わる）
   const hqNote =
-    specMatch === "different" && specNote
-      ? [hqNoteRaw, `【仕様メモ】${specNote}`].filter(Boolean).join("\n")
+    specMatch === "different"
+      ? [
+          hqNoteRaw,
+          deliveredLabel ? `【納品内容】${deliveredLabel}` : "",
+          specNote ? `【仕様メモ】${specNote}` : "",
+        ]
+          .filter(Boolean)
+          .join("\n")
       : hqNoteRaw;
 
   await prisma.fileRequest.update({
@@ -567,11 +625,20 @@ export async function updateRequestByHQ(
     },
   });
 
-  // 納品＝リクエスト通りなら、バリエーションへ自動登録（再アップの手間を無くす）
+  /*
+   * 納品時のバリエーション自動登録（再アップの手間を無くす）。
+   *   リクエスト通り → 依頼文の「…」の内容で登録
+   *   異なる仕様    → 本店が選んだ内容で登録（registerVariant がONのときだけ）
+   * どちらも登録先の判定・許可OPの正規化は registerVariationFromDelivery に任せる。
+   */
   let autoMessage: string | null = null;
-  if (status === "DELIVERED" && specMatch === "as_requested") {
+  const wantRegister =
+    status === "DELIVERED" &&
+    (specMatch === "as_requested" || (!!deliveredLabel && registerVariant));
+  if (wantRegister) {
     const recId = serviceRecordId || current.serviceRecordId;
-    const label = current.requestNote?.match(/「(.+?)」/)?.[1];
+    const label =
+      specMatch === "different" ? deliveredLabel : current.requestNote?.match(/「(.+?)」/)?.[1];
     if (!recId) {
       autoMessage = "自動登録スキップ: 施工記録が紐づいていません";
     } else if (!label) {
