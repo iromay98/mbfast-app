@@ -11,6 +11,7 @@ import {
   approvePitStore,
   suspendPitStore,
   resendStoreWelcomeEmail,
+  togglePitReview,
   ingestPitStoreInfo,
   roundtripCheck,
   type IngestRow,
@@ -519,6 +520,36 @@ function StoreMaster({ stores, dealers }: { stores: StoreRow[]; dealers: DealerO
                     停止
                   </button>
                 )}
+                {/* 公開前の本部確認。onにすると全投稿が確認待ちで止まるので、状態が見えるようにする */}
+                <button
+                  type="button"
+                  disabled={pending}
+                  onClick={() => {
+                    const next = !s.postReviewRequired;
+                    if (
+                      next &&
+                      !window.confirm(
+                        `「${s.displayName}」の投稿を公開前確認にしますか？\nこれ以降の投稿は本部が承認するまで公開されません。`,
+                      )
+                    )
+                      return;
+                    start(async () => {
+                      const r = await togglePitReview(s.id, next);
+                      setMsg(
+                        r.error ??
+                          (next
+                            ? `${s.displayName}: 以後の投稿は公開前確認になります`
+                            : `${s.displayName}: 投稿はそのまま公開されます`),
+                      );
+                      router.refresh();
+                    });
+                  }}
+                  className={`ml-2 hover:underline disabled:opacity-50 ${
+                    s.postReviewRequired ? "font-bold text-amber-700" : "text-ink-soft"
+                  }`}
+                >
+                  {s.postReviewRequired ? "公開前確認: ON" : "公開前確認: OFF"}
+                </button>
                 {/* 登録完了メールの再送。SMTP未設定時に登録した店舗は1通も受け取れていない */}
                 <button
                   type="button"

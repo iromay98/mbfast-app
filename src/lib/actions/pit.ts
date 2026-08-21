@@ -252,6 +252,25 @@ export async function suspendPitStore(storeId: string): Promise<{ ok?: true; err
   return { ok: true };
 }
 
+/*
+ * 公開前の本部確認の要否を切り替える（本部のみ）。
+ *
+ * これまでDBに設定はあるのに画面から変える手段が無く、一度onにすると
+ * 全投稿が確認待ちで止まり続けた。運用の詰まりになるので画面から戻せるようにする。
+ * 既定はoff（投稿したらそのまま公開）。荒れた店だけonにする使い方を想定。
+ */
+export async function togglePitReview(
+  storeId: string,
+  required: boolean,
+): Promise<{ ok?: true; error?: string; required?: boolean }> {
+  await requireHQ();
+  const store = await prisma.pitStore.findUnique({ where: { id: storeId }, select: { id: true } });
+  if (!store) return { error: "店舗が見つかりません" };
+  await prisma.pitStore.update({ where: { id: storeId }, data: { postReviewRequired: required } });
+  revalidatePath(PIT_PATH);
+  return { ok: true, required };
+}
+
 // 加盟店の自己登録（公開ページ・ログイン不要）。誰でも登録でき、その場で自動承認される。
 // 不適切な店舗は本部が suspendPitStore でワンタップ停止する運用（マチアプ方式）。
 // 作成される Dealer は pitOnly=true — ブログ投稿以外の画面（ECU系）は一切見せない。
