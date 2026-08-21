@@ -3,6 +3,7 @@
 
 import { prisma } from "@/lib/db";
 import { storage } from "@/server/storage";
+import { postRecordToMap } from "@/server/pit/gbp/auto-post";
 import { notify } from "@/server/notifications";
 import { processPhoto, seoFilename, PIT_IMAGE_MIME } from "./images";
 import { runGuard, CAUTION_HTML } from "./guard";
@@ -248,6 +249,24 @@ export async function runPitPipeline(opts: {
       dealerId: null,
       link: wpPost.link,
     });
+
+    /*
+     * Googleマップにも投稿する（紐付け済み＋投稿が有効化されている店のみ）。
+     * ここで失敗してもブログ公開は成立させる＝例外は投げず結果を記録して通知する。
+     * GBPの投稿は作成後に編集できないので、確認待ち(review)の記事は対象外
+     * （上の分岐で先に return しているため、ここには公開済みしか来ない）。
+     */
+    await postRecordToMap({
+      storeId: store.id,
+      storeName: store.displayName,
+      postId: post.id,
+      vehicle: opts.vehicle,
+      title: article.title,
+      memo: opts.memo,
+      articleUrl: wpPost.link,
+      photoUrl: medias[0]?.sourceUrl ?? null,
+    });
+
     return { status: "published", postId: post.id, url: wpPost.link, title: article.title };
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);

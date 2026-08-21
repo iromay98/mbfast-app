@@ -1083,6 +1083,10 @@ model PitPost {
   title         String?
   wpPostId      Int?
   publishedUrl  String?
+  // Googleマップ投稿の結果。GBPは投稿を編集できないので、何を出したかを追える形で残す
+  gbpPostName   String?     // "accounts/x/locations/y/localPosts/z"（取り消しに使う）
+  gbpPostedAt   DateTime?
+  gbpError      String?     // 失敗理由（上限・権限切れなど）。本部が後から手当てするため
   errorMessage  String?
   plateLog      Json        @default("[]") // ナンバー検出結果ログ（未検出画像の記録）
   vehicleId     String? // 車検証QRで紐づけた車両（任意）
