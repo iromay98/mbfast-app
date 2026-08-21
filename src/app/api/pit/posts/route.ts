@@ -1,6 +1,7 @@
 import type { NextRequest } from "next/server";
 import { getSessionUser } from "@/lib/authz";
 import { prisma } from "@/lib/db";
+import { storage } from "@/server/storage";
 import { runPitPipeline } from "@/server/pit/pipeline";
 import { pitAiEnabled } from "@/server/pit/generate";
 import { wpConfigured } from "@/server/pit/wordpress";
@@ -20,7 +21,13 @@ export const maxDuration = 300;
 const CATEGORIES = GENRE_SLUGS;
 const MAX_PHOTOS = 10;
 const MAX_PHOTO_BYTES = 10 * 1024 * 1024; // 10MB/枚
-const MAX_VIDEO_BYTES = 100 * 1024 * 1024; // 動画は1本100MBまで（受信後にサーバーで720pへ圧縮する）
+/*
+ * 一括送信で受け付ける動画の上限。
+ * これを超えるものはクライアントが分割アップロード(/api/pit/upload)に切り替えるので、
+ * ここに大きいファイルが来ることは通常ない（来たらクライアント側の不具合）。
+ * 上限を大きくしないのは、一括送信は全部メモリに載るため。
+ */
+const MAX_VIDEO_BYTES = 100 * 1024 * 1024;
 const MAX_MEMO_LEN = 1000; // 音声書き起こし対応で拡張（30秒×数回分）
 
 const STORE_SELECT = {
@@ -127,15 +134,37 @@ export async function POST(request: NextRequest) {
     videoUrl = videoUrlRaw;
   }
 
-  // 動画ファイル（任意・1本）。ぼかし加工なし＝映り込みは投稿者確認（フォームに注意書きあり）
+  // 動画（任意・1本）。ぼかし加工なし＝映り込みは投稿者確認（フォームに注意書きあり）
+  //
+  // 大きい動画は分割アップロード済み（/api/pit/upload）でキーだけが渡ってくる。
+  // 一括送信だと数百MBがメモリに丸ごと載り、2GB RAMのVPSでは投稿中にアプリごと
+  // 落ちうる（落ちれば他の加盟店の操作も巻き添えになる）ため。
   let video: { buffer: Buffer; type: string } | null = null;
-  const videoFile = form.get("video");
-  if (videoFile instanceof File && videoFile.size > 0) {
-    if (!videoFile.type.startsWith("video/")) return json(400, { error: "動画ファイルを選択してください" });
-    if (videoFile.size > MAX_VIDEO_BYTES) {
-      return json(400, { error: "動画は100MB以下にしてください（長い場合は短く切り出すか、YouTubeのURLを貼ってください）" });
+  const uploadedKey = String(form.get("uploadedVideoKey") ?? "").trim();
+  if (uploadedKey) {
+    // キーは必ず自店のprefix配下であること（他店のファイルを掴ませない）
+    if (!uploadedKey.startsWith(`pit-videos/${store.id}/`)) {
+      return json(403, { error: "動画の参照が不正です" });
     }
-    video = { buffer: Buffer.from(await videoFile.arrayBuffer()), type: videoFile.type };
+    const f = await storage.read(uploadedKey);
+    if (!f) return json(400, { error: "アップロードした動画が見つかりません。もう一度お試しください。" });
+    if (!f.contentType?.startsWith("video/")) {
+      return json(400, { error: "動画ファイルを選択してください" });
+    }
+    video = { buffer: f.buffer, type: f.contentType };
+    // 一時保管を残さない（パイプライン側で本保存されるため）
+    await storage.delete(uploadedKey).catch(() => {});
+  } else {
+    const videoFile = form.get("video");
+    if (videoFile instanceof File && videoFile.size > 0) {
+      if (!videoFile.type.startsWith("video/")) return json(400, { error: "動画ファイルを選択してください" });
+      if (videoFile.size > MAX_VIDEO_BYTES) {
+        return json(400, {
+          error: "動画の送信に失敗しました。もう一度お試しください（大きい動画は自動で分割送信されます）",
+        });
+      }
+      video = { buffer: Buffer.from(await videoFile.arrayBuffer()), type: videoFile.type };
+    }
   }
 
   // 車検証QR（または手入力の車台番号）が付いていれば車両に紐づけ（お薬手帳）。

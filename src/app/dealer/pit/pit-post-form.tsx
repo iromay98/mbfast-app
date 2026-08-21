@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { uploadInChunks } from "@/lib/chunked-upload";
+import { CHUNKED_MAX_BYTES, CHUNKED_MAX_MB, CHUNKED_THRESHOLD_BYTES } from "@/lib/upload-limits";
 import { FileDropZone } from "@/components/file-drop-zone";
 import { GENRES, normalizeGenreSlug } from "@/lib/mbpit-genres";
 import { ShakenQrScanner, chassisFromQrText } from "@/components/shaken-qr-scanner";
@@ -180,6 +182,8 @@ export function PitPostForm({
 } = {}) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
+  // 分割アップロードの進捗（%）。null=分割送信していない
+  const [uploadPct, setUploadPct] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<
     | { kind: "published"; url: string; title: string; stats: PitStats | null; vehicleLinked: boolean }
@@ -620,11 +624,34 @@ export function PitPostForm({
       return;
     }
     const videoF = form.get("video");
-    if (videoF instanceof File && videoF.size > 100 * 1024 * 1024) {
-      setError("動画は100MB以下にしてください（長い場合は短く切り出すか、YouTubeのURLを貼ってください）");
+    if (videoF instanceof File && videoF.size > CHUNKED_MAX_BYTES) {
+      setError(
+        `動画は${CHUNKED_MAX_MB}MB以下にしてください（長い場合は短く切り出すか、YouTubeのURLを貼ってください）`,
+      );
       return;
     }
     setBusy(true);
+
+    /*
+     * 大きい動画は本送信に載せず、先に5MBずつの分割アップロードで送り切る。
+     * 一括送信だとサーバーのメモリに丸ごと載って落ちるうえ、スマホ回線では
+     * 数分待った末に原因不明のエラーになりやすい。分割なら途中の切断でも
+     * そのチャンクだけ再送で済む。
+     */
+    if (videoF instanceof File && videoF.size > CHUNKED_THRESHOLD_BYTES) {
+      try {
+        setUploadPct(0);
+        const up = await uploadInChunks(videoF, "/api/pit/upload", setUploadPct);
+        form.delete("video");
+        form.set("uploadedVideoKey", up.key);
+      } catch (err) {
+        setUploadPct(null);
+        setBusy(false);
+        setError(err instanceof Error ? err.message : "動画の送信に失敗しました");
+        return;
+      }
+      setUploadPct(null);
+    }
     // ぼかし適用済み画像に差し替えてから送信（未加工のナンバーをサーバーに送らない）
     try {
       if (photoItems.length > 0) {
@@ -812,9 +839,27 @@ export function PitPostForm({
       {busy && (
         <div className="space-y-3 py-10 text-center">
           <div className="mx-auto h-11 w-11 animate-spin rounded-full border-4 border-line border-t-gold-500" />
-          <p className="text-sm font-bold text-ink">AIが記事を作成中…</p>
-          <p className="text-xs text-ink-soft">{LOADING_STEPS[loadStep]}</p>
-          <p className="text-[11px] text-ink-soft">1〜3分ほどかかります。画面を閉じずにお待ちください。</p>
+          {uploadPct === null ? (
+            <>
+              <p className="text-sm font-bold text-ink">AIが記事を作成中…</p>
+              <p className="text-xs text-ink-soft">{LOADING_STEPS[loadStep]}</p>
+              <p className="text-[11px] text-ink-soft">1〜3分ほどかかります。画面を閉じずにお待ちください。</p>
+            </>
+          ) : (
+            // 動画は分割送信するので実測の進捗を出す（無反応に見えると閉じられてしまう）
+            <>
+              <p className="text-sm font-bold text-ink">動画を送信中… {uploadPct}%</p>
+              <div className="mx-auto h-1.5 w-56 overflow-hidden rounded-full bg-line">
+                <div
+                  className="h-full rounded-full bg-gold-500 transition-all"
+                  style={{ width: `${uploadPct}%` }}
+                />
+              </div>
+              <p className="text-[11px] text-ink-soft">
+                電波が途切れても、その部分だけ送り直します。画面を閉じずにお待ちください。
+              </p>
+            </>
+          )}
         </div>
       )}
 
@@ -1072,12 +1117,13 @@ export function PitPostForm({
           </p>
           <details className="mt-2">
             <summary className="cursor-pointer text-[11px] font-semibold text-ink-soft">
-              動画ファイルを直接アップする（100MBまで）
+              動画ファイルを直接アップする（{CHUNKED_MAX_MB}MBまで）
             </summary>
             <div className="mt-2">
               <FileDropZone name="video" accept="video/*" prompt="🎬 動画ファイルを選ぶ" />
               <p className="mt-1 text-[11px] text-ink-soft">
-                アップ後にサーバーで自動圧縮されます（720p）。URLを入れた場合はURL側が使われます。<b>動画にはぼかし加工が入りません</b> —
+                アップ後にサーバーで自動圧縮されます（720p）。大きい動画は自動で分割送信するので、
+                電波が不安定でも途中から再開できます。URLを入れた場合はURL側が使われます。<b>動画にはぼかし加工が入りません</b> —
                 ナンバーやお客様の映り込みがないかご確認ください。
               </p>
             </div>
