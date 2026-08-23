@@ -116,7 +116,7 @@ export function ColumnEditor({ brand }: { brand: BrandRow }) {
         <div className="ml-auto flex items-end gap-1">
           <label className="block">
             <span className="mb-0.5 block text-[10px] text-ink-soft">価格列を追加（キー半角）</span>
-            <input value={newPriceKey} onChange={(e) => setNewPriceKey(e.target.value)} placeholder="stage2" className="w-24 rounded border border-line px-2 py-1 text-xs" />
+            <input value={newPriceKey} onChange={(e) => setNewPriceKey(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ""))} placeholder="stage2" className="w-24 rounded border border-line px-2 py-1 text-xs" />
           </label>
           <label className="block">
             <span className="mb-0.5 block text-[10px] text-ink-soft">ラベル</span>

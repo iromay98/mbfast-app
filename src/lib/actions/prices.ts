@@ -572,15 +572,21 @@ export async function updateBrandColumns(
         // 既存列: ラベルと順序だけ更新（type等の内部設定は保持）
         return { ...existing, label: c.label.trim() || existing.label, order: i };
       }
-      // 新規列: 価格列 or 既知テキスト列のみ
-      if (c.type === "price") {
-        if (!/^[a-z][a-z0-9-]*$/.test(c.key)) return { error: `価格列のキーが不正です: ${c.key}` } as const;
-        return { key: c.key, label: c.label.trim() || c.key, type: "price" as const, order: i, askBehavior: "line-btn" as const, emptyBehavior: "line-btn" as const };
+      // 新規列: まず既知キー（ecuType等）に一致するか見る。送信された type が
+      // 何であっても既知キーは既知列として扱う（価格列フォームに入れても正しく作る）。
+      const known = KNOWN_TEXT_COLUMNS.find((k) => k.key === c.key || k.key.toLowerCase() === c.key.toLowerCase());
+      if (known) {
+        const t = known.key === "remote" ? "remote" : known.key === "ecuType" ? "ecu" : "text";
+        return { key: known.key, label: c.label.trim() || known.label, type: t as ColumnType, order: i };
       }
-      const known = KNOWN_TEXT_COLUMNS.find((k) => k.key === c.key);
-      if (!known) return { error: `未対応の列キーです: ${c.key}` } as const;
-      const t = c.key === "remote" ? "remote" : c.key === "ecuType" ? "ecu" : "text";
-      return { key: c.key, label: c.label.trim() || known.label, type: t as ColumnType, order: i };
+      if (c.type === "price") {
+        const key = c.key.trim().toLowerCase();
+        if (!/^[a-z][a-z0-9-]*$/.test(key)) {
+          return { error: `価格列のキーは半角小文字英数字とハイフンにしてください（例: stage2）: ${c.key}` } as const;
+        }
+        return { key, label: c.label.trim() || key, type: "price" as const, order: i, askBehavior: "line-btn" as const, emptyBehavior: "line-btn" as const };
+      }
+      return { error: `未対応の列キーです: ${c.key}` } as const;
     })
     .filter(Boolean) as (ColumnDefinition | { error: string })[];
 
