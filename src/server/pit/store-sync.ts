@@ -6,7 +6,8 @@
  * 安全弁:
  * - 書き込み前に必ず assertTermUnderMbpit で対象termが親545配下であることを検証
  *   （既存の代理店カテゴリツリーには構造的に書き込めない）
- * - 同期対象は STORE_META_FIELDS の9項目のみ（マッピング定義に無いカラムは送れない）
+ * - 同期対象は SYNCED_META_FIELDS のみ（マッピング定義に無いカラムは送れない）
+ * - 地図(mapUrl/lat/lng)はWP側に登録が無いため対象外＝LOCAL_ONLY_FIELDS
  * - active でない店舗・wpCategoryId 未採番の店舗は同期しない
  */
 import { createHash } from "node:crypto";
@@ -14,6 +15,7 @@ import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/db";
 import {
   STORE_META_FIELDS,
+  SYNCED_META_FIELDS,
   buildMetaPayload,
   pickStoreInfo,
   type StoreInfo,
@@ -46,7 +48,7 @@ export type StoreSyncResult = {
 
 function diffAgainstWp(wpMeta: Record<string, unknown>, payload: Record<string, string>): StoreDiff[] {
   const diffs: StoreDiff[] = [];
-  for (const { field, label, metaKey } of STORE_META_FIELDS) {
+  for (const { field, label, metaKey } of SYNCED_META_FIELDS) {
     const oldValue = typeof wpMeta[metaKey] === "string" ? (wpMeta[metaKey] as string) : "";
     const newValue = payload[metaKey] ?? "";
     if (oldValue !== newValue) diffs.push({ field, label, metaKey, oldValue, newValue });
@@ -133,9 +135,23 @@ export async function syncStoreInfo(
     }
     // 読み戻し検証: 送った値がそのまま保存されているか（wp_kses等で変わる可能性がある）
     const savedMeta = body?.meta ?? (await assertTermUnderMbpit(store.wpCategoryId)).meta ?? {};
-    const mismatch = STORE_META_FIELDS.filter(({ metaKey }) => {
+    /*
+     * 読み戻し検証。
+     * WordPressは保存時に & を &amp; へ変換する（sanitize由来）。これは正常な挙動で
+     * 内容が変わったわけではないので、比較の前に実体参照を戻して突き合わせる。
+     * これをやらないと「新車&中古車販売」のような普通の紹介文で必ず失敗する。
+     */
+    const unescape = (v: string) =>
+      v
+        .replace(/&amp;/g, "&")
+        .replace(/&lt;/g, "<")
+        .replace(/&gt;/g, ">")
+        .replace(/&quot;/g, '"')
+        .replace(/&#0?39;/g, "'")
+        .replace(/&#8217;/g, "\u2019");
+    const mismatch = SYNCED_META_FIELDS.filter(({ metaKey }) => {
       const saved = typeof savedMeta[metaKey] === "string" ? savedMeta[metaKey] : "";
-      return saved !== payload[metaKey];
+      return unescape(saved) !== unescape(payload[metaKey] ?? "");
     });
     if (mismatch.length > 0) {
       const error = `保存値の検証に失敗: ${mismatch.map((m) => m.label).join("・")} がWP側で変更されています（HTML等が除去された可能性）`;

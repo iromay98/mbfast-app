@@ -67,6 +67,22 @@ export const STORE_META_FIELDS: {
 /** 画面上で店舗が直接編集しない項目（値は mapUrl から自動で入る） */
 export const DERIVED_FIELDS: StoreMetaField[] = ["lat", "lng"];
 
+/*
+ * WordPressへ同期しない項目。
+ *
+ * mbpit_map / mbpit_lat / mbpit_lng はWP側のMU-pluginに登録が無く、
+ * 送っても保存されない（読み戻し検証が必ず失敗する）。
+ * 地図はアプリ内と店舗ページの表示スクリプトで完結していてWP側では使わないので、
+ * 登録が入るまで同期対象から外す。
+ * ※ MU-pluginに register_term_meta を追加したらここから外すこと。
+ */
+export const LOCAL_ONLY_FIELDS: StoreMetaField[] = ["mapUrl", "lat", "lng"];
+
+/** WordPressへ同期する項目だけを返す */
+export const SYNCED_META_FIELDS = STORE_META_FIELDS.filter(
+  (f) => !LOCAL_ONLY_FIELDS.includes(f.field),
+);
+
 // 既存5店舗の確定紐付け（仕様書 §1.1。初期取込の突合に使用）
 export const KNOWN_WP_STORES: {
   termId: number;
@@ -107,9 +123,23 @@ export const STORE_META_SELECT = Object.fromEntries(
 ) as Record<StoreMetaField, true>;
 
 /** 同期対象フィールドだけを WP meta ペイロードに変換（アプリ専用カラムは構造上含まれない） */
+/*
+ * WordPressのtermmetaは照合順序がutf8（3バイトまで）のため、絵文字などの
+ * 4バイト文字を保存できず rest_meta_database_error で同期が丸ごと失敗する。
+ * 店舗は紹介文に絵文字を使うのが自然なので、**アプリ内には残したまま**
+ * WPへ送る直前だけ落とす。
+ * ※ wp_termmeta を utf8mb4 に変換できたらこの除去は不要になる。
+ */
+export function stripAstralChars(v: string): string {
+  // サロゲートペア＝BMP外の文字（絵文字・一部の異体字）を除く
+  return v.replace(/[\u{10000}-\u{10FFFF}]/gu, "").replace(/\uFE0F|\u200D/g, "");
+}
+
 export function buildMetaPayload(info: StoreInfo): Record<string, string> {
   const out: Record<string, string> = {};
-  for (const { field, metaKey } of STORE_META_FIELDS) out[metaKey] = info[field] ?? "";
+  for (const { field, metaKey } of SYNCED_META_FIELDS) {
+    out[metaKey] = stripAstralChars(info[field] ?? "").trim();
+  }
   return out;
 }
 
