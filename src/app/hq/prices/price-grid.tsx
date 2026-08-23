@@ -19,6 +19,14 @@ import {
 } from "@/lib/prices/types";
 import { manualOptionDefs, VpageOptionCell, VpageStatusCell, type VpageInfo } from "./vpage-cells";
 import type { OptionDef } from "@/lib/vehicle-pages/options";
+import {
+  buildFillUpdates,
+  cellAtPoint,
+  findInput,
+  paintSelection,
+  selectionToTsv,
+  type CellRef,
+} from "./grid-selection";
 
 type GridVehicle = VehicleRow & { vpage: VpageInfo };
 
@@ -64,6 +72,34 @@ export function PriceGrid({ brand, vehicles, optionDefs }: { brand: BrandRow; ve
     keys.push("notes");
     return keys;
   }, [brand.columns]);
+
+  // 選択範囲（Excel的な矩形選択）。DOM操作で描画するのでstateにしない
+  const anchorRef = useRef<CellRef | null>(null);
+  const focusRef = useRef<CellRef | null>(null);
+  const [handlePos, setHandlePos] = useState<{ top: number; left: number } | null>(null);
+
+  // 選択の変化を画面に反映し、フィルハンドルの位置を更新する
+  const refreshSelection = () => {
+    const el = gridRef.current;
+    if (!el) return;
+    paintSelection(el, cellOrder, anchorRef.current, focusRef.current);
+    const a = anchorRef.current;
+    const f = focusRef.current;
+    if (!a || !f) {
+      setHandlePos(null);
+      return;
+    }
+    const lastRow = Math.max(a.row, f.row);
+    const lastCol = Math.max(a.col, f.col);
+    const cell = findInput(el, lastRow, cellOrder[lastCol]);
+    if (!cell) {
+      setHandlePos(null);
+      return;
+    }
+    const box = cell.getBoundingClientRect();
+    const host = el.getBoundingClientRect();
+    setHandlePos({ top: box.bottom - host.top + el.scrollTop - 4, left: box.right - host.left + el.scrollLeft - 4 });
+  };
 
   useEffect(() => {
     const el = gridRef.current;
@@ -129,9 +165,47 @@ export function PriceGrid({ brand, vehicles, optionDefs }: { brand: BrandRow; ve
       applyBulk(updates, `下の行へコピー（${value || "空"}）`);
     };
 
+    // クリック/フォーカスで選択、Shift+クリックで矩形選択
+    const onFocusIn = (e: FocusEvent) => {
+      const t = e.target as HTMLElement | null;
+      const rowAttr = t?.getAttribute?.("data-cell-row");
+      const colAttr = t?.getAttribute?.("data-cell-col");
+      if (!rowAttr || !colAttr) return;
+      const ref = { row: Number(rowAttr), col: cellOrder.indexOf(colAttr) };
+      if (ref.col < 0) return;
+      anchorRef.current = ref;
+      focusRef.current = ref;
+      refreshSelection();
+    };
+
+    const onMouseDown = (e: MouseEvent) => {
+      if (!e.shiftKey || !anchorRef.current) return;
+      const ref = cellAtPoint(e.clientX, e.clientY, cellOrder);
+      if (!ref) return;
+      e.preventDefault(); // 範囲選択を優先（文字選択にしない）
+      focusRef.current = ref;
+      refreshSelection();
+    };
+
+    const onCopy = (e: ClipboardEvent) => {
+      const a = anchorRef.current;
+      const f = focusRef.current;
+      if (!a || !f) return;
+      if (a.row === f.row && a.col === f.col) return; // 単一セルは通常のコピー
+      e.preventDefault();
+      e.clipboardData?.setData("text/plain", selectionToTsv(el, cellOrder, a, f));
+      setMsg("選択範囲をコピーしました（Excelに貼り付けできます）");
+    };
+
+    el.addEventListener("focusin", onFocusIn);
+    el.addEventListener("mousedown", onMouseDown);
+    el.addEventListener("copy", onCopy as EventListener);
     el.addEventListener("paste", onPaste as EventListener);
     el.addEventListener("keydown", onKeyDown);
     return () => {
+      el.removeEventListener("focusin", onFocusIn);
+      el.removeEventListener("mousedown", onMouseDown);
+      el.removeEventListener("copy", onCopy as EventListener);
       el.removeEventListener("paste", onPaste as EventListener);
       el.removeEventListener("keydown", onKeyDown);
     };
@@ -162,7 +236,7 @@ export function PriceGrid({ brand, vehicles, optionDefs }: { brand: BrandRow; ve
         <span className="text-xs text-ink-soft">
           {shown.length} / {vehicles.length} 件
         <span className="ml-2 hidden text-[10px] text-ink-soft sm:inline">
-          セルを選んで Ctrl/⌘+V でExcelから一括貼り付け ／ Ctrl/⌘+D で下の行へコピー
+          Shift+クリックで範囲選択 ／ Ctrl/⌘+C でコピー ／ Ctrl/⌘+V でExcelから貼り付け ／ 右下の■を下へドラッグで流し込み ／ Ctrl/⌘+D で下へコピー
         </span>
         </span>
         <button
@@ -178,7 +252,62 @@ export function PriceGrid({ brand, vehicles, optionDefs }: { brand: BrandRow; ve
       {msg && <p className="text-xs text-red-600">{msg}</p>}
 
       {/* 縦横スクロール。ヘッダー行は上に、車両列は左に固定する（行を見失わないため） */}
-      <div ref={gridRef} className="max-h-[70vh] overflow-auto rounded-lg border border-line">
+      <div ref={gridRef} className="relative max-h-[70vh] overflow-auto rounded-lg border border-line">
+        {handlePos && (
+          <div
+            title="つまんで下へドラッグすると、この値を流し込みます"
+            onPointerDown={(e) => {
+              e.preventDefault();
+              const el = gridRef.current;
+              const a = anchorRef.current;
+              const f = focusRef.current;
+              if (!el || !a || !f) return;
+              const startBottom = Math.max(a.row, f.row);
+              let toRow = startBottom;
+
+              const move = (ev: PointerEvent) => {
+                const ref = cellAtPoint(ev.clientX, ev.clientY, cellOrder);
+                if (ref && ref.row > startBottom) {
+                  toRow = ref.row;
+                  paintSelection(el, cellOrder, a, { row: toRow, col: Math.max(a.col, f.col) });
+                }
+              };
+              const up = () => {
+                window.removeEventListener("pointermove", move);
+                window.removeEventListener("pointerup", up);
+                if (toRow <= startBottom) {
+                  refreshSelection();
+                  return;
+                }
+                const updates = buildFillUpdates({
+                  container: el,
+                  cellOrder,
+                  anchor: a,
+                  focus: f,
+                  toRow,
+                  vehicleIdAt: (r) => shown[r]?.id ?? null,
+                });
+                if (updates.length === 0) {
+                  refreshSelection();
+                  return;
+                }
+                if (!window.confirm(`下へ流し込み（${updates.length}セル）を実行します。よろしいですか？`)) {
+                  refreshSelection();
+                  return;
+                }
+                start(async () => {
+                  const r = await bulkUpdateCells(updates);
+                  setMsg(r.error ?? `${r.updated ?? 0} 行を更新しました`);
+                  router.refresh();
+                });
+              };
+              window.addEventListener("pointermove", move);
+              window.addEventListener("pointerup", up);
+            }}
+            style={{ top: handlePos.top, left: handlePos.left }}
+            className="absolute z-20 h-2.5 w-2.5 cursor-crosshair rounded-[2px] border border-white bg-gold-500 shadow"
+          />
+        )}
         <table className="w-full border-separate border-spacing-0 text-xs">
           <thead className="sticky top-0 z-30 bg-surface-2 text-left text-[11px] text-ink-soft">
             <tr>
