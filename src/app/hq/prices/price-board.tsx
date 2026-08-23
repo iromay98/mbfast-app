@@ -7,6 +7,7 @@ import type { VpageInfo } from "./vpage-cells";
 import type { OptionDef } from "@/lib/vehicle-pages/options";
 import { OptionMaster, type OptionRow } from "./option-master";
 import { ShopSettings, type ShopSettingRow } from "./shop-settings";
+import { AddBrand } from "./add-brand";
 import { PriceGrid } from "./price-grid";
 import { BrandSettings } from "./brand-settings";
 import { PublishPanel } from "./publish-panel";
@@ -42,6 +43,8 @@ export function PriceBoard({ data, optionDefs, optionRows, shopSetting }: { data
 
       {/* key: ブランドを切り替えたら入力欄を作り直す（前のブランドの文章が残って誤上書きするのを防ぐ） */}
       <BrandSettings key={`bs-${current.brand.id}`} brand={current.brand} />
+
+      <AddBrand brands={data.map((d) => ({ id: d.brand.id, displayName: d.brand.displayName }))} />
 
       <ShopSettings setting={shopSetting} />
 

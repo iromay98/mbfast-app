@@ -476,3 +476,58 @@ export async function bulkUpdateCells(
   revalidatePath(PRICES_PATH);
   return { ok: true, updated };
 }
+
+/**
+ * 新しいブランド（メーカー）を追加する。
+ * 列定義・CSVマッピング・版面(layout)は既存ブランドから複製する＝表の見た目と
+ * WP側の同期処理が既存と同じ規則で動く（ゼロから組ませない）。
+ * 反映先のWPページIDは後からブランド設定で登録する。
+ */
+export async function createBrand(input: {
+  id: string;
+  displayName: string;
+  slug: string;
+  namespacePrefix: string;
+  copyColumnsFromBrandId: string;
+  wordPressPageId?: number | null;
+}): Promise<{ ok?: true; error?: string }> {
+  await requireHQ();
+  const id = input.id.trim();
+  const slug = input.slug.trim();
+  const prefix = input.namespacePrefix.trim();
+  if (!/^[a-z][a-z0-9_]*$/.test(id)) return { error: "IDは半角小文字の英数字とアンダースコア（例: peugeot）" };
+  if (!/^[a-z0-9-]+$/.test(slug)) return { error: "slugは半角小文字の英数字とハイフン（例: peugeot）" };
+  if (!/^[a-z0-9-]+$/.test(prefix)) return { error: "接頭辞は半角小文字の英数字とハイフン（例: peugeot）" };
+  if (!input.displayName.trim()) return { error: "表示名は必須です" };
+
+  const dupId = await prisma.priceBrand.findUnique({ where: { id } });
+  if (dupId) return { error: `ID "${id}" は既に使われています` };
+  const dupSlug = await prisma.priceBrand.findUnique({ where: { slug } });
+  if (dupSlug) return { error: `slug "${slug}" は既に使われています` };
+
+  const src = await prisma.priceBrand.findUnique({ where: { id: input.copyColumnsFromBrandId } });
+  if (!src) return { error: "コピー元のブランドが見つかりません" };
+
+  const maxOrder = await prisma.priceBrand.aggregate({ _max: { displayOrder: true } });
+
+  await prisma.priceBrand.create({
+    data: {
+      id,
+      displayName: input.displayName.trim(),
+      slug,
+      namespacePrefix: prefix,
+      seriesGroups: [],
+      columns: src.columns ?? [],
+      csvMapping: src.csvMapping ?? {},
+      intro: "",
+      jsonLdDescription: "",
+      wordPressPageId: input.wordPressPageId ?? null,
+      blockIndex: 0,
+      layout: src.layout ?? {},
+      displayOrder: (maxOrder._max.displayOrder ?? 0) + 10,
+    },
+  });
+
+  revalidatePath(PRICES_PATH);
+  return { ok: true };
+}
