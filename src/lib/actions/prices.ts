@@ -14,6 +14,8 @@ import {
   type PriceMap,
   type RemoteFlags,
   type VehicleRow,
+  type ColumnDefinition,
+  type ColumnType,
 } from "@/lib/prices/types";
 
 const PRICES_PATH = "/hq/prices";
@@ -530,4 +532,69 @@ export async function createBrand(input: {
 
   revalidatePath(PRICES_PATH);
   return { ok: true };
+}
+
+/**
+ * ブランドの列定義の編集。
+ * - 追加できるのは「価格列」か「既知のテキスト列」（ecuType 等）だけ。
+ *   グリッド側の描画が列keyのswitchで書かれているため、未知のキーは追加させない。
+ * - car / grade は表の土台なので削除・移動不可。
+ */
+const KNOWN_TEXT_COLUMNS: { key: string; label: string }[] = [
+  { key: "engine", label: "エンジン" },
+  { key: "ecuType", label: "ECU/TCU" },
+  { key: "stock", label: "純正出力" },
+  { key: "stage1-gain", label: "Stage1最大出力" },
+  { key: "labor", label: "脱着・殻割工賃" },
+  { key: "shops", label: "対応店舗" },
+  { key: "remote", label: "リモート" },
+];
+
+export async function updateBrandColumns(
+  brandId: string,
+  columns: { key: string; label: string; type: string; order: number; emphasis?: string }[],
+): Promise<{ ok?: true; error?: string }> {
+  await requireHQ();
+  const brand = await prisma.priceBrand.findUnique({ where: { id: brandId }, select: { columns: true } });
+  if (!brand) return { error: "ブランドが見つかりません" };
+  const current = toColumns(brand.columns);
+  const byKey = new Map(current.map((c) => [c.key, c]));
+
+  if (!columns.some((c) => c.key === "car")) return { error: "車種列は削除できません" };
+
+  const seen = new Set<string>();
+  const next = columns
+    .map((c, i) => {
+      if (seen.has(c.key)) return null;
+      seen.add(c.key);
+      const existing = byKey.get(c.key);
+      if (existing) {
+        // 既存列: ラベルと順序だけ更新（type等の内部設定は保持）
+        return { ...existing, label: c.label.trim() || existing.label, order: i };
+      }
+      // 新規列: 価格列 or 既知テキスト列のみ
+      if (c.type === "price") {
+        if (!/^[a-z][a-z0-9-]*$/.test(c.key)) return { error: `価格列のキーが不正です: ${c.key}` } as const;
+        return { key: c.key, label: c.label.trim() || c.key, type: "price" as const, order: i, askBehavior: "line-btn" as const, emptyBehavior: "line-btn" as const };
+      }
+      const known = KNOWN_TEXT_COLUMNS.find((k) => k.key === c.key);
+      if (!known) return { error: `未対応の列キーです: ${c.key}` } as const;
+      const t = c.key === "remote" ? "remote" : c.key === "ecuType" ? "ecu" : "text";
+      return { key: c.key, label: c.label.trim() || known.label, type: t as ColumnType, order: i };
+    })
+    .filter(Boolean) as (ColumnDefinition | { error: string })[];
+
+  const err = next.find((c) => "error" in c) as { error: string } | undefined;
+  if (err) return { error: err.error };
+
+  await prisma.priceBrand.update({ where: { id: brandId }, data: { columns: next as object[] } });
+  revalidatePath(PRICES_PATH);
+  return { ok: true };
+}
+
+export async function knownAddableColumns(brandId: string): Promise<{ key: string; label: string; type: string }[]> {
+  await requireHQ();
+  const brand = await prisma.priceBrand.findUnique({ where: { id: brandId }, select: { columns: true } });
+  const used = new Set(toColumns(brand?.columns).map((c) => c.key));
+  return KNOWN_TEXT_COLUMNS.filter((k) => !used.has(k.key)).map((k) => ({ ...k, type: k.key === "remote" ? "remote" : k.key === "ecuType" ? "ecu" : "text" }));
 }
