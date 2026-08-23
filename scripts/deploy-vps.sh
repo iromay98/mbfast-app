@@ -19,7 +19,11 @@ if [ -n "$(git status --porcelain)" ]; then
 fi
 
 echo "== 同期 =="
-rm -rf "$DEPLOY_DIR/src" "$DEPLOY_DIR/prisma"
+# リポジトリから削除されたファイルがデプロイ先に残ると、型チェックで落ちる（2026-08-23に発生:
+# 削除済みの scripts/check-gbp-self-auth.mts が残り、存在しないモジュールをimportしてビルド失敗）。
+# git管理下のコード配置先はここで毎回まるごと消してから展開する。
+# ※ public は本番の生成物・アップロードが入る可能性があるため消さない。
+rm -rf "$DEPLOY_DIR/src" "$DEPLOY_DIR/prisma" "$DEPLOY_DIR/scripts" "$DEPLOY_DIR/.github"
 git archive --format=tar HEAD | tar -x -C "$DEPLOY_DIR"
 echo "synced $(git rev-parse --short HEAD)"
 
