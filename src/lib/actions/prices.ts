@@ -496,10 +496,13 @@ export async function createBrand(input: {
   await requireHQ();
   const id = input.id.trim();
   const slug = input.slug.trim();
-  const prefix = input.namespacePrefix.trim();
+  // 接頭辞はCSS/ID衝突防止用で、テンプレートの規定は「小文字英数字+末尾ハイフン」（例: peugeot-）。
+  // 入力にハイフンが無ければ自動で付ける（過去に "peugeot" のまま保存されHTML生成が落ちた）。
+  let prefix = input.namespacePrefix.trim();
+  if (prefix && !prefix.endsWith("-")) prefix = `${prefix}-`;
   if (!/^[a-z][a-z0-9_]*$/.test(id)) return { error: "IDは半角小文字の英数字とアンダースコア（例: peugeot）" };
   if (!/^[a-z0-9-]+$/.test(slug)) return { error: "slugは半角小文字の英数字とハイフン（例: peugeot）" };
-  if (!/^[a-z0-9-]+$/.test(prefix)) return { error: "接頭辞は半角小文字の英数字とハイフン（例: peugeot）" };
+  if (!/^[a-z0-9-]+-$/.test(prefix)) return { error: "接頭辞は半角小文字の英数字（末尾ハイフンは自動付与。例: peugeot）" };
   if (!input.displayName.trim()) return { error: "表示名は必須です" };
 
   const dupId = await prisma.priceBrand.findUnique({ where: { id } });
