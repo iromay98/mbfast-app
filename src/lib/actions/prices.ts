@@ -14,6 +14,8 @@ import {
   type PriceMap,
   type RemoteFlags,
   type VehicleRow,
+  type ColumnDefinition,
+  type ColumnType,
 } from "@/lib/prices/types";
 
 const PRICES_PATH = "/hq/prices";
@@ -475,4 +477,133 @@ export async function bulkUpdateCells(
 
   revalidatePath(PRICES_PATH);
   return { ok: true, updated };
+}
+
+/**
+ * 新しいブランド（メーカー）を追加する。
+ * 列定義・CSVマッピング・版面(layout)は既存ブランドから複製する＝表の見た目と
+ * WP側の同期処理が既存と同じ規則で動く（ゼロから組ませない）。
+ * 反映先のWPページIDは後からブランド設定で登録する。
+ */
+export async function createBrand(input: {
+  id: string;
+  displayName: string;
+  slug: string;
+  namespacePrefix: string;
+  copyColumnsFromBrandId: string;
+  wordPressPageId?: number | null;
+}): Promise<{ ok?: true; error?: string }> {
+  await requireHQ();
+  const id = input.id.trim();
+  const slug = input.slug.trim();
+  // 接頭辞はCSS/ID衝突防止用で、テンプレートの規定は「小文字英数字+末尾ハイフン」（例: peugeot-）。
+  // 入力にハイフンが無ければ自動で付ける（過去に "peugeot" のまま保存されHTML生成が落ちた）。
+  let prefix = input.namespacePrefix.trim();
+  if (prefix && !prefix.endsWith("-")) prefix = `${prefix}-`;
+  if (!/^[a-z][a-z0-9_]*$/.test(id)) return { error: "IDは半角小文字の英数字とアンダースコア（例: peugeot）" };
+  if (!/^[a-z0-9-]+$/.test(slug)) return { error: "slugは半角小文字の英数字とハイフン（例: peugeot）" };
+  if (!/^[a-z0-9-]+-$/.test(prefix)) return { error: "接頭辞は半角小文字の英数字（末尾ハイフンは自動付与。例: peugeot）" };
+  if (!input.displayName.trim()) return { error: "表示名は必須です" };
+
+  const dupId = await prisma.priceBrand.findUnique({ where: { id } });
+  if (dupId) return { error: `ID "${id}" は既に使われています` };
+  const dupSlug = await prisma.priceBrand.findUnique({ where: { slug } });
+  if (dupSlug) return { error: `slug "${slug}" は既に使われています` };
+
+  const src = await prisma.priceBrand.findUnique({ where: { id: input.copyColumnsFromBrandId } });
+  if (!src) return { error: "コピー元のブランドが見つかりません" };
+
+  const maxOrder = await prisma.priceBrand.aggregate({ _max: { displayOrder: true } });
+
+  await prisma.priceBrand.create({
+    data: {
+      id,
+      displayName: input.displayName.trim(),
+      slug,
+      namespacePrefix: prefix,
+      seriesGroups: [],
+      columns: src.columns ?? [],
+      csvMapping: src.csvMapping ?? {},
+      intro: "",
+      jsonLdDescription: "",
+      wordPressPageId: input.wordPressPageId ?? null,
+      blockIndex: 0,
+      layout: src.layout ?? {},
+      displayOrder: (maxOrder._max.displayOrder ?? 0) + 10,
+    },
+  });
+
+  revalidatePath(PRICES_PATH);
+  return { ok: true };
+}
+
+/**
+ * ブランドの列定義の編集。
+ * - 追加できるのは「価格列」か「既知のテキスト列」（ecuType 等）だけ。
+ *   グリッド側の描画が列keyのswitchで書かれているため、未知のキーは追加させない。
+ * - car / grade は表の土台なので削除・移動不可。
+ */
+const KNOWN_TEXT_COLUMNS: { key: string; label: string }[] = [
+  { key: "engine", label: "エンジン" },
+  { key: "ecuType", label: "ECU/TCU" },
+  { key: "stock", label: "純正出力" },
+  { key: "stage1-gain", label: "Stage1最大出力" },
+  { key: "labor", label: "脱着・殻割工賃" },
+  { key: "shops", label: "対応店舗" },
+  { key: "remote", label: "リモート" },
+];
+
+export async function updateBrandColumns(
+  brandId: string,
+  columns: { key: string; label: string; type: string; order: number; emphasis?: string }[],
+): Promise<{ ok?: true; error?: string }> {
+  await requireHQ();
+  const brand = await prisma.priceBrand.findUnique({ where: { id: brandId }, select: { columns: true } });
+  if (!brand) return { error: "ブランドが見つかりません" };
+  const current = toColumns(brand.columns);
+  const byKey = new Map(current.map((c) => [c.key, c]));
+
+  if (!columns.some((c) => c.key === "car")) return { error: "車種列は削除できません" };
+
+  const seen = new Set<string>();
+  const next = columns
+    .map((c, i) => {
+      if (seen.has(c.key)) return null;
+      seen.add(c.key);
+      const existing = byKey.get(c.key);
+      if (existing) {
+        // 既存列: ラベルと順序だけ更新（type等の内部設定は保持）
+        return { ...existing, label: c.label.trim() || existing.label, order: i };
+      }
+      // 新規列: まず既知キー（ecuType等）に一致するか見る。送信された type が
+      // 何であっても既知キーは既知列として扱う（価格列フォームに入れても正しく作る）。
+      const known = KNOWN_TEXT_COLUMNS.find((k) => k.key === c.key || k.key.toLowerCase() === c.key.toLowerCase());
+      if (known) {
+        const t = known.key === "remote" ? "remote" : known.key === "ecuType" ? "ecu" : "text";
+        return { key: known.key, label: c.label.trim() || known.label, type: t as ColumnType, order: i };
+      }
+      if (c.type === "price") {
+        const key = c.key.trim().toLowerCase();
+        if (!/^[a-z][a-z0-9-]*$/.test(key)) {
+          return { error: `価格列のキーは半角小文字英数字とハイフンにしてください（例: stage2）: ${c.key}` } as const;
+        }
+        return { key, label: c.label.trim() || key, type: "price" as const, order: i, askBehavior: "line-btn" as const, emptyBehavior: "line-btn" as const };
+      }
+      return { error: `未対応の列キーです: ${c.key}` } as const;
+    })
+    .filter(Boolean) as (ColumnDefinition | { error: string })[];
+
+  const err = next.find((c) => "error" in c) as { error: string } | undefined;
+  if (err) return { error: err.error };
+
+  await prisma.priceBrand.update({ where: { id: brandId }, data: { columns: next as object[] } });
+  revalidatePath(PRICES_PATH);
+  return { ok: true };
+}
+
+export async function knownAddableColumns(brandId: string): Promise<{ key: string; label: string; type: string }[]> {
+  await requireHQ();
+  const brand = await prisma.priceBrand.findUnique({ where: { id: brandId }, select: { columns: true } });
+  const used = new Set(toColumns(brand?.columns).map((c) => c.key));
+  return KNOWN_TEXT_COLUMNS.filter((k) => !used.has(k.key)).map((k) => ({ ...k, type: k.key === "remote" ? "remote" : k.key === "ecuType" ? "ecu" : "text" }));
 }

@@ -346,3 +346,32 @@ export async function setVpageOptionPrice(vehicleId: string, key: string, jpy: n
 }
 
 
+
+/**
+ * ブランドの 下書き/公開 の車両ページを**まとめて再生成**してWPへ反映する。
+ * 価格に差分が無くてもテンプレート（デザイン・表示ルール）の変更を全ページへ行き渡らせるために使う。
+ * 価格表の「WordPressに反映」は価格差分が無いと押せないため、こちらを用意している。
+ */
+export async function resyncAllVpagesForBrand(brandId: string): Promise<{ ok?: true; synced?: number; failed?: number; error?: string }> {
+  await requireHQ();
+  if (!wpConfigured()) return { error: "WP認証が未設定です" };
+  const targets = await prisma.vehiclePage.findMany({
+    where: { vehicle: { brandId }, status: { in: ["draft", "publish"] } },
+    select: { id: true },
+    orderBy: { slug: "asc" },
+  });
+  let synced = 0;
+  let failed = 0;
+  for (const t of targets) {
+    try {
+      const events = await syncVehiclePage(t.id);
+      if (events.some((e) => e.level === "error")) failed++;
+      else synced++;
+    } catch {
+      failed++;
+    }
+  }
+  revalidatePath(PATH);
+  revalidatePath("/hq/prices");
+  return { ok: true, synced, failed };
+}
