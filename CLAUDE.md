@@ -6,7 +6,7 @@ HQ（mbFAST Tuning本店）⇄ 代理店のポータル。Next.js 16 App Router 
 
 ## 作業環境の判別
 
-- **本番VPS上（/root/dev/mbfast-app で作業している場合）**: このディレクトリは開発用クローン。**/root/mbfast-app はデプロイ先**（docker compose が動く場所）で、直接編集しない。デプロイは `bash scripts/deploy-vps.sh`。DBへは `docker compose -f /root/mbfast-app/docker-compose.prod.yml exec -T postgres psql -U mbfast -d mbfast` で入れる（ホストにポート公開していない）。**ここは本番サーバー**。rm・DB書き込み・再起動は慎重に。ユーザー確認なしに本番データを変更しない。
+- **本番VPS上（/root/dev/mbfast-app で作業している場合）**: このディレクトリは開発用クローン。**/root/mbfast-app はデプロイ先**（docker compose が動く場所）で、直接編集しない。デプロイは `git pull && docker compose -f docker-compose.prod.yml up -d --build`（**rsync/deploy-vps.sh 禁止**・下の「デプロイ」節を必ず読む）。DBへは `docker compose -f /root/mbfast-app/docker-compose.prod.yml exec -T postgres psql -U mbfast -d mbfast` で入れる（ホストにポート公開していない）。**ここは本番サーバー**。rm・DB書き込み・再起動は慎重に。ユーザー確認なしに本番データを変更しない。
 - **Mac上（/Users/apple/dev/mbfast-app）**: ローカルNode（`export PATH="$HOME/.local/node/node-v22.14.0-darwin-arm64/bin:$PATH"`）とローカルPostgres（`bash scripts/pg.sh start`）。system node/docker/sudoは無い。
 
 ## 絶対に守るセキュリティルール
@@ -16,11 +16,25 @@ HQ（mbFAST Tuning本店）⇄ 代理店のポータル。Next.js 16 App Router 
 - パスワードは初期発行時のみ平文を表示。以後はハッシュのみ
 - ファイルは推測不能キーで保存し、認可付きルート経由でのみ配信
 
-## デプロイ（実装・検証後は指示を待たず自動デプロイして良い）
+## デプロイ（★2026-08-21の障害を受けて全面改訂・厳守）
 
-- コミットメッセージは日本語、`git push` は origin=github.com:iromay98/mbfast-app
-- VPS上なら: `bash scripts/deploy-vps.sh`（同期→ビルド→起動→ヘルスチェックまで一括）
-- Macからなら: `rm -rf src prisma` をSSHで先に実行 → `git archive | ssh tar xzf` → `docker compose up -d --build` をnohup起動 → deploy.log で `app-1 Started` と `✓ Ready` を確認。**転送とビルド起動を1つのSSHにまとめない**（パイプが切れる事故があった）
+**コードの移動はGitHub経由の一方向のみ。rsync/scp/git archive等でVPSへ直接転送してはいけない。`scripts/deploy-vps.sh` も使わない。**
+
+理由: VPS(/root/mbfast-app)は現在Git管理下にある。転送系デプロイとGitを混在させると、
+片方の作業がもう片方の変更を**黙って上書き・削除する**。実際に2026-08-21、
+別セッションのrsyncでGBP連携・メール・分割アップロードの実装がVPS上から消え、
+逆に未コミットのcreateBrand実装を消しかけた。
+
+正しい手順:
+1. 変更を commit（メッセージは日本語）→ `git push`（origin=github.com:iromay98/mbfast-app）
+2. VPSで `cd /root/mbfast-app && git pull`
+3. `docker compose -f docker-compose.prod.yml up -d --build`
+4. **反映確認を必ず行う**: `git log --oneline -1`（狙ったコミットか）と
+   `docker compose -f docker-compose.prod.yml ps app` のCREATED（直近か）。
+   ビルド失敗時は古いコンテナが動き続け「直したのに直らない」状態になるため、
+   ここを飛ばさない
+5. VPS上のファイルを直接編集しない（`git pull` が競合して止まる）
+
 - スキーマ変更は手書きmigration（`prisma/migrations/<timestamp>_<name>/migration.sql`）＋起動時 `prisma migrate deploy` が適用。ローカルは `npx prisma migrate deploy && npx prisma generate` 後に**devサーバー再起動必須**
 
 ## 主要機能マップ（詳細はコードのコメント参照）
