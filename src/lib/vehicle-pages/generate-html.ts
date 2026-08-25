@@ -124,6 +124,9 @@ function css(dark: boolean): string {
 .vpg-cta p{margin:.2em 0 .9em;font-size:.9rem;color:#cfcfcf}
 .vpg-cta a{display:inline-block;background:#06C755;color:#fff;font-weight:700;border-radius:8px;padding:.7em 1.6em;text-decoration:none;margin:0 .3em}
 .vpg-cta a.vpg-cta-alt{background:#c9a24b;color:#111}
+.vpg-related{margin-top:2.2rem;padding-top:1.2rem;border-top:1px solid #2a2a2a;font-size:.85rem}
+.vpg-related a{color:#c9a24b;text-decoration:underline;text-underline-offset:3px}
+.vpg-sep{color:#555;margin:0 .6em}
 .vpg-note{font-size:.78rem;color:${sub};margin-top:2rem;line-height:1.7}
 @media(max-width:560px){.vpg-wrap h1{font-size:1.25rem}.vpg-pcard .vpg-pval{font-size:1.3rem}}
 </style>`;
@@ -261,6 +264,22 @@ function customerRemoteBadges(d: VehiclePageData): string {
   return `<div class="vpg-badges">${tools.map((t) => `<span class="vpg-badge" title="${t.title}">${t.badge}</span>`).join("")}</div>`;
 }
 
+/** 内部リンク（ブランド一覧＝ハブへ戻る導線。孤島化の防止） */
+function relatedLinks(d: VehiclePageData, jp: boolean): string {
+  const hub = `${jp ? "" : "/en"}/tuning/${d.brandSlug}/`;
+  const root = `${jp ? "" : "/en"}/tuning/`;
+  const items = jp
+    ? [
+        `<a href="${hub}">${esc(d.brandDisplayName)}の他の車種を見る</a>`,
+        `<a href="${root}">メーカー一覧から探す</a>`,
+      ]
+    : [
+        `<a href="${hub}">More ${esc(d.brandNameEn)} models</a>`,
+        `<a href="${root}">Browse all makes</a>`,
+      ];
+  return `<div class="vpg-related">${items.join("<span class=\"vpg-sep\">｜</span>")}</div>`;
+}
+
 function dealerBlock(d: VehiclePageData, jp: boolean): string {
   const supported = REMOTE_TOOLS.filter((t) => d.remote[t.key]).filter((t) => DEALER_ONLY_TOOLS.has(t.key));
   if (supported.length === 0) return "";
@@ -339,6 +358,7 @@ ${relatedList(d) ? `<h2>この型式の施工実績</h2>\n${relatedList(d)}` : "
 <p>${esc(name)} のチューニングは、実績データに基づいてご提案します。</p>
 <a href="${LINE_URL}" target="_blank" rel="noopener">LINEで相談する</a>
 </div>
+${relatedLinks(d, true)}
 ${dealerBlock(d, true)}
 <p class="vpg-note">※価格・出力値は予告なく変更になる場合があります。出力向上値は車両個体・使用燃料により変動します。${d.notes ? `　${esc(d.notes)}` : ""}</p>
 </div>
@@ -395,6 +415,7 @@ ${relatedList(d) ? `<h2>Our Work on This Model</h2>\n${relatedList(d)}` : ""}
 <p>Tuning files developed and proven in Japan. Remote tuning available worldwide.</p>
 <a href="${LINE_URL}" target="_blank" rel="noopener">Request a Quote</a>
 </div>
+${relatedLinks(d, false)}
 ${dealerBlock(d, false)}
 <p class="vpg-note">Specifications subject to change. Output gains vary by vehicle condition and fuel.</p>
 </div>
