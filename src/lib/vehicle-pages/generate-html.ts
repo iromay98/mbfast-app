@@ -15,6 +15,16 @@ import type { GeneratedPage, PriceItem, VehiclePageData } from "./types";
 import { REMOTE_TOOLS } from "../prices/types";
 
 const LINE_URL = "https://lin.ee/8yOXuPJ";
+// EN側の窓口はWhatsApp（海外のお客様はLINEを使わないため。2026-08-25 更家さん指定）
+// 番号: 本店 +81 90-6730-4953
+const WHATSAPP_NUMBER = "819067304953";
+function carLabelEn(d: { brandNameEn: string; carName: string; grade: string | null }): string {
+  return [d.brandNameEn, d.carName, d.grade ?? ""].filter(Boolean).join(" ").trim();
+}
+function whatsappUrl(carLabel: string): string {
+  const text = encodeURIComponent(`Hi mbFAST, I'd like a quote for ${carLabel} ECU tuning.`);
+  return `https://wa.me/${WHATSAPP_NUMBER}?text=${text}`;
+}
 const MARK_START = "<!-- START: 貼り付け範囲 -->";
 const MARK_END = "<!-- END: 貼り付け範囲 -->";
 
@@ -209,13 +219,15 @@ function specRows(d: VehiclePageData, jp: boolean): string {
   return rows.map(([k, v]) => `<tr><th>${k}</th><td>${v}</td></tr>`).join("\n");
 }
 
-function priceTable(items: PriceItem[], jp: boolean, withAskBtn: boolean): string {
+function priceTable(items: PriceItem[], jp: boolean, withAskBtn: boolean, waUrl = ""): string {
   const shown = items.filter((p) => !(isAsk(p.value) && !withAskBtn));
   if (shown.length === 0) return "";
   const rows = shown
     .map((p) => {
       const val = isAsk(p.value)
-        ? `<a class="vpg-ask" href="${LINE_URL}" target="_blank" rel="noopener">LINE${jp ? "でお見積り" : " Quote"}</a>`
+        ? (jp
+            ? `<a class="vpg-ask" href="${LINE_URL}" target="_blank" rel="noopener">LINEでお見積り</a>`
+            : `<a class="vpg-ask" href="${waUrl}" target="_blank" rel="noopener">WhatsApp Quote</a>`)
         : fmtYen(p.value);
       return `<tr><th>${esc(p.label)}</th><td class="vpg-price">${val}</td></tr>`;
     })
@@ -296,7 +308,7 @@ function dealerBlock(d: VehiclePageData, jp: boolean): string {
 <p class="vpg-dealer-t">For Workshops (Dealer Program)</p>
 <p>This model is supported by our dealer-facing remote tuning tools. Workshops interested in offering mbFAST tuning files can get in touch below.</p>
 <div class="vpg-badges">${tools}</div>
-<p style="margin-top:.7em"><a href="${LINE_URL}" target="_blank" rel="noopener">Dealer inquiries</a></p>
+<p style="margin-top:.7em"><a href="${whatsappUrl(carLabelEn(d))}" target="_blank" rel="noopener">Dealer inquiries via WhatsApp</a></p>
 </div>`;
 }
 
@@ -392,7 +404,7 @@ export function generateVehiclePageEn(d: VehiclePageData): GeneratedPage {
     ? `<h2>Pricing</h2>
 <p class="vpg-sub">Pricing for international customers is provided by individual quote. Tell us your car and what you want it to do.</p>`
     : `<h2>Pricing</h2>
-${priceTable((d.en as { mode: "price"; prices: PriceItem[] }).prices, false, true)}
+${priceTable((d.en as { mode: "price"; prices: PriceItem[] }).prices, false, true, whatsappUrl(carLabelEn(d)))}
 ${tcuNote((d.en as { mode: "price"; prices: PriceItem[] }).prices, false)}`;
 
   const html = `<!-- wp:html -->
@@ -413,7 +425,7 @@ ${optionTable(d, false) ? `<h2>Available Options</h2>\n${optionTable(d, false)}`
 ${relatedList(d) ? `<h2>Our Work on This Model</h2>\n${relatedList(d)}` : ""}
 <div class="vpg-cta">
 <p>Tuning files developed and proven in Japan. Remote tuning available worldwide.</p>
-<a href="${LINE_URL}" target="_blank" rel="noopener">Request a Quote</a>
+<a href="${whatsappUrl(carLabelEn(d))}" target="_blank" rel="noopener">💬 WhatsApp Quote</a>
 </div>
 ${relatedLinks(d, false)}
 ${dealerBlock(d, false)}
