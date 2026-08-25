@@ -7,6 +7,7 @@ import {
   addVpageRelatedPost,
   pushPendingVpagesForBrand,
   resyncAllVpagesForBrand,
+  syncHubPages,
   pushVpage,
   removeVpageRelatedPost,
   seedVpagesForBrand,
@@ -143,18 +144,32 @@ function ResyncBar({ brand }: { brand: BrandData }) {
       <span className="text-ink-soft">
         {msg ?? `公開・下書き中の ${brand.liveCount} 台。デザインや表示ルールを変えた後は再反映してください`}
       </span>
-      <Button
-        disabled={pending}
-        onClick={() =>
-          start(async () => {
-            setMsg("再反映中…（1台あたり数秒かかります）");
-            const r = await resyncAllVpagesForBrand(brand.id);
-            setMsg(r.error ?? `再反映しました（成功 ${r.synced ?? 0} 台 / 失敗 ${r.failed ?? 0} 台）`);
-          })
-        }
-      >
-        {pending ? "再反映中…" : "全ページを再反映"}
-      </Button>
+      <div className="flex gap-2">
+        <Button
+          disabled={pending}
+          onClick={() =>
+            start(async () => {
+              setMsg("再反映中…（1台あたり数秒かかります）");
+              const r = await resyncAllVpagesForBrand(brand.id);
+              setMsg(r.error ?? `再反映しました（成功 ${r.synced ?? 0} 台 / 失敗 ${r.failed ?? 0} 台）`);
+            })
+          }
+        >
+          {pending ? "再反映中…" : "全ページを再反映"}
+        </Button>
+        <Button
+          disabled={pending}
+          onClick={() =>
+            start(async () => {
+              setMsg("ハブページを更新中…");
+              const r = await syncHubPages(brand.id);
+              setMsg(r.error ?? (r.log ?? []).join(" / "));
+            })
+          }
+        >
+          ハブページを更新
+        </Button>
+      </div>
     </div>
   );
 }
