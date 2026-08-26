@@ -135,7 +135,7 @@ function css(dark: boolean): string {
 .vpg-badge{background:${dark ? "#232323" : "#efefef"};border:1px solid ${line};border-radius:5px;padding:.15em .55em;font-size:.75rem}
 .vpg-tabs{margin:1.6rem 0}
 .vpg-tabs>input{position:absolute;opacity:0;pointer-events:none}
-.vpg-tablabels{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:1rem}
+.vpg-tablabels{display:flex;flex-wrap:wrap;gap:8px;position:sticky;top:0;z-index:40;background:rgba(13,13,13,.96);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);padding:10px 4px;margin:0 -4px 1rem;border-bottom:1px solid #2a2a2a}
 .vpg-tablabels label{display:inline-block;padding:8px 18px;border:1px solid #2a2a2a;border-radius:99px;background:#141414;color:#bbb;font-size:.85rem;font-weight:700;cursor:pointer;user-select:none}
 .vpg-tabpanel{display:none}
 .vpg-tabs>input:nth-of-type(1):checked~.vpg-tablabels label:nth-of-type(1){background:#c9a24b;color:#0d0d0d;border-color:#c9a24b}
@@ -164,7 +164,7 @@ function css(dark: boolean): string {
 .vpg-cta a.vpg-cta-alt{background:#c9a24b;color:#111}
 .vpg-tabs{margin:1.6rem 0}
 .vpg-tabs>input{position:absolute;opacity:0;pointer-events:none}
-.vpg-tablabels{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:1rem}
+.vpg-tablabels{display:flex;flex-wrap:wrap;gap:8px;position:sticky;top:0;z-index:40;background:rgba(13,13,13,.96);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);padding:10px 4px;margin:0 -4px 1rem;border-bottom:1px solid #2a2a2a}
 .vpg-tablabels label{display:inline-block;padding:8px 18px;border:1px solid #2a2a2a;border-radius:99px;background:#141414;color:#bbb;font-size:.85rem;font-weight:700;cursor:pointer;user-select:none}
 .vpg-tabpanel{display:none}
 .vpg-tabs>input:nth-of-type(1):checked~.vpg-tablabels label:nth-of-type(1){background:#c9a24b;color:#0d0d0d;border-color:#c9a24b}
