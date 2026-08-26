@@ -718,6 +718,7 @@ model PriceVehicle {
   source       String     @default("html") // html | airtable
   wcProductId  Int?
   seriesGroup  String // "3-Series" 等（フィルタ用）
+  pageGroup    String? // 車両ページの統合グループキー(例: c-w204-c63)。同一ブランド内で同じ値のJP行は1ページに統合され、displayOrder最小が代表
   carName      String // "3-Series (G20)"
   grade        String? // "340i"（Audi等は無し）
   engine       String     @default("") // "B58"（Lamboは無し）

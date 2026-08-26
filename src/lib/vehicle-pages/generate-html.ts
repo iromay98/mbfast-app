@@ -133,6 +133,27 @@ function css(dark: boolean): string {
 .vpg-ask{display:inline-block;background:#06C755;color:#fff;border-radius:6px;padding:.25em .7em;font-size:.8rem;font-weight:600;text-decoration:none}
 .vpg-badges{display:flex;gap:.4rem;flex-wrap:wrap}
 .vpg-badge{background:${dark ? "#232323" : "#efefef"};border:1px solid ${line};border-radius:5px;padding:.15em .55em;font-size:.75rem}
+.vpg-tabs{margin:1.6rem 0}
+.vpg-tabs>input{position:absolute;opacity:0;pointer-events:none}
+.vpg-tablabels{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:1rem}
+.vpg-tablabels label{display:inline-block;padding:8px 18px;border:1px solid #2a2a2a;border-radius:99px;background:#141414;color:#bbb;font-size:.85rem;font-weight:700;cursor:pointer;user-select:none}
+.vpg-tabpanel{display:none}
+.vpg-tabs>input:nth-of-type(1):checked~.vpg-tablabels label:nth-of-type(1){background:#c9a24b;color:#0d0d0d;border-color:#c9a24b}
+.vpg-tabs>input:nth-of-type(1):checked~.vpg-tabpanels>.vpg-tabpanel:nth-of-type(1){display:block}
+.vpg-tabs>input:nth-of-type(2):checked~.vpg-tablabels label:nth-of-type(2){background:#c9a24b;color:#0d0d0d;border-color:#c9a24b}
+.vpg-tabs>input:nth-of-type(2):checked~.vpg-tabpanels>.vpg-tabpanel:nth-of-type(2){display:block}
+.vpg-tabs>input:nth-of-type(3):checked~.vpg-tablabels label:nth-of-type(3){background:#c9a24b;color:#0d0d0d;border-color:#c9a24b}
+.vpg-tabs>input:nth-of-type(3):checked~.vpg-tabpanels>.vpg-tabpanel:nth-of-type(3){display:block}
+.vpg-tabs>input:nth-of-type(4):checked~.vpg-tablabels label:nth-of-type(4){background:#c9a24b;color:#0d0d0d;border-color:#c9a24b}
+.vpg-tabs>input:nth-of-type(4):checked~.vpg-tabpanels>.vpg-tabpanel:nth-of-type(4){display:block}
+.vpg-tabs>input:nth-of-type(5):checked~.vpg-tablabels label:nth-of-type(5){background:#c9a24b;color:#0d0d0d;border-color:#c9a24b}
+.vpg-tabs>input:nth-of-type(5):checked~.vpg-tabpanels>.vpg-tabpanel:nth-of-type(5){display:block}
+.vpg-tabs>input:nth-of-type(6):checked~.vpg-tablabels label:nth-of-type(6){background:#c9a24b;color:#0d0d0d;border-color:#c9a24b}
+.vpg-tabs>input:nth-of-type(6):checked~.vpg-tabpanels>.vpg-tabpanel:nth-of-type(6){display:block}
+.vpg-tabs>input:nth-of-type(7):checked~.vpg-tablabels label:nth-of-type(7){background:#c9a24b;color:#0d0d0d;border-color:#c9a24b}
+.vpg-tabs>input:nth-of-type(7):checked~.vpg-tabpanels>.vpg-tabpanel:nth-of-type(7){display:block}
+.vpg-tabs>input:nth-of-type(8):checked~.vpg-tablabels label:nth-of-type(8){background:#c9a24b;color:#0d0d0d;border-color:#c9a24b}
+.vpg-tabs>input:nth-of-type(8):checked~.vpg-tabpanels>.vpg-tabpanel:nth-of-type(8){display:block}
 .vpg-related{list-style:none;padding:0;margin:0}
 .vpg-related li{border:1px solid ${line};border-radius:8px;margin-bottom:.6rem}
 .vpg-related a{display:block;padding:.7em .9em;text-decoration:none;color:${fg};font-size:.92rem}
@@ -141,6 +162,27 @@ function css(dark: boolean): string {
 .vpg-cta p{margin:.2em 0 .9em;font-size:.9rem;color:#cfcfcf}
 .vpg-cta a{display:inline-block;background:#06C755;color:#fff;font-weight:700;border-radius:8px;padding:.7em 1.6em;text-decoration:none;margin:0 .3em}
 .vpg-cta a.vpg-cta-alt{background:#c9a24b;color:#111}
+.vpg-tabs{margin:1.6rem 0}
+.vpg-tabs>input{position:absolute;opacity:0;pointer-events:none}
+.vpg-tablabels{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:1rem}
+.vpg-tablabels label{display:inline-block;padding:8px 18px;border:1px solid #2a2a2a;border-radius:99px;background:#141414;color:#bbb;font-size:.85rem;font-weight:700;cursor:pointer;user-select:none}
+.vpg-tabpanel{display:none}
+.vpg-tabs>input:nth-of-type(1):checked~.vpg-tablabels label:nth-of-type(1){background:#c9a24b;color:#0d0d0d;border-color:#c9a24b}
+.vpg-tabs>input:nth-of-type(1):checked~.vpg-tabpanels>.vpg-tabpanel:nth-of-type(1){display:block}
+.vpg-tabs>input:nth-of-type(2):checked~.vpg-tablabels label:nth-of-type(2){background:#c9a24b;color:#0d0d0d;border-color:#c9a24b}
+.vpg-tabs>input:nth-of-type(2):checked~.vpg-tabpanels>.vpg-tabpanel:nth-of-type(2){display:block}
+.vpg-tabs>input:nth-of-type(3):checked~.vpg-tablabels label:nth-of-type(3){background:#c9a24b;color:#0d0d0d;border-color:#c9a24b}
+.vpg-tabs>input:nth-of-type(3):checked~.vpg-tabpanels>.vpg-tabpanel:nth-of-type(3){display:block}
+.vpg-tabs>input:nth-of-type(4):checked~.vpg-tablabels label:nth-of-type(4){background:#c9a24b;color:#0d0d0d;border-color:#c9a24b}
+.vpg-tabs>input:nth-of-type(4):checked~.vpg-tabpanels>.vpg-tabpanel:nth-of-type(4){display:block}
+.vpg-tabs>input:nth-of-type(5):checked~.vpg-tablabels label:nth-of-type(5){background:#c9a24b;color:#0d0d0d;border-color:#c9a24b}
+.vpg-tabs>input:nth-of-type(5):checked~.vpg-tabpanels>.vpg-tabpanel:nth-of-type(5){display:block}
+.vpg-tabs>input:nth-of-type(6):checked~.vpg-tablabels label:nth-of-type(6){background:#c9a24b;color:#0d0d0d;border-color:#c9a24b}
+.vpg-tabs>input:nth-of-type(6):checked~.vpg-tabpanels>.vpg-tabpanel:nth-of-type(6){display:block}
+.vpg-tabs>input:nth-of-type(7):checked~.vpg-tablabels label:nth-of-type(7){background:#c9a24b;color:#0d0d0d;border-color:#c9a24b}
+.vpg-tabs>input:nth-of-type(7):checked~.vpg-tabpanels>.vpg-tabpanel:nth-of-type(7){display:block}
+.vpg-tabs>input:nth-of-type(8):checked~.vpg-tablabels label:nth-of-type(8){background:#c9a24b;color:#0d0d0d;border-color:#c9a24b}
+.vpg-tabs>input:nth-of-type(8):checked~.vpg-tabpanels>.vpg-tabpanel:nth-of-type(8){display:block}
 .vpg-related{margin-top:2.2rem;padding-top:1.2rem;border-top:1px solid #2a2a2a;font-size:.85rem}
 .vpg-related a{color:#c9a24b;text-decoration:underline;text-underline-offset:3px}
 .vpg-sep{color:#555;margin:0 .6em}
@@ -284,6 +326,60 @@ function customerRemoteBadges(d: VehiclePageData): string {
 }
 
 /** 内部リンク（ブランド一覧＝ハブへ戻る導線。孤島化の防止） */
+/**
+ * グレード統合ページのタブ(CSSのみ・JS不使用)。
+ * 全バリエーションの内容がHTMLに存在するため、非表示タブもインデックスされる。
+ * :nth-of-type連動のため、input群→ラベル群→パネル群の順序と数を必ず一致させること。
+ */
+function variantTabs(d: VehiclePageData, jp: boolean): string {
+  const vs = d.variants ?? [];
+  if (vs.length < 2) return "";
+  const uid = jp ? "vt" : "vte";
+  const inputs = vs
+    .map((_, i) => `<input type="radio" name="${uid}" id="${uid}-${i}"${i === 0 ? " checked" : ""}>`)
+    .join("");
+  const labels = vs.map((v, i) => `<label for="${uid}-${i}">${esc(v.label)}</label>`).join("");
+  const labelsMap = jp
+    ? { stock: "純正", tuned: "チューニング後", ps: "馬力", tq: "トルク" }
+    : { stock: "Stock", tuned: "Tuned", ps: "Power", tq: "Torque" };
+  const panels = vs
+    .map((v) => {
+      const dv: VehiclePageData = {
+        ...d,
+        grade: v.grade,
+        engine: v.engine,
+        ecuType: v.ecuType,
+        stockOutput: v.stockOutput,
+        stage1Gain: v.stage1Gain,
+        prices: v.prices,
+      };
+      const prices = jp ? v.prices : (v.enPrices ?? []);
+      const priceBlock = jp
+        ? `<h2>施工価格（税込）</h2>\n${priceTable(v.prices, true, true)}\n${tcuNote(v.prices, true)}`
+        : v.enPrices
+          ? `<h2>Pricing</h2>\n${priceTable(v.enPrices, false, true, whatsappUrl(carLabelEn(d), pageUrlEn(d)))}\n${tcuNote(v.enPrices, false)}`
+          : "";
+      void prices;
+      return `<div class="vpg-tabpanel">
+<p class="vpg-sub">${jp ? "エンジン" : "Engine"}: ${esc(v.engine)}${v.ecuType ? `　ECU: ${esc(v.ecuType)}` : ""}</p>
+${powerCards(dv, labelsMap)}
+<h2>${jp ? "車両スペック" : "Specifications"}</h2>
+<table class="vpg-table"><tbody>
+${specRows(dv, jp)}
+</tbody></table>
+${priceBlock}
+</div>`;
+    })
+    .join("\n");
+  return `<div class="vpg-tabs">
+${inputs}
+<div class="vpg-tablabels">${labels}</div>
+<div class="vpg-tabpanels">
+${panels}
+</div>
+</div>`;
+}
+
 function relatedLinks(d: VehiclePageData, jp: boolean): string {
   const hub = `${jp ? "" : "/en"}/tuning/${d.brandSlug}/`;
   const root = `${jp ? "" : "/en"}/tuning/`;
@@ -360,7 +456,7 @@ ${css(true)}
 <div class="vpg-wrap">
 <div class="vpg-kicker">${esc(d.brandNameEn)} ECU TUNING</div>
 <div class="vpg-hero"><h1>${esc(name)}<br>ECUチューニング・バブリング</h1></div>
-<p class="vpg-sub">エンジン: ${esc(d.engine)}${d.ecuType ? `　ECU: ${esc(d.ecuType)}` : ""}</p>
+${(d.variants?.length ?? 0) >= 2 ? variantTabs(d, true) : `<p class="vpg-sub">エンジン: ${esc(d.engine)}${d.ecuType ? `　ECU: ${esc(d.ecuType)}` : ""}</p>
 ${powerCards(d, { stock: "純正", tuned: "チューニング後", ps: "馬力", tq: "トルク" })}
 <h2>車両スペック</h2>
 <table class="vpg-table"><tbody>
@@ -368,7 +464,7 @@ ${specRows(d, true)}
 </tbody></table>
 <h2>施工価格（税込）</h2>
 ${priceTable(priceItems, true, true)}
-${tcuNote(priceItems, true)}
+${tcuNote(priceItems, true)}`}
 ${d.labor && d.labor !== "—" ? `<p class="vpg-sub">脱着・殻割り工賃: ${esc(d.labor)}</p>` : ""}
 ${customerRemoteBadges(d) ? `<h2>リモート施工対応</h2>\n<p class="vpg-sub">専用機材をご自宅にお送りし、ご来店不要で施工いたします。</p>\n${customerRemoteBadges(d)}` : ""}
 ${optionTable(d, true) ? `<h2>対応オプション</h2>\n${optionTable(d, true)}` : ""}
@@ -420,13 +516,13 @@ ${css(true)}
 <div class="vpg-wrap">
 <div class="vpg-kicker">${esc(d.brandNameEn)} ECU TUNING — JAPAN</div>
 <div class="vpg-hero"><h1>${esc(name)}<br>ECU Tuning and Pops and Bangs</h1></div>
-<p class="vpg-sub">Engine: ${esc(d.engine)}${d.ecuType ? `　ECU: ${esc(d.ecuType)}` : ""}</p>
+${(d.variants?.length ?? 0) >= 2 ? variantTabs(d, false) : `<p class="vpg-sub">Engine: ${esc(d.engine)}${d.ecuType ? `　ECU: ${esc(d.ecuType)}` : ""}</p>
 ${powerCards(d, { stock: "Stock", tuned: "Tuned", ps: "Power", tq: "Torque" })}
 <h2>Vehicle Specs</h2>
 <table class="vpg-table"><tbody>
 ${specRows(d, false)}
 </tbody></table>
-${priceSection}
+${priceSection}`}
 ${customerRemoteBadges(d) ? `<h2>Remote Tuning</h2>\n<p class="vpg-sub">We ship the flashing device to you — no visit required.</p>\n${customerRemoteBadges(d)}` : ""}
 ${optionTable(d, false) ? `<h2>Available Options</h2>\n${optionTable(d, false)}` : ""}
 ${relatedList(d) ? `<h2>Our Work on This Model</h2>\n${relatedList(d)}` : ""}

@@ -54,6 +54,7 @@ export type VehicleRow = {
   shops: string | null;
   remote: RemoteFlags;
   notes: string | null;
+  pageGroup?: string | null; // グレード統合グループ(車両ページ)
   displayOrder: number;
 };
 

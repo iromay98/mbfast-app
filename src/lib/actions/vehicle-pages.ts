@@ -403,3 +403,18 @@ export async function syncHubPages(brandId?: string): Promise<{ ok?: true; log?:
   revalidatePath(PATH);
   return { ok: true, log };
 }
+
+/** グレード統合グループの設定(空でクリア)。同一ブランド内で同じ値のJP行が1ページに統合される */
+export async function setVehiclePageGroup(vehicleId: string, group: string): Promise<{ ok?: true; members?: number; error?: string }> {
+  await requireHQ();
+  const g = group.trim().toLowerCase().replace(/[^a-z0-9-]/g, "");
+  const v = await prisma.priceVehicle.findUnique({ where: { id: vehicleId }, select: { brandId: true } });
+  if (!v) return { error: "行が見つかりません" };
+  await prisma.priceVehicle.update({ where: { id: vehicleId }, data: { pageGroup: g || null } });
+  const members = g
+    ? await prisma.priceVehicle.count({ where: { brandId: v.brandId, market: "JP", pageGroup: g } })
+    : 0;
+  revalidatePath("/hq/prices");
+  revalidatePath(PATH);
+  return { ok: true, members };
+}
