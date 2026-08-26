@@ -3,7 +3,7 @@
 
 import { prisma } from "../db";
 import { generateVehiclePageEn, generateVehiclePageJp } from "./generate-html";
-import { brandNameEn, brandUrlSlug, resolveVehiclePageData } from "./resolve";
+import { brandNameEn, brandUrlSlug, resolveVehiclePageData, variantFor } from "./resolve";
 import { loadOptionDefs } from "./options-db";
 import {
   createPage,
@@ -45,6 +45,27 @@ export async function syncVehiclePage(pageId: string): Promise<SyncEvent[]> {
 
   const v = p.vehicle;
   const b = v.brand;
+
+  // ── グレード統合グループ ──
+  // 同一ブランドで pageGroup が同じJP行は1ページに統合。displayOrder最小が代表で、
+  // 代表のページ行(slug/WPページ)がそのまま統合ページになる。非代表は同期対象外。
+  let groupVehicles: (typeof v)[] = [];
+  if (v.pageGroup) {
+    groupVehicles = (await prisma.priceVehicle.findMany({
+      where: { brandId: b.id, market: "JP", pageGroup: v.pageGroup },
+      orderBy: { displayOrder: "asc" },
+      include: { brand: true },
+    })) as (typeof v)[];
+    if (groupVehicles.length > 1 && groupVehicles[0].id !== v.id) {
+      return [
+        {
+          level: "warn",
+          message: `統合グループ「${v.pageGroup}」の非代表行のため、このページは生成しません（代表: ${groupVehicles[0].carName} ${groupVehicles[0].grade ?? ""}）。公開中なら「非表示」にしてください`,
+        },
+      ];
+    }
+  }
+
   const vehicleEn =
     p.enPriceMode === "price"
       ? await prisma.priceVehicle.findFirst({
@@ -53,6 +74,21 @@ export async function syncVehiclePage(pageId: string): Promise<SyncEvent[]> {
       : null;
   const optionDefs = await loadOptionDefs();
   const data = resolveVehiclePageData(b, v, p, vehicleEn, optionDefs);
+
+  if (groupVehicles.length > 1) {
+    const variants = [];
+    for (const gv of groupVehicles) {
+      const gvEn =
+        p.enPriceMode === "price"
+          ? await prisma.priceVehicle.findFirst({
+              where: { brandId: b.id, market: "EN", carName: gv.carName, grade: gv.grade },
+            })
+          : null;
+      variants.push(variantFor(b, gv, gvEn, p.enPriceMode));
+    }
+    data.variants = variants;
+    events.push({ level: "info", message: `統合グループ「${v.pageGroup}」: ${variants.length}バリエーションをタブ表示` });
+  }
   const jp = generateVehiclePageJp(data);
   const en = generateVehiclePageEn(data);
   const wpStatus = p.status === "publish" ? "publish" : "draft";

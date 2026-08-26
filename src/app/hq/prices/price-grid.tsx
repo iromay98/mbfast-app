@@ -17,7 +17,7 @@ import {
   type RemoteFlags,
   type VehicleRow,
 } from "@/lib/prices/types";
-import { manualOptionDefs, VpageOptionCell, VpageStatusCell, type VpageInfo } from "./vpage-cells";
+import { manualOptionDefs, VpageGroupCell, VpageOptionCell, VpageStatusCell, type VpageInfo } from "./vpage-cells";
 import type { OptionDef } from "@/lib/vehicle-pages/options";
 import {
   buildFillUpdates,
@@ -327,6 +327,7 @@ export function PriceGrid({ brand, vehicles, optionDefs }: { brand: BrandRow; ve
               ))}
               <th className="border-b border-line px-1.5 py-1.5 font-semibold">備考★</th>
               <th className="border-b border-l border-line px-1.5 py-1.5 font-semibold" title="車両ページの公開状態">頁</th>
+              <th className="border-b border-line px-1.5 py-1.5 font-semibold" title="同じキーを入れた行が1つの車両ページ(グレードタブ切替)に統合されます。先頭行が代表">統合</th>
               {manualOpts.map((o) => (
                 <th key={o.key} className="border-b border-line px-1 py-1.5 text-center font-semibold" title={o.jp}>
                   {o.short ?? o.jp}
@@ -460,6 +461,9 @@ function Row({
       </td>
       <td className="border-b border-l border-line px-1 py-1">
         <VpageStatusCell vehicleId={v.id} vpage={v.vpage} />
+      </td>
+      <td className="border-b border-line px-1 py-1">
+        <VpageGroupCell vehicleId={v.id} group={v.pageGroup ?? null} />
       </td>
       {manualOpts.map((o) => (
         <td key={o.key} className="border-b border-line px-0.5 py-1 text-center">

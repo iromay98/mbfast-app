@@ -32,6 +32,20 @@ export type VehiclePageData = {
   related: RelatedPost[];
   /** EN: quote=価格非表示（既定）。price=EN価格を表示（market=EN のレコードから解決済みの値） */
   en: { mode: "quote" } | { mode: "price"; prices: PriceItem[] };
+  /** 2件以上でグレードタブ表示(CSSのみ)。未設定/1件は従来の単独表示 */
+  variants?: VehicleVariant[];
+};
+
+/** グレード統合ページの1バリエーション(タブ1枚分)。先頭が代表＝初期表示 */
+export type VehicleVariant = {
+  label: string; // タブ見出し("C63AMG 457ps" 等)
+  grade: string | null;
+  engine: string;
+  ecuType: string | null;
+  stockOutput: string | null;
+  stage1Gain: string | null;
+  prices: PriceItem[];
+  enPrices: PriceItem[] | null; // ENで価格表示するときのみ
 };
 
 export type GeneratedPage = { title: string; html: string };

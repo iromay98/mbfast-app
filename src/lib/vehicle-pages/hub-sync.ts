@@ -67,6 +67,15 @@ export async function syncBrandHub(brandId: string): Promise<HubSyncEvent[]> {
   if (!brand) return [{ level: "error", message: "ブランドが見つかりません" }];
   if (brand.vehicles.length === 0) return [{ level: "info", message: `${brand.displayName}: 公開車両なし（スキップ）` }];
 
+  // グレード統合: 同じpageGroupは代表(先頭)だけを一覧に出す
+  const seenGroups = new Set<string>();
+  brand.vehicles = brand.vehicles.filter((v) => {
+    if (!v.pageGroup) return true;
+    if (seenGroups.has(v.pageGroup)) return false;
+    seenGroups.add(v.pageGroup);
+    return true;
+  });
+
   const urlSlug = brandUrlSlug(brand.id, brand.slug);
   const nameEn = brandNameEn(brand.slug, brand.displayName);
   const pricePageUrl = await pricePageUrlOf(brand.wordPressPageId);

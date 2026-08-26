@@ -6,7 +6,7 @@
 
 import { useState } from "react";
 import type { OptionDef } from "@/lib/vehicle-pages/options";
-import { setVpageOptionByVehicle, setVpageStatusByVehicle } from "@/lib/actions/vehicle-pages";
+import { setVehiclePageGroup, setVpageOptionByVehicle, setVpageStatusByVehicle } from "@/lib/actions/vehicle-pages";
 
 /** 価格セルから自動判定されるものはグリッドに手動列を出さない（価格列が調整場所） */
 export function manualOptionDefs(defs: OptionDef[]): OptionDef[] {
@@ -104,5 +104,33 @@ export function VpageOptionCell({
     >
       {label}
     </button>
+  );
+}
+
+
+/** グレード統合グループの入力セル。同じ値を入れた行が1ページ(タブ切替)に統合される */
+export function VpageGroupCell({ vehicleId, group }: { vehicleId: string; group: string | null }) {
+  const [v, setV] = useState(group ?? "");
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+  return (
+    <span className="inline-flex items-center gap-1">
+      <input
+        value={v}
+        placeholder="（統合キー）"
+        disabled={saving}
+        onChange={(e) => setV(e.target.value)}
+        onBlur={async () => {
+          if ((group ?? "") === v.trim()) return;
+          setSaving(true);
+          const r = await setVehiclePageGroup(vehicleId, v);
+          setMsg(r.error ?? (r.members && r.members > 1 ? `${r.members}行を統合` : null));
+          setSaving(false);
+          setTimeout(() => setMsg(null), 4000);
+        }}
+        className="w-24 rounded border border-transparent px-1 py-0.5 font-mono text-[11px] hover:border-line focus:border-gold-500 focus:outline-none"
+      />
+      {msg && <span className="text-[10px] text-ink-soft">{msg}</span>}
+    </span>
   );
 }

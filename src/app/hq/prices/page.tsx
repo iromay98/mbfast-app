@@ -81,6 +81,7 @@ export default async function HqPricesPage() {
       shops: v.shops,
       remote: toRemote(v.remote),
       notes: v.notes,
+      pageGroup: v.pageGroup ?? null,
       displayOrder: v.displayOrder,
       vpage: v.page ? { status: v.page.status, options: toVpageOptions(v.page.options) } : null,
     }));

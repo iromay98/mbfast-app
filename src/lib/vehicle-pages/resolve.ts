@@ -116,6 +116,32 @@ export function resolveVehiclePageData(
   };
 }
 
+/** 統合ページのタブ見出し。グレード＋純正ps("C63AMG 457ps")。グレード無しは出力のみ */
+export function variantLabel(v: { grade: string | null; stockOutput: string | null }): string {
+  const ps = (v.stockOutput?.match(/(\d+)\s*ps/i) ?? [])[1];
+  const parts = [v.grade ?? "", ps ? `${ps}ps` : ""].filter(Boolean);
+  return parts.join(" ") || "STD";
+}
+
+/** 統合ページ用: 1車両行 → バリエーション1件 */
+export function variantFor(
+  brand: BrandRowLike,
+  vehicleJp: VehicleRowLike,
+  vehicleEn: VehicleRowLike | null,
+  enPriceMode: string,
+): import("./types").VehicleVariant {
+  return {
+    label: variantLabel(vehicleJp),
+    grade: vehicleJp.grade,
+    engine: vehicleJp.engine,
+    ecuType: vehicleJp.ecuType,
+    stockOutput: vehicleJp.stockOutput,
+    stage1Gain: vehicleJp.stage1Gain,
+    prices: priceItemsFor(brand, vehicleJp),
+    enPrices: enPriceMode === "price" && vehicleEn ? priceItemsFor(brand, vehicleEn) : null,
+  };
+}
+
 /** carName+grade → slug（"C(W204)" + "C63AMG" → "c-w204-c63amg"） */
 export function vehicleSlug(carName: string, grade: string | null): string {
   const base = [carName, grade].filter(Boolean).join(" ");
