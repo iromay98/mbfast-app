@@ -15,7 +15,7 @@ export default async function NewDealerPage() {
           </LinkButton>
         }
       />
-      <DealerForm action={createDealer} submitLabel="登録する" />
+      <DealerForm action={createDealer} submitLabel="登録する" showPitSetup />
     </div>
   );
 }

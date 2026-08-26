@@ -356,3 +356,109 @@ export async function publishPost(input: WpPostInput): Promise<WpPost> {
   }
   return { id: post.id, link: post.link };
 }
+
+// ── 店舗プロビジョニング用（代理店登録時の自動付与・既存代理店の遡り付与） ──────────
+
+/** mbPITポータル固定ページ（/mbpit/・店舗ページの親） */
+export const MBPIT_PORTAL_PAGE_ID = 19757;
+/**
+ * 店舗ページの雛形（ユウキロジ 20445。v2ダークデザイン・最新の店舗ページ）。
+ * 新規店舗ページはこのページの本文を複製し、店名・slug・カテゴリIDだけ差し替える。
+ * デザイン変更は雛形ページをWP側で直せばアプリ更新なしに以後の新規店舗へ反映される。
+ */
+export const MBPIT_STORE_PAGE_TEMPLATE_ID = 20445;
+const TEMPLATE_STORE = { name: "ユウキロジ", slug: "yuukilogi", categoryId: 661 } as const;
+
+export type WpCategorySlugHit = { id: number; name: string; slug: string; parent: number };
+
+/** slugでカテゴリを引く（タクソノミー全体で一意。無ければ null）。衝突判定に使う */
+export async function findCategoryBySlug(slug: string): Promise<WpCategorySlugHit | null> {
+  const res = await wpFetch(`/categories?slug=${encodeURIComponent(slug)}&_fields=id,name,slug,parent&per_page=5`, {
+    method: "GET",
+  });
+  const rows = (await res.json()) as WpCategorySlugHit[];
+  return rows.find((r) => r.slug === slug) ?? null;
+}
+
+/** 店舗固定ページを slug で引く（親19757配下のみ。無ければ null） */
+export async function findStorePage(slug: string): Promise<{ id: number; link: string } | null> {
+  const res = await wpFetch(
+    `/pages?slug=${encodeURIComponent(slug)}&parent=${MBPIT_PORTAL_PAGE_ID}&status=publish,draft,private&_fields=id,slug,parent,link&per_page=5`,
+    { method: "GET" },
+  );
+  const rows = (await res.json()) as { id: number; slug: string; parent: number; link: string }[];
+  const hit = rows.find((r) => r.slug === slug && r.parent === MBPIT_PORTAL_PAGE_ID);
+  return hit ? { id: hit.id, link: hit.link } : null;
+}
+
+function escapeRe(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/**
+ * 雛形ページの本文を新店舗向けに差し替える（純粋関数・検証用に公開）。
+ * 差し替えるのは 店名 / slug（URL）/ カテゴリID（件数取得・記事一覧クエリ）/ queryId の4種だけ。
+ * カテゴリIDは「661」を無差別に置換せず、雛形で使われている2箇所の文脈に限定する
+ * （CSSの数値等を誤って書き換えないため）。
+ */
+export function renderStorePageContent(
+  templateRaw: string,
+  store: { name: string; slug: string; categoryId: number },
+): string {
+  const t = TEMPLATE_STORE;
+  let out = templateRaw;
+  out = out.replace(new RegExp(`/categories/${t.categoryId}\\?`, "g"), `/categories/${store.categoryId}?`);
+  out = out.replace(new RegExp(`"category":\\[${t.categoryId}\\]`, "g"), `"category":[${store.categoryId}]`);
+  out = out.replace(new RegExp(`/mbpit/${escapeRe(t.slug)}/`, "g"), `/mbpit/${store.slug}/`);
+  // queryId はページ内で一意なら良い（同じ値でも動くが、念のためカテゴリIDから派生させる）
+  out = out.replace(/"queryId":\d+/g, `"queryId":${10000 + store.categoryId}`);
+  // 店名: JSON-LD 内はJSON文字列として、それ以外はHTMLテキストとして置換
+  const jsonName = JSON.stringify(store.name).slice(1, -1);
+  const htmlName = store.name.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  out = out.replace(new RegExp(`"name": "${escapeRe(t.name)}"`, "g"), `"name": "${jsonName}"`);
+  out = out.replace(new RegExp(escapeRe(t.name), "g"), htmlName);
+  return out;
+}
+
+/** 雛形ページの本文（content.raw）を取得 */
+export async function fetchStorePageTemplate(): Promise<string> {
+  const res = await wpFetch(`/pages/${MBPIT_STORE_PAGE_TEMPLATE_ID}?context=edit&_fields=content`, { method: "GET" });
+  const p = (await res.json()) as { content?: { raw?: string } };
+  const raw = p.content?.raw ?? "";
+  if (!raw.includes(`"category":[${TEMPLATE_STORE.categoryId}]`)) {
+    throw new Error(`店舗ページ雛形(${MBPIT_STORE_PAGE_TEMPLATE_ID})の構造が想定と違います（カテゴリ${TEMPLATE_STORE.categoryId}の記事一覧クエリが見つかりません）`);
+  }
+  return raw;
+}
+
+/**
+ * 店舗固定ページ（/mbpit/{slug}/）を作成して ID とURLを返す。
+ * 同slugのページが既に親19757配下にあれば再利用する（二重作成しない）。
+ */
+export async function createStorePage(store: { name: string; slug: string; categoryId: number }): Promise<{
+  id: number;
+  link: string;
+  reused: boolean;
+}> {
+  const existing = await findStorePage(store.slug);
+  if (existing) return { ...existing, reused: true };
+  const content = renderStorePageContent(await fetchStorePageTemplate(), store);
+  const res = await wpFetch(`/pages`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      title: `${store.name}｜mbPIT加盟店`,
+      slug: store.slug,
+      parent: MBPIT_PORTAL_PAGE_ID,
+      status: "publish",
+      content,
+    }),
+  });
+  const page = (await res.json()) as { id: number; link: string; slug?: string };
+  if (page.slug && page.slug !== store.slug) {
+    // WPがslugを付け替えた（-2 等）＝別の何かと衝突している。URL規則が崩れるので残さない
+    await wpFetch(`/pages/${page.id}?force=true`, { method: "DELETE" }).catch(() => {});
+    throw new Error(`店舗ページのslugがWP側で「${page.slug}」に変更されました。同slugの固定ページが既にあります`);
+  }
+  return { id: page.id, link: page.link, reused: false };
+}
