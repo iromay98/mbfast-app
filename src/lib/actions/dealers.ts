@@ -11,6 +11,8 @@ import {
   zodToFieldErrors,
 } from "@/lib/actions/form-state";
 import { notify } from "@/server/notifications";
+import { planPitProvision, provisionPitForDealer } from "@/server/pit/provision";
+import { normalizeStoreSlug } from "@/server/pit/store-slug";
 
 function parseDealerForm(formData: FormData) {
   return dealerSchema.safeParse({
@@ -45,8 +47,82 @@ export async function createDealer(
     return { error: "入力内容を確認してください", fieldErrors: zodToFieldErrors(parsed.error) };
   }
   const dealer = await prisma.dealer.create({ data: parsed.data });
+
+  /*
+   * mbPIT 店舗の自動付与（更家さん決定・2026-08-26: 代理店には登録と同時に投稿機能を付ける）。
+   * 失敗しても代理店登録自体は成功させ、詳細画面の「mbPIT」欄で理由を見て再実行できるようにする。
+   * slug は任意入力（空なら店名から自動生成。日本語店名で作れなければ詳細画面で指定する）。
+   */
+  const pitSlug = String(formData.get("pitSlug") ?? "").trim();
+  const skipPit = formData.get("pitSkip") === "on";
+  let pitMessage = "";
+  if (!skipPit) {
+    try {
+      const r = await provisionPitForDealer(dealer.id, { slug: pitSlug || undefined });
+      pitMessage = r.ok ? `mbPIT店舗を開設 (/mbpit/${r.slug}/)` : `mbPIT開設は保留: ${[...r.issues, r.error ?? ""].filter(Boolean).join(" / ")}`;
+    } catch (e) {
+      pitMessage = `mbPIT開設でエラー: ${e instanceof Error ? e.message : String(e)}`;
+    }
+    await notify({
+      type: "PIT_STORE_PROVISIONED",
+      title: "代理店を登録しました",
+      message: `${dealer.name}: ${pitMessage}`,
+      link: `/hq/dealers/${dealer.id}`,
+    });
+  }
   revalidatePath("/hq/dealers");
+  revalidatePath("/hq/pit");
   redirect(`/hq/dealers/${dealer.id}`);
+}
+
+// 代理店詳細の「mbPIT機能を付ける」。既存代理店の遡り付与（1件ずつ）。
+export async function provisionDealerPit(
+  _prev: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  await requireHQ();
+  const dealerId = String(formData.get("dealerId") ?? "");
+  const slugInput = String(formData.get("slug") ?? "").trim();
+  const displayName = String(formData.get("displayName") ?? "").trim();
+  const dryRun = formData.get("dryRun") === "on";
+  if (!dealerId) return { error: "代理店IDがありません" };
+  if (slugInput && !/^[a-zA-Z0-9-]+$/.test(normalizeStoreSlug(slugInput))) {
+    return { error: "slugは英小文字・数字・ハイフンのみです", fieldErrors: { slug: "形式が不正" } };
+  }
+  try {
+    if (dryRun) {
+      const plan = await planPitProvision(dealerId, { slug: slugInput || undefined, displayName: displayName || undefined });
+      return {
+        ok: true,
+        data: {
+          dryRun: true,
+          status: plan.status,
+          slug: plan.slug,
+          issues: plan.issues.join("\n"),
+          notes: plan.notes.join("\n"),
+        },
+      };
+    }
+    const r = await provisionPitForDealer(dealerId, { slug: slugInput || undefined, displayName: displayName || undefined });
+    revalidatePath(`/hq/dealers/${dealerId}`);
+    revalidatePath("/hq/pit");
+    if (!r.ok) {
+      return { error: [...r.issues, r.error ?? ""].filter(Boolean).join(" / ") || "開設できませんでした" };
+    }
+    return {
+      ok: true,
+      data: {
+        dryRun: false,
+        status: r.status,
+        slug: r.slug ?? "",
+        pageUrl: r.pageUrl ?? "",
+        mailSent: r.mailSent ? "yes" : "no",
+        notes: r.notes.join("\n"),
+      },
+    };
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "開設に失敗しました" };
+  }
 }
 
 // 代理店更新

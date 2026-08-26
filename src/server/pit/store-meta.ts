@@ -15,6 +15,7 @@
  */
 
 import { isInJapan, isShortMapUrl, parseLatLng } from "@/lib/geo/gmap";
+import { normalizeStoreSlug } from "@/server/pit/store-slug";
 
 // PitStore の同期対象カラム名（この型に無いカラムは同期不能）
 export type StoreMetaField =
@@ -67,7 +68,10 @@ export const STORE_META_FIELDS: {
 /** 画面上で店舗が直接編集しない項目（値は mapUrl から自動で入る） */
 export const DERIVED_FIELDS: StoreMetaField[] = ["lat", "lng"];
 
-// 既存5店舗の確定紐付け（仕様書 §1.1。初期取込の突合に使用）
+// 初期店舗の確定紐付け（初期取込の突合に使用）。値はWPの実カテゴリslug（2026-08-26 本番照合）。
+// 注意: Glanzcoat(555) のWPカテゴリslugだけ旧規則の「-mbpit」接尾辞が残っている（本体ブログ側の
+// 代理店カテゴリ 371 が `glanzcoat` を先に取っているため）。店舗短slugは規則どおり `glanzcoat`。
+// 新規店舗にこの接尾辞を付けてはいけない（規則は src/server/pit/store-slug.ts）。
 export const KNOWN_WP_STORES: {
   termId: number;
   name: string;
@@ -75,16 +79,19 @@ export const KNOWN_WP_STORES: {
   shortSlug: string;
   pageId: number;
 }[] = [
-  { termId: 549, name: "On's", categorySlug: "ons-mbpit", shortSlug: "ons", pageId: 20212 },
+  { termId: 549, name: "On's", categorySlug: "on-s", shortSlug: "ons", pageId: 20212 },
   { termId: 547, name: "CharismGarage", categorySlug: "charism-garage", shortSlug: "charism-garage", pageId: 20211 },
-  { termId: 551, name: "Anubis Garage", categorySlug: "anubis-garage", shortSlug: "anubis-garage", pageId: 20213 },
+  { termId: 551, name: "RAF INDUSTRIES", categorySlug: "raf-industries", shortSlug: "raf-industries", pageId: 20213 },
   { termId: 553, name: "プレジャー", categorySlug: "pleasure", shortSlug: "pleasure", pageId: 20214 },
   { termId: 555, name: "Glanzcoat", categorySlug: "glanzcoat-mbpit", shortSlug: "glanzcoat", pageId: 20215 },
 ];
 
-/** 店舗短slug = category slug から末尾 -mbpit を除去（変更禁止の規則。パーマリンク生成と共有） */
+/**
+ * 店舗短slug = category slug から旧規則の接尾辞（-mbpit / -dealer）を除去。
+ * 正規化ルールの原本は store-slug.ts（ここは互換のための薄いラッパ）。
+ */
 export function shortSlugOf(categorySlug: string): string {
-  return categorySlug.replace(/-mbpit$/, "");
+  return normalizeStoreSlug(categorySlug);
 }
 
 /*

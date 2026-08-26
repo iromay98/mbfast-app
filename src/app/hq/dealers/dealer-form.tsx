@@ -30,10 +30,13 @@ export function DealerForm({
   action,
   defaults,
   submitLabel,
+  showPitSetup = false,
 }: {
   action: (prev: FormState, formData: FormData) => Promise<FormState>;
   defaults?: DealerDefaults;
   submitLabel: string;
+  /** 新規登録画面だけ true: mbPIT店舗の自動開設欄（slug指定・スキップ）を出す */
+  showPitSetup?: boolean;
 }) {
   const [state, formAction, pending] = useActionState(action, emptyFormState);
   const fe = state.fieldErrors ?? {};
@@ -121,6 +124,25 @@ export function DealerForm({
             この代理店はECU業務あり（施工依頼・記録を表示）
           </label>
         </Field>
+
+        {showPitSetup && (
+          <fieldset className="rounded-lg border border-gold-200 bg-gold-50/40 p-3">
+            <legend className="px-1 text-xs font-semibold text-ink-soft">mbPIT（登録と同時に自動開設）</legend>
+            <p className="mb-2 text-xs text-ink-soft">
+              代理店にはmbPITの投稿機能を無償で付けます（店舗カテゴリ・店舗ページを自動作成、ジャンル初期値は「チューニング（エンジン・駆動系）」）。
+            </p>
+            <Field
+              label="店舗slug（URL用・任意）"
+              hint="英小文字・数字・ハイフン。空欄なら店名から自動生成（日本語店名は登録後に詳細画面で指定）。-mbpit 等の接尾辞は付けない"
+            >
+              <Input name="pitSlug" placeholder="例: charism-garage" pattern="[a-zA-Z0-9-]*" />
+            </Field>
+            <label className="mt-2 flex items-center gap-2 text-sm text-ink">
+              <input type="checkbox" name="pitSkip" className="h-4 w-4" />
+              今回はmbPIT店舗を開設しない（後から詳細画面で開設できます）
+            </label>
+          </fieldset>
+        )}
 
         {/*
           契約（1年更新）。次回更新日はDBに持たず開始日から計算する（src/lib/contract.ts）。
