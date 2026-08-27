@@ -81,17 +81,23 @@ export async function syncVehiclePage(pageId: string): Promise<SyncEvent[]> {
   // 見積りシミュレーター用の購入データ(JP)。価格マスタと同一ソース＝表示と課金がズレない
   const optionDefRows = await prisma.vehiclePageOption.findMany({ where: { enabled: true }, orderBy: { displayOrder: "asc" } });
   const purchaseFor = (vehicle: typeof v, pageOptions: unknown): import("./types").PurchaseData => {
-    const menus = menuItemsOf(b, toPrices(vehicle.prices)).map((m) => ({
+    const all = menuItemsOf(b, toPrices(vehicle.prices)).map((m) => ({
       ...m,
       variationId: ((vehicle.wcMenuVariations ?? {}) as Record<string, number>)[m.key] ?? null,
     }));
+    // TCUは単品施工ではなくオプション扱い(2026-08-28 更家さん指定・全メーカー共通)。
+    // 決済単位(バリエーション)としては残し、UI上だけチェックボックス側に出す。
+    const isTcu = (m: { key: string; label: string }) =>
+      m.key.toLowerCase().includes("tcu") || m.label.toLowerCase().includes("tcu");
+    const menus = all.filter((m) => !isTcu(m));
+    const addons = all.filter(isTcu);
     const enabledOpts = toOptions(pageOptions);
     const options = optionDefRows
       .filter((d) => !d.derivedFrom)
       .filter((d) => (d.priceJpy ?? 0) > 0)
       .filter((d) => enabledOpts[d.key] === true)
       .map((d) => ({ key: d.key, label: d.labelJa, jpy: d.priceJpy as number, productId: d.wcProductIdJa ?? null }));
-    return { menus, options };
+    return { menus, addons, options };
   };
   data.purchase = purchaseFor(v, p.options);
 
