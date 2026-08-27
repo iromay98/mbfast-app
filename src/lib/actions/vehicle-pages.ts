@@ -418,3 +418,13 @@ export async function setVehiclePageGroup(vehicleId: string, group: string): Pro
   revalidatePath(PATH);
   return { ok: true, members };
 }
+
+/** JP Woo商品の一括生成/更新(公開中の車両ページを持つ代表行のみ・noindex・EN商品と翻訳紐付け) */
+export async function syncJpProducts(brandId: string): Promise<{ ok?: true; done?: number; skipped?: number; failed?: number; log?: string[]; error?: string }> {
+  await requireHQ();
+  if (!wpConfigured()) return { error: "WP認証が未設定です" };
+  const { syncJpProductsForBrand } = await import("@/lib/vehicle-pages/woo-jp");
+  const r = await syncJpProductsForBrand(brandId);
+  revalidatePath(PATH);
+  return { ok: true, ...r };
+}

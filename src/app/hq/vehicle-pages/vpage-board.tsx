@@ -8,6 +8,7 @@ import {
   pushPendingVpagesForBrand,
   resyncAllVpagesForBrand,
   syncHubPages,
+  syncJpProducts,
   pushVpage,
   removeVpageRelatedPost,
   seedVpagesForBrand,
@@ -168,6 +169,18 @@ function ResyncBar({ brand }: { brand: BrandData }) {
           }
         >
           ハブページを更新
+        </Button>
+        <Button
+          disabled={pending}
+          onClick={() =>
+            start(async () => {
+              setMsg("JP商品を生成中…(1台あたり数秒)");
+              const r = await syncJpProducts(brand.id);
+              setMsg(r.error ?? `JP商品: 作成/更新 ${r.done ?? 0} / スキップ ${r.skipped ?? 0} / 失敗 ${r.failed ?? 0}${(r.log ?? []).length ? " ｜ " + (r.log ?? []).slice(0, 3).join(" / ") : ""}`);
+            })
+          }
+        >
+          JP商品を生成
         </Button>
       </div>
     </div>
