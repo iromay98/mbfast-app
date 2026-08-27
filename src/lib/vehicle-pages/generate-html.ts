@@ -417,6 +417,12 @@ function simulatorBlock(purchase: import("./types").PurchaseData | undefined, si
         `<label><input type="radio" name="${simId}-menu" value="${m.variationId ?? ""}" data-jpy="${m.jpy}"${i === 0 ? " checked" : ""}><span>${esc(m.label)}</span><span class="sim-price">¥${m.jpy.toLocaleString("ja-JP")}</span></label>`,
     )
     .join("\n");
+  const addons = purchase.addons
+    .map(
+      (a) =>
+        `<label><input type="checkbox" name="${simId}-opt" value="${a.variationId ?? ""}" data-jpy="${a.jpy}"><span>${esc(a.label)}</span><span class="sim-price">+¥${a.jpy.toLocaleString("ja-JP")}</span></label>`,
+    )
+    .join("\n");
   const opts = purchase.options
     .map(
       (o) =>
@@ -429,7 +435,7 @@ function simulatorBlock(purchase: import("./types").PurchaseData | undefined, si
 <h3>お見積りシミュレーション</h3>
 <p class="sim-sec">施工メニュー（どれか1つ）</p>
 ${menus}
-${opts ? `<p class="sim-sec">オプション（複数選択可）</p>\n${opts}` : ""}
+${addons || opts ? `<p class="sim-sec">オプション（複数選択可）</p>\n${addons}${addons && opts ? "\n" : ""}${opts}` : ""}
 <div class="sim-total"><span>合計（税込）</span><span class="sim-total-val" data-total>¥${firstTotal.toLocaleString("ja-JP")}</span></div>
 <div class="sim-actions">
 <a class="sim-buy" data-buy href="${fallbackCart}">この内容で申し込む</a>

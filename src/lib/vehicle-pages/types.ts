@@ -41,7 +41,11 @@ export type VehiclePageData = {
 /** 見積りシミュレーター+決済用の購入データ(JPのみ)。価格は全て静的にHTMLへ出す */
 export type PurchaseMenu = { key: string; label: string; jpy: number; variationId: number | null };
 export type PurchaseOption = { key: string; label: string; jpy: number; productId: number | null };
-export type PurchaseData = { menus: PurchaseMenu[]; options: PurchaseOption[] };
+export type PurchaseData = {
+  menus: PurchaseMenu[]; // 択一の施工メニュー(ラジオ)
+  addons: PurchaseMenu[]; // 車両ごと価格のオプション(チェックボックス)。TCU等。決済はバリエーションで行う
+  options: PurchaseOption[]; // 全車共通の固定価格オプション
+};
 
 /** グレード統合ページの1バリエーション(タブ1枚分)。先頭が代表＝初期表示 */
 export type VehicleVariant = {
