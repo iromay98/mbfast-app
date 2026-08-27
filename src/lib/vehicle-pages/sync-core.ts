@@ -5,6 +5,9 @@ import { prisma } from "../db";
 import { generateVehiclePageEn, generateVehiclePageJp } from "./generate-html";
 import { brandNameEn, brandUrlSlug, resolveVehiclePageData, variantFor } from "./resolve";
 import { loadOptionDefs } from "./options-db";
+import { menuItemsOf } from "./woo-jp";
+import { toPrices } from "../prices/types";
+import { toOptions } from "./options";
 import {
   createPage,
   ensureParentPage,
@@ -75,6 +78,23 @@ export async function syncVehiclePage(pageId: string): Promise<SyncEvent[]> {
   const optionDefs = await loadOptionDefs();
   const data = resolveVehiclePageData(b, v, p, vehicleEn, optionDefs);
 
+  // 見積りシミュレーター用の購入データ(JP)。価格マスタと同一ソース＝表示と課金がズレない
+  const optionDefRows = await prisma.vehiclePageOption.findMany({ where: { enabled: true }, orderBy: { displayOrder: "asc" } });
+  const purchaseFor = (vehicle: typeof v, pageOptions: unknown): import("./types").PurchaseData => {
+    const menus = menuItemsOf(b, toPrices(vehicle.prices)).map((m) => ({
+      ...m,
+      variationId: ((vehicle.wcMenuVariations ?? {}) as Record<string, number>)[m.key] ?? null,
+    }));
+    const enabledOpts = toOptions(pageOptions);
+    const options = optionDefRows
+      .filter((d) => !d.derivedFrom)
+      .filter((d) => (d.priceJpy ?? 0) > 0)
+      .filter((d) => enabledOpts[d.key] === true)
+      .map((d) => ({ key: d.key, label: d.labelJa, jpy: d.priceJpy as number, productId: d.wcProductIdJa ?? null }));
+    return { menus, options };
+  };
+  data.purchase = purchaseFor(v, p.options);
+
   if (groupVehicles.length > 1) {
     const variants = [];
     for (const gv of groupVehicles) {
@@ -85,6 +105,11 @@ export async function syncVehiclePage(pageId: string): Promise<SyncEvent[]> {
             })
           : null;
       variants.push(variantFor(b, gv, gvEn, p.enPriceMode));
+    }
+    // バリエーションごとの購入データ(価格・バリエーションIDは各行のもの)
+    for (let i = 0; i < variants.length; i++) {
+      const gv = groupVehicles[i];
+      variants[i].purchase = purchaseFor(gv, gv.id === v.id ? p.options : p.options);
     }
     data.variants = variants;
     events.push({ level: "info", message: `統合グループ「${v.pageGroup}」: ${variants.length}バリエーションをタブ表示` });

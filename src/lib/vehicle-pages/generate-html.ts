@@ -154,6 +154,18 @@ function css(dark: boolean): string {
 .vpg-tabs>input:nth-of-type(7):checked~.vpg-tabpanels>.vpg-tabpanel:nth-of-type(7){display:block}
 .vpg-tabs>input:nth-of-type(8):checked~.vpg-tablabels label:nth-of-type(8){background:#c9a24b;color:#0d0d0d;border-color:#c9a24b}
 .vpg-tabs>input:nth-of-type(8):checked~.vpg-tabpanels>.vpg-tabpanel:nth-of-type(8){display:block}
+.vpg-sim{margin:1.8rem 0;border:1px solid #c9a24b;border-radius:12px;background:#141414;padding:18px}
+.vpg-sim h3{margin:0 0 .8rem;font-size:1rem;color:#c9a24b}
+.vpg-sim .sim-sec{margin:.6rem 0 .2rem;font-size:.78rem;color:#888}
+.vpg-sim label{display:flex;align-items:center;gap:10px;padding:9px 10px;border:1px solid #2a2a2a;border-radius:8px;margin:6px 0;cursor:pointer;font-size:.9rem}
+.vpg-sim label:has(:checked){border-color:#c9a24b;background:rgba(201,162,75,.08)}
+.vpg-sim .sim-price{margin-left:auto;font-weight:700;color:#F2F2F2;white-space:nowrap}
+.vpg-sim .sim-total{display:flex;align-items:center;margin-top:12px;padding-top:12px;border-top:1px solid #2a2a2a;font-weight:700}
+.vpg-sim .sim-total-val{margin-left:auto;font-size:1.35rem;color:#EC6420}
+.vpg-sim .sim-actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:14px}
+.vpg-sim .sim-buy{display:inline-block;padding:13px 26px;border-radius:8px;background:#c9a24b;color:#0d0d0d;font-weight:700}
+.vpg-sim .sim-line{display:inline-block;padding:13px 26px;border-radius:8px;background:#06C755;color:#fff;font-weight:700}
+.vpg-sim .sim-note{margin-top:10px;font-size:.72rem;color:#888}
 .vpg-related{list-style:none;padding:0;margin:0}
 .vpg-related li{border:1px solid ${line};border-radius:8px;margin-bottom:.6rem}
 .vpg-related a{display:block;padding:.7em .9em;text-decoration:none;color:${fg};font-size:.92rem}
@@ -183,6 +195,18 @@ function css(dark: boolean): string {
 .vpg-tabs>input:nth-of-type(7):checked~.vpg-tabpanels>.vpg-tabpanel:nth-of-type(7){display:block}
 .vpg-tabs>input:nth-of-type(8):checked~.vpg-tablabels label:nth-of-type(8){background:#c9a24b;color:#0d0d0d;border-color:#c9a24b}
 .vpg-tabs>input:nth-of-type(8):checked~.vpg-tabpanels>.vpg-tabpanel:nth-of-type(8){display:block}
+.vpg-sim{margin:1.8rem 0;border:1px solid #c9a24b;border-radius:12px;background:#141414;padding:18px}
+.vpg-sim h3{margin:0 0 .8rem;font-size:1rem;color:#c9a24b}
+.vpg-sim .sim-sec{margin:.6rem 0 .2rem;font-size:.78rem;color:#888}
+.vpg-sim label{display:flex;align-items:center;gap:10px;padding:9px 10px;border:1px solid #2a2a2a;border-radius:8px;margin:6px 0;cursor:pointer;font-size:.9rem}
+.vpg-sim label:has(:checked){border-color:#c9a24b;background:rgba(201,162,75,.08)}
+.vpg-sim .sim-price{margin-left:auto;font-weight:700;color:#F2F2F2;white-space:nowrap}
+.vpg-sim .sim-total{display:flex;align-items:center;margin-top:12px;padding-top:12px;border-top:1px solid #2a2a2a;font-weight:700}
+.vpg-sim .sim-total-val{margin-left:auto;font-size:1.35rem;color:#EC6420}
+.vpg-sim .sim-actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:14px}
+.vpg-sim .sim-buy{display:inline-block;padding:13px 26px;border-radius:8px;background:#c9a24b;color:#0d0d0d;font-weight:700}
+.vpg-sim .sim-line{display:inline-block;padding:13px 26px;border-radius:8px;background:#06C755;color:#fff;font-weight:700}
+.vpg-sim .sim-note{margin-top:10px;font-size:.72rem;color:#888}
 .vpg-related{margin-top:2.2rem;padding-top:1.2rem;border-top:1px solid #2a2a2a;font-size:.85rem}
 .vpg-related a{color:#c9a24b;text-decoration:underline;text-underline-offset:3px}
 .vpg-sep{color:#555;margin:0 .6em}
@@ -355,7 +379,7 @@ function variantTabs(d: VehiclePageData, jp: boolean): string {
       };
       const prices = jp ? v.prices : (v.enPrices ?? []);
       const priceBlock = jp
-        ? `<h2>施工価格（税込）</h2>\n${priceTable(v.prices, true, true)}\n${tcuNote(v.prices, true)}`
+        ? `<h2>施工価格（税込）</h2>\n${priceTable(v.prices, true, true)}\n${tcuNote(v.prices, true)}\n${simulatorBlock(v.purchase, `sim-${uid}-${vs.indexOf(v)}`)}`
         : v.enPrices
           ? `<h2>Pricing</h2>\n${priceTable(v.enPrices, false, true, whatsappUrl(carLabelEn(d), pageUrlEn(d)))}\n${tcuNote(v.enPrices, false)}`
           : "";
@@ -378,6 +402,87 @@ ${inputs}
 ${panels}
 </div>
 </div>`;
+}
+
+/**
+ * お見積りシミュレーター(JPのみ)。
+ * ルール(2026-08-27 更家さん指定): 価格は全て静的HTMLに出す。JSは合計計算とカート投入のみ。
+ * JS無効時も全金額が見え、申込ボタンは先頭メニューの単品カートに落ちる。
+ */
+function simulatorBlock(purchase: import("./types").PurchaseData | undefined, simId: string): string {
+  if (!purchase || purchase.menus.length === 0) return "";
+  const menus = purchase.menus
+    .map(
+      (m, i) =>
+        `<label><input type="radio" name="${simId}-menu" value="${m.variationId ?? ""}" data-jpy="${m.jpy}"${i === 0 ? " checked" : ""}><span>${esc(m.label)}</span><span class="sim-price">¥${m.jpy.toLocaleString("ja-JP")}</span></label>`,
+    )
+    .join("\n");
+  const opts = purchase.options
+    .map(
+      (o) =>
+        `<label><input type="checkbox" name="${simId}-opt" value="${o.productId ?? ""}" data-jpy="${o.jpy}"><span>${esc(o.label)}</span><span class="sim-price">+¥${o.jpy.toLocaleString("ja-JP")}</span></label>`,
+    )
+    .join("\n");
+  const firstTotal = purchase.menus[0]?.jpy ?? 0;
+  const fallbackCart = purchase.menus[0]?.variationId ? `/cart/?add-to-cart=${purchase.menus[0].variationId}` : LINE_URL;
+  return `<div class="vpg-sim" data-sim="${simId}">
+<h3>お見積りシミュレーション</h3>
+<p class="sim-sec">施工メニュー（どれか1つ）</p>
+${menus}
+${opts ? `<p class="sim-sec">オプション（複数選択可）</p>\n${opts}` : ""}
+<div class="sim-total"><span>合計（税込）</span><span class="sim-total-val" data-total>¥${firstTotal.toLocaleString("ja-JP")}</span></div>
+<div class="sim-actions">
+<a class="sim-buy" data-buy href="${fallbackCart}">この内容で申し込む</a>
+<a class="sim-line" href="${LINE_URL}" target="_blank" rel="noopener">LINEで相談する</a>
+</div>
+<p class="sim-note">お支払い確定前に施工同意書のご確認があります。表示価格は税込です。</p>
+</div>`;
+}
+
+/** シミュレーターの合計計算+カート投入JS。&& と <> をJS文字列に使わない(WordPressが壊すため) */
+function simulatorScript(): string {
+  return `<script>
+(function(){
+  var AMP = String.fromCharCode(38);
+  function yen(n){ return "¥" + n.toLocaleString("ja-JP"); }
+  var sims = document.querySelectorAll(".vpg-sim");
+  sims.forEach(function(sim){
+    var total = sim.querySelector("[data-total]");
+    var buy = sim.querySelector("[data-buy]");
+    function calc(){
+      var sum = 0;
+      var picked = sim.querySelector("input[type=radio]:checked");
+      if (picked) { sum = sum + Number(picked.getAttribute("data-jpy") || 0); }
+      sim.querySelectorAll("input[type=checkbox]:checked").forEach(function(c){
+        sum = sum + Number(c.getAttribute("data-jpy") || 0);
+      });
+      if (total) { total.textContent = yen(sum); }
+    }
+    sim.addEventListener("change", calc);
+    calc();
+    if (buy) {
+      buy.addEventListener("click", function(ev){
+        ev.preventDefault();
+        var ids = [];
+        var picked = sim.querySelector("input[type=radio]:checked");
+        if (picked) { if (picked.value) { ids.push(picked.value); } }
+        sim.querySelectorAll("input[type=checkbox]:checked").forEach(function(c){
+          if (c.value) { ids.push(c.value); }
+        });
+        if (ids.length === 0) { window.location.href = buy.getAttribute("href"); return; }
+        buy.textContent = "カートに追加中…";
+        var i = 0;
+        function next(){
+          if (i >= ids.length) { window.location.href = "/cart/"; return; }
+          var id = ids[i]; i = i + 1;
+          fetch("/?add-to-cart=" + id, { credentials: "same-origin" }).then(next, next);
+        }
+        next();
+      });
+    }
+  });
+})();
+</script>`;
 }
 
 function relatedLinks(d: VehiclePageData, jp: boolean): string {
@@ -464,7 +569,8 @@ ${specRows(d, true)}
 </tbody></table>
 <h2>施工価格（税込）</h2>
 ${priceTable(priceItems, true, true)}
-${tcuNote(priceItems, true)}`}
+${tcuNote(priceItems, true)}
+${simulatorBlock(d.purchase, "sim-solo")}`}
 ${d.labor && d.labor !== "—" ? `<p class="vpg-sub">脱着・殻割り工賃: ${esc(d.labor)}</p>` : ""}
 ${customerRemoteBadges(d) ? `<h2>リモート施工対応</h2>\n<p class="vpg-sub">専用機材をご自宅にお送りし、ご来店不要で施工いたします。</p>\n${customerRemoteBadges(d)}` : ""}
 ${optionTable(d, true) ? `<h2>対応オプション</h2>\n${optionTable(d, true)}` : ""}
@@ -473,6 +579,7 @@ ${relatedList(d) ? `<h2>この型式の施工実績</h2>\n${relatedList(d)}` : "
 <p>${esc(name)} のチューニングは、実績データに基づいてご提案します。</p>
 <a href="${LINE_URL}" target="_blank" rel="noopener">LINEで相談する</a>
 </div>
+${(d.variants?.length ?? 0) >= 2 || d.purchase ? simulatorScript() : ""}
 ${relatedLinks(d, true)}
 ${dealerBlock(d, true)}
 <p class="vpg-note">※価格・出力値は予告なく変更になる場合があります。出力向上値は車両個体・使用燃料により変動します。${d.notes ? `　${esc(d.notes)}` : ""}</p>
