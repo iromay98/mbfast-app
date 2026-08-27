@@ -34,7 +34,14 @@ export type VehiclePageData = {
   en: { mode: "quote" } | { mode: "price"; prices: PriceItem[] };
   /** 2件以上でグレードタブ表示(CSSのみ)。未設定/1件は従来の単独表示 */
   variants?: VehicleVariant[];
+  /** 単独ページ用の購入データ(統合ページはvariants[].purchaseを使う) */
+  purchase?: PurchaseData;
 };
+
+/** 見積りシミュレーター+決済用の購入データ(JPのみ)。価格は全て静的にHTMLへ出す */
+export type PurchaseMenu = { key: string; label: string; jpy: number; variationId: number | null };
+export type PurchaseOption = { key: string; label: string; jpy: number; productId: number | null };
+export type PurchaseData = { menus: PurchaseMenu[]; options: PurchaseOption[] };
 
 /** グレード統合ページの1バリエーション(タブ1枚分)。先頭が代表＝初期表示 */
 export type VehicleVariant = {
@@ -46,6 +53,7 @@ export type VehicleVariant = {
   stage1Gain: string | null;
   prices: PriceItem[];
   enPrices: PriceItem[] | null; // ENで価格表示するときのみ
+  purchase?: PurchaseData; // JPの見積りシミュレーター用
 };
 
 export type GeneratedPage = { title: string; html: string };

@@ -360,6 +360,16 @@ export async function resyncAllVpagesForBrand(brandId: string): Promise<{ ok?: t
     select: { id: true },
     orderBy: { slug: "asc" },
   });
+
+  // 1ボタン統合(2026-08-27 更家さん指定): 先にJP商品(可変・オプション)を価格マスタから
+  // 更新してバリエーションIDを確定させ、その後でページHTML(シミュレーター込み)を生成する。
+  // これにより「表示は新価格・課金は旧価格」のズレが構造的に起きない。
+  try {
+    const { syncJpProductsForBrand } = await import("@/lib/vehicle-pages/woo-jp");
+    await syncJpProductsForBrand(brandId);
+  } catch {
+    // 商品側の失敗でページ反映を止めない(ログはJP商品ボタンで個別確認可能)
+  }
   let synced = 0;
   let failed = 0;
   for (const t of targets) {

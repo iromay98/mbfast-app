@@ -57,6 +57,22 @@ export function primaryPriceJpy(brand: { columns: unknown }, prices: Record<stri
 
 export type JpProductEvent = { level: "info" | "warn" | "error"; message: string };
 
+export type MenuItem = { key: string; label: string; jpy: number };
+
+/** 施工メニュー = 数値が入っている価格列(その車両で選べる決済単位)。ラベルの<br>は除去 */
+export function menuItemsOf(brand: { columns: unknown }, prices: Record<string, string>): MenuItem[] {
+  const out: MenuItem[] = [];
+  for (const c of toColumns(brand.columns)) {
+    if (c.type !== "price") continue;
+    const raw = prices[c.key];
+    if (!raw) continue;
+    const n = Number(String(raw).replace(/[^0-9]/g, ""));
+    if (!Number.isFinite(n) || n <= 0) continue;
+    out.push({ key: c.key, label: c.label.replace(/<br\s*\/?\s*>/gi, ""), jpy: n });
+  }
+  return out;
+}
+
 /**
  * 1車両(JP行)のJP商品を作成/更新する。
  * 戻りは画面ログ用イベント。wcProductId を PriceVehicle に保存する。
@@ -67,7 +83,6 @@ export async function syncJpProductForVehicle(vehicleId: string): Promise<JpProd
   if (!v) return [{ level: "error", message: "車両が見つかりません" }];
   if (v.market !== "JP") return [{ level: "error", message: "JP行ではありません" }];
 
-  // グレード統合: 非代表には作らない
   if (v.pageGroup) {
     const rep = await prisma.priceVehicle.findFirst({
       where: { brandId: v.brandId, market: "JP", pageGroup: v.pageGroup },
@@ -79,48 +94,72 @@ export async function syncJpProductForVehicle(vehicleId: string): Promise<JpProd
     }
   }
 
-  const priceJpy = primaryPriceJpy(v.brand, toPrices(v.prices));
-  if (!priceJpy) return [{ level: "warn", message: `${v.carName} ${v.grade ?? ""}: 主要価格が未入力のためスキップ` }];
+  const menu = menuItemsOf(v.brand, toPrices(v.prices));
+  if (menu.length === 0) return [{ level: "warn", message: `${v.carName} ${v.grade ?? ""}: 価格未入力のためスキップ` }];
 
   const name = [v.brand.displayName, v.carName, v.grade ?? "", "ECUチューニング"].filter(Boolean).join(" ");
   const pageUrl = v.page ? `${BASE}/tuning/${v.brand.slug}/${v.page.slug}/` : null;
   const shortDesc = [
     `<p>${v.carName}${v.grade ? ` ${v.grade}` : ""}のECUチューニング施工(税込)。`,
-    pageUrl ? `詳細・対応オプションは<a href="${pageUrl}">車種ページ</a>をご覧ください。</p>` : "</p>",
+    pageUrl ? `内容の詳細は<a href="${pageUrl}">車種ページ</a>をご覧ください。</p>` : "</p>",
   ].join("");
 
+  // 可変商品: 属性「施工メニュー」で価格違いのバリエーションを持つ
   const payload = {
     name,
-    type: "simple",
+    type: "variable",
     status: "publish",
-    catalog_visibility: "hidden", // 一覧・検索に出さない(直リンク専用の決済ページ)
-    regular_price: String(priceJpy),
+    catalog_visibility: "hidden",
     short_description: shortDesc,
     lang: "ja",
+    attributes: [{ name: "施工メニュー", visible: true, variation: true, options: menu.map((m) => m.label) }],
   };
 
   let productId = v.wcProductId ?? null;
   if (productId) {
     await wpJson(`/wp-json/wc/v3/products/${productId}`, { method: "PUT", body: JSON.stringify(payload) });
-    events.push({ level: "info", message: `${name}: 更新 (¥${priceJpy.toLocaleString()})` });
   } else {
     const created = await wpJson<{ id: number }>(`/wp-json/wc/v3/products`, { method: "POST", body: JSON.stringify(payload) });
     productId = created.id;
     await prisma.priceVehicle.update({ where: { id: v.id }, data: { wcProductId: productId } });
-    events.push({ level: "info", message: `${name}: 作成 (¥${priceJpy.toLocaleString()}) → 商品ID ${productId}` });
   }
 
-  // noindex(AIOSEO)。robots_default=false + noindex=true
+  const existing = await wpJson<{ id: number; attributes: { name: string; option: string }[] }[]>(
+    `/wp-json/wc/v3/products/${productId}/variations?per_page=100`,
+  );
+  const byOption = new Map<string, number>();
+  for (const ex of existing) {
+    const opt = ex.attributes?.find((a) => a.name === "施工メニュー")?.option;
+    if (opt) byOption.set(opt, ex.id);
+  }
+  const variationMap: Record<string, number> = {};
+  for (const m of menu) {
+    const body = JSON.stringify({ regular_price: String(m.jpy), attributes: [{ name: "施工メニュー", option: m.label }] });
+    const hit = byOption.get(m.label);
+    if (hit) {
+      await wpJson(`/wp-json/wc/v3/products/${productId}/variations/${hit}`, { method: "PUT", body });
+      variationMap[m.key] = hit;
+      byOption.delete(m.label);
+    } else {
+      const created = await wpJson<{ id: number }>(`/wp-json/wc/v3/products/${productId}/variations`, { method: "POST", body });
+      variationMap[m.key] = created.id;
+    }
+  }
+  for (const [, orphanId] of byOption) {
+    await wpJson(`/wp-json/wc/v3/products/${productId}/variations/${orphanId}?force=true`, { method: "DELETE" });
+  }
+  await prisma.priceVehicle.update({ where: { id: v.id }, data: { wcMenuVariations: variationMap } });
+  events.push({ level: "info", message: `${name}: ${menu.length}メニュー (商品${productId})` });
+
   try {
     await wpJson(`/wp-json/wp/v2/product/${productId}`, {
       method: "POST",
       body: JSON.stringify({ aioseo_meta_data: { robots_default: false, robots_noindex: true } }),
     });
   } catch {
-    events.push({ level: "warn", message: `${name}: noindex設定に失敗(後で手動確認)` });
+    events.push({ level: "warn", message: `${name}: noindex設定に失敗` });
   }
 
-  // EN商品との翻訳紐付け(brand+car+gradeが一致するEN行のwcProductId)
   const enTwin = await prisma.priceVehicle.findFirst({
     where: { brandId: v.brandId, market: "EN", carName: v.carName, grade: v.grade, wcProductId: { not: null } },
     select: { wcProductId: true },
@@ -131,12 +170,37 @@ export async function syncJpProductForVehicle(vehicleId: string): Promise<JpProd
         method: "POST",
         body: JSON.stringify({ lang: "ja", translations: { en: enTwin.wcProductId } }),
       });
-      events.push({ level: "info", message: `EN商品(${enTwin.wcProductId})と翻訳紐付け` });
     } catch {
-      events.push({ level: "warn", message: `EN商品との紐付けに失敗(スイッチャーは/tuning/フォールバック)` });
+      events.push({ level: "warn", message: `EN商品との紐付けに失敗` });
     }
   }
 
+  return events;
+}
+
+/** オプション(derivedFromなし・料金あり)のJP決済用商品。全車共通の固定価格 */
+export async function syncOptionProducts(): Promise<JpProductEvent[]> {
+  const events: JpProductEvent[] = [];
+  const defs = await prisma.vehiclePageOption.findMany({ where: { enabled: true }, orderBy: { displayOrder: "asc" } });
+  for (const d of defs) {
+    if (d.derivedFrom) continue;
+    if (!d.priceJpy || d.priceJpy <= 0) continue;
+    const payload = {
+      name: `オプション: ${d.labelJa}`,
+      type: "simple",
+      status: "publish",
+      catalog_visibility: "hidden",
+      regular_price: String(d.priceJpy),
+      lang: "ja",
+    };
+    if (d.wcProductIdJa) {
+      await wpJson(`/wp-json/wc/v3/products/${d.wcProductIdJa}`, { method: "PUT", body: JSON.stringify(payload) });
+    } else {
+      const created = await wpJson<{ id: number }>(`/wp-json/wc/v3/products`, { method: "POST", body: JSON.stringify(payload) });
+      await prisma.vehiclePageOption.update({ where: { id: d.id }, data: { wcProductIdJa: created.id } });
+      events.push({ level: "info", message: `${d.labelJa}: 商品${created.id}を作成 (¥${d.priceJpy.toLocaleString()})` });
+    }
+  }
   return events;
 }
 
@@ -151,6 +215,11 @@ export async function syncJpProductsForBrand(brandId: string): Promise<{ done: n
   let skipped = 0;
   let failed = 0;
   const log: string[] = [];
+  try {
+    for (const e of await syncOptionProducts()) if (e.level !== "info") log.push(e.message);
+  } catch (e) {
+    log.push("オプション商品の同期失敗: " + (e instanceof Error ? e.message.slice(0, 80) : ""));
+  }
   for (const v of vehicles) {
     try {
       const events = await syncJpProductForVehicle(v.id);
