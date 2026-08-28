@@ -107,7 +107,32 @@ export async function postRecordToMap(opts: {
     // 取得できないURLを渡すと投稿そのものが失敗する（＝文章まで出せなくなる）
     if (opts.photoUrl && /^https:\/\//.test(opts.photoUrl)) draft.photoUrl = opts.photoUrl;
 
-    const post = await createLocalPost(target.accountId, target.locationId, draft, target.token);
+    /*
+     * 写真付きで失敗したら、写真なしで1回だけ再試行する。
+     *
+     * GBPの写真は「GoogleがsourceUrlを取りに来る」方式で、取得に失敗すると
+     * 投稿全体が "Internal error encountered."（500）で落ちる。
+     * mbfasttuning.com はWAFがブラウザ系UAを弾くため、Googleの取得が
+     * 失敗する可能性がある（2026-08-27 マセラティ投稿で実際に発生）。
+     * 写真のために文章まで道連れにしない＝テキストだけでも出す方が価値がある。
+     */
+    let post;
+    try {
+      post = await createLocalPost(target.accountId, target.locationId, draft, target.token);
+    } catch (e) {
+      const retryable = e instanceof GbpError && e.kind !== "quota" && e.kind !== "auth";
+      if (!draft.photoUrl || !retryable) throw e;
+      const { photoUrl: _dropped, ...textOnly } = draft;
+      post = await createLocalPost(target.accountId, target.locationId, textOnly, target.token);
+      // 写真を落として通った＝写真URLの取得失敗が濃厚。本部が気づけるよう通知する
+      await notify({
+        type: "PIT_PUBLISHED",
+        title: "Googleマップ投稿: 写真なしで投稿しました",
+        message: `${opts.storeName}「${opts.title}」は写真付きで失敗したため、文章のみで投稿しました。写真URL(${draft.photoUrl})をGoogleが取得できていない可能性があります（WAFのUA制限を確認）。`,
+        dealerId: null,
+        link: "/hq/pit/gbp",
+      });
+    }
     await prisma.pitPost.update({
       where: { id: opts.postId },
       data: { gbpPostName: post.name ?? "", gbpPostedAt: new Date(), gbpError: null },

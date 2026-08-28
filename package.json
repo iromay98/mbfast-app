@@ -46,6 +46,7 @@
     "gbp:auth": "tsx -r dotenv/config scripts/gbp-auth.mts",
     "gbp:v4check": "tsx -r dotenv/config scripts/gbp-v4check.mts",
     "gbp:testpost": "tsx -r dotenv/config scripts/gbp-testpost.mts",
+    "gbp:repost": "tsx -r dotenv/config scripts/gbp-repost.mts",
     "check:price-columns": "tsx scripts/check-price-columns.mts",
     "check:price-roundtrip": "tsx scripts/price-sync/roundtrip.mts",
     "prices:import-dry": "tsx scripts/price-sync/import-wp.mts --dry-run",
