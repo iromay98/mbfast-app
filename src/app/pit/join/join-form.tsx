@@ -164,6 +164,13 @@ export function JoinForm() {
       >
         {busy ? "登録中…" : "登録する"}
       </button>
+      {/* 既存ユーザーの逃げ道。登録導線に来てしまった加盟済みの店をここで拾う */}
+      <p className="pt-1 text-center text-xs text-neutral-400">
+        すでにアカウントをお持ちの方は{" "}
+        <a href="/login" className="font-bold text-[#c9a227] underline">
+          ログイン
+        </a>
+      </p>
     </form>
   );
 }
