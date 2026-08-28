@@ -22,6 +22,30 @@ const val = (f: string) => {
 async function main() {
   const postId = val("--post");
 
+  /*
+   * --check: マップ投稿の実際の状態をGoogleに問い合わせる。
+   * GBPは投稿を「受理した後に」審査で非表示(REJECTED)にすることがあり、
+   * DB上は posted でもマップに出ていないことがある（2026-08-28 に発生疑い）。
+   * 直近の投稿一覧を state 付きで表示する。
+   */
+  if (args.includes("--check")) {
+    const { listLocalPosts } = await import("../src/server/pit/gbp/client");
+    const store = await prisma.pitStore.findFirst({
+      where: { gbpPostingEnabled: true, gbpLocationId: { not: null } },
+      select: { displayName: true, gbpAccountId: true, gbpLocationId: true },
+    });
+    if (!store?.gbpLocationId) throw new Error("連携済みの店舗がありません");
+    const { posts } = await listLocalPosts(store.gbpAccountId, store.gbpLocationId, 10);
+    console.log(`${store.displayName} の直近投稿（Google側の実状態）:`);
+    for (const p of posts) {
+      console.log(`\n  state: ${p.state ?? "?"} / 作成: ${p.createTime ?? "?"}`);
+      console.log(`  ${String(p.summary ?? "").slice(0, 60).replace(/\n/g, " ")}…`);
+      console.log(`  ${p.name}`);
+    }
+    if (posts.length === 0) console.log("  （投稿なし）");
+    return;
+  }
+
   if (!postId) {
     const rows = await prisma.pitPost.findMany({
       where: { status: "published", gbpPostName: null },
