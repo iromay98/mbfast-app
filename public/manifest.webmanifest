@@ -1,13 +1,13 @@
 {
-  "name": "mbFAST 連携アプリ",
-  "short_name": "mbFAST",
-  "description": "mbFAST 本店⇄代理店 連携アプリ",
+  "name": "mbPIT",
+  "short_name": "mbPIT",
+  "description": "記録が、集客と信頼に変わる。mbPIT 加盟店アプリ",
   "lang": "ja",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
-  "background_color": "#ffffff",
-  "theme_color": "#b8862b",
+  "background_color": "#0d0d0d",
+  "theme_color": "#0d0d0d",
   "icons": [
     {
       "src": "/icons/icon-192.png",

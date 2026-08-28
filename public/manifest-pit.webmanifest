@@ -1,13 +1,13 @@
 {
-  "name": "mbPIT 施工記録",
+  "name": "mbPIT",
   "short_name": "mbPIT",
-  "description": "mbPIT 加盟店の施工記録・顧客・施工証明書",
+  "description": "記録が、集客と信頼に変わる。mbPIT 加盟店アプリ",
   "lang": "ja",
   "start_url": "/dealer/pit",
   "scope": "/dealer/pit",
   "display": "standalone",
-  "background_color": "#000000",
-  "theme_color": "#000000",
+  "background_color": "#0d0d0d",
+  "theme_color": "#0d0d0d",
   "icons": [
     {
       "src": "/icons/pit-icon-192.png",

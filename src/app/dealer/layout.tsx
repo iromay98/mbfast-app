@@ -6,8 +6,11 @@ import type { NavItem } from "@/components/nav-bar";
 import type { BottomNavItem } from "@/components/bottom-nav";
 
 const dealerNav: NavItem[] = [
+  // mbPITが主・mbFAST代理店業務（ECU案件）は従（2026-08-28 ブランド一本化）。
+  // ECU案件系だけ「mbFAST」を名乗る＝どの画面がmbFAST業務かが一目で分かる
   { href: "/dealer", label: "ダッシュボード" },
-  { href: "/dealer/records", label: "施工記録・依頼" },
+  { href: "/dealer/pit", label: "施工ブログ投稿" },
+  { href: "/dealer/records", label: "mbFAST案件・依頼" },
   { href: "/dealer/showcase", label: "施工事例" },
   { href: "/dealer/activity", label: "DL・依頼履歴" },
   { href: "/dealer/prices", label: "価格表" },
@@ -58,7 +61,7 @@ function ecuDealerBottomNav(ecuEnabled: boolean): BottomNavItem[] {
     ecuEnabled
       ? {
           href: "/dealer/records",
-          label: "施工依頼",
+          label: "mbFAST依頼",
           icon: "wrench",
           also: ["/dealer/requests", "/dealer/activity"],
         }
@@ -108,7 +111,7 @@ export default async function DealerLayout({
       { href: "/dealer/pit/store", label: "店舗情報" },
     ];
     return (
-      <AppShell user={user} navItems={pitNav} bottomNavItems={pitTabs} brand="mbpit">
+      <AppShell user={user} navItems={pitNav} bottomNavItems={pitTabs} badge="加盟店">
         {children}
       </AppShell>
     );
@@ -143,7 +146,7 @@ export default async function DealerLayout({
       { href: "/dealer/announcements", label: "お知らせ" },
     ];
     return (
-      <AppShell user={user} navItems={navItems} bottomNavItems={ecuDealerBottomNav(ecuEnabled)}>
+      <AppShell user={user} navItems={navItems} bottomNavItems={ecuDealerBottomNav(ecuEnabled)} badge="代理店">
         {children}
       </AppShell>
     );
@@ -151,7 +154,7 @@ export default async function DealerLayout({
 
   // mbPIT未有効の代理店は従来どおり
   return (
-    <AppShell user={user} navItems={dealerNav} bottomNavItems={dealerBottomNav(false)}>
+    <AppShell user={user} navItems={dealerNav} bottomNavItems={dealerBottomNav(false)} badge="代理店">
       {children}
     </AppShell>
   );

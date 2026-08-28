@@ -11,19 +11,25 @@ export function AppShell({
   user,
   navItems,
   bottomNavItems,
-  brand = "mbfast",
+  badge,
   children,
 }: {
   user: SessionUser;
   navItems: NavItem[];
   // 指定するとスマホでは下タブバーに切り替わる（上部ナビはsm以上のみ表示）
   bottomNavItems?: BottomNavItem[];
-  // mbpit: mbPIT専用アカウント向け表示（mbFASTブランドを出さない・別ブランド運用）
-  brand?: "mbfast" | "mbpit";
+  /** ヘッダー右上の役割バッジ（本部/加盟店/代理店）。未指定はロール名 */
+  badge?: string;
   children: ReactNode;
 }) {
   const hasBottomNav = !!bottomNavItems && bottomNavItems.length > 0;
-  const isPit = brand === "mbpit";
+  /*
+   * 2026-08-28 ブランド一本化（更家さん決定）:
+   * このアプリの正体は mbPIT であり、代理店機能はその中の一機能。
+   * 全ロール（本部・加盟店・代理店）で mbPIT デザイン（黒ヘッダー×ゴールド）に統一する。
+   * mbFAST の名前は ECU案件の業務画面の中でだけ出す（ヘッダーには出さない）。
+   */
+  const isPit = true;
   return (
     // overflow-x-clip: どれか1要素が幅を突き破ってもページ全体が横スクロールにならない保険
     // （clipはhiddenと違いstickyナビを壊さない。表などは各自のoverflow-x-autoで横スクロール可能なまま）
@@ -60,7 +66,7 @@ export function AppShell({
                 isPit ? "bg-white/10 text-white/80" : "bg-surface-2 text-ink-soft"
               }`}
             >
-              {isPit ? "加盟店" : roleLabels[user.role]}
+              {badge ?? roleLabels[user.role]}
             </span>
           </div>
           <div className="flex items-center gap-3">

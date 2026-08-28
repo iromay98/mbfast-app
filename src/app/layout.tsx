@@ -3,8 +3,8 @@ import "./globals.css";
 import { ServiceWorkerRegister } from "@/components/sw-register";
 
 export const metadata: Metadata = {
-  title: "mbFAST 連携アプリ",
-  description: "mbFAST 本店⇄代理店 連携アプリ（施工台帳・作業依頼・お知らせ）",
+  title: "mbPIT",
+  description: "記録が、集客と信頼に変わる。mbPIT 加盟店アプリ（施工記録・証明書・Googleマップ連携）",
   manifest: "/manifest.webmanifest",
   /*
    * ホーム画面アイコン。**iOSはmanifestのiconsを見ない**ので apple を別に指定する。
@@ -20,7 +20,7 @@ export const metadata: Metadata = {
   },
   appleWebApp: {
     capable: true,
-    title: "mbFAST",
+    title: "mbPIT",
     statusBarStyle: "default",
   },
 };
