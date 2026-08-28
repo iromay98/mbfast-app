@@ -18,6 +18,8 @@ const LINE_URL = "https://lin.ee/8yOXuPJ";
 // EN側の窓口はWhatsApp（海外のお客様はLINEを使わないため。2026-08-25 更家さん指定）
 // 番号: 本店 +81 90-6730-4953
 const WHATSAPP_NUMBER = "819067304953";
+// LINE公式のトークを定型文つきで開くURL形式。@IDは lin.ee/8yOXuPJ の実体(2026-08-28確認)
+const LINE_OA_ID = "@755qpqwa";
 function pageUrlEn(d: { brandSlug: string; slug: string }): string {
   return `https://mbfasttuning.com/en/tuning/${d.brandSlug}/${d.slug}/`;
 }
@@ -414,23 +416,22 @@ function simulatorBlock(purchase: import("./types").PurchaseData | undefined, si
   const menus = purchase.menus
     .map(
       (m, i) =>
-        `<label><input type="radio" name="${simId}-menu" value="${m.variationId ?? ""}" data-jpy="${m.jpy}"${i === 0 ? " checked" : ""}><span>${esc(m.label)}</span><span class="sim-price">¥${m.jpy.toLocaleString("ja-JP")}</span></label>`,
+        `<label><input type="radio" name="${simId}-menu" value="${m.variationId ?? ""}" data-jpy="${m.jpy}" data-label="${esc(m.label)}"${i === 0 ? " checked" : ""}><span>${esc(m.label)}</span><span class="sim-price">¥${m.jpy.toLocaleString("ja-JP")}</span></label>`,
     )
     .join("\n");
   const addons = purchase.addons
     .map(
       (a) =>
-        `<label><input type="checkbox" name="${simId}-opt" value="${a.variationId ?? ""}" data-jpy="${a.jpy}"><span>${esc(a.label)}</span><span class="sim-price">+¥${a.jpy.toLocaleString("ja-JP")}</span></label>`,
+        `<label><input type="checkbox" name="${simId}-opt" value="${a.variationId ?? ""}" data-jpy="${a.jpy}" data-label="${esc(a.label)}"><span>${esc(a.label)}</span><span class="sim-price">+¥${a.jpy.toLocaleString("ja-JP")}</span></label>`,
     )
     .join("\n");
   const opts = purchase.options
     .map(
       (o) =>
-        `<label><input type="checkbox" name="${simId}-opt" value="${o.productId ?? ""}" data-jpy="${o.jpy}"><span>${esc(o.label)}</span><span class="sim-price">+¥${o.jpy.toLocaleString("ja-JP")}</span></label>`,
+        `<label><input type="checkbox" name="${simId}-opt" value="${o.productId ?? ""}" data-jpy="${o.jpy}" data-label="${esc(o.label)}"><span>${esc(o.label)}</span><span class="sim-price">+¥${o.jpy.toLocaleString("ja-JP")}</span></label>`,
     )
     .join("\n");
   const firstTotal = purchase.menus[0]?.jpy ?? 0;
-  const fallbackCart = purchase.menus[0]?.variationId ? `/cart/?add-to-cart=${purchase.menus[0].variationId}` : LINE_URL;
   return `<div class="vpg-sim" data-sim="${simId}">
 <h3>お見積りシミュレーション</h3>
 <p class="sim-sec">施工メニュー（どれか1つ）</p>
@@ -438,52 +439,55 @@ ${menus}
 ${addons || opts ? `<p class="sim-sec">オプション（複数選択可）</p>\n${addons}${addons && opts ? "\n" : ""}${opts}` : ""}
 <div class="sim-total"><span>合計（税込）</span><span class="sim-total-val" data-total>¥${firstTotal.toLocaleString("ja-JP")}</span></div>
 <div class="sim-actions">
-<a class="sim-buy" data-buy href="${fallbackCart}">この内容で申し込む</a>
-<a class="sim-line" href="${LINE_URL}" target="_blank" rel="noopener">LINEで相談する</a>
+<a class="sim-buy" data-buy href="${LINE_URL}" target="_blank" rel="noopener">この内容で申し込む（LINE）</a>
 </div>
-<p class="sim-note">お支払い確定前に施工同意書のご確認があります。表示価格は税込です。</p>
+<p class="sim-note">ボタンを押すとLINEが開き、選択内容が入力された状態になります。そのまま送信してください。表示価格は税込です。</p>
 </div>`;
 }
 
-/** シミュレーターの合計計算+カート投入JS。&& と <> をJS文字列に使わない(WordPressが壊すため) */
-function simulatorScript(): string {
+/** シミュレーターの合計計算+LINE申込JS。&& と & と <> をJS内で使わない(WordPressが壊すため) */
+function simulatorScript(d: VehiclePageData): string {
+  const pageUrl = `https://mbfasttuning.com/tuning/${d.brandSlug}/${d.slug}/`;
+  const carLabel = [d.brandDisplayName, d.carName].join(" ");
   return `<script>
 (function(){
-  var AMP = String.fromCharCode(38);
+  var OA = "${LINE_OA_ID}";
+  var PAGE = "${pageUrl}";
+  var CAR = "${carLabel}";
+  var NL = String.fromCharCode(10);
   function yen(n){ return "¥" + n.toLocaleString("ja-JP"); }
   var sims = document.querySelectorAll(".vpg-sim");
   sims.forEach(function(sim){
     var total = sim.querySelector("[data-total]");
     var buy = sim.querySelector("[data-buy]");
+    function picked(){
+      var out = [];
+      var r = sim.querySelector("input[type=radio]:checked");
+      if (r) { out.push(r); }
+      sim.querySelectorAll("input[type=checkbox]:checked").forEach(function(c){ out.push(c); });
+      return out;
+    }
     function calc(){
       var sum = 0;
-      var picked = sim.querySelector("input[type=radio]:checked");
-      if (picked) { sum = sum + Number(picked.getAttribute("data-jpy") || 0); }
-      sim.querySelectorAll("input[type=checkbox]:checked").forEach(function(c){
-        sum = sum + Number(c.getAttribute("data-jpy") || 0);
-      });
+      picked().forEach(function(el){ sum = sum + Number(el.getAttribute("data-jpy") || 0); });
       if (total) { total.textContent = yen(sum); }
+      return sum;
     }
     sim.addEventListener("change", calc);
     calc();
     if (buy) {
       buy.addEventListener("click", function(ev){
         ev.preventDefault();
-        var ids = [];
-        var picked = sim.querySelector("input[type=radio]:checked");
-        if (picked) { if (picked.value) { ids.push(picked.value); } }
-        sim.querySelectorAll("input[type=checkbox]:checked").forEach(function(c){
-          if (c.value) { ids.push(c.value); }
+        var sum = calc();
+        var lines = ["【お見積り依頼】", CAR];
+        picked().forEach(function(el){
+          var mark = el.type === "radio" ? "・" : "・";
+          lines.push(mark + (el.getAttribute("data-label") || "") + " " + yen(Number(el.getAttribute("data-jpy") || 0)));
         });
-        if (ids.length === 0) { window.location.href = buy.getAttribute("href"); return; }
-        buy.textContent = "カートに追加中…";
-        var i = 0;
-        function next(){
-          if (i >= ids.length) { window.location.href = "/cart/"; return; }
-          var id = ids[i]; i = i + 1;
-          fetch("/?add-to-cart=" + id, { credentials: "same-origin" }).then(next, next);
-        }
-        next();
+        lines.push("合計: " + yen(sum) + "(税込)");
+        lines.push(PAGE);
+        var text = encodeURIComponent(lines.join(NL));
+        window.open("https://line.me/R/oaMessage/" + OA + "/?" + text, "_blank");
       });
     }
   });
@@ -585,7 +589,7 @@ ${relatedList(d) ? `<h2>この型式の施工実績</h2>\n${relatedList(d)}` : "
 <p>${esc(name)} のチューニングは、実績データに基づいてご提案します。</p>
 <a href="${LINE_URL}" target="_blank" rel="noopener">LINEで相談する</a>
 </div>
-${(d.variants?.length ?? 0) >= 2 || d.purchase ? simulatorScript() : ""}
+${(d.variants?.length ?? 0) >= 2 || d.purchase ? simulatorScript(d) : ""}
 ${relatedLinks(d, true)}
 ${dealerBlock(d, true)}
 <p class="vpg-note">※価格・出力値は予告なく変更になる場合があります。出力向上値は車両個体・使用燃料により変動します。${d.notes ? `　${esc(d.notes)}` : ""}</p>
