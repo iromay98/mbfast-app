@@ -381,7 +381,7 @@ function variantTabs(d: VehiclePageData, jp: boolean): string {
       };
       const prices = jp ? v.prices : (v.enPrices ?? []);
       const priceBlock = jp
-        ? `<h2>施工価格（税込）</h2>\n${priceTable(v.prices, true, true)}\n${tcuNote(v.prices, true)}\n${simulatorBlock(v.purchase, `sim-${uid}-${vs.indexOf(v)}`)}`
+        ? `<h2>施工価格（税込）</h2>\n${priceTable(v.prices, true, true)}\n${tcuNote(v.prices, true)}\n${simulatorBlock(v.purchase, `sim-${uid}-${vs.indexOf(v)}`, d.remote)}`
         : v.enPrices
           ? `<h2>Pricing</h2>\n${priceTable(v.enPrices, false, true, whatsappUrl(carLabelEn(d), pageUrlEn(d)))}\n${tcuNote(v.enPrices, false)}`
           : "";
@@ -411,7 +411,7 @@ ${panels}
  * ルール(2026-08-27 更家さん指定): 価格は全て静的HTMLに出す。JSは合計計算とカート投入のみ。
  * JS無効時も全金額が見え、申込ボタンは先頭メニューの単品カートに落ちる。
  */
-function simulatorBlock(purchase: import("./types").PurchaseData | undefined, simId: string): string {
+function simulatorBlock(purchase: import("./types").PurchaseData | undefined, simId: string, remote?: import("../prices/types").RemoteFlags): string {
   if (!purchase || purchase.menus.length === 0) return "";
   const menus = purchase.menus
     .map(
@@ -432,16 +432,42 @@ function simulatorBlock(purchase: import("./types").PurchaseData | undefined, si
     )
     .join("\n");
   const firstTotal = purchase.menus[0]?.jpy ?? 0;
+  const hasRemote = Object.values(remote ?? {}).some(Boolean);
+  const methods = [
+    { key: "inPerson", label: "対面（ご来店）", show: true },
+    { key: "remote", label: "リモート（専用ツール郵送）", show: hasRemote },
+    { key: "mailIn", label: "ECU郵送", show: true },
+  ].filter((m) => m.show);
+  const methodRadios = methods
+    .map(
+      (m, i) =>
+        `<label><input type="radio" name="${simId}-method" value="${m.key}" data-meta="method" data-label="${m.label}"${i === 0 ? " checked" : ""}><span>${m.label}</span></label>`,
+    )
+    .join("\n");
+  const placeRadios = [
+    { key: "hq", label: "mbPIT渋谷本店" },
+    { key: "dealer", label: "全国の取扱店（最寄りをご案内）" },
+  ]
+    .map(
+      (m, i) =>
+        `<label><input type="radio" name="${simId}-place" value="${m.key}" data-meta="place" data-label="${m.label}"${i === 0 ? " checked" : ""}><span>${m.label}</span></label>`,
+    )
+    .join("\n");
   return `<div class="vpg-sim" data-sim="${simId}">
 <h3>お見積りシミュレーション</h3>
 <p class="sim-sec">施工メニュー（どれか1つ）</p>
 ${menus}
 ${addons || opts ? `<p class="sim-sec">オプション（複数選択可）</p>\n${addons}${addons && opts ? "\n" : ""}${opts}` : ""}
+<p class="sim-sec">施工方法</p>
+${methodRadios}
+<p class="sim-sec">施工場所</p>
+${placeRadios}
 <div class="sim-total"><span>合計（税込）</span><span class="sim-total-val" data-total>¥${firstTotal.toLocaleString("ja-JP")}</span></div>
+<p class="sim-note">リモート・郵送の機材費/送料は別途ご案内します。</p>
 <div class="sim-actions">
 <a class="sim-buy" data-buy href="${LINE_URL}" target="_blank" rel="noopener">この内容で申し込む（LINE）</a>
 </div>
-<p class="sim-note">ボタンを押すとLINEが開き、選択内容が入力された状態になります。そのまま送信してください。表示価格は税込です。</p>
+<p class="sim-note">ボタンを押すとLINEが開き、選択内容が入力された状態になります。そのまま送信してください。PCの場合はQRコードが表示されます（スマホで読み取ると内容が引き継がれます）。表示価格は税込です。</p>
 </div>`;
 }
 
@@ -462,9 +488,18 @@ function simulatorScript(d: VehiclePageData): string {
     var buy = sim.querySelector("[data-buy]");
     function picked(){
       var out = [];
-      var r = sim.querySelector("input[type=radio]:checked");
-      if (r) { out.push(r); }
+      sim.querySelectorAll("input[type=radio]:checked").forEach(function(r){
+        if (!r.getAttribute("data-meta")) { out.push(r); }
+      });
       sim.querySelectorAll("input[type=checkbox]:checked").forEach(function(c){ out.push(c); });
+      return out;
+    }
+    function metas(){
+      var out = [];
+      sim.querySelectorAll("input[data-meta]:checked").forEach(function(m){
+        var kind = m.getAttribute("data-meta") === "method" ? "施工方法" : "施工場所";
+        out.push(kind + ": " + (m.getAttribute("data-label") || ""));
+      });
       return out;
     }
     function calc(){
@@ -485,6 +520,7 @@ function simulatorScript(d: VehiclePageData): string {
           lines.push(mark + (el.getAttribute("data-label") || "") + " " + yen(Number(el.getAttribute("data-jpy") || 0)));
         });
         lines.push("合計: " + yen(sum) + "(税込)");
+        metas().forEach(function(m){ lines.push(m); });
         lines.push(PAGE);
         var text = encodeURIComponent(lines.join(NL));
         window.open("https://line.me/R/oaMessage/" + OA + "/?" + text, "_blank");
@@ -580,7 +616,7 @@ ${specRows(d, true)}
 <h2>施工価格（税込）</h2>
 ${priceTable(priceItems, true, true)}
 ${tcuNote(priceItems, true)}
-${simulatorBlock(d.purchase, "sim-solo")}`}
+${simulatorBlock(d.purchase, "sim-solo", d.remote)}`}
 ${d.labor && d.labor !== "—" ? `<p class="vpg-sub">脱着・殻割り工賃: ${esc(d.labor)}</p>` : ""}
 ${customerRemoteBadges(d) ? `<h2>リモート施工対応</h2>\n<p class="vpg-sub">専用機材をご自宅にお送りし、ご来店不要で施工いたします。</p>\n${customerRemoteBadges(d)}` : ""}
 ${optionTable(d, true) ? `<h2>対応オプション</h2>\n${optionTable(d, true)}` : ""}

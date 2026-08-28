@@ -48,12 +48,32 @@ function hubCss(prefix: string): string {
 .${prefix} .hub-count{color:#777;font-size:.75rem;margin-top:6px}
 .${prefix} .hub-links{margin-top:2rem;padding-top:1rem;border-top:1px solid #2a2a2a;font-size:.85rem;display:flex;flex-wrap:wrap;gap:14px}
 .${prefix} .hub-links a{color:#c9a24b;text-decoration:underline;text-underline-offset:3px}
+.${prefix} .hub-cta{margin-top:1.6rem;padding:16px;border:1px dashed #c9a24b;border-radius:12px;text-align:center}
+.${prefix} .hub-cta p{margin:0 0 .7em;color:#bbb;font-size:.85rem}
+.${prefix} .hub-cta a{display:inline-block;padding:12px 24px;border-radius:8px;background:#06C755;color:#fff;font-weight:700;text-decoration:none}
+.${prefix} .hub-cta a.wa{background:#25D366}
 .entry-title,.breadSection{display:none!important}
 .siteContent{background:#0d0d0d!important}
 </style>`;
 }
 
 /** ブランドハブ（/tuning/mercedes-benz/ 等）の本文 */
+const LINE_OA_ID = "@755qpqwa";
+function inquiryCta(jp: boolean, brandLabel: string): string {
+  if (jp) {
+    const msg = encodeURIComponent(`【お見積り依頼】\n車種: ${brandLabel}（一覧に無い車種）\n年式・グレード: \nご希望内容: `);
+    return `<div class="hub-cta">
+<p>一覧に無い車種・年式でも施工できる場合があります。お気軽にご相談ください。</p>
+<a href="https://line.me/R/oaMessage/${LINE_OA_ID}/?${msg}" target="_blank" rel="noopener">掲載のない車種を問い合わせる（LINE）</a>
+</div>`;
+  }
+  const wa = encodeURIComponent(`Hi mbFAST, my car is not listed. Can you tune it?\nMake/Model: ${brandLabel} \nYear/Grade: `);
+  return `<div class="hub-cta">
+<p>Don't see your car? We can often tune models not listed here.</p>
+<a class="wa" href="https://wa.me/819067304953?text=${wa}" target="_blank" rel="noopener">Ask about your car on WhatsApp</a>
+</div>`;
+}
+
 export function buildBrandHubHtml(args: {
   jp: boolean;
   brandDisplayName: string;
@@ -109,6 +129,7 @@ ${hubCss(prefix)}
 <div class="${prefix}">
 ${lead}
 ${sections}
+${inquiryCta(jp, jp ? brandDisplayName : brandNameEn)}
 <div class="hub-links">
 ${links}
 </div>
@@ -137,6 +158,7 @@ ${lead}
 <ul class="hub-grid">
 ${cards}
 </ul>
+${inquiryCta(jp, jp ? "メーカー・車種" : "")}
 </div>
 ${MARK_END}`;
 }
