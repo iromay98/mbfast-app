@@ -113,3 +113,47 @@ export async function fetchGbpPostStates(): Promise<{
     })),
   };
 }
+
+/*
+ * 店舗のGoogleマップ・検索での表示実績を取得（本部のみ）。
+ * 方式Bの店はその店のトークンで取得する。
+ * 未有効化(403)は「Cloud ConsoleでPerformance APIを有効化」の案内に変換する。
+ */
+export async function fetchGbpPerformance(
+  storeId: string,
+  daysBack: number,
+): Promise<{ ok?: true; error?: string; rows?: { label: string; total: number }[] }> {
+  await requireHQ();
+  if (![30, 90].includes(daysBack)) return { error: "期間は30日か90日を指定してください" };
+  const store = await prisma.pitStore.findUnique({
+    where: { id: storeId },
+    select: {
+      gbpLocationId: true,
+      gbpAuthMode: true,
+      gbpRefreshTokenEnc: true,
+    },
+  });
+  if (!store?.gbpLocationId) return { error: "Googleマップと紐付いていない店舗です" };
+  try {
+    let token: string | undefined;
+    if (store.gbpAuthMode === "SELF") {
+      const { decryptToken } = await import("@/server/pit/gbp/token-crypto");
+      const { accessTokenFor } = await import("@/server/pit/gbp/self-auth");
+      const refresh = decryptToken(store.gbpRefreshTokenEnc);
+      if (!refresh) return { error: "この店舗のGoogle連携が切れています（再連携が必要）" };
+      token = await accessTokenFor(refresh);
+    }
+    const { fetchPerformanceSummary } = await import("@/server/pit/gbp/performance");
+    const rows = await fetchPerformanceSummary(store.gbpLocationId, daysBack, token);
+    return { ok: true, rows: rows.map((r) => ({ label: r.label, total: r.total })) };
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    if (/403|PERMISSION_DENIED|has not been used|disabled/i.test(msg)) {
+      return {
+        error:
+          "Business Profile Performance API が未有効の可能性があります。Cloud Console → APIとサービス → ライブラリ で有効化してください",
+      };
+    }
+    return { error: msg };
+  }
+}
