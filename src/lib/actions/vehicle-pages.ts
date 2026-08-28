@@ -360,6 +360,16 @@ export async function resyncAllVpagesForBrand(brandId: string): Promise<{ ok?: t
     select: { id: true },
     orderBy: { slug: "asc" },
   });
+
+  // 1ボタン統合(2026-08-27 更家さん指定): 先にJP商品(可変・オプション)を価格マスタから
+  // 更新してバリエーションIDを確定させ、その後でページHTML(シミュレーター込み)を生成する。
+  // これにより「表示は新価格・課金は旧価格」のズレが構造的に起きない。
+  try {
+    const { syncJpProductsForBrand } = await import("@/lib/vehicle-pages/woo-jp");
+    await syncJpProductsForBrand(brandId);
+  } catch {
+    // 商品側の失敗でページ反映を止めない(ログはJP商品ボタンで個別確認可能)
+  }
   let synced = 0;
   let failed = 0;
   for (const t of targets) {
@@ -402,4 +412,29 @@ export async function syncHubPages(brandId?: string): Promise<{ ok?: true; log?:
   }
   revalidatePath(PATH);
   return { ok: true, log };
+}
+
+/** グレード統合グループの設定(空でクリア)。同一ブランド内で同じ値のJP行が1ページに統合される */
+export async function setVehiclePageGroup(vehicleId: string, group: string): Promise<{ ok?: true; members?: number; error?: string }> {
+  await requireHQ();
+  const g = group.trim().toLowerCase().replace(/[^a-z0-9-]/g, "");
+  const v = await prisma.priceVehicle.findUnique({ where: { id: vehicleId }, select: { brandId: true } });
+  if (!v) return { error: "行が見つかりません" };
+  await prisma.priceVehicle.update({ where: { id: vehicleId }, data: { pageGroup: g || null } });
+  const members = g
+    ? await prisma.priceVehicle.count({ where: { brandId: v.brandId, market: "JP", pageGroup: g } })
+    : 0;
+  revalidatePath("/hq/prices");
+  revalidatePath(PATH);
+  return { ok: true, members };
+}
+
+/** JP Woo商品の一括生成/更新(公開中の車両ページを持つ代表行のみ・noindex・EN商品と翻訳紐付け) */
+export async function syncJpProducts(brandId: string): Promise<{ ok?: true; done?: number; skipped?: number; failed?: number; log?: string[]; error?: string }> {
+  await requireHQ();
+  if (!wpConfigured()) return { error: "WP認証が未設定です" };
+  const { syncJpProductsForBrand } = await import("@/lib/vehicle-pages/woo-jp");
+  const r = await syncJpProductsForBrand(brandId);
+  revalidatePath(PATH);
+  return { ok: true, ...r };
 }

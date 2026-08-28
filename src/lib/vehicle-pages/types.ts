@@ -32,6 +32,32 @@ export type VehiclePageData = {
   related: RelatedPost[];
   /** EN: quote=価格非表示（既定）。price=EN価格を表示（market=EN のレコードから解決済みの値） */
   en: { mode: "quote" } | { mode: "price"; prices: PriceItem[] };
+  /** 2件以上でグレードタブ表示(CSSのみ)。未設定/1件は従来の単独表示 */
+  variants?: VehicleVariant[];
+  /** 単独ページ用の購入データ(統合ページはvariants[].purchaseを使う) */
+  purchase?: PurchaseData;
+};
+
+/** 見積りシミュレーター+決済用の購入データ(JPのみ)。価格は全て静的にHTMLへ出す */
+export type PurchaseMenu = { key: string; label: string; jpy: number; variationId: number | null };
+export type PurchaseOption = { key: string; label: string; jpy: number; productId: number | null };
+export type PurchaseData = {
+  menus: PurchaseMenu[]; // 択一の施工メニュー(ラジオ)
+  addons: PurchaseMenu[]; // 車両ごと価格のオプション(チェックボックス)。TCU等。決済はバリエーションで行う
+  options: PurchaseOption[]; // 全車共通の固定価格オプション
+};
+
+/** グレード統合ページの1バリエーション(タブ1枚分)。先頭が代表＝初期表示 */
+export type VehicleVariant = {
+  label: string; // タブ見出し("C63AMG 457ps" 等)
+  grade: string | null;
+  engine: string;
+  ecuType: string | null;
+  stockOutput: string | null;
+  stage1Gain: string | null;
+  prices: PriceItem[];
+  enPrices: PriceItem[] | null; // ENで価格表示するときのみ
+  purchase?: PurchaseData; // JPの見積りシミュレーター用
 };
 
 export type GeneratedPage = { title: string; html: string };
