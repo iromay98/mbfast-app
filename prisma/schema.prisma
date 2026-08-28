@@ -858,6 +858,15 @@ model PitStore {
   gbpAuthAt            DateTime? // 連携した日時
   gbpAuthRevokedAt     DateTime? // トークンが失効した日時（再連携を促すために記録）
 
+  /*
+   * Googleでの表示実績のキャッシュ（直近30日の集計・JSON）。
+   * 加盟店ホームで自動表示するため、開くたびにGoogleへ問い合わせず
+   * 1日1回だけ取得して使い回す（割り当て節約と表示速度のため）。
+   * 形: [{"label":"マップ表示（スマホ）","total":123}, ...]
+   */
+  gbpPerfCache     Json?
+  gbpPerfCachedAt  DateTime?
+
   socialAccounts    PitSocialAccount[]
 
   posts        PitPost[]
