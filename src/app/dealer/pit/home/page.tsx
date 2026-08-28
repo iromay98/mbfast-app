@@ -18,7 +18,7 @@ export default async function PitHomePage() {
   const user = await requireDealer();
   const store = await prisma.pitStore.findUnique({
     where: { dealerId: user.dealerId },
-    select: { id: true, displayName: true, active: true },
+    select: { id: true, displayName: true, active: true, gbpLocationId: true, gbpPostingEnabled: true },
   });
   if (!store) redirect("/dealer/pit"); // 未登録店舗は投稿ページ側の案内へ
 
@@ -83,16 +83,23 @@ export default async function PitHomePage() {
         </p>
       </div>
 
-      {/* Googleマップ連携（審査待ちのため準備中）。スマホは上部ナビが隠れるのでホームから開けるようにする */}
+      {/* Googleマップ連携。スマホは上部ナビが隠れるのでホームから開けるようにする。
+          バッジは実状態（固定文言だと、機能が動き出しても「準備中」のままになる） */}
       <Link
         href="/dealer/pit/gbp"
         className="flex items-center justify-between rounded-xl border border-line bg-surface px-3 py-2.5 text-sm hover:bg-surface-2"
       >
         <span className="font-semibold text-ink">
           🗺 Googleマップ連携
-          <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-800">
-            準備中
-          </span>
+          {store.gbpPostingEnabled && store.gbpLocationId ? (
+            <span className="ml-2 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-800">
+              有効
+            </span>
+          ) : (
+            <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-800">
+              未連携
+            </span>
+          )}
         </span>
         <span className="text-gold-600">ひらく →</span>
       </Link>

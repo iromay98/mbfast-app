@@ -32,6 +32,8 @@ export default async function PitStorePage() {
       certShowCustomerTel: true,
       certShowAmount: true,
       writingTone: true,
+      gbpLocationId: true,
+      gbpPostingEnabled: true,
       postReviewRequired: true,
     },
   });
@@ -49,9 +51,15 @@ export default async function PitStorePage() {
       >
         <span className="font-semibold text-ink">
           Googleマップ連携
-          <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-800">
-            準備中
-          </span>
+          {store.gbpPostingEnabled && store.gbpLocationId ? (
+            <span className="ml-2 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-800">
+              有効
+            </span>
+          ) : (
+            <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-800">
+              未連携
+            </span>
+          )}
         </span>
         <span className="text-gold-600">設定 →</span>
       </Link>

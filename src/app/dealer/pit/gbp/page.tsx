@@ -15,10 +15,10 @@ export const metadata: Metadata = pitMetadata("mbPIT Googleマップ連携");
 /*
  * 加盟店向け「Googleマップ連携」ページ。
  *
- * 現状は Google のAPIアクセスが審査中のため、投稿機能は **準備中**。
- * このページは (1) いまが準備中であること、(2) 承認が下りたら何ができるか、
- * (3) 加盟店がいま準備できること＝自店のGoogleビジネスプロフィールに mbPIT運営
- *     （mbFAST）を「管理者」として招待する手順、を案内する。
+ * 投稿APIは承認済みで、本店では実稼働している（2026-08-28 初投稿）。
+ * このページは (1) 自店の連携状態、(2) 連携すると何が起きるか、
+ * (3) 連携の手段＝方式B（自分でGoogleログイン）か方式A（運営を管理者に招待）
+ * を案内する。
  *
  * 方式B（既定）: 加盟店が自分のGoogleアカウントでログインし、自店の拠点を自分で選ぶ。
  * 店主本人のトークンで一覧を取るので、他店の拠点は候補にすら出ない＝誤紐付けが起きない。
@@ -73,13 +73,13 @@ export default async function PitGbpPage() {
         <div className="rounded-2xl border border-amber-300 bg-amber-50 p-4">
           <div className="flex items-center gap-2 text-sm font-bold text-amber-900">
             <span className="inline-block rounded-full bg-amber-200 px-2 py-0.5 text-[11px]">
-              準備中
+              未連携
             </span>
-            Googleマップへの自動投稿は現在ご利用いただけません
+            Googleマップへの自動投稿はまだ始まっていません
           </div>
           <p className="mt-1.5 text-xs leading-relaxed text-amber-800">
-            Google側の利用申請を進めている段階です。承認が下り次第、こちらで有効化します。
-            それまでの間に、下の手順で招待だけ済ませておくと、開始と同時にご利用いただけます。
+            下の手順でお店のGoogleアカウントを連携すると、施工の投稿がお店のGoogleマップにも
+            自動で掲載されるようになります。連携後、運営が確認して投稿を有効にします。
           </p>
         </div>
       )}
