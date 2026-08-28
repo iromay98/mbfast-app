@@ -28,6 +28,9 @@ FROM base AS run
 RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg \
   && rm -rf /var/lib/apt/lists/*
 ENV NODE_ENV=production
+# 反映確認用: docker compose exec app printenv APP_GIT_SHA でイメージのコミットが分かる
+ARG GIT_SHA=unknown
+ENV APP_GIT_SHA=$GIT_SHA
 ENV PORT=3000
 COPY --from=build /app ./
 RUN chmod +x docker-entrypoint.sh

@@ -25,15 +25,17 @@ HQ（mbFAST Tuning本店）⇄ 代理店のポータル。Next.js 16 App Router 
 別セッションのrsyncでGBP連携・メール・分割アップロードの実装がVPS上から消え、
 逆に未コミットのcreateBrand実装を消しかけた。
 
-正しい手順:
-1. 変更を commit（メッセージは日本語）→ `git push`（origin=github.com:iromay98/mbfast-app）
-2. VPSで `cd /root/mbfast-app && git pull`
-3. `docker compose -f docker-compose.prod.yml up -d --build`
-4. **反映確認を必ず行う**: `git log --oneline -1`（狙ったコミットか）と
-   `docker compose -f docker-compose.prod.yml ps app` のCREATED（直近か）。
-   ビルド失敗時は古いコンテナが動き続け「直したのに直らない」状態になるため、
-   ここを飛ばさない
-5. VPS上のファイルを直接編集しない（`git pull` が競合して止まる）
+正しい手順（2026-08-28からActionsビルド方式。VPSでビルドしない）:
+1. 変更を commit（メッセージは日本語）→ main へ push
+   → GitHub Actions が自動でイメージをビルドし ghcr.io へ push する（2〜4分）
+2. VPSで:
+   `cd /root/mbfast-app && git pull && docker compose -f docker-compose.prod.yml pull app && docker compose -f docker-compose.prod.yml up -d app`
+3. **反映確認を必ず行う**:
+   `docker compose -f docker-compose.prod.yml exec app printenv APP_GIT_SHA`
+   （動いているイメージのコミットSHAが出る。狙ったコミットと一致すること）
+4. VPS上のファイルを直接編集しない（`git pull` が競合して止まる）
+5. Actionsが落ちている緊急時のみ、旧方式 `up -d --build` でVPSビルドにフォールバック可
+※ 初回のみVPSで `docker login ghcr.io`（read:packages 権限のPAT）が必要
 
 - スキーマ変更は手書きmigration（`prisma/migrations/<timestamp>_<name>/migration.sql`）＋起動時 `prisma migrate deploy` が適用。ローカルは `npx prisma migrate deploy && npx prisma generate` 後に**devサーバー再起動必須**
 

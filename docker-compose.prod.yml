@@ -26,6 +26,9 @@ services:
     # ホスト公開なし（内部ネットワークのみ）
 
   app:
+    # 通常はGitHub Actionsが作ったイメージを使う（VPSでビルドしない＝速い・軽い）。
+    # Actionsが使えない緊急時だけ `up -d --build` でローカルビルドにフォールバックできる
+    image: ghcr.io/iromay98/mbfast-app:main
     build: .
     restart: unless-stopped
     environment:
