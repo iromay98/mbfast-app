@@ -5,6 +5,7 @@ import { PageTitle, Card } from "@/components/ui";
 import { gbpConfigured, configuredAccountId, configuredLocationMap } from "@/server/pit/gbp/client";
 import { listStoreLinks, listLinkableLocations } from "@/server/pit/gbp/link";
 import { GbpLinkClient } from "./gbp-link-client";
+import { GbpPostStatus } from "@/components/gbp-post-status";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "mbPIT Googleマップ投稿の紐付け" };
@@ -111,6 +112,10 @@ export default async function HqGbpPage() {
           ← mbPIT管理へ戻る
         </Link>
       </p>
+      {/* 投稿がマップに出ているかの実状態（審査中/公開中/審査落ち） */}
+      <Card>
+        <GbpPostStatus />
+      </Card>
     </div>
   );
 }
