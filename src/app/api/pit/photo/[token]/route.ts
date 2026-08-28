@@ -1,3 +1,4 @@
+import sharp from "sharp";
 import { verifyPhotoToken } from "@/server/pit/photo-public";
 import { storage } from "@/server/storage";
 
@@ -18,13 +19,21 @@ export async function GET(_req: Request, ctx: { params: Promise<{ token: string 
   const key = verifyPhotoToken(token);
   if (!key) return new Response("Not Found", { status: 404 });
 
-  const f = await storage.stream(key);
+  const f = await storage.read(key);
   if (!f) return new Response("Not Found", { status: 404 });
 
-  return new Response(f.stream, {
+  /*
+   * JPEGに変換して返す。
+   * 保存形式はWebPだが、GBPの投稿写真はJPEG/PNG前提でWebPを拒否する
+   * （URL自体は200で取得できるのに投稿がINTERNALで落ちる＝2026-08-28実測）。
+   * 変換は取得のたびに行うが、Googleの取得は投稿時と稀な再取得だけなので
+   * 負荷は問題にならない。EXIFはsharpが出力時に落とす（位置情報を漏らさない）。
+   */
+  const jpeg = await sharp(f.buffer).jpeg({ quality: 88 }).toBuffer();
+  return new Response(new Uint8Array(jpeg), {
     headers: {
-      "content-type": f.contentType || "image/webp",
-      "content-length": String(f.size),
+      "content-type": "image/jpeg",
+      "content-length": String(jpeg.byteLength),
       "cache-control": "public, max-age=31536000, immutable",
     },
   });
