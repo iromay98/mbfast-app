@@ -4,6 +4,7 @@
 import { prisma } from "@/lib/db";
 import { storage } from "@/server/storage";
 import { postRecordToMap } from "@/server/pit/gbp/auto-post";
+import { publicPhotoUrl } from "@/server/pit/photo-public";
 import { notify } from "@/server/notifications";
 import { processPhoto, seoFilename, PIT_IMAGE_MIME } from "./images";
 import { runGuard, CAUTION_HTML } from "./guard";
@@ -264,7 +265,8 @@ export async function runPitPipeline(opts: {
       title: article.title,
       memo: opts.memo,
       articleUrl: wpPost.link,
-      photoUrl: medias[0]?.sourceUrl ?? null,
+      // 写真はアプリから配信する（WPのURLはXserverのWAFがGoogleの取得を弾く）
+      photoUrl: photoKeys[0] ? publicPhotoUrl(photoKeys[0]) : null,
     });
 
     return { status: "published", postId: post.id, url: wpPost.link, title: article.title };

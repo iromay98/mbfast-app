@@ -11,6 +11,7 @@
  */
 import { prisma } from "../src/lib/db";
 import { postRecordToMap } from "../src/server/pit/gbp/auto-post";
+import { publicPhotoUrl } from "../src/server/pit/photo-public";
 
 const args = process.argv.slice(2);
 const val = (f: string) => {
@@ -53,6 +54,7 @@ async function main() {
       title: true,
       memo: true,
       publishedUrl: true,
+      photoKeys: true,
       gbpPostName: true,
       status: true,
       storeId: true,
@@ -67,6 +69,7 @@ async function main() {
     throw new Error(`ブログ公開済みの記録のみ送れます（status=${post.status}）`);
   }
 
+  const keys = (post.photoKeys as string[] | null) ?? [];
   console.log(`送信: ${post.store.displayName} / ${post.title}`);
   const r = await postRecordToMap({
     storeId: post.storeId,
@@ -76,9 +79,9 @@ async function main() {
     title: post.title ?? post.vehicle,
     memo: post.memo,
     articleUrl: post.publishedUrl,
-    // 再投稿はテキストのみを既定にする（写真URL取得失敗が失敗原因の筆頭のため）。
-    // 写真を付けたい場合は自動投稿側の経路で次の記録から確認する
-    photoUrl: null,
+    // 写真はアプリ配信URL（WAFを迂回）。--no-photo でテキストのみにできる
+    photoUrl:
+      !args.includes("--no-photo") && keys[0] ? publicPhotoUrl(keys[0]) : null,
   });
   console.log("結果:", JSON.stringify(r, null, 2));
   if (r.state === "posted") {
