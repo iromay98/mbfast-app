@@ -167,6 +167,7 @@ function css(dark: boolean): string {
 .vpg-sim .sim-actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:14px}
 .vpg-sim .sim-buy{display:inline-block;padding:13px 26px;border-radius:8px;background:#c9a24b;color:#0d0d0d;font-weight:700}
 .vpg-sim .sim-line{display:inline-block;padding:13px 26px;border-radius:8px;background:#06C755;color:#fff;font-weight:700}
+.vpg-sim .sim-shop{width:100%;margin:6px 0;padding:10px;border:1px solid #2a2a2a;border-radius:8px;background:#0d0d0d;color:#F2F2F2;font-size:.88rem}
 .vpg-sim .sim-note{margin-top:10px;font-size:.72rem;color:#888}
 .vpg-related{list-style:none;padding:0;margin:0}
 .vpg-related li{border:1px solid ${line};border-radius:8px;margin-bottom:.6rem}
@@ -208,6 +209,7 @@ function css(dark: boolean): string {
 .vpg-sim .sim-actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:14px}
 .vpg-sim .sim-buy{display:inline-block;padding:13px 26px;border-radius:8px;background:#c9a24b;color:#0d0d0d;font-weight:700}
 .vpg-sim .sim-line{display:inline-block;padding:13px 26px;border-radius:8px;background:#06C755;color:#fff;font-weight:700}
+.vpg-sim .sim-shop{width:100%;margin:6px 0;padding:10px;border:1px solid #2a2a2a;border-radius:8px;background:#0d0d0d;color:#F2F2F2;font-size:.88rem}
 .vpg-sim .sim-note{margin-top:10px;font-size:.72rem;color:#888}
 .vpg-related{margin-top:2.2rem;padding-top:1.2rem;border-top:1px solid #2a2a2a;font-size:.85rem}
 .vpg-related a{color:#c9a24b;text-decoration:underline;text-underline-offset:3px}
@@ -381,7 +383,7 @@ function variantTabs(d: VehiclePageData, jp: boolean): string {
       };
       const prices = jp ? v.prices : (v.enPrices ?? []);
       const priceBlock = jp
-        ? `<h2>施工価格（税込）</h2>\n${priceTable(v.prices, true, true)}\n${tcuNote(v.prices, true)}\n${simulatorBlock(v.purchase, `sim-${uid}-${vs.indexOf(v)}`, d.remote)}`
+        ? `<h2>施工価格（税込）</h2>\n${priceTable(v.prices, true, true)}\n${tcuNote(v.prices, true)}\n${simulatorBlock(v.purchase, `sim-${uid}-${vs.indexOf(v)}`, d.remote, d.pitStores)}`
         : v.enPrices
           ? `<h2>Pricing</h2>\n${priceTable(v.enPrices, false, true, whatsappUrl(carLabelEn(d), pageUrlEn(d)))}\n${tcuNote(v.enPrices, false)}`
           : "";
@@ -411,7 +413,7 @@ ${panels}
  * ルール(2026-08-27 更家さん指定): 価格は全て静的HTMLに出す。JSは合計計算とカート投入のみ。
  * JS無効時も全金額が見え、申込ボタンは先頭メニューの単品カートに落ちる。
  */
-function simulatorBlock(purchase: import("./types").PurchaseData | undefined, simId: string, remote?: import("../prices/types").RemoteFlags): string {
+function simulatorBlock(purchase: import("./types").PurchaseData | undefined, simId: string, remote?: import("../prices/types").RemoteFlags, stores?: { name: string; area: string }[]): string {
   if (!purchase || purchase.menus.length === 0) return "";
   const menus = purchase.menus
     .map(
@@ -446,13 +448,19 @@ function simulatorBlock(purchase: import("./types").PurchaseData | undefined, si
     .join("\n");
   const placeRadios = [
     { key: "hq", label: "mbPIT渋谷本店" },
-    { key: "dealer", label: "全国の取扱店（最寄りをご案内）" },
+    { key: "dealer", label: "全国の取扱店" },
   ]
     .map(
       (m, i) =>
         `<label><input type="radio" name="${simId}-place" value="${m.key}" data-meta="place" data-label="${m.label}"${i === 0 ? " checked" : ""}><span>${m.label}</span></label>`,
     )
     .join("\n");
+  const shopSelect =
+    stores && stores.length > 0
+      ? `<select data-meta="shop" class="sim-shop"><option value="">指定なし（最寄りをご案内）</option>${stores
+          .map((st) => `<option value="${esc(st.name)}${st.area ? `／${esc(st.area)}` : ""}">${esc(st.name)}${st.area ? `（${esc(st.area)}）` : ""}</option>`)
+          .join("")}</select>`
+      : "";
   return `<div class="vpg-sim" data-sim="${simId}">
 <h3>お見積りシミュレーション</h3>
 <p class="sim-sec">施工メニュー（どれか1つ）</p>
@@ -462,6 +470,7 @@ ${addons || opts ? `<p class="sim-sec">オプション（複数選択可）</p>\
 ${methodRadios}
 <p class="sim-sec">施工場所</p>
 ${placeRadios}
+${shopSelect}
 <div class="sim-total"><span>合計（税込）</span><span class="sim-total-val" data-total>¥${firstTotal.toLocaleString("ja-JP")}</span></div>
 <p class="sim-note">リモート・郵送の機材費/送料は別途ご案内します。</p>
 <div class="sim-actions">
@@ -496,12 +505,29 @@ function simulatorScript(d: VehiclePageData): string {
     }
     function metas(){
       var out = [];
+      var place = "";
       sim.querySelectorAll("input[data-meta]:checked").forEach(function(m){
         var kind = m.getAttribute("data-meta") === "method" ? "施工方法" : "施工場所";
+        if (m.getAttribute("data-meta") === "place") { place = m.value; }
         out.push(kind + ": " + (m.getAttribute("data-label") || ""));
       });
+      var sel = sim.querySelector("select[data-meta]");
+      if (sel) {
+        if (place === "dealer") {
+          if (sel.value) { out.push("希望店舗: " + sel.value); }
+        }
+      }
       return out;
     }
+    function toggleShop(){
+      var sel = sim.querySelector("select[data-meta]");
+      if (!sel) { return; }
+      var place = "";
+      sim.querySelectorAll("input[data-meta=place]:checked").forEach(function(m){ place = m.value; });
+      sel.style.display = place === "dealer" ? "" : "none";
+    }
+    sim.addEventListener("change", toggleShop);
+    toggleShop();
     function calc(){
       var sum = 0;
       picked().forEach(function(el){ sum = sum + Number(el.getAttribute("data-jpy") || 0); });
@@ -616,7 +642,7 @@ ${specRows(d, true)}
 <h2>施工価格（税込）</h2>
 ${priceTable(priceItems, true, true)}
 ${tcuNote(priceItems, true)}
-${simulatorBlock(d.purchase, "sim-solo", d.remote)}`}
+${simulatorBlock(d.purchase, "sim-solo", d.remote, d.pitStores)}`}
 ${d.labor && d.labor !== "—" ? `<p class="vpg-sub">脱着・殻割り工賃: ${esc(d.labor)}</p>` : ""}
 ${customerRemoteBadges(d) ? `<h2>リモート施工対応</h2>\n<p class="vpg-sub">専用機材をご自宅にお送りし、ご来店不要で施工いたします。</p>\n${customerRemoteBadges(d)}` : ""}
 ${optionTable(d, true) ? `<h2>対応オプション</h2>\n${optionTable(d, true)}` : ""}

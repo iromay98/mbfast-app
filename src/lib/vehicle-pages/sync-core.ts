@@ -100,6 +100,13 @@ export async function syncVehiclePage(pageId: string): Promise<SyncEvent[]> {
     return { menus, addons, options };
   };
   data.purchase = purchaseFor(v, p.options);
+  data.pitStores = (
+    await prisma.pitStore.findMany({
+      where: { active: true },
+      orderBy: { displayName: "asc" },
+      select: { displayName: true, area: true },
+    })
+  ).map((st) => ({ name: st.displayName, area: st.area }));
 
   if (groupVehicles.length > 1) {
     const variants = [];
