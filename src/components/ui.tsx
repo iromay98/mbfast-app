@@ -6,12 +6,16 @@ import type { ComponentProps, ReactNode } from "react";
 export function Card({
   children,
   className = "",
+  id,
 }: {
   children: ReactNode;
   className?: string;
+  /** ページ内リンク（#アンカー）の飛び先にする場合に指定 */
+  id?: string;
 }) {
   return (
     <div
+      id={id}
       className={`rounded-xl border border-line bg-surface p-4 shadow-sm ${className}`}
     >
       {children}

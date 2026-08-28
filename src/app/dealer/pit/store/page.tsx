@@ -95,8 +95,8 @@ export default async function PitStorePage() {
         />
       </Card>
 
-      {/* 記事とマップ投稿の文体（店舗のキャラクターに合わせて選ぶ） */}
-      <Card>
+      {/* 記事とマップ投稿の文体（店舗のキャラクターに合わせて選ぶ）。id=設定メニューからの直リンク先 */}
+      <Card id="tone">
         <p className="mb-2 text-base font-bold text-ink">文体の設定</p>
         <ToneSelector current={store.writingTone} />
       </Card>

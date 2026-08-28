@@ -56,16 +56,25 @@ function ecuDealerBottomNav(ecuEnabled: boolean): BottomNavItem[] {
       href: "/dealer/pit/customers",
       label: "顧客",
       icon: "user",
-      also: ["/dealer/pit/vehicles", "/dealer/pit/certificates", "/dealer/pit/gbp"],
+      also: ["/dealer/pit/vehicles", "/dealer/pit/certificates"],
     },
-    ecuEnabled
-      ? {
-          href: "/dealer/records",
-          label: "mbFAST依頼",
-          icon: "wrench",
-          also: ["/dealer/requests", "/dealer/activity"],
-        }
-      : { href: "/dealer/pit/store", label: "店舗", icon: "shop" },
+    ...(ecuEnabled
+      ? [
+          {
+            href: "/dealer/records",
+            label: "mbFAST依頼",
+            icon: "wrench",
+            also: ["/dealer/requests", "/dealer/activity"],
+          } as BottomNavItem,
+        ]
+      : []),
+    // 管理系（店舗情報・マップ連携・文体）の置き場。タブを増やさず項目を増やせる
+    {
+      href: "/dealer/pit/settings",
+      label: "設定",
+      icon: "gear",
+      also: ["/dealer/pit/store", "/dealer/pit/gbp"],
+    },
   ];
 }
 
@@ -99,7 +108,12 @@ export default async function DealerLayout({
         icon: "user",
         also: ["/dealer/pit/vehicles", "/dealer/pit/certificates"],
       },
-      { href: "/dealer/pit/store", label: "店舗", icon: "shop", also: ["/dealer/pit/gbp"] },
+      {
+        href: "/dealer/pit/settings",
+        label: "設定",
+        icon: "gear",
+        also: ["/dealer/pit/store", "/dealer/pit/gbp"],
+      },
     ];
     const pitNav: NavItem[] = [
       { href: "/dealer/pit/home", label: "ホーム" },
