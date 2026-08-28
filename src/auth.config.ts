@@ -38,6 +38,10 @@ export const authConfig = {
         // mbPIT加盟店の自己登録（公開ページ・ログイン不要）＋利用規約
         path === "/pit/join" ||
         path.startsWith("/pit/join/") ||
+        // Googleマップ投稿用の写真配信（署名付きトークンで対象を絞っている）。
+        // Googleのクローラが取りに来るため認証を通せない。ここを塞ぐと
+        // 写真URLがログイン画面へ307され、マップ投稿の写真が出ない
+        path.startsWith("/api/pit/photo/") ||
         path === "/pit/terms" ||
         path === "/manifest.webmanifest" ||
         path === "/sw.js" ||
