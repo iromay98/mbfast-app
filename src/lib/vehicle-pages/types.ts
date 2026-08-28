@@ -37,7 +37,7 @@ export type VehiclePageData = {
   /** 単独ページ用の購入データ(統合ページはvariants[].purchaseを使う) */
   purchase?: PurchaseData;
   /** シミュレーターの希望店舗プルダウン用(mbPIT店舗マスタから) */
-  pitStores?: { name: string; area: string }[];
+  pitStores?: { name: string; area: string; lineUrl: string; lineOaId: string }[];
 };
 
 /** 見積りシミュレーター+決済用の購入データ(JPのみ)。価格は全て静的にHTMLへ出す */

@@ -789,6 +789,7 @@ model PitStore {
   email          String    @default("") // → mbpit_email
   website        String    @default("") // → mbpit_website
   lineUrl        String    @default("") // → mbpit_line（公式LINE。HP側で問い合わせボタンになる）
+  lineOaId       String    @default("") // lineUrlから自動解決した@ID(oaMessage用キャッシュ。空=未解決/解決不可)
   serviceTags    String    @default("") // → mbpit_tags（読点区切り）
   intro          String    @default("") // → mbpit_intro（1〜3文）
   // 地図。加盟店はGoogleマップの共有URLを貼るだけでよく、lat/lngはそこから機械的に取る

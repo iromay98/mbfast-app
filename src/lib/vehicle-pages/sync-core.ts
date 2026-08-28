@@ -100,13 +100,7 @@ export async function syncVehiclePage(pageId: string): Promise<SyncEvent[]> {
     return { menus, addons, options };
   };
   data.purchase = purchaseFor(v, p.options);
-  data.pitStores = (
-    await prisma.pitStore.findMany({
-      where: { active: true },
-      orderBy: { displayName: "asc" },
-      select: { displayName: true, area: true },
-    })
-  ).map((st) => ({ name: st.displayName, area: st.area }));
+  data.pitStores = await loadPitStoresForSim();
 
   if (groupVehicles.length > 1) {
     const variants = [];
@@ -192,4 +186,33 @@ export async function syncVehiclePage(pageId: string): Promise<SyncEvent[]> {
   }
 
   return events;
+}
+
+
+/** 店舗リスト(シミュレーター用)。lineUrl(lin.ee)から@IDを一度だけ解決してキャッシュする */
+async function loadPitStoresForSim(): Promise<{ name: string; area: string; lineUrl: string; lineOaId: string }[]> {
+  const stores = await prisma.pitStore.findMany({
+    where: { active: true },
+    orderBy: { displayName: "asc" },
+    select: { id: true, displayName: true, area: true, lineUrl: true, lineOaId: true },
+  });
+  for (const st of stores) {
+    if (!st.lineUrl || st.lineOaId) continue;
+    try {
+      const res = await fetch(st.lineUrl, {
+        redirect: "follow",
+        headers: { "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)" },
+      });
+      const finalUrl = res.url ?? "";
+      const body = finalUrl.includes("@") ? finalUrl : await res.text();
+      const m = body.match(/@[0-9a-z]{3,14}/);
+      if (m) {
+        st.lineOaId = m[0];
+        await prisma.pitStore.update({ where: { id: st.id }, data: { lineOaId: m[0] } });
+      }
+    } catch {
+      // 解決できない店はフォールバック(コピー+リンク)で動く
+    }
+  }
+  return stores.map((st) => ({ name: st.displayName, area: st.area, lineUrl: st.lineUrl, lineOaId: st.lineOaId }));
 }

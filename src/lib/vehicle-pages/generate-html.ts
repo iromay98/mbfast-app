@@ -413,7 +413,7 @@ ${panels}
  * ルール(2026-08-27 更家さん指定): 価格は全て静的HTMLに出す。JSは合計計算とカート投入のみ。
  * JS無効時も全金額が見え、申込ボタンは先頭メニューの単品カートに落ちる。
  */
-function simulatorBlock(purchase: import("./types").PurchaseData | undefined, simId: string, remote?: import("../prices/types").RemoteFlags, stores?: { name: string; area: string }[]): string {
+function simulatorBlock(purchase: import("./types").PurchaseData | undefined, simId: string, remote?: import("../prices/types").RemoteFlags, stores?: { name: string; area: string; lineUrl: string; lineOaId: string }[]): string {
   if (!purchase || purchase.menus.length === 0) return "";
   const menus = purchase.menus
     .map(
@@ -458,7 +458,10 @@ function simulatorBlock(purchase: import("./types").PurchaseData | undefined, si
   const shopSelect =
     stores && stores.length > 0
       ? `<select data-meta="shop" class="sim-shop"><option value="">指定なし（最寄りをご案内）</option>${stores
-          .map((st) => `<option value="${esc(st.name)}${st.area ? `／${esc(st.area)}` : ""}">${esc(st.name)}${st.area ? `（${esc(st.area)}）` : ""}</option>`)
+          .map(
+            (st) =>
+              `<option value="${esc(st.name)}${st.area ? `／${esc(st.area)}` : ""}" data-oa="${esc(st.lineOaId)}" data-line="${esc(st.lineUrl)}">${esc(st.name)}${st.area ? `（${esc(st.area)}）` : ""}</option>`,
+          )
           .join("")}</select>`
       : "";
   return `<div class="vpg-sim" data-sim="${simId}">
@@ -548,7 +551,39 @@ function simulatorScript(d: VehiclePageData): string {
         lines.push("合計: " + yen(sum) + "(税込)");
         metas().forEach(function(m){ lines.push(m); });
         lines.push(PAGE);
-        var text = encodeURIComponent(lines.join(NL));
+        var raw = lines.join(NL);
+        var text = encodeURIComponent(raw);
+        // 送信先: 希望店舗にLINEがあればその店へ。@ID解決済みなら文面つきで開く。
+        var place = "";
+        sim.querySelectorAll("input[data-meta=place]:checked").forEach(function(m){ place = m.value; });
+        var sel = sim.querySelector("select[data-meta]");
+        var shopOa = "";
+        var shopLine = "";
+        if (place === "dealer") {
+          if (sel) {
+            var opt = sel.options[sel.selectedIndex];
+            if (opt) {
+              if (opt.value) {
+                shopOa = opt.getAttribute("data-oa") || "";
+                shopLine = opt.getAttribute("data-line") || "";
+              }
+            }
+          }
+        }
+        if (shopOa) {
+          window.open("https://line.me/R/oaMessage/" + shopOa + "/?" + text, "_blank");
+          return;
+        }
+        if (shopLine) {
+          var openShop = function(){ window.open(shopLine, "_blank"); };
+          if (navigator.clipboard) {
+            navigator.clipboard.writeText(raw).then(function(){
+              alert("見積り内容をコピーしました。開いたLINEのトークに貼り付けて送信してください。");
+              openShop();
+            }, openShop);
+          } else { openShop(); }
+          return;
+        }
         window.open("https://line.me/R/oaMessage/" + OA + "/?" + text, "_blank");
       });
     }
