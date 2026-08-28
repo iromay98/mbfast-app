@@ -8,6 +8,7 @@ import { PageTitle, Card } from "@/components/ui";
 import { STORE_META_SELECT, pickStoreInfo } from "@/server/pit/store-meta";
 import { StoreInfoEditor } from "@/components/store-info-editor";
 import { CertSettingsEditor } from "@/components/cert-settings-editor";
+import { ToneSelector } from "@/components/tone-selector";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = pitMetadata("mbPIT 店舗情報");
@@ -30,6 +31,7 @@ export default async function PitStorePage() {
       certShowCustomerAddress: true,
       certShowCustomerTel: true,
       certShowAmount: true,
+      writingTone: true,
       postReviewRequired: true,
     },
   });
@@ -83,6 +85,12 @@ export default async function PitStorePage() {
             postReviewRequired: store.postReviewRequired,
           }}
         />
+      </Card>
+
+      {/* 記事とマップ投稿の文体（店舗のキャラクターに合わせて選ぶ） */}
+      <Card>
+        <p className="mb-2 text-base font-bold text-ink">文体の設定</p>
+        <ToneSelector current={store.writingTone} />
       </Card>
     </div>
   );

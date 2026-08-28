@@ -34,6 +34,8 @@ type StoreInfo = {
   faqJson: unknown;
   /** true なら生成後に公開せず status="review" で止める（店舗が本文を読んでから公開） */
   postReviewRequired?: boolean;
+  /** 記事とマップ投稿の文体（polite/casual/formal）。未指定はpolite */
+  writingTone?: string;
 };
 
 export async function runPitPipeline(opts: {
@@ -120,6 +122,7 @@ export async function runPitPipeline(opts: {
         )
       : [];
     const article = await generateArticle({
+      writingTone: store.writingTone,
       storeName: store.displayName,
       storeSlug: store.slug,
       vehicle: opts.vehicle,
@@ -225,6 +228,7 @@ export async function runPitPipeline(opts: {
       where: { id: post.id },
       data: {
         status: review ? "review" : "published",
+        mapPostText: article.map_post || null,
         title: article.title,
         wpPostId: wpPost.id,
         publishedUrl: wpPost.link,
@@ -265,6 +269,7 @@ export async function runPitPipeline(opts: {
       title: article.title,
       memo: opts.memo,
       articleUrl: wpPost.link,
+      mapText: article.map_post || null,
       // 写真はアプリから配信する（WPのURLはXserverのWAFがGoogleの取得を弾く）
       photoUrl: photoKeys[0] ? publicPhotoUrl(photoKeys[0]) : null,
     });

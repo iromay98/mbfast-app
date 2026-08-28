@@ -39,6 +39,7 @@ const STORE_SELECT = {
   faqJson: true,
   // 公開前確認（ONなら生成後に review で止める）
   postReviewRequired: true,
+  writingTone: true,
   active: true,
 } as const;
 

@@ -54,6 +54,7 @@ async function main() {
       title: true,
       memo: true,
       publishedUrl: true,
+      mapPostText: true,
       photoKeys: true,
       gbpPostName: true,
       status: true,
@@ -79,6 +80,7 @@ async function main() {
     title: post.title ?? post.vehicle,
     memo: post.memo,
     articleUrl: post.publishedUrl,
+    mapText: post.mapPostText,
     // 写真はアプリ配信URL（WAFを迂回）。--no-photo でテキストのみにできる
     photoUrl:
       !args.includes("--no-photo") && keys[0] ? publicPhotoUrl(keys[0]) : null,

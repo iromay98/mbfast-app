@@ -88,6 +88,8 @@ export async function postRecordToMap(opts: {
   title: string;
   memo?: string | null;
   articleUrl: string;
+  /** AI清書済みのマップ投稿文。無ければ buildMapPostText（タイトル＋メモ）で組む */
+  mapText?: string | null;
   /**
    * 写真の公開URL（WordPressにアップ済みのもの）。
    * GBPは**Google側がこのURLを取りに来る**ので、外から見えるURLでなければならない。
@@ -99,8 +101,16 @@ export async function postRecordToMap(opts: {
     const { target, skip } = await resolveTarget(opts.storeId);
     if (!target) return { state: "skipped", reason: skip ?? "対象外" };
 
+    /*
+     * 本文はAI清書文を最優先する。メモの生文は音声入力の誤変換・場所描写を
+     * 含みうるので、そのまま公衆に出さない（2026-08-28 マセラティで実際に出た）。
+     * 清書文が無い旧データだけ従来のタイトル＋メモ組み立てに落ちる。
+     */
+    const summary = opts.mapText
+      ? `${opts.mapText.trim()}\n\n施工の詳細は記録ページでご覧いただけます。`
+      : buildMapPostText({ vehicle: opts.vehicle, title: opts.title, memo: opts.memo });
     const draft: LocalPostDraft = {
-      summary: buildMapPostText({ vehicle: opts.vehicle, title: opts.title, memo: opts.memo }),
+      summary,
       cta: { type: "LEARN_MORE", url: opts.articleUrl },
     };
     // 写真はGoogle側が取りに来るので、httpsの公開URLのときだけ付ける。

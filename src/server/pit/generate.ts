@@ -29,6 +29,8 @@ export type GeneratedArticle = {
   vehicle_romaji: string; // 画像ファイル名用（例: alphard30）
   treatment_slug: string; // 画像ファイル名用（例: ceramic-coating）
   image_alts: string[];
+  /** Googleマップ投稿用の清書文（200〜350字・場所や人名なし・文体は店舗設定に従う） */
+  map_post: string;
 };
 
 const SCHEMA = {
@@ -46,10 +48,15 @@ const SCHEMA = {
     vehicle_romaji: { type: "string", description: "車種のローマ字slug（例: alphard30）" },
     treatment_slug: { type: "string", description: "施工内容の英語slug（例: ceramic-coating）" },
     image_alts: { type: "array", items: { type: "string" }, description: "写真と同数。日本語で内容を説明" },
+    map_post: {
+      type: "string",
+      description:
+        "Googleマップ投稿用の本文（200〜350字）。メモを清書した完成文で、音声入力の誤変換を直し、走行場所の地名・施設名・人物描写は書かない（市区までの所在地は可）。車種と施工内容から書き始める。文末は指定の文体に従う",
+    },
   },
   required: [
     "title", "slug", "body_html", "meta_description", "focus_keyword",
-    "vehicle_romaji", "treatment_slug", "image_alts",
+    "vehicle_romaji", "treatment_slug", "image_alts", "map_post",
   ],
   additionalProperties: false,
 } as const;
@@ -64,13 +71,29 @@ export type GenerateInput = {
   dateYmd: string; // "20260719"
   dateJa: string; // "2026年7月19日"（車両情報テーブル用）
   faqReference?: { q: string; a: string }[]; // 店舗マスタのFAQ（あればFAQ生成の素材にする）
+  /** 店舗が選んだ文体。polite=です・ます / casual=親しみやすい話し言葉 / formal=だ・である */
+  writingTone?: string;
 };
+
+/*
+ * 文体は店舗ごとに選べる（マップ投稿の生文垂れ流し事故 2026-08-28 を機に、
+ * 「清書は必須・キャラクターは選択制」に整理した）。
+ * 既定は polite。どの文体でも「事実ベース・捏造禁止・個人情報禁止」は変わらない。
+ */
+const TONES: Record<string, string> = {
+  polite: "です・ます調。短文中心",
+  casual: "親しみやすい話し言葉（〜だよ/〜なんです 等）。ただし下品にせず、お客様への敬意は保つ",
+  formal: "だ・である調の論説体。簡潔で断定的に",
+};
+export function toneInstruction(tone?: string): string {
+  return TONES[tone ?? "polite"] ?? TONES.polite;
+}
 
 const SYSTEM = `あなたは施工記録ポータル「mbPIT」のブログ編集者です。
 加盟店の施工報告（音声書き起こし＋写真）を、mbPIT公式の施工記録記事に仕上げます。
 
 文体（厳守）:
-- です・ます調。短文中心。事実ベース。宣伝臭・誇張は禁止
+- {{TONE}}。事実ベース。宣伝臭・誇張は禁止
 - 分量: 800〜1200字
 - 音声・メモに含まれない情報を捏造しない（具体的な数値・作業時間・価格など根拠のない情報は書かない。不明な項目は書かない）
 - 具体的なマップ名・セッティング値・使用薬剤の製品名など企業秘密レベルの技術詳細は書かない。
@@ -132,13 +155,15 @@ export async function generateArticle(input: GenerateInput): Promise<GeneratedAr
     ``,
     `slugは {車種ローマ字}-{施工slug}-${input.dateYmd} の形式にすること（店舗名は入れない。URLのパス側に店舗が入るため冗長になる）。`,
     `image_alts は写真と同じ ${input.photos.length} 件にすること。`,
+    `メモは音声入力のため誤変換・言い淀みを含む。意味を推定して自然な文に清書すること（例:「セコ依頼」→文脈から修正、「3000円ぐらいからの加速」→「3000回転あたりからの加速」）。ただし意味が確定できない固有名詞は省く。`,
+    `map_post はGoogleマップに表示される公開文。走行した場所の地名・道路名・施設名は書かない。同乗者や人数の描写も省く。`,
   ].join("\n");
 
   const response = await client.messages.create({
     model: MODEL,
     max_tokens: 16000,
     thinking: { type: "adaptive" },
-    system: SYSTEM,
+    system: SYSTEM.replace("{{TONE}}", toneInstruction(input.writingTone)),
     output_config: { format: { type: "json_schema", schema: SCHEMA } },
     messages: [{ role: "user", content: [...imageBlocks, { type: "text", text: prompt }] }],
   });

@@ -830,6 +830,8 @@ model PitStore {
    * false（既定）は従来どおり生成してそのまま公開。
    */
   postReviewRequired Boolean @default(false)
+  /** 記事とマップ投稿の文体。polite=です・ます / casual=話し言葉 / formal=だ・である */
+  writingTone        String  @default("polite")
 
   /*
    * Googleビジネスプロフィール（施工記録のGoogleマップ投稿）。
@@ -1131,6 +1133,7 @@ model PitPost {
   gbpPostName   String?     // "accounts/x/locations/y/localPosts/z"（取り消しに使う）
   gbpPostedAt   DateTime?
   gbpError      String?     // 失敗理由（上限・権限切れなど）。本部が後から手当てするため
+  mapPostText   String?     // AI清書済みのマップ投稿文（再投稿時にメモの生文を使わないため）
   errorMessage  String?
   plateLog      Json        @default("[]") // ナンバー検出結果ログ（未検出画像の記録）
   vehicleId     String? // 車検証QRで紐づけた車両（任意）

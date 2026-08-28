@@ -395,6 +395,26 @@ export type IngestRow = {
   error?: string;
 };
 
+/*
+ * 記事とマップ投稿の文体を店舗自身が選ぶ（加盟店用）。
+ * 音声メモの生文がマップに出た事故（2026-08-28）を機に、清書は必須・
+ * キャラクターは選択制に整理した。文体はAI生成のプロンプトに効く。
+ */
+export async function setMyWritingTone(
+  tone: string,
+): Promise<{ ok?: true; error?: string }> {
+  if (!["polite", "casual", "formal"].includes(tone)) return { error: "不正な文体です" };
+  const user = await requireDealer();
+  const store = await prisma.pitStore.findUnique({
+    where: { dealerId: user.dealerId },
+    select: { id: true },
+  });
+  if (!store) return { error: "店舗が見つかりません" };
+  await prisma.pitStore.update({ where: { id: store.id }, data: { writingTone: tone } });
+  revalidatePath("/dealer/pit/store");
+  return { ok: true };
+}
+
 export async function ingestPitStoreInfo(): Promise<{
   ok?: true;
   error?: string;
