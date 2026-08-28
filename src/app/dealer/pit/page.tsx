@@ -74,6 +74,10 @@ export default async function DealerPitPage({
       createdAt: true,
       // 公開前確認（review）の本文を確認画面で読めるようにする
       bodyHtml: true,
+      // Googleマップへの反映状態（加盟店が「マップに出たか」を自己確認できるように）
+      gbpPostName: true,
+      gbpPostedAt: true,
+      gbpError: true,
     },
   });
 
@@ -177,6 +181,9 @@ export default async function DealerPitPage({
             createdAtLabel: formatDateTime(p.createdAt),
             // 本文は確認待ちのときだけ渡す（公開済みの本文をクライアントに載せない）
             bodyHtml: p.status === "review" ? p.bodyHtml : null,
+            // マップ反映: posted=送信済み（審査→公開はGoogle側の時間）/ error=失敗
+            gbpPosted: Boolean(p.gbpPostName),
+            gbpFailed: Boolean(p.gbpError),
           }))}
         />
       </Card>

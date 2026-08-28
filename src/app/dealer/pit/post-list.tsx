@@ -20,6 +20,10 @@ export type PostListRow = {
   createdAtLabel: string;
   /** 公開前確認（status="review"）で読む記事本文。それ以外では渡さない */
   bodyHtml?: string | null;
+  /** Googleマップへ送信済みか（審査→公開はGoogle側で数分〜数時間かかる） */
+  gbpPosted?: boolean;
+  /** マップ送信が失敗したか（本部が対処するので店側の操作は不要） */
+  gbpFailed?: boolean;
 };
 
 const STATUS: Record<string, { label: string; cls: string }> = {
@@ -159,6 +163,24 @@ export function PostList({
               <span className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${st.cls}`}>
                 {st.label}
               </span>
+              {/* マップ反映の状態。「投稿したのにマップに出ない」を店が自己確認できるように。
+                  送信済みでもGoogleの審査（数分〜数時間）を通るまで表示されない旨を添える */}
+              {p.status === "published" && p.gbpPosted && (
+                <span
+                  className="rounded-full bg-sky-100 px-2 py-0.5 text-[10px] font-bold text-sky-800"
+                  title="Googleマップへ送信済みです。Googleの審査を通ると表示されます（数分〜数時間）"
+                >
+                  🗺 マップ送信済み
+                </span>
+              )}
+              {p.status === "published" && !p.gbpPosted && p.gbpFailed && (
+                <span
+                  className="rounded-full bg-surface-2 px-2 py-0.5 text-[10px] font-bold text-ink-soft"
+                  title="Googleマップへの送信に失敗しました。運営が確認して対処します（ブログは公開されています）"
+                >
+                  🗺 マップ未反映
+                </span>
+              )}
               {p.publishedUrl && (
                 <a
                   href={p.publishedUrl}
