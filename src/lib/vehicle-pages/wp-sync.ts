@@ -157,3 +157,9 @@ export function replaceMarkedRegion(currentRaw: string, generatedWhole: string):
   const next = currentRaw.slice(0, s) + region + currentRaw.slice(e + VPAGE_MARK_END.length);
   return { next, hadRegion: true };
 }
+
+/** 任意のGETをJSONで（ハブ同期などの軽い参照用） */
+export async function wpGetJson<T>(path: string): Promise<T> {
+  const res = await wpFetch(path);
+  return readJson<T>(res, `WP GET ${path}`);
+}

@@ -15,6 +15,23 @@ import type { GeneratedPage, PriceItem, VehiclePageData } from "./types";
 import { REMOTE_TOOLS } from "../prices/types";
 
 const LINE_URL = "https://lin.ee/8yOXuPJ";
+// EN側の窓口はWhatsApp（海外のお客様はLINEを使わないため。2026-08-25 更家さん指定）
+// 番号: 本店 +81 90-6730-4953
+const WHATSAPP_NUMBER = "819067304953";
+function pageUrlEn(d: { brandSlug: string; slug: string }): string {
+  return `https://mbfasttuning.com/en/tuning/${d.brandSlug}/${d.slug}/`;
+}
+function carLabelEn(d: { brandNameEn: string; carName: string; grade: string | null }): string {
+  return [d.brandNameEn, d.carName, d.grade ?? ""].filter(Boolean).join(" ").trim();
+}
+function whatsappUrl(carLabel: string, pageUrl?: string): string {
+  // 車種名に加えてページURLも定型文に入れる: どのページからの問い合わせか一目で分かり、
+  // 対応可否（ツール・施工方法）の判断が最初のメッセージだけで付く
+  const lines = [`Hi mbFAST, I'd like a quote for ${carLabel} ECU tuning.`];
+  if (pageUrl) lines.push(pageUrl);
+  const text = encodeURIComponent(lines.join("\n"));
+  return `https://wa.me/${WHATSAPP_NUMBER}?text=${text}`;
+}
 const MARK_START = "<!-- START: 貼り付け範囲 -->";
 const MARK_END = "<!-- END: 貼り付け範囲 -->";
 
@@ -124,6 +141,9 @@ function css(dark: boolean): string {
 .vpg-cta p{margin:.2em 0 .9em;font-size:.9rem;color:#cfcfcf}
 .vpg-cta a{display:inline-block;background:#06C755;color:#fff;font-weight:700;border-radius:8px;padding:.7em 1.6em;text-decoration:none;margin:0 .3em}
 .vpg-cta a.vpg-cta-alt{background:#c9a24b;color:#111}
+.vpg-related{margin-top:2.2rem;padding-top:1.2rem;border-top:1px solid #2a2a2a;font-size:.85rem}
+.vpg-related a{color:#c9a24b;text-decoration:underline;text-underline-offset:3px}
+.vpg-sep{color:#555;margin:0 .6em}
 .vpg-note{font-size:.78rem;color:${sub};margin-top:2rem;line-height:1.7}
 @media(max-width:560px){.vpg-wrap h1{font-size:1.25rem}.vpg-pcard .vpg-pval{font-size:1.3rem}}
 </style>`;
@@ -206,13 +226,15 @@ function specRows(d: VehiclePageData, jp: boolean): string {
   return rows.map(([k, v]) => `<tr><th>${k}</th><td>${v}</td></tr>`).join("\n");
 }
 
-function priceTable(items: PriceItem[], jp: boolean, withAskBtn: boolean): string {
+function priceTable(items: PriceItem[], jp: boolean, withAskBtn: boolean, waUrl = ""): string {
   const shown = items.filter((p) => !(isAsk(p.value) && !withAskBtn));
   if (shown.length === 0) return "";
   const rows = shown
     .map((p) => {
       const val = isAsk(p.value)
-        ? `<a class="vpg-ask" href="${LINE_URL}" target="_blank" rel="noopener">LINE${jp ? "でお見積り" : " Quote"}</a>`
+        ? (jp
+            ? `<a class="vpg-ask" href="${LINE_URL}" target="_blank" rel="noopener">LINEでお見積り</a>`
+            : `<a class="vpg-ask" href="${waUrl}" target="_blank" rel="noopener">WhatsApp Quote</a>`)
         : fmtYen(p.value);
       return `<tr><th>${esc(p.label)}</th><td class="vpg-price">${val}</td></tr>`;
     })
@@ -261,6 +283,22 @@ function customerRemoteBadges(d: VehiclePageData): string {
   return `<div class="vpg-badges">${tools.map((t) => `<span class="vpg-badge" title="${t.title}">${t.badge}</span>`).join("")}</div>`;
 }
 
+/** 内部リンク（ブランド一覧＝ハブへ戻る導線。孤島化の防止） */
+function relatedLinks(d: VehiclePageData, jp: boolean): string {
+  const hub = `${jp ? "" : "/en"}/tuning/${d.brandSlug}/`;
+  const root = `${jp ? "" : "/en"}/tuning/`;
+  const items = jp
+    ? [
+        `<a href="${hub}">${esc(d.brandDisplayName)}の他の車種を見る</a>`,
+        `<a href="${root}">メーカー一覧から探す</a>`,
+      ]
+    : [
+        `<a href="${hub}">More ${esc(d.brandNameEn)} models</a>`,
+        `<a href="${root}">Browse all makes</a>`,
+      ];
+  return `<div class="vpg-related">${items.join("<span class=\"vpg-sep\">｜</span>")}</div>`;
+}
+
 function dealerBlock(d: VehiclePageData, jp: boolean): string {
   const supported = REMOTE_TOOLS.filter((t) => d.remote[t.key]).filter((t) => DEALER_ONLY_TOOLS.has(t.key));
   if (supported.length === 0) return "";
@@ -277,7 +315,7 @@ function dealerBlock(d: VehiclePageData, jp: boolean): string {
 <p class="vpg-dealer-t">For Workshops (Dealer Program)</p>
 <p>This model is supported by our dealer-facing remote tuning tools. Workshops interested in offering mbFAST tuning files can get in touch below.</p>
 <div class="vpg-badges">${tools}</div>
-<p style="margin-top:.7em"><a href="${LINE_URL}" target="_blank" rel="noopener">Dealer inquiries</a></p>
+<p style="margin-top:.7em"><a href="${whatsappUrl(carLabelEn(d), pageUrlEn(d))}" target="_blank" rel="noopener">Dealer inquiries via WhatsApp</a></p>
 </div>`;
 }
 
@@ -339,6 +377,7 @@ ${relatedList(d) ? `<h2>この型式の施工実績</h2>\n${relatedList(d)}` : "
 <p>${esc(name)} のチューニングは、実績データに基づいてご提案します。</p>
 <a href="${LINE_URL}" target="_blank" rel="noopener">LINEで相談する</a>
 </div>
+${relatedLinks(d, true)}
 ${dealerBlock(d, true)}
 <p class="vpg-note">※価格・出力値は予告なく変更になる場合があります。出力向上値は車両個体・使用燃料により変動します。${d.notes ? `　${esc(d.notes)}` : ""}</p>
 </div>
@@ -372,7 +411,7 @@ export function generateVehiclePageEn(d: VehiclePageData): GeneratedPage {
     ? `<h2>Pricing</h2>
 <p class="vpg-sub">Pricing for international customers is provided by individual quote. Tell us your car and what you want it to do.</p>`
     : `<h2>Pricing</h2>
-${priceTable((d.en as { mode: "price"; prices: PriceItem[] }).prices, false, true)}
+${priceTable((d.en as { mode: "price"; prices: PriceItem[] }).prices, false, true, whatsappUrl(carLabelEn(d), pageUrlEn(d)))}
 ${tcuNote((d.en as { mode: "price"; prices: PriceItem[] }).prices, false)}`;
 
   const html = `<!-- wp:html -->
@@ -393,8 +432,9 @@ ${optionTable(d, false) ? `<h2>Available Options</h2>\n${optionTable(d, false)}`
 ${relatedList(d) ? `<h2>Our Work on This Model</h2>\n${relatedList(d)}` : ""}
 <div class="vpg-cta">
 <p>Tuning files developed and proven in Japan. Remote tuning available worldwide.</p>
-<a href="${LINE_URL}" target="_blank" rel="noopener">Request a Quote</a>
+<a href="${whatsappUrl(carLabelEn(d), pageUrlEn(d))}" target="_blank" rel="noopener">💬 WhatsApp Quote</a>
 </div>
+${relatedLinks(d, false)}
 ${dealerBlock(d, false)}
 <p class="vpg-note">Specifications subject to change. Output gains vary by vehicle condition and fuel.</p>
 </div>

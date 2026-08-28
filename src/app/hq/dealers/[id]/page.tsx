@@ -13,6 +13,9 @@ import {
 } from "@/lib/contract";
 import { DealerForm } from "../dealer-form";
 import { AccountIssuer } from "./account-issuer";
+import { PitProvisioner } from "./pit-provisioner";
+import { suggestStoreSlug } from "@/server/pit/store-slug";
+import { DEALER_PLAN } from "@/server/pit/provision";
 
 /** 契約状況の1行サマリ（編集フォームの下に出す） */
 function contractSummaryText(s: ContractStatus): string {
@@ -33,6 +36,7 @@ export default async function DealerDetailPage({
     where: { id },
     include: {
       users: { orderBy: { createdAt: "asc" } },
+      pitStore: { select: { id: true, slug: true, displayName: true, wpCategoryId: true, wpPageId: true, active: true, plan: true, serviceTags: true } },
       _count: { select: { serviceRecords: true, fileRequests: true } },
     },
   });
@@ -96,6 +100,49 @@ export default async function DealerDetailPage({
           この代理店の依頼
         </LinkButton>
       </div>
+
+      {/* mbPIT（施工記録の投稿機能）。代理店は無償。未開設なら遡り付与できる */}
+      <section>
+        <h2 className="mb-2 text-sm font-bold text-ink">mbPIT（施工記録の投稿機能）</h2>
+        <Card>
+          {dealer.pitStore ? (
+            <div className="space-y-2 text-sm">
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge color={dealer.pitStore.active ? "green" : "gray"}>{dealer.pitStore.active ? "開設済み" : "停止中"}</Badge>
+                {dealer.pitStore.plan === DEALER_PLAN && <Badge color="gold">代理店（月額免除）</Badge>}
+                <span className="font-medium text-ink">{dealer.pitStore.displayName}</span>
+                <span className="font-mono text-xs text-ink-soft">/mbpit/{dealer.pitStore.slug}/</span>
+              </div>
+              <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs text-ink-soft">
+                <dt>WPカテゴリ</dt>
+                <dd className="font-mono">{dealer.pitStore.wpCategoryId > 0 ? dealer.pitStore.wpCategoryId : "未採番（投稿は採番後に有効）"}</dd>
+                <dt>店舗ページ</dt>
+                <dd className="font-mono">{dealer.pitStore.wpPageId ?? "未作成"}</dd>
+                <dt>ジャンル</dt>
+                <dd>{dealer.pitStore.serviceTags || "未設定"}</dd>
+              </dl>
+              {(dealer.pitStore.wpCategoryId <= 0 || !dealer.pitStore.wpPageId) && (
+                <div className="border-t border-line pt-3">
+                  <p className="mb-2 text-xs text-ink-soft">WordPress側が未完了です。同じslugで再実行すると続きから作成します。</p>
+                  <PitProvisioner dealerId={dealer.id} suggestedSlug={dealer.pitStore.slug} />
+                </div>
+              )}
+              <div className="flex flex-wrap gap-2 pt-1">
+                <LinkButton href="/hq/pit" variant="secondary">
+                  mbPIT管理（店舗情報・投稿）
+                </LinkButton>
+              </div>
+            </div>
+          ) : (
+            <div>
+              <p className="mb-3 text-sm text-ink-soft">
+                この代理店にはまだmbPIT店舗がありません。開設すると店舗カテゴリ・店舗ページが自動で作られ、投稿機能が使えるようになります（代理店は月額免除）。
+              </p>
+              <PitProvisioner dealerId={dealer.id} suggestedSlug={suggestStoreSlug(dealer.name)} />
+            </div>
+          )}
+        </Card>
+      </section>
 
       {/* ログインアカウント */}
       <section>

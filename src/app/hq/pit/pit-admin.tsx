@@ -81,13 +81,14 @@ const STATUS_LABELS: Record<string, { label: string; cls: string }> = {
   deleted: { label: "取り下げ/削除", cls: "bg-surface-2 text-ink-soft" },
 };
 
-// 初期5店のWordPressカテゴリID（登録フォームの参考表示用・確定値）
+// 初期5店のWordPressカテゴリID（登録フォームの参考表示用・2026-08-26 本番照合値）。
+// 新規店舗のslugは「ハイフン区切り・接尾辞なし」（src/server/pit/store-slug.ts）。-mbpit は旧規則の残骸
 const KNOWN_CATEGORIES = [
   { name: "CharismGarage", id: 547, slug: "charism-garage" },
-  { name: "On's", id: 549, slug: "ons-mbpit" },
-  { name: "Anubis Garage", id: 551, slug: "anubis-garage" },
+  { name: "On's", id: 549, slug: "on-s" },
+  { name: "RAF INDUSTRIES", id: 551, slug: "raf-industries" },
   { name: "プレジャー", id: 553, slug: "pleasure" },
-  { name: "Glanzcoat", id: 555, slug: "glanzcoat-mbpit" },
+  { name: "Glanzcoat", id: 555, slug: "glanzcoat-mbpit（旧規則・新規は付けない）" },
 ];
 
 export function PitAdmin({
@@ -661,11 +662,11 @@ function StoreMaster({ stores, dealers }: { stores: StoreRow[]; dealers: DealerO
               />
             </label>
             <label className="block text-[11px] text-ink-soft">
-              slug（記事slug末尾に付与・WPカテゴリslugと揃える）
+              slug（記事slug末尾に付与・WPカテゴリslugと揃える。ハイフン区切り、-mbpit/-dealer は付けない）
               <input
                 value={editing.slug ?? ""}
                 onChange={(e) => setEditing({ ...editing, slug: e.target.value })}
-                placeholder="glanzcoat-mbpit"
+                placeholder="charism-garage"
                 className="mt-0.5 w-full rounded border border-line bg-surface px-2 py-1 text-xs font-mono"
               />
             </label>

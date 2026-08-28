@@ -371,7 +371,35 @@ export async function resyncAllVpagesForBrand(brandId: string): Promise<{ ok?: t
       failed++;
     }
   }
+  // 一括反映のあと、ブランドのハブ一覧も追従させる（公開車種の増減を反映）
+  try {
+    const { syncBrandHub, syncRootHub } = await import("@/lib/vehicle-pages/hub-sync");
+    await syncBrandHub(brandId);
+    await syncRootHub();
+  } catch {
+    // ハブ側の失敗で本体の結果は変えない（「ハブページを更新」で再実行できる）
+  }
   revalidatePath(PATH);
   revalidatePath("/hq/prices");
   return { ok: true, synced, failed };
+}
+
+/** ハブページ（/tuning/ と各ブランド一覧）を更新する。公開・非公開を変えた後や一括反映の仕上げに使う */
+export async function syncHubPages(brandId?: string): Promise<{ ok?: true; log?: string[]; error?: string }> {
+  await requireHQ();
+  const { syncBrandHub, syncRootHub } = await import("@/lib/vehicle-pages/hub-sync");
+  const log: string[] = [];
+  try {
+    if (brandId) {
+      for (const e of await syncBrandHub(brandId)) log.push(e.message);
+    } else {
+      const brands = await prisma.priceBrand.findMany({ select: { id: true }, orderBy: { displayOrder: "asc" } });
+      for (const b of brands) for (const e of await syncBrandHub(b.id)) log.push(e.message);
+    }
+    for (const e of await syncRootHub()) log.push(e.message);
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "ハブ更新に失敗しました", log };
+  }
+  revalidatePath(PATH);
+  return { ok: true, log };
 }
