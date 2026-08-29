@@ -16,10 +16,20 @@ name: build-and-deploy
 on:
   push:
     branches: [main]
+    # アプリの動作に関係ないファイルだけの変更ではビルドしない（無駄な5分を発生させない）
+    paths-ignore:
+      - "**.md"
+      - "docs/**"
+      - ".github/workflows/gsc-*.yml"
+      - ".github/workflows/pit-report.yml"
+      - ".github/workflows/price-*.yml"
+      - ".github/workflows/airtable-*.yml"
   workflow_dispatch: {}
 concurrency:
   group: deploy-production
-  cancel-in-progress: false
+  # 連続pushでは最新だけを反映する（古いビルドを待って順番にデプロイする意味は無い）。
+  # まれにデプロイ途中でキャンセルされても、次の実行が必ず最新mainで上書きするので安全
+  cancel-in-progress: true
 permissions:
   contents: read
   packages: write
