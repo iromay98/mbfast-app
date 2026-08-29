@@ -164,6 +164,14 @@ export function JoinForm() {
       >
         {busy ? "登録中…" : "登録する"}
       </button>
+      {/* 同意の根拠となる文言（OAuth審査でも登録導線からの規約到達が見られる） */}
+      <p className="pt-1 text-center text-[11px] leading-relaxed text-neutral-400">
+        登録することで
+        <a href="https://mbfasttuning.com/mbpit/terms/" target="_blank" rel="noopener" className="text-[#c9a227] underline">利用規約</a>
+        と
+        <a href="https://mbfasttuning.com/mbpit/privacy/" target="_blank" rel="noopener" className="text-[#c9a227] underline">プライバシーポリシー</a>
+        に同意したものとみなします
+      </p>
       {/* 既存ユーザーの逃げ道。登録導線に来てしまった加盟済みの店をここで拾う */}
       <p className="pt-1 text-center text-xs text-neutral-400">
         すでにアカウントをお持ちの方は{" "}

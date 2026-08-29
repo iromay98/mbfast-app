@@ -36,6 +36,12 @@ export default async function LoginPage() {
             mbPIT加盟店の新規登録はこちら →
           </Link>
         </p>
+        {/* 規約への常設到達点 */}
+        <p className="mt-3 text-center text-[11px] text-ink-soft">
+          <a href="https://mbfasttuning.com/mbpit/terms/" target="_blank" rel="noopener" className="underline">利用規約</a>
+          <span className="mx-1.5">·</span>
+          <a href="https://mbfasttuning.com/mbpit/privacy/" target="_blank" rel="noopener" className="underline">プライバシーポリシー</a>
+        </p>
       </div>
     </main>
   );
