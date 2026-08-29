@@ -1,86 +1,11 @@
-# mainへのプッシュで本番VPSへ自動デプロイする。
-# 仕組み: GitHub Actions のランナーが VPS へ SSH し、開発クローン(/root/dev/mbfast-app)を
-# main に追従させてから既存の scripts/deploy-vps.sh を実行する（手動デプロイと同一手順）。
-#
-# 必要な一度きりの設定（リポジトリ Settings → Secrets and variables → Actions）:
-#   VPS_SSH_KEY : VPS の root で authorized_keys に登録した秘密鍵（デプロイ専用鍵を推奨）
-# 未設定の間は何もせずスキップする（失敗にはしない）。
-name: Deploy to VPS
-
+# ⚠ 廃止（2026-08-28）。デプロイは build-image.yml（build-and-deploy）に一本化。
+# 旧方式（SSH→deploy-vps.sh のrsync）はVPSのGit管理と衝突し、実装が消える事故を
+# 繰り返したため全廃した。このファイルはトリガーを持たない。
+name: deploy-legacy-disabled
 on:
-  push:
-    branches: [main]
   workflow_dispatch: {}
-
-# 同時に走らせない（ビルドの競合防止）。後発は待機。
-concurrency:
-  group: deploy-production
-  cancel-in-progress: false
-
 jobs:
-  deploy:
+  noop:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
     steps:
-      - name: Secret 設定チェック
-        id: check
-        env:
-          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
-        run: |
-          if [ -z "$VPS_SSH_KEY" ]; then
-            echo "configured=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::VPS_SSH_KEY が未設定のためデプロイをスキップしました。Settings → Secrets and variables → Actions で登録すると自動デプロイが有効になります。"
-          else
-            echo "configured=true" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: SSH 準備
-        if: steps.check.outputs.configured == 'true'
-        env:
-          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
-        run: |
-          mkdir -p ~/.ssh
-          # スマホからの登録で複数行の鍵は改行が崩れやすいため、base64 1行形式も受け付ける。
-          # （VPS側で `base64 -w0 /root/.ssh/gh-deploy` した1行を Secret に貼る運用を推奨）
-          if [[ "$VPS_SSH_KEY" == "-----BEGIN"* ]]; then
-            printf '%s\n' "$VPS_SSH_KEY" > ~/.ssh/deploy_key
-          else
-            echo "$VPS_SSH_KEY" | tr -d ' \n' | base64 -d > ~/.ssh/deploy_key
-          fi
-          chmod 600 ~/.ssh/deploy_key
-          # 鍵ファイルとして読めるか事前検証（壊れていればここで分かりやすく失敗させる）
-          if ! ssh-keygen -y -f ~/.ssh/deploy_key > /dev/null 2>&1; then
-            echo "::error::VPS_SSH_KEY が秘密鍵として読めません。VPSで base64 -w0 /root/.ssh/gh-deploy を実行し、出力の1行を Secret に登録し直してください。"
-            exit 1
-          fi
-          ssh-keyscan -H 162.43.42.72 >> ~/.ssh/known_hosts 2>/dev/null
-
-      - name: デプロイ実行
-        if: steps.check.outputs.configured == 'true'
-        run: |
-          # ビルド中の長い無音でSSHが切れる（Broken pipe）対策:
-          #  - keepalive を送り続ける
-          #  - リモート側はビルドを nohup でバックグラウンド実行し、20秒ごとに進捗行を出す
-          ssh -i ~/.ssh/deploy_key \
-              -o ConnectTimeout=15 -o ServerAliveInterval=15 -o ServerAliveCountMax=8 \
-              root@162.43.42.72 '
-            set -euo pipefail
-            cd /root/dev/mbfast-app
-            if [ -n "$(git status --porcelain)" ]; then
-              echo "VPSの開発クローンに未コミットの変更があるため中止します（VPS側で作業中の可能性）" >&2
-              git status --short >&2
-              exit 1
-            fi
-            git switch main
-            git pull --ff-only origin main
-            nohup bash scripts/deploy-vps.sh > /root/deploy-ci.log 2>&1 &
-            pid=$!
-            while kill -0 "$pid" 2>/dev/null; do
-              echo "ビルド中… $(date +%H:%M:%S)"
-              sleep 20
-            done
-            code=0; wait "$pid" || code=$?
-            echo "== deploy-ci.log (末尾) =="
-            tail -n 30 /root/deploy-ci.log
-            exit $code
-          '
+      - run: echo "旧デプロイは廃止。build-and-deploy を使ってください"

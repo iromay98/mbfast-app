@@ -25,7 +25,11 @@ HQ（mbFAST Tuning本店）⇄ 代理店のポータル。Next.js 16 App Router 
 別セッションのrsyncでGBP連携・メール・分割アップロードの実装がVPS上から消え、
 逆に未コミットのcreateBrand実装を消しかけた。
 
-正しい手順（2026-08-28からActionsビルド方式。VPSでビルドしない）:
+正しい手順（2026-08-28から完全自動。mainへpushするだけ）:
+0. main へ push すると build-and-deploy ワークフローが
+   ビルド→VPSへの反映→APP_GIT_SHA検証まで自動で行う（計3〜5分・手作業ゼロ）。
+   進捗は GitHub の Actions タブ。以下は手動でやる場合のフォールバック手順。
+
 1. 変更を commit（メッセージは日本語）→ main へ push
    → GitHub Actions が自動でイメージをビルドし ghcr.io へ push する（2〜4分）
 2. VPSで:
