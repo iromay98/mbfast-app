@@ -41,7 +41,7 @@ export default async function DealerDashboard() {
       }),
       prisma.pitStore.findUnique({
         where: { dealerId: user.dealerId },
-        select: { active: true },
+        select: { active: true, gbpLocationId: true, gbpPostingEnabled: true, },
       }),
     ]);
 
@@ -71,9 +71,15 @@ export default async function DealerDashboard() {
           >
             <span className="font-semibold text-ink">
               🗺 Googleマップ連携
-              <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-800">
-                準備中
-              </span>
+              {pitStore.gbpPostingEnabled && pitStore.gbpLocationId ? (
+                <span className="ml-2 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-800">
+                  有効
+                </span>
+              ) : (
+                <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-800">
+                  未連携
+                </span>
+              )}
             </span>
             <span className="text-gold-600">ひらく →</span>
           </Link>
