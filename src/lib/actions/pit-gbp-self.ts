@@ -91,8 +91,10 @@ export async function selectMyGbpLocation(input: {
       gbpLocationName: input.title,
       gbpLocationAddr: input.address,
       gbpLinkedAt: new Date(),
-      // 選んだだけでは投稿しない。本部が内容確認の体制を整えてから有効化する
-      gbpPostingEnabled: false,
+      // 連携したら即・投稿有効（2026-08-29 更家さん決定）。
+      // 店は「繋いだのに動かない」で離脱するため、有効が既定。
+      // 止めたい店だけ本部が /hq/pit/gbp で無効化する
+      gbpPostingEnabled: true,
     },
   });
   revalidatePath(PATH);

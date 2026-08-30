@@ -130,8 +130,9 @@ export async function linkStoreToLocation(
       gbpLocationAddr: input.locationAddr,
       gbpLinkedAt: new Date(),
       gbpLinkedByUserId: actorUserId,
-      // 紐付け直後は投稿を有効にしない（内容の確認体制ができてから本部が有効化する）
-      gbpPostingEnabled: false,
+      // 紐付けたら即・投稿有効（2026-08-29 更家さん決定・自己連携側と同じ既定）。
+      // 止めたい店だけ本部が無効化する
+      gbpPostingEnabled: true,
     },
   });
   return { ok: true };
