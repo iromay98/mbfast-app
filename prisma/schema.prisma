@@ -1295,3 +1295,16 @@ model ShopSetting {
   notesEn             String?
   updatedAt           DateTime @updatedAt
 }
+
+/*
+ * 本店GBPへの過去ブログ記事ドリップ投稿の台帳。
+ * 「毎朝1件・二重投稿しない」を保証する唯一の記録。
+ */
+model GbpDripPost {
+  id         String   @id @default(cuid())
+  wpPostId   Int      @unique // 投稿したWP記事ID（二重投稿防止のキー）
+  title      String
+  gbpPostName String? // 成功時のGBP投稿名。失敗時はnull
+  error      String?
+  createdAt  DateTime @default(now())
+}
