@@ -83,25 +83,42 @@ export async function fetchGbpPostStates(): Promise<{
     },
   });
 
+  // 過去記事ドリップ（毎朝1件・本店GBP）の台帳も同じ一覧に出す。
+  // 2026-08-31: ドリップは GbpDripPost に記録され PitPost には無いため、
+  // ここに含めないと「投稿されていない」ように見えてしまった。
+  const dripStore = await prisma.pitStore.findFirst({
+    where: { slug: "mbfast-tuning" },
+    select: { displayName: true, gbpAccountId: true, gbpLocationId: true },
+  });
+  const drips = await prisma.gbpDripPost.findMany({
+    orderBy: { createdAt: "desc" },
+    take: 10,
+  });
+
   // ロケーションごとに1回だけ一覧を取り、投稿名→stateの索引を作る
   const { listLocalPosts } = await import("@/server/pit/gbp/client");
   const stateByName = new Map<string, string>();
   const seen = new Set<string>();
-  for (const p of posts) {
-    const loc = p.store.gbpLocationId;
-    if (!loc || seen.has(loc)) continue;
-    seen.add(loc);
+  const locs: { accountId: string; locationId: string | null }[] = posts.map((p) => ({
+    accountId: p.store.gbpAccountId,
+    locationId: p.store.gbpLocationId,
+  }));
+  if (dripStore?.gbpLocationId && drips.length > 0) {
+    locs.push({ accountId: dripStore.gbpAccountId, locationId: dripStore.gbpLocationId });
+  }
+  for (const l of locs) {
+    if (!l.locationId || seen.has(l.locationId)) continue;
+    seen.add(l.locationId);
     try {
-      const { posts: gbpPosts } = await listLocalPosts(p.store.gbpAccountId, loc, 20);
+      const { posts: gbpPosts } = await listLocalPosts(l.accountId, l.locationId, 20);
       for (const g of gbpPosts) if (g.name) stateByName.set(g.name, g.state ?? "UNKNOWN");
     } catch {
       // 取得失敗はその店の投稿を UNKNOWN 扱いにする（画面には出す）
     }
   }
 
-  return {
-    ok: true,
-    rows: posts.map((p) => ({
+  const rows = [
+    ...posts.map((p) => ({
       postId: p.id,
       title: p.title ?? "(無題)",
       storeName: p.store.displayName,
@@ -111,7 +128,21 @@ export async function fetchGbpPostStates(): Promise<{
         : "FAILED",
       gbpError: p.gbpError,
     })),
-  };
+    ...drips.map((d) => ({
+      postId: `drip-${d.wpPostId}`,
+      title: d.title,
+      storeName: `${dripStore?.displayName ?? "mbFAST Tuning"}（過去記事）`,
+      postedAt: d.createdAt.toISOString(),
+      state: d.gbpPostName
+        ? (stateByName.get(d.gbpPostName) ?? "NOT_FOUND")
+        : "FAILED",
+      gbpError: d.error,
+    })),
+  ]
+    .sort((a, b) => (b.postedAt ?? "").localeCompare(a.postedAt ?? ""))
+    .slice(0, 10);
+
+  return { ok: true, rows };
 }
 
 /*
