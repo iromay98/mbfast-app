@@ -12,6 +12,7 @@ import { type FormState, zodToFieldErrors } from "@/lib/actions/form-state";
 import { saveUpload, storage } from "@/server/storage";
 import { runDecryptJob } from "@/server/autotuner/job";
 import { runMasterFileJob } from "@/server/autotuner/master-job";
+import { matchAndLinkCatalog } from "@/server/catalog/match";
 import { learnEcuRules, smartExtractEcuId } from "@/server/ecu/learn";
 import { aiExtractIds, aiEnabled, recordCorrection } from "@/server/ecu/ai-extract";
 import { normalizeManufacturer } from "@/lib/catalog/manufacturers";
@@ -748,6 +749,28 @@ export async function setRecordTuned(
   isTuned: boolean,
 ): Promise<{ ok?: true; error?: string }> {
   await requireHQ();
+  const rec = await prisma.serviceRecord.findUnique({
+    where: { id: recordId },
+    select: {
+      dealerId: true,
+      dealer: { select: { name: true } },
+      matchedBaseFileId: true,
+      decryptedHash: true,
+      decryptedFilePath: true,
+      carMaker: true,
+      carModel: true,
+      ecuType: true,
+      mcu: true,
+      method: true,
+      engineInfo: true,
+      carGeneration: true,
+      hwNumber: true,
+      swNumber: true,
+      calNumber: true,
+      unit: true,
+    },
+  });
+  if (!rec) return { error: "対象の施工記録が見つかりません" };
   await prisma.serviceRecord.update({ where: { id: recordId }, data: { isTuned } });
   if (isTuned) {
     await prisma.baseFile
@@ -756,6 +779,51 @@ export async function setRecordTuned(
         data: { archived: true },
       })
       .catch(() => {});
+  } else {
+    // 純正に戻した場合: 代理店が誤って「チューニング済み」でアップすると復号job側で
+    // skipCapture=true となりカタログ自動取込がスキップされ、matchedBaseFileId が空のまま
+    // （＝バリエーション登録が出ない）になる。ここで照合・取込をやり直す。
+    // 1) 以前この記録から自動取込→チューン済み切替で archive したストックがあれば復活して紐付け
+    const prior = await prisma.baseFile.findFirst({
+      where: { capturedFromRecordId: recordId, source: "AUTO_CAPTURE" },
+      select: { id: true, archived: true },
+    });
+    if (prior) {
+      if (prior.archived) {
+        await prisma.baseFile
+          .update({ where: { id: prior.id }, data: { archived: false } })
+          .catch(() => {});
+      }
+      if (!rec.matchedBaseFileId) {
+        await prisma.serviceRecord.update({
+          where: { id: recordId },
+          data: { matchedBaseFileId: prior.id },
+        });
+      }
+    } else if (!rec.matchedBaseFileId && rec.decryptedHash) {
+      // 2) 復号済みなのに未紐付け → 復号bin(decryptedFilePath)を原本として照合＋自動取込
+      const engine = (rec.engineInfo ?? null) as { version?: string | null; fuel?: string | null } | null;
+      await matchAndLinkCatalog({
+        recordId,
+        hash: rec.decryptedHash,
+        dealerId: rec.dealerId,
+        dealerName: rec.dealer?.name,
+        meta: {
+          manufacturer: rec.carMaker,
+          model: rec.carModel,
+          ecu: rec.ecuType,
+          mcu: rec.mcu,
+          generation: engine?.version ?? rec.carGeneration ?? null,
+          method: rec.method,
+          fuel: engine?.fuel ?? null,
+        },
+        ecuIds: { hw: rec.hwNumber, sw: rec.swNumber, cal: rec.calNumber },
+        skipCapture: false,
+        unit: rec.unit,
+        stockKey: rec.decryptedFilePath ?? undefined,
+        contentType: "application/octet-stream",
+      }).catch(() => {});
+    }
   }
   revalidatePath(`/hq/records/${recordId}`);
   revalidatePath(`/dealer/records/${recordId}`);
