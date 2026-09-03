@@ -72,7 +72,8 @@
     "check:store-slug": "tsx scripts/check-store-slug.mts",
     "pit:fix-store-links": "tsx -r dotenv/config scripts/pit-fix-store-links.mts",
     "pit:backfill-tags": "tsx -r dotenv/config scripts/pit-backfill-tags.mts",
-    "pit:backfill-tags-commit": "tsx -r dotenv/config scripts/pit-backfill-tags.mts --commit"
+    "pit:backfill-tags-commit": "tsx -r dotenv/config scripts/pit-backfill-tags.mts --commit",
+    "vpages:resync": "tsx scripts/resync-vpages.mts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.104.2",
