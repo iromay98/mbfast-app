@@ -53,6 +53,7 @@ type RecordForDetail = {
   decryptedFilePath: string | null;
   decryptError: string | null;
   engineInfo: unknown;
+  fileFormat?: string; // "MASTER"=生bin交換（Kess3 Master・Powergate3等）
   dealer?: { name: string } | null;
 };
 
@@ -118,6 +119,10 @@ export function RecordDetail({
               {record.unit === "TCU" ? "TCU" : "ECU"}
             </Badge>
             {record.isTuned && <Badge color="rose">チューニング済み</Badge>}
+            {/* 生bin交換の案件（Kess3 Master・Powergate3等）。納品も生binになる目印 */}
+            {record.fileFormat === "MASTER" && <Badge color="blue">生bin(MASTER)</Badge>}
+            {/* Kess3 Slave＝本部手動対応の案件 */}
+            {record.fileFormat === "KESS3_SLAVE" && <Badge color="purple">Kess3 Slave</Badge>}
             <Badge color={recordStatusColors[record.status]}>
               {recordStatusLabels[record.status]}
             </Badge>

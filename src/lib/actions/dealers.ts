@@ -25,7 +25,14 @@ function parseDealerForm(formData: FormData) {
     autotunerToolId: formData.get("autotunerToolId"),
     note: formData.get("note"),
     status: formData.get("status") ?? "ACTIVE",
-    fileFormat: formData.get("fileFormat") ?? "SLAVE",
+    // 許可アップロード経路（チェックボックス複数）。レガシー fileFormat は経路から導出:
+    // 生binのみ（AutoTunerなし）の店は従来のMASTER扱い、それ以外はSLAVE。
+    uploadTools: formData.getAll("uploadTools").map(String),
+    fileFormat:
+      formData.getAll("uploadTools").map(String).includes("MASTER_BIN") &&
+      !formData.getAll("uploadTools").map(String).includes("AUTOTUNER")
+        ? "MASTER"
+        : "SLAVE",
     ecuEnabled: formData.get("ecuEnabled"),
     // 契約（1年更新）。次回更新日は保存しない＝開始日から都度計算する
     contractStartedAt: formData.get("contractStartedAt"),

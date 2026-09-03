@@ -4,14 +4,13 @@ import { useActionState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Button, Card, FormError } from "@/components/ui";
 import { emptyFormState } from "@/lib/actions/form-state";
-import { uploadMasterFileRecord } from "@/lib/actions/records";
+import { uploadKess3SlaveRecord } from "@/lib/actions/records";
 
-// Master File（生bin）をアップロード＝施工記録を自動生成し、カタログ照合まで完了。
-// Powergate3 のほか、AutoTuner非対応車を Kess3 Master・KTAG 等で読んだ案件にも使う。
-// この経路で作った記録は納品も生bin（.slave化しない）。
-export function MasterFileUpload() {
+// Kess3 Slave（暗号化ファイル）をアップロード＝施工記録を作成し、本部へ通知。
+// 復号APIが無いため自動照合はせず、本部（Kess3 Master）が手動で対応する。
+export function Kess3SlaveUpload() {
   const [state, formAction, pending] = useActionState(
-    uploadMasterFileRecord,
+    uploadKess3SlaveRecord,
     emptyFormState,
   );
   const formRef = useRef<HTMLFormElement>(null);
@@ -27,13 +26,12 @@ export function MasterFileUpload() {
   }, [state, router]);
 
   return (
-    <Card className="border-sky-200 bg-sky-50">
-      <h2 className="text-sm font-bold text-ink">生bin（Master File）をアップロード</h2>
+    <Card className="border-violet-200 bg-violet-50">
+      <h2 className="text-sm font-bold text-ink">Kess3 Slaveファイルをアップロード</h2>
       <p className="mt-0.5 text-xs text-ink-soft">
-        Kess3 Master・Powergate3・KTAG 等で読み出した<b>復号済みの生bin</b>をアップすると自動で照合まで完了し、
-        <b>可能なバリエーション</b>を選んでダウンロード／リクエストできます。
-        この案件の納品ファイルは .slave ではなく<b>生bin</b>で届きます（お手持ちのツールでそのまま書き込み）。
-        ※ Kess3 の<b>Slave読み（暗号化ファイル）はここでは扱えません</b>。
+        Kess3（Slaveモード）で読み出したファイルをそのままアップしてください。
+        本部が手動で対応し、<b>仕上がりファイルはこの記録に届きます</b>（お使いのKess3でそのまま書き込み）。
+        車種・ご希望の内容は下のメモに書いてください。
       </p>
       <form ref={formRef} action={formAction} className="mt-3 space-y-3">
         <label className="block">
@@ -48,9 +46,9 @@ export function MasterFileUpload() {
         </label>
         <input
           type="file"
-          name="masterFile"
+          name="kess3File"
           required
-          className="block w-full text-sm text-ink file:mr-3 file:min-h-11 file:rounded-lg file:border-0 file:bg-sky-500 file:px-4 file:text-sm file:font-semibold file:text-white"
+          className="block w-full text-sm text-ink file:mr-3 file:min-h-11 file:rounded-lg file:border-0 file:bg-violet-500 file:px-4 file:text-sm file:font-semibold file:text-white"
         />
         {/* 対象ユニット（ECU/TCU）— 同時施工の取り違え防止 */}
         <div className="flex items-center gap-3 text-xs text-ink-soft">
@@ -64,14 +62,25 @@ export function MasterFileUpload() {
             TCU（ミッション）
           </label>
         </div>
+        <label className="block">
+          <span className="mb-1 block text-xs font-semibold text-ink-soft">
+            車種・ご希望の内容（本部への伝達メモ）
+          </span>
+          <textarea
+            name="note"
+            rows={3}
+            placeholder="例: BMW F30 320i／Stage1＋バブリング希望"
+            className="block w-full rounded-lg border border-line px-3 py-2 text-sm text-ink"
+          />
+        </label>
         <FormError message={state.error} />
         {state.ok && (
           <p className="rounded-lg bg-green-50 px-3 py-2 text-sm text-green-700">
-            取込が完了しました。記録へ移動します…
+            受け付けました。記録へ移動します…
           </p>
         )}
         <Button type="submit" disabled={pending}>
-          {pending ? "アップロード・照合中…" : "アップロードして照合"}
+          {pending ? "アップロード中…" : "アップロードして本部へ送る"}
         </Button>
       </form>
     </Card>

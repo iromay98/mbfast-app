@@ -32,6 +32,7 @@ export async function GET(
       autotunerEcuId: true,
       autotunerModelId: true,
       autotunerMcuId: true,
+      fileFormat: true,
       dealer: { select: { name: true, fileFormat: true } },
     },
   });
@@ -71,8 +72,8 @@ export async function GET(
     return fileResponse(out, buildDownloadName({ ...nameBase, ext }), out.contentType);
   }
 
-  // MASTER形式（Powergate等）の代理店は生binのまま
-  if (!isHQ && record.dealer?.fileFormat === "MASTER") {
+  // MASTER形式（店単位 or 記録単位: Kess3 Master・Powergate3等）は生binのまま
+  if (!isHQ && (record.fileFormat === "MASTER" || record.dealer?.fileFormat === "MASTER")) {
     const tuned = await storage.read(node.filePath);
     if (!tuned) return new Response("Not Found", { status: 404 });
     const out: StoredFile = { buffer: tuned.buffer, contentType: "application/octet-stream", size: tuned.buffer.byteLength };

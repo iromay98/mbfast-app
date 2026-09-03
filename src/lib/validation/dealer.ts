@@ -48,6 +48,11 @@ export const dealerSchema = z.object({
   status: z.enum(["ACTIVE", "INACTIVE"]).default("ACTIVE"),
   // やり取りファイル形式。SLAVE=AutoTunerスレーブ / MASTER=Powergate3のMaster File(生bin)。
   fileFormat: z.enum(["SLAVE", "MASTER"]).default("SLAVE"),
+  // 本部が許可するアップロード経路（1つ以上必須）
+  uploadTools: z
+    .array(z.enum(["AUTOTUNER", "MASTER_BIN", "KESS3_SLAVE"]))
+    .min(1, "アップロード経路を1つ以上選んでください")
+    .default(["AUTOTUNER"]),
   // ECU業務を行う代理店か（施工依頼・記録の特殊機能を出すか）。
   // チェックボックス: on=true / 未チェックで欠落=false。フォームは常にこの項目を出す前提。
   ecuEnabled: z.preprocess((v) => v === "on" || v === "true" || v === true, z.boolean()),

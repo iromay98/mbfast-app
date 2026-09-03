@@ -1,0 +1,4 @@
+-- 本部が許可するアップロード経路（AUTOTUNER / MASTER_BIN / KESS3_SLAVE）。
+-- 既存: SLAVE店→AUTOTUNER、MASTER店(OBLY/Rig Tuning等)→MASTER_BIN にバックフィル。
+ALTER TABLE "Dealer" ADD COLUMN "uploadTools" TEXT[] NOT NULL DEFAULT ARRAY['AUTOTUNER']::TEXT[];
+UPDATE "Dealer" SET "uploadTools" = ARRAY['MASTER_BIN']::TEXT[] WHERE "fileFormat" = 'MASTER';

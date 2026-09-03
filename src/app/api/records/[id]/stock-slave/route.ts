@@ -37,9 +37,10 @@ export async function GET(
       backupSupported: true,
       isTuned: true,
       unit: true,
+      fileFormat: true,
       primarySide: true,
       ecuSides: { select: { id: true } },
-      dealer: { select: { name: true } },
+      dealer: { select: { name: true, fileFormat: true } },
       matchedBaseFile: {
         select: { model: true, generation: true, calNumber: true, method: true, tool: true, },
       },
@@ -99,6 +100,43 @@ export async function GET(
       { status: 409 },
     );
   }
+  // MASTER形式（店単位 or 記録単位: Kess3 Master・Powergate3等）は再暗号化せず純正生binをそのまま返す。
+  // bak形式（AutoTunerのフルバックアップ）は概念ごと存在しないため対象外。
+  if (record.fileFormat === "MASTER" || record.dealer?.fileFormat === "MASTER") {
+    if (mode === "backup" || sideRow) {
+      return new Response("MASTER形式の記録では bak（フルバックアップ）は扱えません", { status: 409 });
+    }
+    const stockRaw = await storage.read(srcPath);
+    if (!stockRaw) return new Response("Not Found", { status: 404 });
+    await logCatalogDownload({
+      variantId: null,
+      fileHash: srcHash,
+      userId: user.id,
+      dealerId: record.dealerId,
+      serviceRecordId: recordId,
+      context: user.role === "HQ_ADMIN" ? "HQ_MANUAL" : "MATCH_AUTO",
+      ip: request.headers.get("x-forwarded-for"),
+    });
+    const rawName = buildDownloadName({
+      model: record.matchedBaseFile?.model ?? record.carModel,
+      generation: record.matchedBaseFile?.generation,
+      method: record.matchedBaseFile?.method,
+      tool: record.matchedBaseFile?.tool ?? undefined,
+      content: "ori",
+      unit: record.unit,
+      ext: "bin",
+      dealerName: record.dealer?.name,
+      customerName: record.customerName,
+      dateLabel: dateLabel(record.workedAt),
+    });
+    const rawOut: StoredFile = {
+      buffer: stockRaw.buffer,
+      contentType: "application/octet-stream",
+      size: stockRaw.buffer.byteLength,
+    };
+    return fileResponse(rawOut, rawName, rawOut.contentType);
+  }
+
   const idsSrc = sideRow ?? record;
   const slaveId = idsSrc.autotunerSlaveId;
   const ecuId = idsSrc.autotunerEcuId;

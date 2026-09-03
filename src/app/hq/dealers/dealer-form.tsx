@@ -15,6 +15,7 @@ type DealerDefaults = {
   note?: string | null;
   status?: "ACTIVE" | "INACTIVE";
   fileFormat?: string | null;
+  uploadTools?: string[];
   ecuEnabled?: boolean;
   // 契約（1年更新）。日付は "YYYY-MM-DD"（input[type=date] の値）
   contractStartedAt?: string;
@@ -101,13 +102,35 @@ export function DealerForm({
         </div>
 
         <Field
-          label="やり取りファイル形式"
-          hint="Powergate3(OBLY/Rig Tuning等)は Master File。通常の代理店はスレーブ。"
+          label="許可するアップロード経路（複数可）"
+          hint="店が持つツールに合わせてON。両方持つ店は施工記録アップ時にタブで選べます。Kess3 Slaveは復号APIが無いため本部が手動対応します。"
         >
-          <Select name="fileFormat" defaultValue={defaults?.fileFormat ?? "SLAVE"}>
-            <option value="SLAVE">スレーブ（AutoTuner）</option>
-            <option value="MASTER">Master File（Powergate3・生bin）</option>
-          </Select>
+          <div className="space-y-1.5">
+            {(
+              [
+                ["AUTOTUNER", "AutoTuner（スレーブ・自動復号/照合）"],
+                ["MASTER_BIN", "Kess3 Master等（生bin・Powergate3/KTAG含む）"],
+                ["KESS3_SLAVE", "Kess3 Slave（暗号化ファイル・本部手動対応）"],
+              ] as const
+            ).map(([value, label]) => (
+              <label key={value} className="flex items-center gap-2 text-sm text-ink">
+                <input
+                  type="checkbox"
+                  name="uploadTools"
+                  value={value}
+                  defaultChecked={
+                    defaults?.uploadTools
+                      ? defaults.uploadTools.includes(value)
+                      : defaults?.fileFormat === "MASTER"
+                        ? value === "MASTER_BIN"
+                        : value === "AUTOTUNER"
+                  }
+                  className="h-4 w-4 accent-gold-500"
+                />
+                {label}
+              </label>
+            ))}
+          </div>
         </Field>
 
         <Field

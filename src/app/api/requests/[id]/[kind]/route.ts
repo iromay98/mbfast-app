@@ -23,7 +23,13 @@ export async function GET(
 
   const req = await prisma.fileRequest.findUnique({
     where: { id },
-    select: { dealerId: true, inputFilePath: true, resultFilePath: true, serviceRecordId: true },
+    select: {
+      dealerId: true,
+      inputFilePath: true,
+      resultFilePath: true,
+      serviceRecordId: true,
+      serviceRecord: { select: { fileFormat: true, dealer: { select: { fileFormat: true } } } },
+    },
   });
   if (!req) return new Response("Not Found", { status: 404 });
 
@@ -33,7 +39,13 @@ export async function GET(
   }
   // 記録に紐づくチケットの「成果(生bin)」は代理店に渡さない（必ず .slave 経由）。
   // 専門情報の非表示ポリシー: チューニング済みの生binは御法度。
-  if (kind === "result" && req.serviceRecordId && user.role !== "HQ_ADMIN") {
+  // 例外: MASTER形式（Kess3 Master・Powergate3等）と Kess3 Slave の記録は
+  // 再暗号化の概念がなく、成果ファイルをそのまま渡す運用なので通す。
+  const rawOk =
+    req.serviceRecord?.fileFormat === "MASTER" ||
+    req.serviceRecord?.fileFormat === "KESS3_SLAVE" ||
+    req.serviceRecord?.dealer?.fileFormat === "MASTER";
+  if (kind === "result" && req.serviceRecordId && user.role !== "HQ_ADMIN" && !rawOk) {
     return new Response("Forbidden", { status: 403 });
   }
 

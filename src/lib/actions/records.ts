@@ -12,6 +12,7 @@ import { type FormState, zodToFieldErrors } from "@/lib/actions/form-state";
 import { saveUpload, storage } from "@/server/storage";
 import { runDecryptJob } from "@/server/autotuner/job";
 import { runMasterFileJob } from "@/server/autotuner/master-job";
+import { notify } from "@/server/notifications";
 import { matchAndLinkCatalog } from "@/server/catalog/match";
 import { learnEcuRules, smartExtractEcuId } from "@/server/ecu/learn";
 import { aiExtractIds, aiEnabled, recordCorrection } from "@/server/ecu/ai-extract";
@@ -95,6 +96,17 @@ export async function createServiceRecord(
   redirect(`/dealer/records/${record.id}`);
 }
 
+// 代理店の許可アップロード経路（AUTOTUNER / MASTER_BIN / KESS3_SLAVE）。
+// uploadTools が空のレガシー行は fileFormat から導出する。
+async function allowedUploadTools(dealerId: string): Promise<string[]> {
+  const dealer = await prisma.dealer.findUnique({
+    where: { id: dealerId },
+    select: { uploadTools: true, fileFormat: true },
+  });
+  if (dealer?.uploadTools?.length) return dealer.uploadTools;
+  return dealer?.fileFormat === "MASTER" ? ["MASTER_BIN"] : ["AUTOTUNER"];
+}
+
 // ── スレーブアップロード＝施工記録の自動生成 ──────────────
 // アップロード即時に ServiceRecord(UPLOADED) を作成して一覧に出現させ、
 // 復号は after() でバックグラウンド実行する。
@@ -103,6 +115,9 @@ export async function uploadSlaveRecord(
   formData: FormData,
 ): Promise<FormState> {
   const user = await requireDealer();
+  if (!(await allowedUploadTools(user.dealerId)).includes("AUTOTUNER")) {
+    return { error: "AutoTunerスレーブの利用は本部の許可が必要です" };
+  }
 
   const file = formData.get("slaveFile");
   if (!(file instanceof File) || file.size === 0) {
@@ -249,19 +264,18 @@ export async function deleteRecordHqFile(
   return { ok: true };
 }
 
-// ── Master File（Powergate3・生bin）アップロード：MASTER形式の代理店(OBLY等)用 ──
+// ── Master File（生bin）アップロード ──
+// MASTER形式の代理店(OBLY等・Powergate3)専用だったが、AutoTuner店でも案件単位で
+// Kess3 Master・KTAG等の生bin交換ができるよう全代理店に開放（2026-09-03）。
 // スレーブ復号APIは使わず、生binをそのままSHA-256照合してカタログに紐づける。
+// 記録に fileFormat=MASTER を付け、以降の配信（照合DL・依頼成果・純正戻し）も生binで返す。
 export async function uploadMasterFileRecord(
   _prev: FormState,
   formData: FormData,
 ): Promise<FormState> {
   const user = await requireDealer();
-  const dealer = await prisma.dealer.findUnique({
-    where: { id: user.dealerId },
-    select: { fileFormat: true },
-  });
-  if (dealer?.fileFormat !== "MASTER") {
-    return { error: "この操作はMasterFile形式の代理店のみ利用できます" };
+  if (!(await allowedUploadTools(user.dealerId)).includes("MASTER_BIN")) {
+    return { error: "生bin（Master File）の利用は本部の許可が必要です" };
   }
 
   const file = formData.get("masterFile");
@@ -283,6 +297,7 @@ export async function uploadMasterFileRecord(
       createdById: user.id,
       source: "SLAVE_UPLOAD",
       status: "UPLOADED",
+      fileFormat: "MASTER", // 記録単位で生bin形式（配信側もこのフラグで生binを返す）
       slaveFilePath: saved.key, // Master File 実体（生bin）
       slaveHash: saved.sha256,
       customerName,
@@ -298,6 +313,79 @@ export async function uploadMasterFileRecord(
   revalidatePath("/dealer/records");
 
   return { ok: true, data: { recordId: record.id, status: done?.status ?? "DECODED" } };
+}
+
+// ── Kess3 Slave（暗号化ファイル）アップロード ──────────────
+// Kess3のSlave読みは復号APIが存在しないため、自動復号・カタログ照合は行わない。
+// ファイルを預かって記録を作り、本部（Kess3 Master保有）が手動で対応する。
+// 仕上がりは本部がチャット添付 or 依頼成果で返す（配信はファイルそのまま・再暗号化なし）。
+export async function uploadKess3SlaveRecord(
+  _prev: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  const user = await requireDealer();
+  if (!(await allowedUploadTools(user.dealerId)).includes("KESS3_SLAVE")) {
+    return { error: "Kess3 Slaveの利用は本部の許可が必要です" };
+  }
+
+  const file = formData.get("kess3File");
+  if (!(file instanceof File) || file.size === 0) {
+    return { error: "Kess3 Slaveファイルを選択してください", fieldErrors: { kess3File: "未選択" } };
+  }
+  const customerName = String(formData.get("customerName") ?? "").trim();
+  if (!customerName) {
+    return { error: "顧客名を入力してください", fieldErrors: { customerName: "必須" } };
+  }
+  const saved = await saveUpload(file, "kess3-slaves");
+  if (!saved.ok) {
+    return { error: saved.error, fieldErrors: { kess3File: saved.error } };
+  }
+
+  // 依頼内容（任意・代理店と共有のメモに載せる）。車種・希望内容を書いてもらう。
+  const note = String(formData.get("note") ?? "").trim() || null;
+
+  const record = await prisma.serviceRecord.create({
+    data: {
+      dealerId: user.dealerId,
+      createdById: user.id,
+      source: "SLAVE_UPLOAD",
+      // 自動復号なし＝解析待ちにしない（UPLOADEDのままだと一覧が「解析中」で回り続けるため）
+      status: "DECODED",
+      fileFormat: "KESS3_SLAVE",
+      slaveFilePath: saved.key,
+      slaveHash: saved.sha256,
+      slaveName: saved.filename, // タイトル代わりに元ファイル名を表示
+      customerName,
+      note,
+      unit: formData.get("unit") === "TCU" ? "TCU" : "ECU",
+    },
+  });
+
+  // アップロード＝依頼そのもの。作業依頼(FileRequest)を同時に起票し、
+  // 本部の通常フロー（受付→作業中→納品）で進捗・納品を管理できるようにする。
+  // 納品DLは /api/requests/[id]/slave のKESS3_SLAVE分岐（ファイルそのまま）で受け取る。
+  const request = await prisma.fileRequest.create({
+    data: {
+      dealerId: user.dealerId,
+      title: `Kess3 Slave対応：${customerName}`,
+      requestNote: note ? `【Kess3 Slave】\n${note}` : "【Kess3 Slave】内容はチャット参照",
+      inputFilePath: saved.key, // 依頼画面からも読み出しファイルを確認できるように
+      serviceRecordId: record.id,
+      status: "RECEIVED",
+      events: { create: { status: "RECEIVED", actorId: user.id, comment: "Kess3 Slaveアップロード" } },
+    },
+  });
+
+  await notify({
+    type: "REQUEST_CREATED",
+    title: "Kess3 Slaveファイルが届きました（手動対応）",
+    message: `${user.name ?? "代理店"}：${customerName} / ${saved.filename}`,
+    dealerId: null, // 本店宛て
+    link: `/hq/requests/${request.id}`,
+  });
+
+  revalidatePath("/dealer/records");
+  return { ok: true, data: { recordId: record.id, status: "DECODED" } };
 }
 
 // ── 本部代行アップロード：本店が代理店を指定してスレーブを登録（過去案件の取込等） ──

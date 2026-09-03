@@ -34,6 +34,7 @@ export async function GET(
       customerName: true,
       workedAt: true,
       unit: true,
+      fileFormat: true,
       dealer: { select: { name: true, fileFormat: true } },
     },
   });
@@ -76,9 +77,9 @@ export async function GET(
     return new Response("Not Found", { status: 404 });
   }
 
-  // Master File 形式の代理店(Powergate3・OBLY等)は再暗号化しない。
+  // Master File 形式（店単位 or 記録単位: Kess3 Master・Powergate3等）は再暗号化しない。
   // チューニング済みの生bin＝Master File をそのまま配信する（.slave化しない）。
-  if (record.dealer?.fileFormat === "MASTER") {
+  if (record.fileFormat === "MASTER" || record.dealer?.fileFormat === "MASTER") {
     const tuned = await storage.read(v.fileRef);
     if (!tuned) return new Response("Not Found", { status: 404 });
 

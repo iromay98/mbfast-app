@@ -12,17 +12,21 @@ import { PageTitle, Card, Badge, EmptyState, LinkButton } from "@/components/ui"
 import { AutoRefresh } from "@/components/auto-refresh";
 import { ActivityFeed, getActivity } from "@/components/activity-feed";
 import { vehicleLabel, engineNameOf } from "@/lib/catalog/vehicle";
-import { SlaveUpload } from "./slave-upload";
-import { MasterFileUpload } from "./master-upload";
+import { UploadSwitcher } from "./upload-switcher";
 import { RestoreScroll } from "@/components/restore-scroll";
 
 export default async function DealerRecordsPage() {
   const user = await requireFullDealer();
   const dealer = await prisma.dealer.findUnique({
     where: { id: user.dealerId },
-    select: { fileFormat: true },
+    select: { fileFormat: true, uploadTools: true },
   });
-  const isMaster = dealer?.fileFormat === "MASTER";
+  // 本部が許可したアップロード経路。uploadTools未設定のレガシー行はfileFormatから導出。
+  const uploadTools = dealer?.uploadTools?.length
+    ? dealer.uploadTools
+    : dealer?.fileFormat === "MASTER"
+      ? ["MASTER_BIN"]
+      : ["AUTOTUNER"];
   const records = await prisma.serviceRecord.findMany({
     where: { dealerId: user.dealerId, deletedAt: null },
     orderBy: { createdAt: "desc" },
@@ -74,7 +78,8 @@ export default async function DealerRecordsPage() {
 
       {/* アップロードは最上部（一番使う機能） */}
       <div className="mb-4">
-        {isMaster ? <MasterFileUpload /> : <SlaveUpload />}
+        {/* 本部が許可した経路だけタブ表示（1経路の店はタブなしでそのフォームのみ） */}
+        <UploadSwitcher tools={uploadTools} />
       </div>
 
       {/* 本部からの納品（届いたファイル）— 通知を見逃してもここで気づける */}

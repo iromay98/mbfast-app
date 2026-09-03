@@ -207,9 +207,14 @@ model Dealer {
   email           String?
   status          DealerStatus @default(ACTIVE)
   autotunerToolId String? // スレーブツールID等のメモ
-  // やり取りするファイル形式。SLAVE=AutoTunerスレーブ（既定）/ MASTER=Powergate3のMaster File(生bin)。
-  // 子会社OBLY(Rig Tuning)等、Powergateでやり取りする代理店は MASTER。
+  // やり取りするファイル形式（レガシー）。SLAVE=AutoTunerスレーブ（既定）/ MASTER=Powergate3のMaster File(生bin)。
+  // 子会社OBLY(Rig Tuning)等、Powergateでやり取りする代理店は MASTER。配信側のOR判定で参照が残る。
   fileFormat      String       @default("SLAVE")
+  // 本部が許可するアップロード経路（複数可・HQの代理店編集で設定）。
+  //   AUTOTUNER   = AutoTunerスレーブ（自動復号・照合）
+  //   MASTER_BIN  = 生bin（Kess3 Master・Powergate3・KTAG等。自動照合・納品も生bin）
+  //   KESS3_SLAVE = Kess3 Slave（暗号化ファイル。復号APIが無いため本部が手動対応）
+  uploadTools     String[]     @default(["AUTOTUNER"])
   // mbPIT専用アカウント（招待リンクから自己登録した外部店舗）。
   // true の場合はブログ投稿機能のみ利用可能で、ECU系の画面（施工記録・依頼・価格表等）は見せない。
   pitOnly         Boolean      @default(false)
@@ -269,6 +274,9 @@ model ServiceRecord {
   // ── 取り込み制御 ──
   status            RecordStatus @default(DECODED) // 手動作成は DECODED、スレーブ経路は UPLOADED→…
   source            RecordSource @default(MANUAL)
+  // 記録単位のファイル形式。MASTER=生bin交換（Kess3 Master・Powergate3・KTAG等、AutoTuner再暗号化なし）。
+  // 店単位の Dealer.fileFormat と OR で判定する（AutoTuner店でも案件単位でKess3交換ができるように）。
+  fileFormat        String       @default("SLAVE")
   slaveFilePath     String? // アップされたスレーブ（ストレージ参照キー）
   decryptedFilePath String? // 復号後バイナリ（ストレージ参照キー）
   decryptError      String? // 失敗理由

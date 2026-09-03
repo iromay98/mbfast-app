@@ -119,6 +119,7 @@ async function loadMatchContext(recordId: string, dealerId: string) {
       autotunerEcuId: true,
       autotunerModelId: true,
       autotunerMcuId: true,
+      fileFormat: true,
       dealer: { select: { fileFormat: true } },
       matchedBaseFile: {
         // model/generation も引く: BMWエンジンの他社車（A90スープラ等）は
@@ -146,9 +147,10 @@ async function loadMatchContext(recordId: string, dealerId: string) {
   const limiterCutDisabled = !!record.matchedBaseFile?.limiterCutDisabled;
   // 対象ユニット（TCUはバブリング・エンジン側OPを一切扱わない）。純正(BaseFile)の値が原本
   const unit = record.matchedBaseFile?.unit ?? record.unit ?? "ECU";
-  // Master File 形式は再暗号化が不要（生binをそのまま配信）なので、
+  // Master File 形式（店単位 or 記録単位）は再暗号化が不要（生binをそのまま配信）なので、
   // AutoTunerの車固有IDが無くても配布可能。スレーブ形式は従来どおりID必須。
   const canDeliver =
+    record.fileFormat === "MASTER" ||
     record.dealer?.fileFormat === "MASTER" ||
     (!!record.autotunerSlaveId &&
       record.autotunerEcuId != null &&

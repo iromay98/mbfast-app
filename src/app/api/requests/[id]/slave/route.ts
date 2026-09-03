@@ -6,6 +6,7 @@ import { storage, type StoredFile } from "@/server/storage";
 import { freshSlave } from "@/server/autotuner/reencrypt";
 import { fileResponse, logCatalogDownload } from "@/server/catalog/download-log";
 import { buildDownloadName, dateLabel } from "@/server/catalog/filename";
+import { filenameFromKey } from "@/server/storage/filename";
 
 // チケット(依頼)の成果＝現車合わせ/調整ファイルを、紐づく記録の車固有IDで encrypt して .slave で配信。
 // 本店がアップした成果は「チューニング済みbin」想定。代理店には生bin/復号binは一切渡さず、必ず .slave。
@@ -34,7 +35,8 @@ export async function GET(
           customerName: true,
           workedAt: true,
           unit: true,
-          dealer: { select: { name: true } },
+          fileFormat: true,
+          dealer: { select: { name: true, fileFormat: true } },
         },
       },
     },
@@ -48,17 +50,62 @@ export async function GET(
   if (!req.resultFilePath) return new Response("Not Found", { status: 404 });
 
   const rec = req.serviceRecord;
-  const slaveId = rec?.autotunerSlaveId;
-  const ecuId = rec?.autotunerEcuId;
-  const modelId = rec?.autotunerModelId;
-  const mcuId = rec?.autotunerMcuId;
-  if (!rec || !slaveId || ecuId == null || modelId == null || !mcuId) {
+  if (!rec) {
     return new Response("この依頼には再暗号化に必要な記録情報がありません", { status: 409 });
   }
 
   const tuned = await storage.read(req.resultFilePath);
   if (!tuned) return new Response("Not Found", { status: 404 });
   const fileHash = createHash("sha256").update(tuned.buffer).digest("hex");
+
+  // MASTER形式（店単位 or 記録単位: Kess3 Master・Powergate3等）と Kess3 Slave 記録は
+  // AutoTunerの.slave化をせず、本部が置いたファイルをそのまま配信する。
+  //   MASTER      → チューニング済み生bin（ツールで書き込み）
+  //   KESS3_SLAVE → 本部のKess3 Masterで作った暗号化ファイル（店のKess3で書き込み）
+  if (
+    rec.fileFormat === "MASTER" ||
+    rec.fileFormat === "KESS3_SLAVE" ||
+    rec.dealer?.fileFormat === "MASTER"
+  ) {
+    await logCatalogDownload({
+      variantId: null,
+      versionId: null,
+      fileHash,
+      userId: user.id,
+      dealerId: req.dealerId,
+      serviceRecordId: rec.id,
+      context: "HQ_MANUAL",
+      ip: request.headers.get("x-forwarded-for"),
+    });
+    // Kess3 Slave は拡張子・形式がツール依存なので本部がアップしたファイル名をそのまま使う。
+    const rawName =
+      rec.fileFormat === "KESS3_SLAVE"
+        ? filenameFromKey(req.resultFilePath)
+        : buildDownloadName({
+            model: rec.carModel,
+            method: rec.method,
+            content: "custom",
+            unit: rec.unit,
+            ext: "bin",
+            dealerName: rec.dealer?.name,
+            customerName: rec.customerName,
+            dateLabel: dateLabel(rec.workedAt),
+          });
+    const rawOut: StoredFile = {
+      buffer: tuned.buffer,
+      contentType: "application/octet-stream",
+      size: tuned.buffer.byteLength,
+    };
+    return fileResponse(rawOut, rawName, rawOut.contentType);
+  }
+
+  const slaveId = rec.autotunerSlaveId;
+  const ecuId = rec.autotunerEcuId;
+  const modelId = rec.autotunerModelId;
+  const mcuId = rec.autotunerMcuId;
+  if (!slaveId || ecuId == null || modelId == null || !mcuId) {
+    return new Response("この依頼には再暗号化に必要な記録情報がありません", { status: 409 });
+  }
 
   // .slave はAutoTuner側に有効期限があるため配信のたびに作り直す。cacheKeyは監査用。
   const cacheKey = `requests/encrypted/${fileHash}__${slaveId}.slave`;

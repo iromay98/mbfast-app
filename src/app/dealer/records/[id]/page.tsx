@@ -145,12 +145,24 @@ export default async function DealerRecordDetailPage({
     content: l.content,
     note: l.note,
   }));
-  // 納品ファイル(.slave)を配信できるか（その車固有の再暗号化IDが揃っているか）
+  // MASTER形式（生bin交換: Kess3 Master・Powergate3等）か。店単位設定 or 記録単位フラグ。
+  const dealerFormat = await prisma.dealer.findUnique({
+    where: { id: user.dealerId },
+    select: { fileFormat: true },
+  });
+  const isMasterRecord =
+    record.fileFormat === "MASTER" || dealerFormat?.fileFormat === "MASTER";
+  // Kess3 Slave記録: 自動照合なし・本部手動対応。納品は本部が置いたファイルをそのまま受け取る。
+  const isKess3Slave = record.fileFormat === "KESS3_SLAVE";
+  // 納品ファイルを配信できるか。MASTER/KESS3_SLAVEは再暗号化不要＝そのまま配れる。
+  // スレーブ形式はその車固有の再暗号化IDが揃っている必要がある。
   const canDeliver =
-    !!record.autotunerSlaveId &&
-    record.autotunerEcuId != null &&
-    record.autotunerModelId != null &&
-    !!record.autotunerMcuId;
+    isMasterRecord ||
+    isKess3Slave ||
+    (!!record.autotunerSlaveId &&
+      record.autotunerEcuId != null &&
+      record.autotunerModelId != null &&
+      !!record.autotunerMcuId);
   // 純正戻しの元データがあるか（純正読み=復号ファイル / チューン済み読み=本店登録のori）
   const hasOri = record.isTuned ? !!record.oriFilePath : !!record.decryptedFilePath;
 
@@ -243,18 +255,19 @@ export default async function DealerRecordDetailPage({
               <div className="flex flex-wrap gap-2">
                 <SlaveDownloadButton
                   href={`/api/records/${record.id}/stock-slave`}
-                  label="⬇ 純正(ori) .slave"
+                  label={isMasterRecord ? "⬇ 純正(ori) bin" : "⬇ 純正(ori) .slave"}
                   className="inline-flex items-center rounded-full bg-green-600 px-3.5 py-2 text-xs font-extrabold text-white shadow-sm hover:bg-green-700 disabled:opacity-70"
                 />
-                {/* bak形式（マップスイッチ等でフル書き換えした車の完全復元用） */}
-                {!record.isTuned && record.backupSupported && (
+                {/* bak形式（マップスイッチ等でフル書き換えした車の完全復元用）。MASTER形式では非表示 */}
+                {!isMasterRecord && !record.isTuned && record.backupSupported && (
                   <SlaveDownloadButton
                     href={`/api/records/${record.id}/stock-slave?mode=backup`}
                     label={ecuSides.length > 0 ? `⬇ 純正(ori) bak ${record.primarySide}` : "⬇ 純正(ori) bak（フル）"}
                     className="inline-flex items-center rounded-full bg-sky-600 px-3.5 py-2 text-xs font-extrabold text-white shadow-sm hover:bg-sky-700 disabled:opacity-70"
                   />
                 )}
-                {!record.isTuned &&
+                {!isMasterRecord &&
+                  !record.isTuned &&
                   ecuSides
                     .filter((sd) => sd.backupSupported !== false)
                     .map((sd) => (
@@ -336,6 +349,18 @@ export default async function DealerRecordDetailPage({
         </Card>
       )}
 
+      {/* Kess3 Slave記録: 自動照合なし＝本部手動対応の案内 */}
+      {isKess3Slave && (
+        <Card className="border-violet-200 bg-violet-50/60">
+          <h3 className="mb-1 text-sm font-bold text-ink">Kess3 Slave（本部手動対応）</h3>
+          <p className="text-xs text-ink-soft">
+            お預かりしたファイルは本部のKess3 Masterで対応します。
+            仕上がりファイルは<b>この記録のチャット、またはリクエスト納品</b>で届きます。
+            ご希望の内容に追加・変更があれば下のチャットへどうぞ。
+          </p>
+        </Card>
+      )}
+
       {/* 3番目: この案件のやりとり（チャット） */}
       <RecordThread recordId={record.id} messages={messages} viewerRole="DEALER" viewerId={user.id} />
 
@@ -362,7 +387,13 @@ export default async function DealerRecordDetailPage({
                   {req.status === "DELIVERED" && req.resultFilePath && canDeliver && (
                     <SlaveDownloadButton
                       href={`/api/requests/${req.id}/slave`}
-                      label=".slave をダウンロード"
+                      label={
+                        isKess3Slave
+                          ? "仕上がりファイルをダウンロード"
+                          : isMasterRecord
+                            ? "ファイル(bin)をダウンロード"
+                            : ".slave をダウンロード"
+                      }
                       className="rounded-lg bg-gold-500 px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-70"
                     />
                   )}
