@@ -97,7 +97,7 @@ export function resolveVehiclePageData(
     slug: page.slug,
     brandDisplayName: brand.displayName,
     brandNameEn: brandNameEn(brand.id, brand.displayName),
-    brandSlug: brand.slug,
+    brandSlug: brandUrlSlug(brand.id, brand.slug), // URL用スラッグ(mb→mercedes-benz等の変換込み。生のbrand.slugをURLに使わない)
     carName: vehicleJp.carName,
     grade: vehicleJp.grade,
     engine: vehicleJp.engine,
