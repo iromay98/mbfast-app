@@ -58,6 +58,10 @@ services:
       STORE_MAIL_SUPPORT: "${STORE_MAIL_SUPPORT:-}"
       # mbPIT名義の案内メール差出人（代理店登録時の店舗開設通知。未設定なら SMTP_FROM）
       PIT_MAIL_FROM: "${PIT_MAIL_FROM:-}"
+      # 加盟店ホームの記事閲覧実績（GA4 Data API・未設定なら機能ごと非表示）
+      GA4_PROPERTY_ID: "${GA4_PROPERTY_ID:-}"
+      GA4_SA_EMAIL: "${GA4_SA_EMAIL:-}"
+      GA4_SA_KEY: "${GA4_SA_KEY:-}"
       VAPID_PUBLIC_KEY: "${VAPID_PUBLIC_KEY:-}"
       VAPID_PRIVATE_KEY: "${VAPID_PRIVATE_KEY:-}"
       VAPID_SUBJECT: "${VAPID_SUBJECT:-mailto:saraya@ns-inc.jp}"

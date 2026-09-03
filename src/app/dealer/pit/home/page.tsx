@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { requireDealer } from "@/lib/authz";
 import { prisma } from "@/lib/db";
 import { storePerformanceCached } from "@/server/pit/gbp/store-performance";
+import { storeArticleStatsCached } from "@/server/pit/article-stats";
 import { formatDate, formatDateTime } from "@/lib/labels";
 import { PageTitle, Card } from "@/components/ui";
 import { storeStats } from "@/server/pit/gamification";
@@ -24,7 +25,7 @@ export default async function PitHomePage() {
   if (!store) redirect("/dealer/pit"); // 未登録店舗は投稿ページ側の案内へ
 
   const now = new Date();
-  const [stats, upcoming, recentPosts, unissuedCerts, perf] = await Promise.all([
+  const [stats, upcoming, recentPosts, unissuedCerts, perf, articleStats] = await Promise.all([
     storeStats(store.id),
     // 顧客の参照は customer-repo 経由（storeId条件の付け忘れを構造的に防ぐ）
     listUpcomingInspections(store.id, 60),
@@ -39,6 +40,8 @@ export default async function PitHomePage() {
     countUnissuedDrafts(store.id),
     // Googleでの表示実績（1日1回キャッシュ・未連携や失敗はnull＝非表示）
     storePerformanceCached(store.id),
+    // mbPIT記事の閲覧実績（GA4・同じくキャッシュ。GA4未設定なら非表示）
+    storeArticleStatsCached(store.id),
   ]);
 
   const daysLeft = (d: Date) => Math.ceil((d.getTime() - now.getTime()) / (24 * 60 * 60 * 1000));
@@ -117,6 +120,45 @@ export default async function PitHomePage() {
               ));
             })()}
           </div>
+        </div>
+      )}
+
+      {/* mbPIT記事の閲覧実績（GA4設定済みのときだけ・1日1回キャッシュ）。
+          「マップで見られた数」（上のGBPカード）と「記事が読まれた数」を並べて
+          掲載効果の全体像を見せる */}
+      {articleStats && (
+        <div className="rounded-xl border border-line bg-surface p-3">
+          <div className="flex items-baseline justify-between">
+            <p className="text-sm font-bold text-ink">mbPITでの記事閲覧</p>
+            <p className="text-[10px] text-ink-soft">直近30日</p>
+          </div>
+          <div className="mt-2 grid grid-cols-2 gap-1.5">
+            <div className="rounded-lg bg-paper px-1 py-2 text-center">
+              <p className="text-base font-black leading-none text-ink">
+                {articleStats.views.toLocaleString()}
+              </p>
+              <p className="mt-1 text-[10px] text-ink-soft">閲覧数</p>
+            </div>
+            <div className="rounded-lg bg-paper px-1 py-2 text-center">
+              <p className="text-base font-black leading-none text-ink">
+                {articleStats.users.toLocaleString()}
+              </p>
+              <p className="mt-1 text-[10px] text-ink-soft">読んだ人</p>
+            </div>
+          </div>
+          {articleStats.top.length > 0 && (
+            <div className="mt-2">
+              <p className="text-[10px] font-bold text-ink-soft">よく読まれている記事</p>
+              <ul className="mt-1 space-y-0.5">
+                {articleStats.top.map((t) => (
+                  <li key={t.title} className="flex items-baseline justify-between gap-2 text-[11px]">
+                    <span className="truncate text-ink">{t.title}</span>
+                    <span className="shrink-0 text-ink-soft">{t.views}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
         </div>
       )}
 

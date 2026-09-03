@@ -867,6 +867,14 @@ model PitStore {
   gbpPerfCache     Json?
   gbpPerfCachedAt  DateTime?
 
+  /*
+   * mbPIT記事の閲覧実績キャッシュ（GA4・直近30日・JSON）。
+   * 形: {"views":320,"users":210,"top":[{"title":"...","views":25}]}
+   * gbpPerfCacheと同じ思想: 1日1回取得・失敗は古い値か非表示。
+   */
+  ga4Cache     Json?
+  ga4CachedAt  DateTime?
+
   socialAccounts    PitSocialAccount[]
 
   posts        PitPost[]
