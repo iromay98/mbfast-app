@@ -4,8 +4,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { requireDealer } from "@/lib/authz";
 import { prisma } from "@/lib/db";
-import { storePerformanceCached } from "@/server/pit/gbp/store-performance";
-import { storeArticleStatsCached } from "@/server/pit/article-stats";
+import { StoreInsights } from "@/components/store-insights";
 import { formatDate, formatDateTime } from "@/lib/labels";
 import { PageTitle, Card } from "@/components/ui";
 import { storeStats } from "@/server/pit/gamification";
@@ -25,7 +24,7 @@ export default async function PitHomePage() {
   if (!store) redirect("/dealer/pit"); // 未登録店舗は投稿ページ側の案内へ
 
   const now = new Date();
-  const [stats, upcoming, recentPosts, unissuedCerts, perf, articleStats] = await Promise.all([
+  const [stats, upcoming, recentPosts, unissuedCerts] = await Promise.all([
     storeStats(store.id),
     // 顧客の参照は customer-repo 経由（storeId条件の付け忘れを構造的に防ぐ）
     listUpcomingInspections(store.id, 60),
@@ -38,10 +37,6 @@ export default async function PitHomePage() {
     }),
     // 作ったのに渡していない証明書を放置させない（未発行の下書き・発行失敗）
     countUnissuedDrafts(store.id),
-    // Googleでの表示実績（1日1回キャッシュ・未連携や失敗はnull＝非表示）
-    storePerformanceCached(store.id),
-    // mbPIT記事の閲覧実績（GA4・同じくキャッシュ。GA4未設定なら非表示）
-    storeArticleStatsCached(store.id),
   ]);
 
   const daysLeft = (d: Date) => Math.ceil((d.getTime() - now.getTime()) / (24 * 60 * 60 * 1000));
@@ -89,78 +84,8 @@ export default async function PitHomePage() {
         </p>
       </div>
 
-      {/* Googleでの表示実績（連携済みの店だけ・1日1回キャッシュ）。
-          「見られている」実感が掲載を続ける動機になるので、開いた瞬間に出す。
-          スマホ幅前提で主要4指標に絞る（7指標全部は本部画面 /hq/pit/gbp 側） */}
-      {perf && (
-        <div className="rounded-xl border border-line bg-surface p-3">
-          <div className="flex items-baseline justify-between">
-            <p className="text-sm font-bold text-ink">Googleでの表示実績</p>
-            <p className="text-[10px] text-ink-soft">直近30日・数日遅れで反映</p>
-          </div>
-          <div className="mt-2 grid grid-cols-4 gap-1.5">
-            {(() => {
-              const get = (kw: string) =>
-                perf
-                  .filter((r) => r.label.includes(kw))
-                  .reduce((a, r) => a + r.total, 0);
-              const items = [
-                { label: "マップ表示", v: get("マップ表示") },
-                { label: "検索表示", v: get("検索表示") },
-                { label: "電話", v: get("電話") },
-                { label: "ルート検索", v: get("ルート") },
-              ];
-              return items.map((it) => (
-                <div key={it.label} className="rounded-lg bg-paper px-1 py-2 text-center">
-                  <p className="text-base font-black leading-none text-ink">
-                    {it.v.toLocaleString()}
-                  </p>
-                  <p className="mt-1 text-[10px] text-ink-soft">{it.label}</p>
-                </div>
-              ));
-            })()}
-          </div>
-        </div>
-      )}
-
-      {/* mbPIT記事の閲覧実績（GA4設定済みのときだけ・1日1回キャッシュ）。
-          「マップで見られた数」（上のGBPカード）と「記事が読まれた数」を並べて
-          掲載効果の全体像を見せる */}
-      {articleStats && (
-        <div className="rounded-xl border border-line bg-surface p-3">
-          <div className="flex items-baseline justify-between">
-            <p className="text-sm font-bold text-ink">mbPITでの記事閲覧</p>
-            <p className="text-[10px] text-ink-soft">直近30日</p>
-          </div>
-          <div className="mt-2 grid grid-cols-2 gap-1.5">
-            <div className="rounded-lg bg-paper px-1 py-2 text-center">
-              <p className="text-base font-black leading-none text-ink">
-                {articleStats.views.toLocaleString()}
-              </p>
-              <p className="mt-1 text-[10px] text-ink-soft">閲覧数</p>
-            </div>
-            <div className="rounded-lg bg-paper px-1 py-2 text-center">
-              <p className="text-base font-black leading-none text-ink">
-                {articleStats.users.toLocaleString()}
-              </p>
-              <p className="mt-1 text-[10px] text-ink-soft">読んだ人</p>
-            </div>
-          </div>
-          {articleStats.top.length > 0 && (
-            <div className="mt-2">
-              <p className="text-[10px] font-bold text-ink-soft">よく読まれている記事</p>
-              <ul className="mt-1 space-y-0.5">
-                {articleStats.top.map((t) => (
-                  <li key={t.title} className="flex items-baseline justify-between gap-2 text-[11px]">
-                    <span className="truncate text-ink">{t.title}</span>
-                    <span className="shrink-0 text-ink-soft">{t.views}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-        </div>
-      )}
+      {/* 見られている実感カード（GBP表示実績＋記事閲覧。共通部品） */}
+      <StoreInsights storeId={store.id} />
 
       {/* Googleマップ連携。スマホは上部ナビが隠れるのでホームから開けるようにする。
           バッジは実状態（固定文言だと、機能が動き出しても「準備中」のままになる） */}

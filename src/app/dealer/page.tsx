@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { requireFullDealer } from "@/lib/authz";
 import { prisma } from "@/lib/db";
+import { StoreInsights } from "@/components/store-insights";
 import { currentMonthRange } from "@/lib/dates";
 import {
   requestStatusLabels,
@@ -41,7 +42,7 @@ export default async function DealerDashboard() {
       }),
       prisma.pitStore.findUnique({
         where: { dealerId: user.dealerId },
-        select: { active: true, gbpLocationId: true, gbpPostingEnabled: true, },
+        select: { id: true, active: true, gbpLocationId: true, gbpPostingEnabled: true },
       }),
     ]);
 
@@ -63,6 +64,13 @@ export default async function DealerDashboard() {
       {/* スマホ: 下タブに入っていないメニューへの入り口。
           投稿主役の代理店は「価格表」タブを畳んでいるので、ここ（ホーム）から開く。
           Googleマップ連携・店舗情報は下タブに枠が無いのでここに出す（上部ナビはスマホで隠れる）。 */}
+      {/* 見られている実感カード（GBP表示実績＋記事閲覧）。
+          代理店ホームにも出す＝mbPIT専用ホームと同じ数字が見える（共通部品） */}
+      {pitStore?.active && (
+        <div className="mt-3 space-y-3">
+          <StoreInsights storeId={pitStore.id} />
+        </div>
+      )}
       {pitStore?.active && (
         <div className="mt-3 space-y-2 sm:hidden">
           <Link
