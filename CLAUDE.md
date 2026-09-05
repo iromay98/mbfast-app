@@ -92,3 +92,16 @@ HQ（mbFAST Tuning本店）⇄ 代理店のポータル。Next.js 16 App Router 
 - **ハブページ**: /tuning/(メーカー一覧)と/tuning/{brand}/(シリーズ別車種一覧)はアプリが自動生成(hub-sync)。「全ページを再反映」後に自動追従、単独更新は「ハブページを更新」ボタン。車両ページ下部にハブへの内部リンク(vpg-related)が入る
 - **自動同期**: GitHub Actions `車両ページをWPへ同期`（毎時0分・手動実行可）が `vpages:wp-push --yes` を回す。価格表を直す／頁列で公開にするだけでよく、反映操作は不要。過去の取りこぼしもここで拾われる
 - コマンド: `npm run vpages:seed -- <brandId> [--commit]`（ドライラン既定）／ `vpages:set -- --list` `--slug X --status draft` `--option babble=on` `--related <記事ID>`（状態・オプション・実績記事の運用CLI）／ `vpages:wp-diff`（読み取りのみ）／ `vpages:wp-push -- --yes`（書込）／ `vpages:preview`（DB不要・.verify-out/ にサンプルHTML）
+
+## アップロード経路とファイル形式（2026-09-03 許可制導入）
+
+- **Dealer.uploadTools**（String[]・本部がHQ代理店編集で設定・複数可）が店の許可経路の単一の正:
+  - `AUTOTUNER` = AutoTunerスレーブ（自動復号・照合。従来のSLAVE運用）
+  - `MASTER_BIN` = 生bin（Kess3 Master・Powergate3・KTAG等。自動照合あり・納品も生bin）
+  - `KESS3_SLAVE` = Kess3 Slave（暗号化ファイル。**復号APIが存在しないため自動照合なし・本部が手動対応**）
+- `Dealer.fileFormat`（SLAVE/MASTER）はレガシー。フォーム保存時にuploadToolsから導出（生binのみ→MASTER）。配信側のOR判定に参照が残る
+- **ServiceRecord.fileFormat**（SLAVE/MASTER/KESS3_SLAVE）が記録単位の形式。配信判定は常に「記録 or 店」のORで見る（AutoTuner店でも案件単位でKess3交換ができる）
+- 加盟店の施工記録アップは `upload-switcher.tsx` が許可経路だけタブ表示（1経路の店はタブなし）
+- **Kess3 Slaveの流れ**: `uploadKess3SlaveRecord` がファイル預かり→記録作成（status=DECODED直行・UPLOADEDにすると一覧が解析中で回り続ける）→**FileRequestを自動起票**して本部通知。本部は通常の依頼フローで納品。納品DLは再暗号化なし・本部がアップしたファイル名のまま（`/api/requests/[id]/slave` のKESS3_SLAVE分岐）
+- 生bin/Kess3 Slave記録では bak（AutoTunerフルバックアップ）系は非表示・409。`kind=slave` のDLは常に元ファイル名（filenameFromKey）
+- 依頼詳細の「成果ファイル」(`/api/requests/[id]/[kind]` result)は記録紐づきだと代理店403が原則だが、MASTER/KESS3_SLAVE記録は例外で通す

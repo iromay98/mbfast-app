@@ -294,7 +294,11 @@ export function RecordDetail({
           <div className="flex flex-wrap gap-2">
             {record.slaveFilePath && (
               <LinkButton href={`/api/records/${record.id}/files/slave`} variant="secondary">
-                ⬇ slave
+                {record.fileFormat === "KESS3_SLAVE"
+                  ? "⬇ Kess3 Slaveファイル"
+                  : record.fileFormat === "MASTER"
+                    ? "⬇ 生bin（アップ原本）"
+                    : "⬇ slave"}
               </LinkButton>
             )}
             {/* 復号(decrypt)した純正binは本店のみ。代理店には一切出さない。 */}

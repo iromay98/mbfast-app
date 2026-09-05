@@ -576,7 +576,11 @@ export default async function HQRecordDetailPage({
               href={`/api/records/${record.id}/files/slave`}
               className="rounded-lg border border-line bg-white px-2.5 py-1 text-xs font-semibold text-ink-soft hover:bg-surface"
             >
-              ⬇ slave
+              {record.fileFormat === "KESS3_SLAVE"
+                ? "⬇ Kess3 Slaveファイル"
+                : record.fileFormat === "MASTER"
+                  ? "⬇ 生bin（アップ原本）"
+                  : "⬇ slave"}
             </a>
           )}
           {record.decryptedFilePath ? (
